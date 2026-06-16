@@ -128,8 +128,11 @@ function onSequencePickerSelect(sequence: string): void {
 }
 
 function onPromptTreeSelect(templateId: string): void {
+  // Capture the callback BEFORE hiding — hidePromptTree() clears the stored
+  // callback, so reading it afterwards would lose the caller's onSelect.
+  const cb = getPromptTreeCallback();
   hidePromptTree();
-  getPromptTreeCallback()?.(templateId);
+  cb?.(templateId);
 }
 
 function onQuickSpawnSelect(cliType: string): void {

@@ -42,7 +42,9 @@ const visibleNodes = computed<FlatNode[]>(() => {
   const result: FlatNode[] = [];
   function walk(node: TreeNode, depth: number): void {
     for (const child of node.children) {
-      const isFolder = child.children.length > 0;
+      // Discriminate by explicit kind — NOT children.length. An empty folder
+      // has [] children but must still behave (and render) as a folder.
+      const isFolder = child.kind === 'folder';
       result.push({ id: child.id, name: child.name, isFolder, depth });
       if (isFolder && expandedFolders.value.has(child.id)) {
         walk(child, depth + 1);
@@ -58,7 +60,7 @@ watch(() => props.visible, (v) => {
   if (v) {
     expandedFolders.value = new Set(
       props.tree.children
-        .filter(c => c.children.length > 0)
+        .filter(c => c.kind === 'folder')
         .map(c => c.id),
     );
     selectedIndex.value = 0;

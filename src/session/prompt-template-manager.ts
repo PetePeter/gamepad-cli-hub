@@ -265,11 +265,12 @@ export class PromptTemplateManager extends EventEmitter {
       id: parentId ?? '__root__',
       name: parentId ? (this.folders.get(parentId)?.name ?? '') : '',
       order: parentId ? (this.folders.get(parentId)?.order ?? 0) : -1,
+      kind: 'folder', // root and any folder branch are folders
       children: siblings.map(node => {
         if (this.folders.has(node.id)) {
           return this.buildSubtree(node.id);
         }
-        return { id: node.id, name: node.name, order: node.order, children: [] };
+        return { id: node.id, name: node.name, order: node.order, kind: 'template' as const, children: [] };
       }),
     };
   }
@@ -321,5 +322,11 @@ export interface TreeNode {
   id: string;
   name: string;
   order: number;
+  /**
+   * Explicit node kind. Consumers MUST use this to discriminate folders from
+   * templates — NOT children.length, since an empty folder also has [] children
+   * and would otherwise be misread as a template.
+   */
+  kind: 'folder' | 'template';
   children: TreeNode[];
 }

@@ -155,7 +155,7 @@ import { promptTemplatesClient } from '../ipc/clients.js';
 
 export const promptTree = reactive({
   visible: false,
-  tree: { id: '__root__', name: '', order: -1, children: [] } as TreeNode,
+  tree: { id: '__root__', name: '', order: -1, kind: 'folder', children: [] } as TreeNode,
 });
 
 let _promptTreeOnSelect: ((templateId: string) => void) | null = null;
@@ -176,7 +176,7 @@ export async function showPromptTree(onSelect: (templateId: string) => void): Pr
 
 export function hidePromptTree(): void {
   promptTree.visible = false;
-  promptTree.tree = { id: '__root__', name: '', order: -1, children: [] };
+  promptTree.tree = { id: '__root__', name: '', order: -1, kind: 'folder', children: [] };
   setPromptTreeCallback(null);
 }
 

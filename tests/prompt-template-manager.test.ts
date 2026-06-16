@@ -316,6 +316,22 @@ describe('PromptTemplateManager', () => {
       expect(folderNode!.children[0].name).toBe('T');
     });
 
+    it('tags nodes with explicit kind — folders (incl. empty) vs templates', () => {
+      // PT-4 bug 2: consumers must discriminate by kind, not children.length.
+      const folder = manager.createFolder('Folder');
+      const emptyFolder = manager.createFolder('Empty');
+      manager.createTemplate('Root T', 'body');
+
+      const tree = manager.getTree();
+      expect(tree.kind).toBe('folder'); // virtual root
+      const byId = new Map(tree.children.map(n => [n.id, n]));
+      expect(byId.get(folder.id)!.kind).toBe('folder');
+      expect(byId.get(emptyFolder.id)!.kind).toBe('folder'); // empty but still a folder
+      expect(byId.get(emptyFolder.id)!.children).toHaveLength(0);
+      const tmplNode = tree.children.find(n => n.name === 'Root T')!;
+      expect(tmplNode.kind).toBe('template');
+    });
+
     it('returns a flat list of all nodes', () => {
       const f = manager.createFolder('F');
       const t1 = manager.createTemplate('T1', 'b1');

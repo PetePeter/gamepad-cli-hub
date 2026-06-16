@@ -15,14 +15,14 @@ const GLOBAL_STUBS = { teleport: true } as const;
 
 function makeTree(): TreeNode {
   return {
-    id: '__root__', name: '', order: -1,
+    id: '__root__', name: '', order: -1, kind: 'folder',
     children: [
-      { id: 'f1', name: 'Folder A', order: 0, children: [
-        { id: 't1', name: 'Template 1', order: 0, children: [] },
-        { id: 't2', name: 'Template 2', order: 1, children: [] },
+      { id: 'f1', name: 'Folder A', order: 0, kind: 'folder', children: [
+        { id: 't1', name: 'Template 1', order: 0, kind: 'template', children: [] },
+        { id: 't2', name: 'Template 2', order: 1, kind: 'template', children: [] },
       ]},
-      { id: 't3', name: 'Root Template', order: 1, children: [] },
-      { id: 'f2', name: 'Empty Folder', order: 2, children: [] },
+      { id: 't3', name: 'Root Template', order: 1, kind: 'template', children: [] },
+      { id: 'f2', name: 'Empty Folder', order: 2, kind: 'folder', children: [] },
     ],
   };
 }
@@ -30,24 +30,24 @@ function makeTree(): TreeNode {
 function makeDeepTree(): TreeNode {
   // 13 visible nodes when fully expanded: 3 root folders + 2 templates in f1 + 2 in f1b + 2 in f1b_deep + 2 in f2 + 2 in f3
   return {
-    id: '__root__', name: '', order: -1,
+    id: '__root__', name: '', order: -1, kind: 'folder',
     children: [
-      { id: 'f1', name: 'Folder A', order: 0, children: [
-        { id: 't1', name: 'Template 1', order: 0, children: [] },
-        { id: 't2', name: 'Template 2', order: 1, children: [] },
-        { id: 'f1b', name: 'Subfolder B', order: 2, children: [
-          { id: 't3', name: 'Template 3', order: 0, children: [] },
-          { id: 't4', name: 'Template 4', order: 1, children: [] },
+      { id: 'f1', name: 'Folder A', order: 0, kind: 'folder', children: [
+        { id: 't1', name: 'Template 1', order: 0, kind: 'template', children: [] },
+        { id: 't2', name: 'Template 2', order: 1, kind: 'template', children: [] },
+        { id: 'f1b', name: 'Subfolder B', order: 2, kind: 'folder', children: [
+          { id: 't3', name: 'Template 3', order: 0, kind: 'template', children: [] },
+          { id: 't4', name: 'Template 4', order: 1, kind: 'template', children: [] },
         ]},
       ]},
-      { id: 'f2', name: 'Folder B', order: 1, children: [
-        { id: 't5', name: 'Template 5', order: 0, children: [] },
-        { id: 't6', name: 'Template 6', order: 1, children: [] },
+      { id: 'f2', name: 'Folder B', order: 1, kind: 'folder', children: [
+        { id: 't5', name: 'Template 5', order: 0, kind: 'template', children: [] },
+        { id: 't6', name: 'Template 6', order: 1, kind: 'template', children: [] },
       ]},
-      { id: 't7', name: 'Root Template', order: 2, children: [] },
-      { id: 'f3', name: 'Folder C', order: 3, children: [
-        { id: 't8', name: 'Template 8', order: 0, children: [] },
-        { id: 't9', name: 'Template 9', order: 1, children: [] },
+      { id: 't7', name: 'Root Template', order: 2, kind: 'template', children: [] },
+      { id: 'f3', name: 'Folder C', order: 3, kind: 'folder', children: [
+        { id: 't8', name: 'Template 8', order: 0, kind: 'template', children: [] },
+        { id: 't9', name: 'Template 9', order: 1, kind: 'template', children: [] },
       ]},
     ],
   };
@@ -252,18 +252,55 @@ describe('PromptTreeModal.vue', () => {
     w.unmount();
   });
 
-  it('renders folder expand icons only for folders with children', () => {
+  it('renders folder expand icons for all folders (including empty ones)', () => {
     const w = factory();
     const expandIcons = w.findAll('.prompt-tree-expand-icon');
-    // Only Folder A has children → isFolder=true → gets expand icon
-    // Empty Folder has children:[] → isFolder=false → no expand icon
-    expect(expandIcons).toHaveLength(1);
+    // Both Folder A and the empty folder f2 are kind:'folder' → both get an
+    // expand icon. Discriminated by kind, not children.length.
+    // Both Folder A and the empty folder f2 are kind:'folder' → both get an
+    // expand icon (auto-expanded on open). Discriminated by kind, not length.
+    expect(expandIcons).toHaveLength(2);
     expect(expandIcons[0].text()).toBe('▼'); // Folder A expanded
+    expect(expandIcons[1].text()).toBe('▼'); // Empty Folder also a folder
+    w.unmount();
+  });
+
+  it('empty folder (kind=folder, no children) toggles on A and does NOT emit select', () => {
+    // Regression for PT-4 bug 2: an empty folder was misread as a template via
+    // children.length === 0 and emitted its id as a selected templateId.
+    const w = factory();
+    const vm = w.vm as any;
+    // Visible: [Folder A, Template 1, Template 2, Root Template, Empty Folder]
+    // Navigate to Empty Folder (index 4).
+    vm.handleButton('DPadUp'); // wrap to last → index 4 (Empty Folder)
+    expect(vm.visibleNodes[vm.selectedIndex].id).toBe('f2');
+    expect(vm.visibleNodes[vm.selectedIndex].isFolder).toBe(true);
+
+    // f2 is auto-expanded on open; A collapses it (toggle) — no select emitted.
+    expect(vm.expandedFolders.has('f2')).toBe(true);
+    vm.handleButton('A');
+    expect(w.emitted('select')).toBeUndefined();
+    expect(vm.expandedFolders.has('f2')).toBe(false);
+
+    // A again re-expands it — still no select, confirming it never picks.
+    vm.handleButton('A');
+    expect(w.emitted('select')).toBeUndefined();
+    expect(vm.expandedFolders.has('f2')).toBe(true);
+    w.unmount();
+  });
+
+  it('template emits select on A (folder/template discriminator regression)', () => {
+    const w = factory();
+    const vm = w.vm as any;
+    vm.handleButton('DPadDown'); // index 1 → Template 1
+    expect(vm.visibleNodes[vm.selectedIndex].isFolder).toBe(false);
+    vm.handleButton('A');
+    expect(w.emitted('select')?.[0]).toEqual(['t1']);
     w.unmount();
   });
 
   it('empty tree renders no items', () => {
-    const emptyTree: TreeNode = { id: '__root__', name: '', order: -1, children: [] };
+    const emptyTree: TreeNode = { id: '__root__', name: '', order: -1, kind: 'folder', children: [] };
     const w = factory(emptyTree);
     expect(w.findAll('.prompt-tree-item')).toHaveLength(0);
     w.unmount();
