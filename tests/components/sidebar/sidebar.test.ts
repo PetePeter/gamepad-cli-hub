@@ -875,14 +875,14 @@ describe('BindingsTab', () => {
 
   it('renders binding cards', () => {
     const w = mount(BindingsTab, {
-      props: { bindings, sequenceGroups: [], cliType: 'claude-code', cliLabel: 'Claude', addableButtons: ['X'], copySourceOptions: [], sortField: 'button', sortDirection: 'asc' as const },
+      props: { bindings, cliType: 'claude-code', cliLabel: 'Claude', addableButtons: ['X'], copySourceOptions: [], sortField: 'button', sortDirection: 'asc' as const },
     });
     expect(w.findAll('.binding-card').length).toBe(2);
   });
 
   it('shows button and action', () => {
     const w = mount(BindingsTab, {
-      props: { bindings, sequenceGroups: [], cliType: 'claude-code', cliLabel: 'Claude', addableButtons: ['X'], copySourceOptions: [], sortField: 'button', sortDirection: 'asc' as const },
+      props: { bindings, cliType: 'claude-code', cliLabel: 'Claude', addableButtons: ['X'], copySourceOptions: [], sortField: 'button', sortDirection: 'asc' as const },
     });
     expect(w.find('.binding-card__button').text()).toBe('A');
     expect(w.find('.binding-card__action-badge').text()).toBe('keyboard');
@@ -890,14 +890,14 @@ describe('BindingsTab', () => {
 
   it('shows empty message when no bindings', () => {
     const w = mount(BindingsTab, {
-      props: { bindings: [], sequenceGroups: [], cliType: 'claude-code', cliLabel: 'Claude', addableButtons: ['A'], copySourceOptions: [], sortField: 'button', sortDirection: 'asc' as const },
+      props: { bindings: [], cliType: 'claude-code', cliLabel: 'Claude', addableButtons: ['A'], copySourceOptions: [], sortField: 'button', sortDirection: 'asc' as const },
     });
     expect(w.find('.settings-empty').text()).toContain('No bindings configured');
   });
 
   it('emits editBinding on card click', async () => {
     const w = mount(BindingsTab, {
-      props: { bindings, sequenceGroups: [], cliType: 'claude-code', cliLabel: 'Claude', addableButtons: ['X'], copySourceOptions: [], sortField: 'button', sortDirection: 'asc' as const },
+      props: { bindings, cliType: 'claude-code', cliLabel: 'Claude', addableButtons: ['X'], copySourceOptions: [], sortField: 'button', sortDirection: 'asc' as const },
     });
     const cards = w.findAll('.binding-card');
     await cards[0].trigger('click');
@@ -906,7 +906,7 @@ describe('BindingsTab', () => {
 
   it('emits deleteBinding on delete button double-click (confirm pattern)', async () => {
     const w = mount(BindingsTab, {
-      props: { bindings, sequenceGroups: [], cliType: 'claude-code', cliLabel: 'Claude', addableButtons: ['X'], copySourceOptions: [], sortField: 'button', sortDirection: 'asc' as const },
+      props: { bindings, cliType: 'claude-code', cliLabel: 'Claude', addableButtons: ['X'], copySourceOptions: [], sortField: 'button', sortDirection: 'asc' as const },
     });
     const cards = w.findAll('.binding-card');
     const deleteBtn = cards[0].find('.binding-card__delete');
@@ -915,20 +915,9 @@ describe('BindingsTab', () => {
     expect(w.emitted('deleteBinding')).toEqual([['A']]);
   });
 
-  it('renders sequence groups', () => {
-    const groups = [
-      { name: 'Common', items: [{ label: 'Clear', sequence: '/clear{Enter}' }] },
-    ];
-    const w = mount(BindingsTab, {
-      props: { bindings: [], sequenceGroups: groups, cliType: 'claude-code', cliLabel: 'Claude', addableButtons: ['A'], copySourceOptions: [], sortField: 'button', sortDirection: 'asc' as const },
-    });
-    expect(w.find('.binding-card__button').text()).toContain('Common');
-    expect(w.find('.binding-card__details').text()).toContain('Clear');
-  });
-
   it('emits addBinding from the add selector', async () => {
     const w = mount(BindingsTab, {
-      props: { bindings, sequenceGroups: [], cliType: 'claude-code', cliLabel: 'Claude', addableButtons: ['X', 'Y'], copySourceOptions: [], sortField: 'button', sortDirection: 'asc' as const },
+      props: { bindings, cliType: 'claude-code', cliLabel: 'Claude', addableButtons: ['X', 'Y'], copySourceOptions: [], sortField: 'button', sortDirection: 'asc' as const },
     });
     await w.find('.bindings-toolbar select').setValue('Y');
     expect(w.emitted('addBinding')).toEqual([['Y']]);
@@ -938,7 +927,6 @@ describe('BindingsTab', () => {
     const w = mount(BindingsTab, {
       props: {
         bindings,
-        sequenceGroups: [],
         cliType: 'claude-code',
         cliLabel: 'Claude',
         addableButtons: ['X'],
@@ -954,7 +942,7 @@ describe('BindingsTab', () => {
 
   it('emits sortChange when sort controls change', async () => {
     const w = mount(BindingsTab, {
-      props: { bindings, sequenceGroups: [], cliType: 'claude-code', cliLabel: 'Claude', addableButtons: ['X'], copySourceOptions: [], sortField: 'button', sortDirection: 'asc' as const },
+      props: { bindings, cliType: 'claude-code', cliLabel: 'Claude', addableButtons: ['X'], copySourceOptions: [], sortField: 'button', sortDirection: 'asc' as const },
     });
     const selects = w.findAll('.bindings-toolbar select');
     // No copySourceOptions → selects: [0]=add, [1]=sort-field (copy select absent)

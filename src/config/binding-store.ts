@@ -17,6 +17,27 @@ export class BindingStore {
 
   load(): void {
     this.data = loadYaml<{ [cliType: string]: ButtonBindings }>(this.filePath, {});
+    // PT-7: the 'sequence-list' action was renamed to 'prompt-tree'. Rewrite any
+    // legacy bindings on load so existing user buttons keep opening the picker,
+    // then persist once if anything changed.
+    if (this.migrateLegacyActions()) this.save();
+  }
+
+  /**
+   * Rewrite deprecated action names to their current equivalents in-place.
+   * Returns true if any binding was changed.
+   */
+  private migrateLegacyActions(): boolean {
+    let changed = false;
+    for (const bindings of Object.values(this.data)) {
+      for (const binding of Object.values(bindings)) {
+        if ((binding as { action?: string }).action === 'sequence-list') {
+          (binding as { action: string }).action = 'prompt-tree';
+          changed = true;
+        }
+      }
+    }
+    return changed;
   }
 
   get(cliType: string): ButtonBindings | null {

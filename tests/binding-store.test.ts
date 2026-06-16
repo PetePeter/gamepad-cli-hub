@@ -63,6 +63,27 @@ describe('BindingStore', () => {
     expect(mtimeAfter).toBe(mtimeBefore);
   });
 
+  it('migrates legacy sequence-list bindings to prompt-tree on load (PT-7)', () => {
+    // Seed a raw bindings.yaml containing the deprecated action name, as an
+    // upgraded user's file would after the rename.
+    const store = new BindingStore(TEST_DIR);
+    store.load();
+    store.setButton('Y', 'cc', { action: 'keyboard', sequence: '{Enter}' });
+    // Write the legacy action directly to disk, bypassing the typed setter.
+    const fs2 = require('fs') as typeof import('fs');
+    fs2.writeFileSync(
+      store.filePath,
+      'cc:\n  Y:\n    action: sequence-list\n    sequenceGroup: quick-actions\n',
+    );
+    const fresh = new BindingStore(TEST_DIR);
+    fresh.load();
+    expect(fresh.get('cc')?.Y?.action).toBe('prompt-tree');
+    // Migration is persisted, so a second load sees prompt-tree on disk.
+    const reread = new BindingStore(TEST_DIR);
+    reread.load();
+    expect(reread.get('cc')?.Y?.action).toBe('prompt-tree');
+  });
+
   it('importBulk populates all bindings and saves', () => {
     const store = new BindingStore(TEST_DIR);
     store.load();

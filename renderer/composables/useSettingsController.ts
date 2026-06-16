@@ -97,11 +97,6 @@ export interface SettingsBindingEntry {
   detail: string;
 }
 
-export interface SettingsSequenceGroup {
-  name: string;
-  items: Array<{ label: string; sequence: string }>;
-}
-
 const NON_CLI_SETTINGS_TABS = new Set(['tools', 'chipbar-actions', 'directories', 'projects', 'skills', 'telegram', 'mcp', 'backups']);
 
 function emptySkillDraft(): SettingsSkillDraft {
@@ -152,7 +147,6 @@ export function useSettingsController(options: {
   const settingsSkillDraft = ref<SettingsSkillDraft>(emptySkillDraft());
   const skillBodyCache = ref<Record<string, string>>({});
   const settingsBindings = ref<SettingsBindingEntry[]>([]);
-  const settingsSequenceGroups = ref<SettingsSequenceGroup[]>([]);
   const settingsBindingSortField = ref<BindingSortField>('button');
   const settingsBindingSortDirection = ref<SortDirection>('asc');
 
@@ -205,7 +199,6 @@ export function useSettingsController(options: {
     const tab = settingsTab.value;
     if (NON_CLI_SETTINGS_TABS.has(tab)) {
       settingsBindings.value = [];
-      settingsSequenceGroups.value = [];
       return;
     }
 
@@ -227,8 +220,6 @@ export function useSettingsController(options: {
       label: binding.label || binding.action || '',
       detail: binding.sequence || binding.command || '',
     }));
-
-    settingsSequenceGroups.value = [];
   }
 
   function buildSettingsTabs() {
@@ -1054,7 +1045,6 @@ export function useSettingsController(options: {
     settingsSkillDraft,
     skillBodyCache,
     settingsBindings,
-    settingsSequenceGroups,
     settingsBindingSortField,
     settingsBindingSortDirection,
     settingsAddableButtons,

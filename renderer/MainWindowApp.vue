@@ -223,7 +223,6 @@ const {
   settingsSkillDraft,
   skillBodyCache,
   settingsBindings,
-  settingsSequenceGroups,
   settingsBindingSortField,
   settingsBindingSortDirection,
   settingsAddableButtons,
@@ -263,9 +262,6 @@ const {
   onBindingDelete,
   onBindingCopyFrom,
   onBindingSortChange,
-  onAddSequenceGroup,
-  onEditSequenceGroup,
-  onDeleteSequenceGroup,
 } = useSettingsController({
   refreshProjects,
   doSpawnShell,
@@ -997,7 +993,6 @@ onUnmounted(() => {
             <BindingsTab
               v-else
               :bindings="settingsBindings"
-              :sequence-groups="settingsSequenceGroups"
               :cli-type="activeTab"
               :cli-label="getCliDisplayName(activeTab)"
               :addable-buttons="settingsAddableButtons"
@@ -1009,9 +1004,6 @@ onUnmounted(() => {
               @delete-binding="onBindingDelete"
               @copy-from="onBindingCopyFrom"
               @sort-change="onBindingSortChange"
-              @edit-sequence-group="onEditSequenceGroup"
-              @delete-sequence-group="onDeleteSequenceGroup"
-              @add-sequence-group="onAddSequenceGroup"
             />
           </template>
         </SettingsPanel>
