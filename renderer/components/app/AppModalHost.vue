@@ -6,6 +6,7 @@ import {
   planDeleteConfirm, getPlanDeleteCallback, setPlanDeleteCallback,
   clearDonePlans, getClearDonePlansCallback,
   sequencePicker, getSequencePickerCallback,
+  promptTree, getPromptTreeCallback, hidePromptTree,
   quickSpawn, getQuickSpawnCallback, closeQuickSpawn,
   dirPicker, closeDirPicker,
   draftSubmenu,
@@ -17,6 +18,7 @@ import type { ScheduledTask, ScheduledTaskHistoryEntry } from '../../../src/type
 import CloseConfirmModal from '../modals/CloseConfirmModal.vue';
 import PlanDeleteConfirmModal from '../modals/PlanDeleteConfirmModal.vue';
 import SequencePickerModal from '../modals/SequencePickerModal.vue';
+import PromptTreeModal from '../modals/PromptTreeModal.vue';
 import QuickSpawnModal from '../modals/QuickSpawnModal.vue';
 import ContextMenu from '../modals/ContextMenu.vue';
 import DraftSubmenu from '../modals/DraftSubmenu.vue';
@@ -125,6 +127,11 @@ function onSequencePickerSelect(sequence: string): void {
   getSequencePickerCallback()?.(sequence);
 }
 
+function onPromptTreeSelect(templateId: string): void {
+  hidePromptTree();
+  getPromptTreeCallback()?.(templateId);
+}
+
 function onQuickSpawnSelect(cliType: string): void {
   const cb = getQuickSpawnCallback();
   closeQuickSpawn();
@@ -186,6 +193,13 @@ function onToolEditorSave(values: any): void {
     :items="sequencePicker.items"
     @select="onSequencePickerSelect"
     @cancel="sequencePicker.visible = false"
+  />
+
+  <PromptTreeModal
+    v-model:visible="promptTree.visible"
+    :tree="promptTree.tree"
+    @select="onPromptTreeSelect"
+    @cancel="hidePromptTree()"
   />
 
   <QuickSpawnModal

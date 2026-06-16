@@ -11,9 +11,10 @@
 
 import { ref, computed, readonly, type Ref, type DeepReadonly } from 'vue';
 
-export type InterceptKey = 'arrows' | 'tab' | 'enter' | 'escape' | 'space' | 'digits';
+export type InterceptKey = 'arrows' | 'tab' | 'enter' | 'escape' | 'space' | 'digits' | 'letters';
 
 export const SELECTION_KEYS = new Set<InterceptKey>(['arrows', 'tab', 'enter', 'escape', 'space', 'digits']);
+export const TREE_SELECTION_KEYS = new Set<InterceptKey>(['arrows', 'tab', 'enter', 'escape', 'space', 'digits', 'letters']);
 export const FORM_KEYS = new Set<InterceptKey>(['escape']);
 
 export interface ModalEntry {

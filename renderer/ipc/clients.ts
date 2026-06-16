@@ -57,3 +57,4 @@ export const keyboardClient = domainClient('keyboard');
 export const dialogClient = domainClient('dialog');
 export const systemClient = domainClient('system');
 export const eventsClient = domainClient('events');
+export const promptTemplatesClient = domainClient('promptTemplates');

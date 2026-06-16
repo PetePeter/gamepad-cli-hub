@@ -90,6 +90,12 @@ export function useModalKeyboardBridge() {
       if (e.ctrlKey || e.altKey || e.metaKey) return;
       e.preventDefault();
       stack.handleInput(`Digit${e.key}`);
+    } else if (e.key.length === 1 && e.key >= 'a' && e.key <= 'z') {
+      // Jump letters: bare letter selects the Nth row in a tree picker (positions 10-35).
+      if (!interceptKeys.has('letters') || editableInModal) return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      e.preventDefault();
+      stack.handleInput(`Key${e.key.toUpperCase()}`);
     }
   }
 

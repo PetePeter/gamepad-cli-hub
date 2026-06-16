@@ -147,6 +147,40 @@ export function hideSequencePicker(): void {
 }
 
 // ============================================================================
+// Prompt Tree Picker
+// ============================================================================
+
+import type { TreeNode } from '../../src/session/prompt-template-manager.js';
+import { promptTemplatesClient } from '../ipc/clients.js';
+
+export const promptTree = reactive({
+  visible: false,
+  tree: { id: '__root__', name: '', order: -1, children: [] } as TreeNode,
+});
+
+let _promptTreeOnSelect: ((templateId: string) => void) | null = null;
+export function setPromptTreeCallback(cb: ((templateId: string) => void) | null): void { _promptTreeOnSelect = cb; }
+export function getPromptTreeCallback(): ((templateId: string) => void) | null { return _promptTreeOnSelect; }
+
+export async function showPromptTree(onSelect: (templateId: string) => void): Promise<void> {
+  try {
+    const tree = await promptTemplatesClient.promptTemplateList();
+    if (!tree || tree.children.length === 0) return;
+    promptTree.visible = true;
+    promptTree.tree = tree;
+    setPromptTreeCallback(onSelect);
+  } catch {
+    // IPC failed — silently skip opening the modal
+  }
+}
+
+export function hidePromptTree(): void {
+  promptTree.visible = false;
+  promptTree.tree = { id: '__root__', name: '', order: -1, children: [] };
+  setPromptTreeCallback(null);
+}
+
+// ============================================================================
 // Quick Spawn
 // ============================================================================
 
@@ -353,6 +387,6 @@ export function isAnyBridgeModalVisible(): boolean {
   return closeConfirm.visible || contextMenu.visible || planDeleteConfirm.visible ||
     clearDonePlans.visible || sequencePicker.visible || quickSpawn.visible || dirPicker.visible ||
     draftSubmenu.visible || formModal.visible || editorPopupStore.visible || toolEditor.visible ||
-    planHelp.visible || escProtection.isProtecting.value;
+    planHelp.visible || promptTree.visible || escProtection.isProtecting.value;
 }
 
