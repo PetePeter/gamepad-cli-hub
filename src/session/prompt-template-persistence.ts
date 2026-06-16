@@ -126,10 +126,32 @@ export interface MigrationResult {
 }
 
 /**
+ * True when the target file exists and already contains migrated content
+ * (at least one folder or template). An empty/malformed file — including
+ * the shipped `folders: [] / templates: []` seed stub — returns false so
+ * the one-time migration runs over it.
+ */
+function hasMigratedContent(targetPath: string): boolean {
+  if (!fs.existsSync(targetPath)) return false;
+  try {
+    const parsed = YAML.parse(fs.readFileSync(targetPath, 'utf8')) as PromptTemplatesFile | null;
+    if (!parsed) return false;
+    const folders = Array.isArray(parsed.folders) ? parsed.folders.length : 0;
+    const templates = Array.isArray(parsed.templates) ? parsed.templates.length : 0;
+    return folders > 0 || templates > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * One-time migration: reads all profile YAMLs' `sequences` groups and
  * merges them into the manager as folders (group name) + templates (items).
  *
- * Idempotent: if the target file already exists, migration is skipped.
+ * Idempotent: if the target file already holds migrated content (any
+ * folder or template), migration is skipped. An empty seed stub (the
+ * shipped default `folders: [] / templates: []`) does NOT count as
+ * migrated, so first launch still migrates over the seeded placeholder.
  * Always saves the resulting tree (even if empty) to the target file.
  */
 export function migrateSequencesToTemplates(
@@ -137,9 +159,11 @@ export function migrateSequencesToTemplates(
   targetPath: string,
   manager: PromptTemplateManager,
 ): MigrationResult {
-  // Idempotency: skip if file already exists
-  if (fs.existsSync(targetPath)) {
-    logger.info('prompt-template-persistence: migration skipped, file already exists');
+  // Idempotency: skip only if the file already holds migrated content.
+  // An empty seed stub is treated as "not yet migrated" so the one-time
+  // migration still runs over the shipped placeholder on first launch.
+  if (hasMigratedContent(targetPath)) {
+    logger.info('prompt-template-persistence: migration skipped, file already populated');
     return { migratedGroups: 0, migratedTemplates: 0 };
   }
 
