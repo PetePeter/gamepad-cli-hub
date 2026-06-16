@@ -204,6 +204,49 @@ describe('PromptTemplateManager', () => {
       expect((manager.getNode(parent.id) as PromptFolder)!.parentId).toBeNull();
     });
 
+    it('moving a node to its CURRENT parent is a no-op (no order change, no event)', () => {
+      // Regression (PT-1): same-parent move must not reorder or emit a false change.
+      const folder = manager.createFolder('F');
+      const a = manager.createTemplate('A', 'a', folder.id); // order 0
+      const b = manager.createTemplate('B', 'b', folder.id); // order 1
+      onChanged.mockClear();
+
+      // Move A to the folder it already lives in.
+      const ok = manager.moveNode(a.id, folder.id);
+
+      expect(ok).toBe(true);
+      // Order must be unchanged — A stays at 0, not bumped to max+1.
+      expect((manager.getNode(a.id) as PromptTemplate).order).toBe(0);
+      expect((manager.getNode(b.id) as PromptTemplate).order).toBe(1);
+      // No structural change → no event.
+      expect(onChanged).not.toHaveBeenCalled();
+    });
+
+    it('moving a root node to root (null) is a no-op (no order change, no event)', () => {
+      const a = manager.createTemplate('A', 'a'); // root, order 0
+      const b = manager.createTemplate('B', 'b'); // root, order 1
+      onChanged.mockClear();
+
+      const ok = manager.moveNode(a.id, null);
+
+      expect(ok).toBe(true);
+      expect((manager.getNode(a.id) as PromptTemplate).order).toBe(0);
+      expect((manager.getNode(b.id) as PromptTemplate).order).toBe(1);
+      expect(onChanged).not.toHaveBeenCalled();
+    });
+
+    it('move to a genuinely new parent still appends at end', () => {
+      const folder = manager.createFolder('F');
+      manager.createTemplate('Existing', 'e', folder.id); // order 0
+      const t = manager.createTemplate('T', 'body'); // root
+      onChanged.mockClear();
+
+      expect(manager.moveNode(t.id, folder.id)).toBe(true);
+      expect((manager.getNode(t.id) as PromptTemplate).parentId).toBe(folder.id);
+      expect((manager.getNode(t.id) as PromptTemplate).order).toBe(1);
+      expect(onChanged).toHaveBeenCalledTimes(1);
+    });
+
     it('move of unknown id returns false', () => {
       expect(manager.moveNode('nope', null)).toBe(false);
       expect(onChanged).not.toHaveBeenCalled();
@@ -305,14 +348,17 @@ describe('PromptTemplateManager', () => {
       manager.updateTemplate(tmpl.id, { body: 'updated' });
       expect(handler).toHaveBeenCalledTimes(4);
 
-      manager.moveNode(tmpl.id, null);
+      const dest = manager.createFolder('Dest');
       expect(handler).toHaveBeenCalledTimes(5);
 
-      manager.reorderNode(tmpl.id, 0);
+      manager.moveNode(tmpl.id, dest.id); // genuine cross-parent move
       expect(handler).toHaveBeenCalledTimes(6);
 
-      manager.deleteNodes([tmpl.id]);
+      manager.reorderNode(tmpl.id, 0);
       expect(handler).toHaveBeenCalledTimes(7);
+
+      manager.deleteNodes([tmpl.id]);
+      expect(handler).toHaveBeenCalledTimes(8);
     });
 
     it('does not emit for failed mutations', () => {

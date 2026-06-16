@@ -148,6 +148,12 @@ export class PromptTemplateManager extends EventEmitter {
     // Cannot move a folder into itself
     if (folder && newParentId === id) return false;
 
+    // Same-parent move is a no-op: reordering within a parent is reorderNode()'s
+    // job. Without this guard, nextOrder() (which counts the node itself) would
+    // bump the node to max+1 and emit a false change event. Treat as success.
+    const currentParentId = folder ? folder.parentId : tmpl!.parentId;
+    if (currentParentId === newParentId) return true;
+
     const order = this.nextOrder(newParentId);
     if (folder) {
       folder.parentId = newParentId;
