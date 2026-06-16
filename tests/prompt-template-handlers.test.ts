@@ -19,7 +19,10 @@ let mockAllWindows: Array<{ isDestroyed: () => boolean; webContents: { send: (ch
 vi.mock('electron', () => ({
   ipcMain: {
     handle: vi.fn((channel: string, handler: Function) => {
-      handleCalls.set(channel, handler);
+      // Real Electron's ipcMain.handle wraps the handler in a promise: a
+      // synchronous throw surfaces to the renderer as a rejected invoke.
+      // Mirror that so validation throws are testable via .rejects.
+      handleCalls.set(channel, (...args: unknown[]) => Promise.resolve().then(() => handler(...args)));
     }),
     removeHandler: vi.fn((channel: string) => {
       handleCalls.delete(channel);
@@ -372,6 +375,125 @@ describe('prompt-template handlers', () => {
       // Should not throw
       const result = await handler({}, 'No Windows', null);
       expect(result).toBeDefined();
+    });
+  });
+
+  // ── Argument validation (untrusted renderer payloads) ───────────
+
+  describe('argument validation', () => {
+    it('rejects createFolder with a non-string name and does not mutate', async () => {
+      setupPromptTemplateHandlers(manager, savePath);
+      const handler = getHandler('prompt-template:createFolder');
+
+      await expect(handler({}, 42, null)).rejects.toThrow(/Invalid name/);
+      expect(manager.getTree().children).toHaveLength(0);
+      expect(fs.existsSync(savePath)).toBe(false);
+    });
+
+    it('rejects createTemplate with a non-string body and does not mutate', async () => {
+      setupPromptTemplateHandlers(manager, savePath);
+      const handler = getHandler('prompt-template:createTemplate');
+
+      await expect(handler({}, 'name', { evil: true }, null)).rejects.toThrow(/Invalid body/);
+      expect(manager.getTree().children).toHaveLength(0);
+    });
+
+    it('rejects update with a non-object changes payload', async () => {
+      const tmpl = manager.createTemplate('Old', 'old body');
+      setupPromptTemplateHandlers(manager, savePath);
+      const handler = getHandler('prompt-template:update');
+
+      await expect(handler({}, tmpl.id, 'not-an-object')).rejects.toThrow(/Invalid changes/);
+      const node = manager.getNode(tmpl.id) as any;
+      expect(node.body).toBe('old body');
+    });
+
+    it('rejects update with a non-string field inside changes', async () => {
+      const tmpl = manager.createTemplate('Old', 'old body');
+      setupPromptTemplateHandlers(manager, savePath);
+      const handler = getHandler('prompt-template:update');
+
+      await expect(handler({}, tmpl.id, { name: 99 })).rejects.toThrow(/Invalid name/);
+      expect((manager.getNode(tmpl.id) as any).name).toBe('Old');
+    });
+
+    it('rejects delete when ids is not an array', async () => {
+      setupPromptTemplateHandlers(manager, savePath);
+      const handler = getHandler('prompt-template:delete');
+
+      await expect(handler({}, 'not-an-array')).rejects.toThrow(/Invalid ids/);
+    });
+
+    it('rejects delete when ids contains a non-string / empty entry', async () => {
+      const tmpl = manager.createTemplate('Keep Me', 'body');
+      setupPromptTemplateHandlers(manager, savePath);
+      const handler = getHandler('prompt-template:delete');
+
+      await expect(handler({}, [tmpl.id, ''])).rejects.toThrow(/Invalid ids entry/);
+      expect(manager.getNode(tmpl.id)).not.toBeNull();
+    });
+
+    it('rejects reorder with a non-integer order', async () => {
+      const tmpl = manager.createTemplate('T', 'body');
+      setupPromptTemplateHandlers(manager, savePath);
+      const handler = getHandler('prompt-template:reorder');
+
+      await expect(handler({}, tmpl.id, 'first')).rejects.toThrow(/Invalid newOrder/);
+    });
+
+    it('rejects getNode / rename with empty id', async () => {
+      setupPromptTemplateHandlers(manager, savePath);
+
+      await expect(getHandler('prompt-template:getNode')({}, '')).rejects.toThrow(/Invalid id/);
+      await expect(getHandler('prompt-template:rename')({}, '', 'x')).rejects.toThrow(/Invalid id/);
+    });
+
+    it('rejects a malformed parentId (empty string)', async () => {
+      setupPromptTemplateHandlers(manager, savePath);
+      const handler = getHandler('prompt-template:createFolder');
+
+      await expect(handler({}, 'name', '')).rejects.toThrow(/Invalid parentId/);
+      expect(manager.getTree().children).toHaveLength(0);
+    });
+  });
+
+  // ── Listener cleanup (no stacking) ──────────────────────────────
+
+  describe('listener cleanup', () => {
+    it('removes the change listener so only ONE save/fan-out runs per mutation', async () => {
+      const mockSend = vi.fn();
+      mockAllWindows = [{ isDestroyed: () => false, webContents: { send: mockSend } }];
+
+      // First setup, then tear it down.
+      const cleanup1 = setupPromptTemplateHandlers(manager, savePath);
+      cleanup1();
+
+      // Re-register fresh handlers on the same manager instance.
+      setupPromptTemplateHandlers(manager, savePath);
+
+      const handler = getHandler('prompt-template:createFolder');
+      await handler({}, 'Once', null);
+
+      // Stacking would fire the fan-out twice (one per surviving listener).
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      expect(manager.listenerCount('prompt-template:changed')).toBe(1);
+    });
+
+    it('calling setup twice without cleanup would stack — cleanup prevents it', async () => {
+      const cleanup = setupPromptTemplateHandlers(manager, savePath);
+      expect(manager.listenerCount('prompt-template:changed')).toBe(1);
+
+      cleanup();
+      expect(manager.listenerCount('prompt-template:changed')).toBe(0);
+    });
+
+    it('cleanup unregisters all IPC channels', () => {
+      const cleanup = setupPromptTemplateHandlers(manager, savePath);
+      expect(handleCalls.has('prompt-template:createFolder')).toBe(true);
+
+      cleanup();
+      expect(handleCalls.has('prompt-template:createFolder')).toBe(false);
+      expect(handleCalls.has('prompt-template:list')).toBe(false);
     });
   });
 });

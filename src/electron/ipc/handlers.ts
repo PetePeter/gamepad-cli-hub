@@ -202,9 +202,9 @@ export function registerIPCHandlers(
   setupScheduledTaskHandlers(scheduledTaskManager, scheduledTaskHistoryManager, windowManager);
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, undefined, undefined, undefined, patternMatcher);
   setupBackupPlanHandlers(ipcMain, windowManager, () => backupManager);
-  if (promptTemplatesPath) {
-    setupPromptTemplateHandlers(promptTemplateManager, promptTemplatesPath);
-  }
+  const cleanupPromptTemplates = promptTemplatesPath
+    ? setupPromptTemplateHandlers(promptTemplateManager, promptTemplatesPath)
+    : () => {};
 
   // Wire automatic backup scheduling: backup a directory when plans change,
   // but only if enough time has passed since the last backup for that dir.
@@ -337,6 +337,7 @@ export function registerIPCHandlers(
       cleanupTelegram();
       telegramModules.cleanup();
       cleanupSession();
+      cleanupPromptTemplates();
       cancelAllPrompts();
       stateDetector.dispose();
       patternMatcher.dispose();
