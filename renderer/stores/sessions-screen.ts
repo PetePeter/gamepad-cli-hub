@@ -11,6 +11,7 @@ import { reactive, computed } from 'vue';
 import type { NavItem, SessionGroup, SessionGroupPrefs } from '../session-groups.js';
 import { isSessionHiddenFromOverview } from '../session-groups.js';
 import { buildSessionShortcutMap } from '../utils/session-shortcut-map.js';
+import { state } from '../state.js';
 import type { ProjectDirectoryItem } from '../screens/planner-directories.js';
 
 export type SessionsFocus = 'sessions' | 'spawn' | 'plans';
@@ -87,8 +88,10 @@ export const useSessionsScreenStore = defineStore('sessionsScreen', () => {
     return hidden;
   });
 
+  const snappedOutSessionIds = computed<Set<string>>(() => state.snappedOutSessions);
+
   const sessionShortcutMap = computed<Map<string, number>>(() =>
-    buildSessionShortcutMap(sessionsState.navList, hiddenSessionIds.value),
+    buildSessionShortcutMap(sessionsState.navList, hiddenSessionIds.value, snappedOutSessionIds.value),
   );
 
   function setFocus(zone: SessionsFocus): void {

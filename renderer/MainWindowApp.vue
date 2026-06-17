@@ -774,20 +774,15 @@ onMounted(async () => {
       : null;
 
     // A popout pressed Ctrl+<n>: the main window owns slot→session ordering, so
-    // it resolves the slot and raises the owning window. For a local session it
-    // also switches this window to that terminal; for a session that lives in
-    // another popout it only raises that popout, leaving this window's current
-    // view (plan/overview/terminal) untouched.
+    // it resolves the slot and raises the owning window. Snapped-out sessions
+    // are excluded from the shortcut map, so every resolved session is local
+    // and we switch the main window to its terminal.
     unsubFocusSlot = eventsClient.onFocusSlot
       ? eventsClient.onFocusSlot((slot: number) => {
-          const action = resolveFocusSlot(
-            slot,
-            sessionsScreenStore.sessionShortcutMap,
-            (id) => state.snappedOutSessions.has(id),
-          );
-          if (!action) return;
-          if (action.switchToTerminal) void navStore.navigateToSession(action.sessionId);
-          void sessionsClient.sessionFocusWindow(action.sessionId);
+          const sessionId = resolveFocusSlot(slot, sessionsScreenStore.sessionShortcutMap);
+          if (!sessionId) return;
+          void navStore.navigateToSession(sessionId);
+          void sessionsClient.sessionFocusWindow(sessionId);
         })
       : null;
 

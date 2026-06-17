@@ -12,6 +12,7 @@ import { logEvent, getCliDisplayName, toDirection } from '../utils.js';
 import type { Session } from '../state.js';
 import { closeConfirm, setCloseConfirmCallback } from '../stores/modal-bridge.js';
 import { sortSessions, type SessionSortField, type SortDirection } from '../sort-logic.js';
+import { getOrderedSessionIds } from '../utils/session-shortcut-map.js';
 import {
   groupSessionsByDirectory, buildFlatNavList,
   toggleCollapse,
@@ -500,8 +501,9 @@ export function syncSessionHighlight(sessionId: string): void {
 
 /**
  * Returns session IDs in visual display order for Ctrl+Tab cycling.
- * Uses navList (group-aware, sorted) as primary order, then appends any
- * terminal sessions hidden inside collapsed groups so they're still reachable.
+ * Delegates to getOrderedSessionIds for a single ordering source shared
+ * with the Ctrl+N shortcut map. Collapsed-group sessions are naturally
+ * absent from navList and thus excluded.
  */
 export function getTabCycleSessionIds(): string[] {
   const hiddenIds = new Set(
@@ -509,17 +511,8 @@ export function getTabCycleSessionIds(): string[] {
       .filter(session => isSessionHiddenFromOverview(session))
       .map(session => session.id),
   );
-  const visibleIds = sessionsState.navList
-    .filter(item => item.type === 'session-card' && !hiddenIds.has(item.id))
-    .map(item => item.id);
-
-  const visibleSet = new Set(visibleIds);
-  const eligibleIds = state.sessions
-    .filter(session => !hiddenIds.has(session.id))
-    .map(session => session.id);
-  const collapsedIds = eligibleIds.filter(id => !visibleSet.has(id));
-
-  return [...visibleIds, ...collapsedIds];
+  const snappedOutIds = state.snappedOutSessions;
+  return getOrderedSessionIds(sessionsState.navList, hiddenIds, snappedOutIds);
 }
 
 // ============================================================================
