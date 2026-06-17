@@ -95,9 +95,10 @@ vi.mock('../src/output/keyboard.js', () => ({
   keyboard: {},
 }));
 
-vi.mock('../src/utils/logger.js', () => ({
-  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-}));
+vi.mock('../src/utils/logger.js', () => {
+  const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
+  return { logger, default: logger };
+});
 
 // Mock all the setup* functions
 vi.mock('../src/electron/ipc/session-handlers.js', () => ({

@@ -17,6 +17,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { promptTemplatesClient, eventsClient } from '../../ipc/clients.js';
 import { treeJumpKeyLabel } from '../../utils/jump-keys.js';
+import FormModal, { type FormField } from '../modals/FormModal.vue';
 import type { TreeNode } from '../../../src/session/prompt-template-manager.js';
 import type { PromptTemplate } from '../../../src/session/prompt-template-types.js';
 
@@ -252,23 +253,64 @@ async function updateSelected(): Promise<void> {
   await promptTemplatesClient.promptTemplateUpdate(id, { body: props.currentText });
 }
 
-// ── UI handlers (prompt for names) ────────────────────────────────
+// ── UI handlers (in-app name dialog) ──────────────────────────────
+//
+// Electron does NOT implement window.prompt() (it returns null), so name
+// entry routes through the in-app FormModal instead of a native prompt.
+
+type NameAction = 'create-folder' | 'rename' | 'save-new';
+
+const nameDialogVisible = ref(false);
+const nameDialogAction = ref<NameAction | null>(null);
+
+const nameDialogTitle = computed(() => {
+  switch (nameDialogAction.value) {
+    case 'create-folder': return 'New Folder';
+    case 'rename': return 'Rename';
+    case 'save-new': return 'Save Template';
+    default: return '';
+  }
+});
+
+const nameDialogFields = computed<FormField[]>(() => [{
+  key: 'name',
+  label: 'Name',
+  required: true,
+  placeholder: nameDialogAction.value === 'create-folder' ? 'Folder name' : 'Template name',
+  defaultValue: nameDialogAction.value === 'rename' ? (activeNode.value?.name ?? '') : '',
+}]);
+
+function openNameDialog(action: NameAction): void {
+  nameDialogAction.value = action;
+  nameDialogVisible.value = true;
+}
 
 function promptCreateFolder(): void {
-  const name = window.prompt('New folder name:');
-  if (name != null) void createFolder(name);
+  openNameDialog('create-folder');
 }
 
 function promptRename(): void {
   if (!canRename.value) return;
-  const current = activeNode.value?.name ?? '';
-  const name = window.prompt('Rename to:', current);
-  if (name != null) void renameNode(name);
+  openNameDialog('rename');
 }
 
 function promptSaveNew(): void {
-  const name = window.prompt('Save as template name:');
-  if (name != null) void saveNew(name);
+  openNameDialog('save-new');
+}
+
+function onNameDialogSave(values: Record<string, string>): void {
+  const name = values.name ?? '';
+  const action = nameDialogAction.value;
+  nameDialogVisible.value = false;
+  nameDialogAction.value = null;
+  if (action === 'create-folder') void createFolder(name);
+  else if (action === 'rename') void renameNode(name);
+  else if (action === 'save-new') void saveNew(name);
+}
+
+function onNameDialogCancel(): void {
+  nameDialogVisible.value = false;
+  nameDialogAction.value = null;
 }
 
 watch(() => props.currentText, () => { /* keep reactive for save-new/update */ });
@@ -303,20 +345,42 @@ defineExpose({
 <template>
   <div class="prompt-mgmt-tree">
     <div class="prompt-mgmt-tree__toolbar">
-      <button class="btn btn--sm btn--secondary" title="New folder" @click="promptCreateFolder">📁＋</button>
-      <button class="btn btn--sm btn--secondary" :disabled="!canRename" title="Rename" @click="promptRename">✏️</button>
-      <button class="btn btn--sm btn--secondary" :disabled="!canDelete" title="Delete" @click="deleteSelected">🗑️</button>
+      <button class="btn btn--sm btn--secondary prompt-mgmt-tree__btn" title="Create a new folder in the selected folder" @click="promptCreateFolder">
+        <span class="prompt-mgmt-tree__btn-icon">📁＋</span><span class="prompt-mgmt-tree__btn-label">New</span>
+      </button>
+      <button class="btn btn--sm btn--secondary prompt-mgmt-tree__btn" :disabled="!canRename" title="Rename the selected item" @click="promptRename">
+        <span class="prompt-mgmt-tree__btn-icon">✏️</span><span class="prompt-mgmt-tree__btn-label">Rename</span>
+      </button>
+      <button class="btn btn--sm btn--secondary prompt-mgmt-tree__btn" :disabled="!canDelete" title="Delete the selected item(s)" @click="deleteSelected">
+        <span class="prompt-mgmt-tree__btn-icon">🗑️</span><span class="prompt-mgmt-tree__btn-label">Delete</span>
+      </button>
       <button
-        class="btn btn--sm btn--secondary"
+        class="btn btn--sm btn--secondary prompt-mgmt-tree__btn"
         :class="{ 'btn--focused': moveMode }"
         :disabled="!canMove"
-        title="Move (then click a folder)"
+        title="Move selected item(s) — then click a destination folder"
         @click="moveMode ? cancelMove() : beginMove()"
-      >➡️</button>
-      <button class="btn btn--sm btn--secondary" :disabled="!canLoad" title="Load into editor" @click="loadSelected">📥</button>
-      <button class="btn btn--sm btn--secondary" title="Save new template" @click="promptSaveNew">💾＋</button>
-      <button class="btn btn--sm btn--secondary" :disabled="!canUpdate" title="Update template" @click="updateSelected">✔️</button>
+      >
+        <span class="prompt-mgmt-tree__btn-icon">➡️</span><span class="prompt-mgmt-tree__btn-label">Move</span>
+      </button>
+      <button class="btn btn--sm btn--secondary prompt-mgmt-tree__btn" :disabled="!canLoad" title="Load the selected template into the editor" @click="loadSelected">
+        <span class="prompt-mgmt-tree__btn-icon">📥</span><span class="prompt-mgmt-tree__btn-label">Load</span>
+      </button>
+      <button class="btn btn--sm btn--secondary prompt-mgmt-tree__btn" title="Save the editor text as a new template" @click="promptSaveNew">
+        <span class="prompt-mgmt-tree__btn-icon">💾＋</span><span class="prompt-mgmt-tree__btn-label">Save</span>
+      </button>
+      <button class="btn btn--sm btn--secondary prompt-mgmt-tree__btn" :disabled="!canUpdate" title="Overwrite the selected template with the editor text" @click="updateSelected">
+        <span class="prompt-mgmt-tree__btn-icon">✔️</span><span class="prompt-mgmt-tree__btn-label">Update</span>
+      </button>
     </div>
+
+    <FormModal
+      v-model:visible="nameDialogVisible"
+      :title="nameDialogTitle"
+      :fields="nameDialogFields"
+      @save="onNameDialogSave"
+      @cancel="onNameDialogCancel"
+    />
 
     <div v-if="moveMode" class="prompt-mgmt-tree__move-hint">
       Click a folder to move {{ selectionCount }} item(s) · <button class="link-btn" @click="completeMove(null)">root</button> · <button class="link-btn" @click="cancelMove">cancel</button>
@@ -333,11 +397,12 @@ defineExpose({
           'prompt-mgmt-tree__item--active': node.id === activeId,
           'prompt-mgmt-tree__item--folder': node.isFolder,
         }"
-        :style="{ paddingLeft: `${8 + node.depth * 16}px` }"
         :role="node.isFolder ? 'treeitem' : undefined"
         @click="onNodeClick(node, $event.ctrlKey || $event.metaKey)"
       >
         <span v-if="treeJumpKeyLabel(i) != null" class="jump-key">{{ treeJumpKeyLabel(i) }}</span>
+        <!-- Depth indent lives AFTER the accelerator so jump keys stay left-aligned. -->
+        <span class="prompt-mgmt-tree__indent" :style="{ width: `${node.depth * 16}px` }"></span>
         <span
           v-if="node.isFolder"
           class="prompt-mgmt-tree__expand"
@@ -365,6 +430,20 @@ defineExpose({
   gap: 4px;
   padding: 6px;
   border-bottom: 1px solid var(--border-color);
+}
+
+.prompt-mgmt-tree__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.prompt-mgmt-tree__btn-icon {
+  line-height: 1;
+}
+
+.prompt-mgmt-tree__btn-label {
+  font-size: 12px;
 }
 
 .prompt-mgmt-tree__move-hint {
@@ -419,6 +498,10 @@ defineExpose({
 .prompt-mgmt-tree__item--active {
   outline: 1px solid var(--accent-color, #4488ff);
   outline-offset: -1px;
+}
+
+.prompt-mgmt-tree__indent {
+  flex-shrink: 0;
 }
 
 .prompt-mgmt-tree__expand {

@@ -54,17 +54,35 @@ const modalStack = useModalStack();
 const appStore = useAppStore();
 const EDITOR_POPUP_KEYS = new Set<InterceptKey>(['arrows', 'escape']);
 
-const DEFAULT_WIDTH = 800;
 const DEFAULT_HEIGHT = 400;
 const MIN_WIDTH = 300;
 const MIN_HEIGHT = 200;
-const MAX_WIDTH_VIEWPORT_RATIO = 0.94;
+const MAX_WIDTH_VIEWPORT_RATIO = 0.96;
 const MAX_HEIGHT_VIEWPORT_RATIO = 0.85;
+/** Default fraction of the window width the editor occupies. */
+const WIDTH_WINDOW_RATIO = 0.5;
+/** Below this the tree/textarea/history columns get cramped — keep at least this. */
+const MIN_USABLE_WIDTH = 760;
 
-const editorWidth = ref(DEFAULT_WIDTH);
+/**
+ * Window-responsive default width: 50% of the window, but never narrower than
+ * a usable minimum, and never wider than ~96% of the window. On narrow windows
+ * the usable minimum wins (capped at the viewport), so the editor grows past
+ * 50% toward full width instead of becoming unusable.
+ */
+function computeResponsiveWidth(): number {
+  const maxWidth = window.innerWidth * MAX_WIDTH_VIEWPORT_RATIO;
+  const minUsable = Math.min(MIN_USABLE_WIDTH, maxWidth);
+  const half = window.innerWidth * WIDTH_WINDOW_RATIO;
+  return Math.min(maxWidth, Math.max(half, minUsable, MIN_WIDTH));
+}
+
+const editorWidth = ref(computeResponsiveWidth());
 const editorHeight = ref(DEFAULT_HEIGHT);
 const editorLeft = ref(0);
 const editorTop = ref(0);
+/** Set once the user drags the resize handle — suppresses window-responsive width. */
+const userResizedWidth = ref(false);
 let activeResizePointerId: number | null = null;
 let resizeStartX = 0;
 let resizeStartY = 0;
@@ -102,11 +120,13 @@ watch(() => props.visible, async (v) => {
     modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: EDITOR_POPUP_KEYS });
     await loadEditorDimensions();
     centerEditorPopup();
+    window.addEventListener('resize', onWindowResize);
     // Place the caret at the END of the prefilled body so the user appends.
     await nextTick();
     textareaRef.value?.focusEnd();
   } else {
     modalStack.pop(MODAL_ID);
+    window.removeEventListener('resize', onWindowResize);
     text.value = '';
     selectedHistory.value = null;
     focusTarget.value = 'textarea';
@@ -118,15 +138,24 @@ watch(() => props.visible, async (v) => {
 }, { immediate: true });
 
 async function loadEditorDimensions(): Promise<void> {
+  // Width is window-responsive (50% default) — not restored from prefs — so it
+  // always tracks the current window. Only height is persisted/restored.
+  userResizedWidth.value = false;
+  editorWidth.value = computeResponsiveWidth();
   try {
     const prefs = await configClient.configGetEditorPrefs();
-    if (prefs.editorPopupWidth) editorWidth.value = Math.max(MIN_WIDTH, Math.min(prefs.editorPopupWidth, window.innerWidth * MAX_WIDTH_VIEWPORT_RATIO));
-    else editorWidth.value = Math.max(MIN_WIDTH, Math.min(DEFAULT_WIDTH, window.innerWidth * MAX_WIDTH_VIEWPORT_RATIO));
     if (prefs.editorPopupHeight) editorHeight.value = Math.max(MIN_HEIGHT, Math.min(prefs.editorPopupHeight, window.innerHeight * MAX_HEIGHT_VIEWPORT_RATIO));
     else editorHeight.value = Math.max(MIN_HEIGHT, Math.min(DEFAULT_HEIGHT, window.innerHeight * MAX_HEIGHT_VIEWPORT_RATIO));
   } catch (err) {
     console.warn('[EditorPopup] Failed to load dimensions:', err);
   }
+}
+
+/** Recompute responsive width on window resize unless the user has dragged. */
+function onWindowResize(): void {
+  if (!userResizedWidth.value) editorWidth.value = computeResponsiveWidth();
+  editorHeight.value = Math.min(editorHeight.value, window.innerHeight * MAX_HEIGHT_VIEWPORT_RATIO);
+  centerEditorPopup();
 }
 
 function clampEditorPosition(): void {
@@ -157,6 +186,7 @@ async function saveEditorDimensions(): Promise<void> {
 function onResizePointerDown(event: PointerEvent): void {
   if (event.button !== 0) return;
   event.preventDefault();
+  userResizedWidth.value = true;
   activeResizePointerId = event.pointerId;
   resizeStartX = event.clientX;
   resizeStartY = event.clientY;
@@ -257,6 +287,7 @@ onUnmounted(() => {
   window.removeEventListener('pointermove', onResizePointerMove);
   window.removeEventListener('pointerup', onResizePointerUp);
   window.removeEventListener('pointercancel', onResizePointerUp);
+  window.removeEventListener('resize', onWindowResize);
   if (autoSaveTimer) clearTimeout(autoSaveTimer);
 });
 
