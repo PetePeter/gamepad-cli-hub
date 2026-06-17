@@ -208,9 +208,6 @@ function onToolEditorSave(values: any): void {
     :has-sequences="hasSequences"
     :has-drafts="hasDrafts"
     :is-snapped-out="isActiveSessionSnappedOut"
-    :mode="contextMenu.mode"
-    :mouse-x="contextMenu.mouseX"
-    :mouse-y="contextMenu.mouseY"
     @action="emit('context-menu-action', $event)"
     @cancel="contextMenu.visible = false"
   />

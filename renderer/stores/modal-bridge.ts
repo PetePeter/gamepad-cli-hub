@@ -32,16 +32,13 @@ export function getCloseConfirmCallback(): ((sessionId: string) => void) | null 
 
 export const contextMenu = reactive({
   visible: false,
-  mode: 'gamepad' as 'mouse' | 'gamepad',
-  mouseX: 0,
-  mouseY: 0,
   selectedText: '',
   hasSelection: false,
   sourceSessionId: '',
 });
 
 export function showContextMenu(
-  x: number, y: number, sessionId: string, mode: 'mouse' | 'gamepad',
+  sessionId: string,
   preCapturedText?: string, preCapturedHasSelection?: boolean,
 ): void {
   let selectedText: string;
@@ -56,9 +53,6 @@ export function showContextMenu(
     hasSelection = view?.hasSelection() ?? false;
   }
   contextMenu.visible = true;
-  contextMenu.mode = mode;
-  contextMenu.mouseX = x;
-  contextMenu.mouseY = y;
   contextMenu.selectedText = selectedText;
   contextMenu.hasSelection = hasSelection;
   contextMenu.sourceSessionId = sessionId;

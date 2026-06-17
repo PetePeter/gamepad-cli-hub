@@ -153,7 +153,7 @@ async function executeCliBinding(button: string, binding: Binding): Promise<void
       case 'context-menu': {
         const { showContextMenu } = await import('./stores/modal-bridge.js');
         const tm = getTerminalManager();
-        if (tm) showContextMenu(window.innerWidth / 2, window.innerHeight / 2, state.activeSessionId || '', 'gamepad');
+        if (tm) showContextMenu(state.activeSessionId || '');
         break;
       }
       case 'prompt-tree': {

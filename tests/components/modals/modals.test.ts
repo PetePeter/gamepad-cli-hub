@@ -753,7 +753,7 @@ describe('ContextMenu.vue', () => {
         hasActiveSession: true,
         hasSequences: true,
         hasDrafts: true,
-        mode: 'gamepad' as const,
+        isSnappedOut: false,
         ...props,
       },
       attachTo: document.body,

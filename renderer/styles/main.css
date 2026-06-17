@@ -2635,13 +2635,6 @@ kbd {
   z-index: 1001;
 }
 
-.context-menu--centered {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
 .context-menu-item {
   display: flex;
   align-items: center;

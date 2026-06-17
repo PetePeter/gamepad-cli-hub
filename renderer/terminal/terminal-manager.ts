@@ -139,7 +139,7 @@ export class TerminalManager {
       const selectedText = sess?.view?.getSelection() ?? '';
       const hasSelection = sess?.view?.hasSelection() ?? false;
       import('../stores/modal-bridge.js').then(({ showContextMenu }) => {
-        showContextMenu(e.clientX, e.clientY, sessionId, 'mouse', selectedText, hasSelection);
+        showContextMenu(sessionId, selectedText, hasSelection);
       });
     });
 
@@ -225,7 +225,7 @@ export class TerminalManager {
       const selectedText = sess?.view?.getSelection() ?? '';
       const hasSelection = sess?.view?.hasSelection() ?? false;
       import('../stores/modal-bridge.js').then(({ showContextMenu }) => {
-        showContextMenu(e.clientX, e.clientY, sessionId, 'mouse', selectedText, hasSelection);
+        showContextMenu(sessionId, selectedText, hasSelection);
       });
     });
 
@@ -555,7 +555,7 @@ export class TerminalManager {
       const selectedText = sess?.view?.getSelection() ?? '';
       const hasSelection = sess?.view?.hasSelection() ?? false;
       import('../stores/modal-bridge.js').then(({ showContextMenu }) => {
-        showContextMenu(e.clientX, e.clientY, sessionId, 'mouse', selectedText, hasSelection);
+        showContextMenu(sessionId, selectedText, hasSelection);
       });
     });
   }

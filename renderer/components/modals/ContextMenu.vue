@@ -25,9 +25,6 @@ const props = defineProps<{
   hasSequences: boolean;
   hasDrafts: boolean;
   isSnappedOut: boolean;
-  mode: 'mouse' | 'gamepad';
-  mouseX?: number;
-  mouseY?: number;
 }>();
 
 const emit = defineEmits<{
@@ -123,13 +120,6 @@ function executeItem(index: number): void {
   emit('update:visible', false);
 }
 
-const menuStyle = computed(() => {
-  if (props.mode === 'mouse' && props.mouseX !== undefined && props.mouseY !== undefined) {
-    return { left: `${props.mouseX}px`, top: `${props.mouseY}px`, position: 'fixed' as const };
-  }
-  return {};
-});
-
 defineExpose({ handleButton });
 </script>
 
@@ -141,7 +131,7 @@ defineExpose({ handleButton });
       role="menu"
       aria-label="Terminal context menu"
     >
-      <div class="context-menu" :style="menuStyle">
+      <div class="context-menu">
         <div
           v-for="(item, i) in menuItems"
           :key="item.id"

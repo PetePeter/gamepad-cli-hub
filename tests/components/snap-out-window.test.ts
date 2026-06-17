@@ -65,9 +65,6 @@ vi.mock('../../renderer/stores/draft-editor-registry.js', () => ({
 vi.mock('../../renderer/stores/modal-bridge.js', () => ({
   contextMenu: {
     visible: false,
-    mode: 'mouse',
-    mouseX: 0,
-    mouseY: 0,
     selectedText: '',
     hasSelection: false,
     sourceSessionId: null,

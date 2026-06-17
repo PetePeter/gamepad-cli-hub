@@ -223,9 +223,6 @@ onMounted(async () => {
     contextMenuSelectedText.value = view?.getSelection() ?? '';
     contextMenuHasSelection.value = view?.hasSelection() ?? false;
     contextMenu.visible = true;
-    contextMenu.mode = 'mouse';
-    contextMenu.mouseX = e.clientX;
-    contextMenu.mouseY = e.clientY;
     contextMenu.selectedText = contextMenuSelectedText.value;
     contextMenu.hasSelection = contextMenuHasSelection.value;
     contextMenu.sourceSessionId = props.sessionId;
@@ -291,7 +288,7 @@ function onContextMenuCancel(): void { contextMenuVisible.value = false; }
     <DraftEditor v-if="draftEditorVisible" ref="draftEditorRef" :visible="draftEditorVisible" :mode="draftEditorMode" :session-id="draftEditorSessionId" :draft-id="draftEditorDraftId" :initial-label="draftEditorLabel" :initial-text="draftEditorText" :plan-status="draftEditorPlanStatus" :plan-state-info="draftEditorPlanStateInfo" :plan-callbacks="draftEditorPlanCallbacks" @save="onDraftSave" @apply="onDraftApply" @delete="onDraftDelete" @close="onDraftClose" />
     <div ref="containerRef" class="snap-out-terminal"></div>
     <div v-if="chipActionBarVisible" class="chip-action-dock"><ChipActionBar :actions="chipBarStore.actions" @action-click="onChipBarAction" /></div>
-    <ContextMenu v-model:visible="contextMenuVisible" :has-selection="contextMenuHasSelection" :has-active-session="true" :has-sequences="false" :has-drafts="false" :is-snapped-out="true" :mode="'mouse'" :mouse-x="contextMenu.mouseX" :mouse-y="contextMenu.mouseY" @action="onContextMenuAction" @cancel="onContextMenuCancel" />
+    <ContextMenu v-model:visible="contextMenuVisible" :has-selection="contextMenuHasSelection" :has-active-session="true" :has-sequences="false" :has-drafts="false" :is-snapped-out="true" @action="onContextMenuAction" @cancel="onContextMenuCancel" />
     <PromptTreeModal
       v-model:visible="promptTree.visible"
       :tree="promptTree.tree"
