@@ -1,5 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { ConfigLoader } from '../../config/loader.js';
 import type { SessionManager } from '../../session/manager.js';
 import type { SessionInfo } from '../../types/session.js';
@@ -14,6 +16,8 @@ import type { CapabilityDetector } from '../../session/capability-detector.js';
 import { validateMobileFriendlyTelegramText } from '../../telegram/utils.js';
 import { PiperTts } from '../../telegram/piper-tts.js';
 import { getTempDir } from '../../utils/app-paths.js';
+
+const moduleDir = dirname(fileURLToPath(import.meta.url));
 
 /**
  * Telegram messaging and LLM notification routing.
@@ -87,7 +91,7 @@ export class HelmTelegramService {
         piperPath: config.piperPath,
         piperVoicePath: config.piperVoicePath,
         ffmpegPath: config.ffmpegPath,
-        tmpDir: getTempDir(__dirname),
+        tmpDir: getTempDir(moduleDir),
       }).synthesize(text);
       oggPath = result.oggPath;
     } catch (err) {

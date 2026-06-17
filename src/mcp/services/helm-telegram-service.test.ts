@@ -1,7 +1,19 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { HelmTelegramService } from './helm-telegram-service';
 import type { TelegramBridge, TelegramSendToUserInput, TelegramSendToUserResult } from '../../types/telegram-channel.js';
 import type { TelegramCapabilities } from '../../session/capability-detector.js';
+
+const ttsMocks = vi.hoisted(() => ({
+  synthesize: vi.fn(async () => ({ oggPath: 'C:/Temp/helm-voice.ogg' })),
+}));
+
+vi.mock('../../telegram/piper-tts.js', () => ({
+  PiperTts: vi.fn().mockImplementation(function () {
+    return {
+      synthesize: ttsMocks.synthesize,
+    };
+  }),
+}));
 
 /** Fake CapabilityDetector returning a fixed capability snapshot. */
 class FakeCapabilityDetector {
@@ -81,6 +93,10 @@ describe('HelmTelegramService.getTelegramStatus capabilities', () => {
 });
 
 describe('HelmTelegramService.sendTelegramVoice', () => {
+  beforeEach(() => {
+    ttsMocks.synthesize.mockClear();
+  });
+
   it('returns reason when bot is not running', async () => {
     const svc = makeService({ piper: true, ffmpeg: true }, new FakeBridge(false));
     const res = await svc.sendTelegramVoice('sess-1', 'hi');
@@ -113,5 +129,21 @@ describe('HelmTelegramService.sendTelegramVoice', () => {
     const res = await svc.sendTelegramVoice('nope', 'hi');
     expect(res.sent).toBe(false);
     expect(res.reason).toMatch(/Session not found/i);
+  });
+
+  it('synthesizes and sends a voice message for a valid session', async () => {
+    const bridge = new FakeBridge(true);
+    const svc = makeService({ piper: true, ffmpeg: true }, bridge);
+
+    const res = await svc.sendTelegramVoice('sess-1', 'hello from helm');
+
+    expect(res).toEqual({ sent: true });
+    expect(ttsMocks.synthesize).toHaveBeenCalledWith('hello from helm');
+    expect(bridge.lastInput).toEqual({
+      sessionId: 'sess-1',
+      text: '',
+      filePath: 'C:/Temp/helm-voice.ogg',
+      asVoice: true,
+    });
   });
 });
