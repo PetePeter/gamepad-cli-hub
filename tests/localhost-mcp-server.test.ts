@@ -15,7 +15,7 @@ vi.mock('../src/utils/logger.js', () => ({
 function makeService(): HelmControlService {
   return {
     listClis: vi.fn(() => [{ cliType: 'codex', name: 'codex', command: 'codex', supportsResume: false, supportedDirPaths: ['X:\\coding\\gamepad-cli-hub'] }]),
-    listSkills: vi.fn(() => [{ id: 'skill-1', name: 'Review', description: 'Use for reviews', aiAmendable: false, allProjects: true, projectIds: [] }]),
+    listSkills: vi.fn(() => [{ id: 'skill-1', name: 'Review', triggerCondition: 'Use for reviews' }]),
     getSkill: vi.fn((id: string) => ({ id, name: 'Review', description: 'Use for reviews', body: 'Check the diff', aiAmendable: false, allProjects: true, projectIds: [] })),
     createSkill: vi.fn((input: Record<string, unknown>) => ({ id: 'skill-created', description: '', body: '', aiAmendable: false, allProjects: true, projectIds: [], ...input })),
     updateSkill: vi.fn((id: string, updates: Record<string, unknown>) => ({ id, name: 'Review', description: 'Use for reviews', body: 'Check the diff', aiAmendable: true, allProjects: true, projectIds: [], ...updates })),
@@ -388,6 +388,11 @@ describe('LocalhostMcpServer', () => {
     });
     const listJson = await listResponse.json();
     expect(listJson.result.structuredContent.items[0].name).toBe('Review');
+    expect(listJson.result.structuredContent.items[0].triggerCondition).toBe('Use for reviews');
+    expect(listJson.result.structuredContent.items[0]).not.toHaveProperty('description');
+    expect(listJson.result.structuredContent.items[0]).not.toHaveProperty('allProjects');
+    expect(listJson.result.structuredContent.items[0]).not.toHaveProperty('projectIds');
+    expect(listJson.result.structuredContent.items[0]).not.toHaveProperty('aiAmendable');
     expect(listJson.result.structuredContent.items[0]).not.toHaveProperty('useCount');
     expect(listJson.result.structuredContent.items[0]).not.toHaveProperty('avgRating');
     expect(listJson.result.structuredContent.items[0]).not.toHaveProperty('reviewCount');

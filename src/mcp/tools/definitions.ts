@@ -23,7 +23,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'skill_list',
     title: 'List Skills',
-    description: 'List Helm skills (user-managed and system) as compact summaries. Pass projectId or dirPath to filter to skills applicable to one project. Use skill_get when you need the full body before applying or editing a skill.',
+    description: 'List Helm skills applicable to the caller\'s project as minimal summaries (id, name, triggerCondition — when to apply each). This is only a directory; call skill_get(id) to retrieve a skill\'s full detail (body, type, scope) before applying or editing it. Pass projectId or dirPath to filter to a specific project.',
     inputSchema: {
       type: 'object',
       properties: {

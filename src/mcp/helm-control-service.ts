@@ -85,7 +85,12 @@ export interface SessionInfoResponse {
   helm_workflow: string;
 }
 
-type McpSkillSummary = Omit<SkillSummary, 'useCount' | 'avgRating' | 'reviewCount'>;
+interface McpSkillSummary {
+  id: string;
+  name: string;
+  /** When this skill should be triggered/applied (the skill's description text). */
+  triggerCondition: string;
+}
 
 /**
  * Thin facade that delegates all MCP tool operations to domain-focused service classes.
@@ -716,6 +721,5 @@ function appendSkillFeedbackFooter(body: string, skillId: string): string {
 }
 
 function toMcpSkillSummary(skill: SkillSummary): McpSkillSummary {
-  const { useCount: _useCount, avgRating: _avgRating, reviewCount: _reviewCount, ...summary } = skill;
-  return summary;
+  return { id: skill.id, name: skill.name, triggerCondition: skill.description };
 }

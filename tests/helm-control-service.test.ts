@@ -608,10 +608,39 @@ describe('HelmControlService.getSessionInfo', () => {
     expect(notificationGuide!.body).toContain('none');
   });
 
-  it('lists compact effective skills for the caller session project', () => {
+  function makeSkillService(skillManager: SkillManager, projectIdForWork: string | undefined = 'project-1') {
+    const { planManager, sessionManager, ptyManager, configLoader } = makeService();
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
+      id: 's1',
+      name: 'Claude',
+      cliType: 'claude-code',
+      workingDir: '/work',
+    });
+    const projectStore = {
+      findByPath: vi.fn((path: string) =>
+        path === '/work' && projectIdForWork
+          ? { id: projectIdForWork, name: 'Project', canonicalPath: '/work' }
+          : undefined),
+      list: vi.fn(() => []),
+    };
+    return new HelmControlService(
+      planManager as unknown as import('../src/session/plan-manager.js').PlanManager,
+      sessionManager as unknown as import('../src/session/manager.js').SessionManager,
+      ptyManager as unknown as import('../src/session/pty-manager.js').PtyManager,
+      configLoader as unknown as import('../src/config/loader.js').ConfigLoader,
+      undefined,
+      undefined,
+      undefined,
+      projectStore as any,
+      skillManager,
+    );
+  }
+
+  it('lists project-scoped and allProjects skills, excludes other-project skills, with type precedence', () => {
     const skillDir = mkdtempSync(join(tmpdir(), 'helm-skills-service-'));
     try {
       const skillManager = new SkillManager(join(skillDir, 'skills.yaml'));
+      // Same type 'guide' on global + project-1 scoped → project-scoped overrides global for project-1.
       skillManager.create({ name: 'Global Guide', type: 'guide', allProjects: true, body: 'Global' });
       const scoped = skillManager.create({
         name: 'Project Guide',
@@ -620,6 +649,14 @@ describe('HelmControlService.getSessionInfo', () => {
         projectIds: ['project-1'],
         body: 'Scoped',
       });
+      // Distinct type, allProjects → always applicable.
+      const allProj = skillManager.create({
+        name: 'Everywhere',
+        type: 'everywhere',
+        allProjects: true,
+        body: 'Anywhere',
+      });
+      // Scoped to a different project → excluded for project-1.
       skillManager.create({
         name: 'Other Project',
         type: 'other',
@@ -627,37 +664,89 @@ describe('HelmControlService.getSessionInfo', () => {
         projectIds: ['project-2'],
       });
 
-      const { planManager, sessionManager, ptyManager, configLoader } = makeService();
-      (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
-        id: 's1',
-        name: 'Claude',
-        cliType: 'claude-code',
-        workingDir: '/work',
-      });
-      const projectStore = {
-        findByPath: vi.fn((path: string) => path === '/work' ? { id: 'project-1', name: 'Project', canonicalPath: '/work' } : undefined),
-        list: vi.fn(() => []),
-      };
-      const service = new HelmControlService(
-        planManager as unknown as import('../src/session/plan-manager.js').PlanManager,
-        sessionManager as unknown as import('../src/session/manager.js').SessionManager,
-        ptyManager as unknown as import('../src/session/pty-manager.js').PtyManager,
-        configLoader as unknown as import('../src/config/loader.js').ConfigLoader,
-        undefined,
-        undefined,
-        undefined,
-        projectStore as any,
-        skillManager,
-      );
-
+      const service = makeSkillService(skillManager, 'project-1');
       const listed = service.listSkills({}, { sessionId: 's1', sessionName: 'Claude' });
+      const names = listed.map((s) => s.name);
 
-      expect(listed.map((skill) => skill.id)).toContain(scoped.id);
-      expect(listed.map((skill) => skill.name)).not.toContain('Global Guide');
-      expect(listed.map((skill) => skill.name)).not.toContain('Other Project');
-      expect(listed[0]).not.toHaveProperty('useCount');
-      expect(listed[0]).not.toHaveProperty('avgRating');
-      expect(listed[0]).not.toHaveProperty('reviewCount');
+      expect(listed.map((s) => s.id)).toContain(scoped.id);
+      expect(names).toContain('Everywhere');
+      // Type precedence: project-scoped 'guide' overrides the global 'guide'.
+      expect(names).not.toContain('Global Guide');
+      // Other-project-only skill excluded.
+      expect(names).not.toContain('Other Project');
+      expect(listed.map((s) => s.id)).toContain(allProj.id);
+    } finally {
+      rmSync(skillDir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns an allProjects skill regardless of which project the session resolves to', () => {
+    const skillDir = mkdtempSync(join(tmpdir(), 'helm-skills-allproj-'));
+    try {
+      const skillManager = new SkillManager(join(skillDir, 'skills.yaml'));
+      const allProj = skillManager.create({ name: 'Everywhere', type: 'everywhere', allProjects: true, body: 'X' });
+
+      for (const projectId of ['project-1', 'project-99', undefined]) {
+        const service = makeSkillService(skillManager, projectId);
+        const listed = service.listSkills({}, { sessionId: 's1', sessionName: 'Claude' });
+        expect(listed.map((s) => s.id)).toContain(allProj.id);
+      }
+    } finally {
+      rmSync(skillDir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns each entry with exactly { id, name, triggerCondition } and no other fields', () => {
+    const skillDir = mkdtempSync(join(tmpdir(), 'helm-skills-shape-'));
+    try {
+      const skillManager = new SkillManager(join(skillDir, 'skills.yaml'));
+      const scoped = skillManager.create({
+        name: 'Project Guide',
+        description: 'Apply when reviewing project-1 code',
+        type: 'guide',
+        allProjects: false,
+        projectIds: ['project-1'],
+        body: 'Scoped body',
+      });
+
+      const service = makeSkillService(skillManager, 'project-1');
+      const listed = service.listSkills({}, { sessionId: 's1', sessionName: 'Claude' });
+      const entry = listed.find((s) => s.id === scoped.id)!;
+
+      expect(Object.keys(entry).sort()).toEqual(['id', 'name', 'triggerCondition']);
+      expect(entry.triggerCondition).toBe('Apply when reviewing project-1 code');
+      for (const dropped of [
+        'description', 'allProjects', 'projectIds', 'aiAmendable',
+        'type', 'source', 'useCount', 'avgRating', 'reviewCount', 'body',
+      ]) {
+        expect(entry).not.toHaveProperty(dropped);
+      }
+    } finally {
+      rmSync(skillDir, { recursive: true, force: true });
+    }
+  });
+
+  it('getSkill returns the full skill including body (detail lives in get, not list)', () => {
+    const skillDir = mkdtempSync(join(tmpdir(), 'helm-skills-get-'));
+    try {
+      const skillManager = new SkillManager(join(skillDir, 'skills.yaml'));
+      const created = skillManager.create({
+        name: 'Project Guide',
+        description: 'Apply when reviewing',
+        type: 'guide',
+        allProjects: false,
+        projectIds: ['project-1'],
+        body: 'Full body content here',
+      });
+
+      const service = makeSkillService(skillManager, 'project-1');
+      const full = service.getSkill(created.id)!;
+
+      expect(full.id).toBe(created.id);
+      expect(full.body).toContain('Full body content here');
+      expect(full.description).toBe('Apply when reviewing');
+      expect(full.type).toBe('guide');
+      expect(full.projectIds).toEqual(['project-1']);
     } finally {
       rmSync(skillDir, { recursive: true, force: true });
     }

@@ -199,27 +199,27 @@ describe('PromptTreeModal.vue', () => {
     w.unmount();
   });
 
-  it('DigitN jump activates correct node', () => {
+  it('DigitN jump activates the Nth leaf (folders get no accelerator)', () => {
     const w = factory();
     const vm = w.vm as any;
-    // Digit2 → position 1 → Template 1
-    vm.handleButton('Digit2');
+    // Visible: [Folder A, Template 1, Template 2, Root Template, Empty Folder].
+    // Only leaves are accelerated, so slot 0 → Template 1, slot 1 → Template 2.
+    vm.handleButton('Digit1');
     expect(w.emitted('select')?.[0]).toEqual(['t1']);
+    vm.handleButton('Digit2');
+    expect(w.emitted('select')?.[1]).toEqual(['t2']);
     w.unmount();
   });
 
-  it('KeyA jump activates the 11th node (position 10) in a deep tree', () => {
+  it('digit jump skips folders and selects the Nth visible leaf', () => {
     const tree = makeDeepTree();
     const w = factory(tree);
     const vm = w.vm as any;
-    // Root folders auto-expanded: f1 (has children), f2 (has children), f3 (has children)
-    // Visible: f1, t1, t2, f1b, t7(Root), f2, t5, t6, f3, t8, t9 = 11 nodes (f1b auto-collapsed)
-    // Actually: f1 expanded → t1, t2, f1b(collapsed)
-    // So visible = [f1, t1, t2, f1b, Root(t7), f2, t5, t6, f3, t8, t9] = 11 nodes
-    // KeyA → position 10 → f3
-    vm.handleButton('KeyA');
-    // Should have toggled folder f3 (expanded it)
-    expect(vm.expandedFolders.has('f3')).toBe(true);
+    // Visible leaves in order (folders f1, f1b, f2, f3 carry no accelerator):
+    //   slot0 t1, slot1 t2, slot2 t5, slot3 t6, slot4 t7(Root), slot5 t8, slot6 t9
+    // Digit5 → leaf slot 4 → Root Template (t7).
+    vm.handleButton('Digit5');
+    expect(w.emitted('select')?.[0]).toEqual(['t7']);
     w.unmount();
   });
 
@@ -231,24 +231,25 @@ describe('PromptTreeModal.vue', () => {
     w.unmount();
   });
 
-  it('accelerator labels re-index after expand/collapse', async () => {
+  it('accelerator labels cover leaves only and re-index after expand/collapse', async () => {
     const w = factory();
-    // Initially 5 visible nodes → labels 1,2,3,4,5
+    // Visible: [Folder A, Template 1, Template 2, Root Template, Empty Folder].
+    // Folders are not accelerated → 3 leaf labels.
     let jumpKeys = w.findAll('.jump-key');
-    expect(jumpKeys.map(k => k.text())).toEqual(['1', '2', '3', '4', '5']);
+    expect(jumpKeys.map(k => k.text())).toEqual(['1', '2', '3']);
 
-    // Collapse Folder A (selectedIndex stays on f1)
+    // Collapse Folder A → only Root Template remains as a visible leaf.
     const vm = w.vm as any;
     vm.handleButton('DPadLeft');
     await nextTick();
     jumpKeys = w.findAll('.jump-key');
-    expect(jumpKeys.map(k => k.text())).toEqual(['1', '2', '3']);
+    expect(jumpKeys.map(k => k.text())).toEqual(['1']);
 
-    // Expand Folder A
+    // Expand Folder A → back to 3 leaf labels.
     vm.handleButton('DPadRight');
     await nextTick();
     jumpKeys = w.findAll('.jump-key');
-    expect(jumpKeys.map(k => k.text())).toEqual(['1', '2', '3', '4', '5']);
+    expect(jumpKeys.map(k => k.text())).toEqual(['1', '2', '3']);
     w.unmount();
   });
 

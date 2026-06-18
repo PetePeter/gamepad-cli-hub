@@ -54,7 +54,7 @@ watch(() => props.visible, (v) => {
     }
     formValues.value = vals;
     validationErrors.value = {};
-    modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: FORM_KEYS });
+    modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: new Set([...FORM_KEYS, 'enter']) });
   } else {
     validationErrors.value = {};
     modalStack.pop(MODAL_ID);
@@ -65,6 +65,10 @@ function handleButton(button: string): boolean {
   if (button === 'B') {
     emit('cancel');
     emit('update:visible', false);
+    return true;
+  }
+  if (button === 'A') {
+    onSave();
     return true;
   }
   return true; // swallow
@@ -250,3 +254,17 @@ defineExpose({ handleButton });
     </div>
   </Teleport>
 </template>
+
+<style scoped>
+.form-field-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.form-field-row .form-input {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+}
+</style>

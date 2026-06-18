@@ -74,6 +74,17 @@ watch(selectedIndex, () => {
   nextTick(scrollSelectedIntoView);
 });
 
+const leafSlots = computed(() => {
+  const m = new Map<number, number>();
+  let n = 0;
+  visibleNodes.value.forEach((node, i) => { if (!node.isFolder) { m.set(i, n); n++; } });
+  return m;
+});
+function accelLabel(i: number): string | null {
+  const slot = leafSlots.value.get(i);
+  return slot == null ? null : treeJumpKeyLabel(slot);
+}
+
 function scrollSelectedIntoView(): void {
   const list = listEl.value;
   if (!list) return;
@@ -121,8 +132,10 @@ function handleButton(button: string): boolean {
     return true;
   }
   const pos = treeJumpButtonToPosition(button);
-  if (pos !== null && pos < nodes.length) {
-    activateNode(pos);
+  if (pos !== null) {
+    for (const [idx, slot] of leafSlots.value) {
+      if (slot === pos) { activateNode(idx); break; }
+    }
     return true;
   }
   return true;
@@ -176,7 +189,7 @@ defineExpose({ handleButton });
           @click="activateNode(i)"
           :role="node.isFolder ? 'treeitem' : undefined"
         >
-          <span v-if="treeJumpKeyLabel(i) != null" class="jump-key">{{ treeJumpKeyLabel(i) }}</span>
+          <span v-if="accelLabel(i) != null" class="jump-key">{{ accelLabel(i) }}</span>
           <span v-if="node.isFolder" class="prompt-tree-expand-icon">
             {{ expandedFolders.has(node.id) ? '▼' : '▶' }}
           </span>

@@ -137,6 +137,17 @@ const visibleNodes = computed<FlatNode[]>(() => {
   return result;
 });
 
+const leafSlots = computed(() => {
+  const m = new Map<number, number>();
+  let n = 0;
+  visibleNodes.value.forEach((node, i) => { if (!node.isFolder) { m.set(i, n); n++; } });
+  return m;
+});
+function accelLabel(i: number): string | null {
+  const slot = leafSlots.value.get(i);
+  return slot == null ? null : treeJumpKeyLabel(slot);
+}
+
 const selectionCount = computed(() => selectedIds.value.size);
 const activeNode = computed<FlatNode | null>(() =>
   visibleNodes.value.find((n) => n.id === activeId.value) ?? null,
@@ -400,7 +411,7 @@ defineExpose({
         :role="node.isFolder ? 'treeitem' : undefined"
         @click="onNodeClick(node, $event.ctrlKey || $event.metaKey)"
       >
-        <span v-if="treeJumpKeyLabel(i) != null" class="jump-key">{{ treeJumpKeyLabel(i) }}</span>
+        <span v-if="accelLabel(i) != null" class="jump-key">{{ accelLabel(i) }}</span>
         <!-- Depth indent lives AFTER the accelerator so jump keys stay left-aligned. -->
         <span class="prompt-mgmt-tree__indent" :style="{ width: `${node.depth * 16}px` }"></span>
         <span
