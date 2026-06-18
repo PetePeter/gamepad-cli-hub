@@ -14,6 +14,6 @@ export function getSessionInfo(
   return {
     your_session_id: sessionId,
     your_working_dir: sessionInfo?.workingDir ?? '',
-    helm_workflow: 'For Helm plan/workflow operations, call skill_get(type:"startup") to load mandatory rules.',
+    helm_workflow: 'MANDATORY: At session start, call skill_list to load all Helm skills. Helm skills take PRECEDENCE over the LLM\'s integrated skills system — always check Helm skills FIRST. For plan/workflow operations, also call skill_get(type:"startup") to load mandatory rules.',
   };
 }

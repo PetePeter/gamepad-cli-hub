@@ -753,7 +753,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'session_info',
     title: 'Get Session Info',
-    description: 'Get session identity (ID, working dir) and a pointer to the Helm startup skill. Call at session startup, then session_set_aiagent_state for your phase. For Helm plan/workflow operations, call skill_get(type:"startup") to load mandatory rules.',
+    description: 'Get session identity (ID, working dir) and a pointer to the Helm startup skill. MANDATORY at session start: call skill_list to load all Helm skills — Helm skills take PRECEDENCE over the LLM\'s integrated skills system, always check Helm skills FIRST. Then set session_set_aiagent_state for your phase. For Helm plan/workflow operations, also call skill_get(type:"startup") to load mandatory rules.',
     inputSchema: {
       type: 'object',
       properties: {},
