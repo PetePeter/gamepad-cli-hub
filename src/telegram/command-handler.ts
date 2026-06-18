@@ -299,7 +299,15 @@ async function handlePeek(
       return;
     }
     targetSession = { id: match.id, name: match.name };
-  } else if (sessions.length === 1) {
+  } else if (msg.message_thread_id != null) {
+    // No arg — infer the session from the topic the message was sent in
+    const linked = topicManager.findSessionByTopicId(msg.message_thread_id);
+    if (linked) {
+      targetSession = { id: linked.id, name: linked.name };
+    }
+  }
+
+  if (!targetSession && sessions.length === 1) {
     targetSession = { id: sessions[0].id, name: sessions[0].name };
   }
 

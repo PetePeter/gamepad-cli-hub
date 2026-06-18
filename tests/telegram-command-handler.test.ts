@@ -204,6 +204,28 @@ describe('command:peek handler', () => {
     expect(options.reply_markup.inline_keyboard).toBeDefined();
   });
 
+  it('with multiple sessions and no args, peeks at the topic-linked session', async () => {
+    const { bot, sendMessage } = makeBot();
+    const sessions = [makeSession('s1', 'worker'), makeSession('s2', 'planner')];
+    const sm = { getAllSessions: vi.fn(() => sessions) } as unknown as SessionManager;
+    const pm = makePtyManager(['planner output']);
+    const tm = makeTopicManager();
+    tm.findSessionByTopicId = vi.fn(() => sessions[1]);
+
+    setupCommandHandler(bot, sm, pm, tm);
+
+    const peekHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => c[0] === 'command:peek',
+    )?.[1];
+
+    await peekHandler!({ message_thread_id: 77 } as any, '');
+
+    expect(tm.findSessionByTopicId).toHaveBeenCalledWith(77);
+    const sentText = sendMessage.mock.calls[0][0];
+    expect(sentText).toContain('planner');
+    expect(sentText).toContain('planner output');
+  });
+
   it('with args matching a session name, peeks at that session', async () => {
     const { bot, sendMessage } = makeBot();
     const sessions = [makeSession('s1', 'worker'), makeSession('s2', 'planner')];
