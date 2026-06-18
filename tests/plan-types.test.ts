@@ -186,12 +186,6 @@ describe('Plan Types (P-0038)', () => {
         expect(item.type).toBe(type);
       }
     });
-
-    it('rejects invalid types silently (type system enforces at compile time)', () => {
-      // This test documents that type validation is compile-time via TypeScript.
-      // Runtime: invalid types would require explicit validation (out of scope for P-0038).
-      expect(true).toBe(true);
-    });
   });
 
   // ─── Dependencies and status preservation ───────────────
