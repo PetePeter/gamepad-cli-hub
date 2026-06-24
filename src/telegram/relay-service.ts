@@ -599,7 +599,7 @@ function extractAttachmentInfo(msg: TelegramBot.Message): {
   if (msg.video) {
     return {
       fileId: msg.video.file_id,
-      fileName: msg.video.file_name || `video_${msg.message_id}.mp4`,
+      fileName: (msg.video as { file_name?: string } & typeof msg.video).file_name || `video_${msg.message_id}.mp4`,
       mimeType: msg.video.mime_type || 'video/mp4',
       fileSize: msg.video.file_size,
       caption: msg.caption,

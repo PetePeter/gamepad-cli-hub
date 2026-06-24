@@ -158,7 +158,7 @@ export class HelmTelegramService {
     return this.telegramBridge.sendToUser({ sessionId: session.id, text: message, filePath });
   }
 
-  notifyUser(sessionRef: string, title: string, content: string): { delivered: 'toast' | 'bubble' | 'telegram' | 'none' } {
+  notifyUser(sessionRef: string, title: string, content: string): { delivered: 'toast' | 'bubble' | 'telegram' | 'taskbar_flash' | 'none' } {
     if (!this.notificationManager) {
       throw new Error('Notification manager is not available');
     }

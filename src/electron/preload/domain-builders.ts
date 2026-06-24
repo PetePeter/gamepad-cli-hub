@@ -58,5 +58,5 @@ export function createPreloadDomains<TMethodMap extends PreloadMethodMap>(
       domain,
       buildDomain(methodMap),
     ]),
-  ) as HelmPreloadApi<TMethodMap>;
+  ) as unknown as HelmPreloadApi<TMethodMap>;
 }

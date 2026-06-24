@@ -373,7 +373,7 @@ export function setupPlanHandlers(
 
       const { item, dependencies } = result;
       const safeTitle = item.title.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 60);
-      const tmpDir = getTempDir(moduleDirname);
+      const tmpDir = getTempDir(moduleDirname ?? '');
       if (!existsSync(tmpDir)) mkdirSync(tmpDir, { recursive: true });
       const tmpPath = join(tmpDir, `helm-plan-export-${safeTitle}-${Date.now()}.md`);
       const sequence = item.sequenceId ? planManager.getSequence(item.sequenceId) : null;

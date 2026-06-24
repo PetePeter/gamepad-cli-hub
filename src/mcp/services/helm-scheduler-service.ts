@@ -36,12 +36,13 @@ export class HelmSchedulerService {
 
   updateTask(id: string, updates: Omit<UpdateScheduledTaskParams, 'scheduledTime' | 'endDate'> & { scheduledTime?: string; endDate?: string }): { ok: true } {
     if (updates.dirPath) this.validateWorkingDir(updates.dirPath);
+    const { endDate, scheduledTime, ...rest } = updates;
     const converted: UpdateScheduledTaskParams = {
-      ...updates,
-      scheduledTime: updates.scheduledTime ? new Date(updates.scheduledTime) : undefined,
+      ...rest,
+      scheduledTime: scheduledTime ? new Date(scheduledTime) : undefined,
     };
     if (Object.prototype.hasOwnProperty.call(updates, 'endDate')) {
-      converted.endDate = updates.endDate ? new Date(updates.endDate) : undefined;
+      converted.endDate = endDate ? new Date(endDate) : undefined;
     }
     const result = this.scheduler.updateTask(id, converted);
     if (!result) throw new Error(`Scheduled task not found: ${id}`);
@@ -54,8 +55,9 @@ export class HelmSchedulerService {
     return { ok: true };
   }
 
-  deleteTask(id: string): boolean {
-    return this.scheduler.deleteTask(id);
+  deleteTask(id: string): { ok: true } {
+    this.scheduler.deleteTask(id);
+    return { ok: true };
   }
 
   private validateWorkingDir(dirPath: string): void {

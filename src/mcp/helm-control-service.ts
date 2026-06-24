@@ -67,6 +67,21 @@ export interface CliSummary {
   supportedDirPaths: string[];
 }
 
+export interface McpToolSummary {
+  name: string;
+  title: string;
+  description: string;
+}
+
+export interface DirectorySummary {
+  dirPath: string;
+  projectId?: string;
+  name: string;
+  source: Array<'config' | 'plans' | 'sessions'>;
+  planCount: number;
+  sessionCount: number;
+}
+
 export interface SessionTerminalTailResponse {
   sessionId: string;
   name: string;
@@ -505,6 +520,13 @@ export class HelmControlService extends EventEmitter {
     return this.prepareSkillForUse(this.skillManager.resolveEffective(type, projectId ?? undefined));
   }
 
+  activateSkill(skillId: string, _context?: string): Skill | null {
+    const byId = this.skillManager.get(skillId);
+    if (byId) return this.prepareSkillForUse(byId);
+    const byType = this.skillManager.resolveEffective(skillId.toLowerCase(), undefined);
+    return this.prepareSkillForUse(byType);
+  }
+
   deleteSkill(id: string): boolean {
     return this.skillManager.delete(id);
   }
@@ -651,7 +673,7 @@ export class HelmControlService extends EventEmitter {
     return this.telegramService.sendTelegramVoice(sessionRef, text);
   }
 
-  notifyUser(sessionRef: string, title: string, content: string): { delivered: 'toast' | 'bubble' | 'telegram' | 'none' } {
+  notifyUser(sessionRef: string, title: string, content: string): { delivered: 'toast' | 'bubble' | 'telegram' | 'taskbar_flash' | 'none' } {
     return this.telegramService.notifyUser(sessionRef, title, content);
   }
 
@@ -667,7 +689,7 @@ export class HelmControlService extends EventEmitter {
   // Scheduler CRUD
   // ---------------------------------------------------------------------------
 
-  createScheduledTask(params: Omit<CreateScheduledTaskParams, 'scheduledTime'> & { scheduledTime: string }): ScheduledTask {
+  createScheduledTask(params: Omit<CreateScheduledTaskParams, 'scheduledTime' | 'endDate'> & { scheduledTime: string; endDate?: string }): { id: string } {
     return this.requireScheduler().createTask(params);
   }
 
@@ -679,15 +701,15 @@ export class HelmControlService extends EventEmitter {
     return this.requireScheduler().getTask(id);
   }
 
-  updateScheduledTask(id: string, updates: Omit<UpdateScheduledTaskParams, 'scheduledTime'> & { scheduledTime?: string }): ScheduledTask | null {
+  updateScheduledTask(id: string, updates: Omit<UpdateScheduledTaskParams, 'scheduledTime' | 'endDate'> & { scheduledTime?: string; endDate?: string }): { ok: true } {
     return this.requireScheduler().updateTask(id, updates);
   }
 
-  cancelScheduledTask(id: string): boolean {
+  cancelScheduledTask(id: string): { ok: true } {
     return this.requireScheduler().cancelTask(id);
   }
 
-  deleteScheduledTask(id: string): boolean {
+  deleteScheduledTask(id: string): { ok: true } {
     return this.requireScheduler().deleteTask(id);
   }
 

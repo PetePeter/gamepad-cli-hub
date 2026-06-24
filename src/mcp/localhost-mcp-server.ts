@@ -419,13 +419,6 @@ function parsePort(value: string | undefined): number | null {
 
 
 
-function requireResult<T>(value: T | null, message: string): T {
-  if (value === null) {
-    throw new Error(message);
-  }
-  return value;
-}
-
 
 
 function getToolReminder(name: string): string {

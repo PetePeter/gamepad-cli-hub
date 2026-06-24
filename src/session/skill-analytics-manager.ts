@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { SkillReview, SkillStats } from '../types/skill.js';
+import type { SkillReview, SkillSource, SkillStats } from '../types/skill.js';
 import { atomicWriteFileSync, isAnyString, isNumber, isRecord } from './persistence-utils.js';
 
 interface PersistedSkillAnalytics {

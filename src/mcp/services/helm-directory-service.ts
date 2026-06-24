@@ -68,9 +68,10 @@ export class HelmDirectoryService {
     // 3. Directories that have sessions but aren't configured
     for (const session of sessions) {
       if (!session.workingDir) continue;
-      const isConfigured = configured.some((entry) => pathsEqual(entry.path, session.workingDir));
+      const workingDir = session.workingDir;
+      const isConfigured = configured.some((entry) => pathsEqual(entry.path, workingDir));
       if (!isConfigured) {
-        mergeEntry(session.workingDir, 'sessions');
+        mergeEntry(workingDir, 'sessions');
       }
     }
 

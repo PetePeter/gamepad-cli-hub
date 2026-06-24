@@ -43,6 +43,7 @@ export class HelmSessionService {
       .filter((session) => {
         if (!dirPath && !projectId) return true;
         if (projectId) return session.projectId === projectId;
+        if (!dirPath) return false;
         const normalizedDirPath = normalizeProjectPath(dirPath);
         const normalizedWorkingDir = session.workingDir ? normalizeProjectPath(session.workingDir) : undefined;
         const normalizedProjectPath = session.projectPath ? normalizeProjectPath(session.projectPath) : undefined;
