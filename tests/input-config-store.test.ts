@@ -45,15 +45,4 @@ describe('InputConfigStore', () => {
     expect(store.getChipbarActions()).toEqual([]);
     expect(store.getStickConfig('left').mode).toBe('disabled');
   });
-
-  it('reorderWorkingDirectory() with out-of-bounds index is a no-op', () => {
-    const store = new InputConfigStore(TEST_DIR);
-    store.load();
-    store.addWorkingDirectory('A', 'X:\\a');
-    store.addWorkingDirectory('B', 'X:\\b');
-    store.reorderWorkingDirectory(99, 'up');
-    store.reorderWorkingDirectory(-1, 'down');
-    const dirs = store.getWorkingDirectories();
-    expect(dirs.map(d => d.name)).toEqual(['A', 'B']);
-  });
 });

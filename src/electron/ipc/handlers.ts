@@ -15,7 +15,6 @@ import { NotificationManager } from '../../session/notification-manager.js';
 import { DraftManager } from '../../session/draft-manager.js';
 import { PlanManager } from '../../session/plan-manager.js';
 import { ProjectStore } from '../../session/project-store.js';
-import { reconcileProjectWorkingDirectories } from '../../session/project-workingdir-reconcile.js';
 import { ContextManager } from '../../session/context-manager.js';
 import { SkillManager } from '../../session/skill-manager.js';
 import { SkillAnalyticsManager } from '../../session/skill-analytics-manager.js';
@@ -99,17 +98,11 @@ export function registerIPCHandlers(
     logger.error(`[IPC] Failed to load config: ${error}`);
   }
 
-  // SessionManager is created here and shared via dependency injection
+  // SessionManager is created here and shared via dependency injection.
+  // Projects are the single source of truth for working directories, so the
+  // ConfigLoader derives them from the project store.
   const projectStore = new ProjectStore();
-
-  // Heal any projects whose working dir was never registered (e.g. created by
-  // an older build before working-dir auto-registration existed).
-  try {
-    const healed = reconcileProjectWorkingDirectories(projectStore, configLoader);
-    if (healed > 0) logger.info(`[IPC] Reconciled ${healed} project working directories`);
-  } catch (error) {
-    logger.error(`[IPC] Project working-dir reconcile failed: ${error}`);
-  }
+  configLoader.setProjectStore(projectStore);
 
   const sessionManager = new SessionManager(projectStore);
   const ptyManager = new PtyManager();
@@ -196,7 +189,7 @@ export function registerIPCHandlers(
   setupKeyboardHandlers(keyboard);
   setupSystemHandlers(dirname ?? process.cwd());
   setupDraftHandlers(draftManager);
-  setupProjectHandlers(projectStore, configLoader, planManager, contextManager);
+  setupProjectHandlers(projectStore, planManager, contextManager);
   setupSkillHandlers(skillManager, skillAnalyticsManager);
   setupPlanHandlers(planManager, contextManager, windowManager, incomingWatcher, dirname);
   setupScheduledTaskHandlers(scheduledTaskManager, scheduledTaskHistoryManager, windowManager);

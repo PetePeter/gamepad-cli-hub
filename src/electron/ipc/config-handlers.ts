@@ -145,46 +145,6 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
     }
   });
 
-  ipcMain.handle('config:addWorkingDir', (_event, name: string, dirPath: string) => {
-    try {
-      configLoader.addWorkingDirectory(name, dirPath);
-      return { success: true };
-    } catch (error) {
-      logger.error(`[IPC] Failed to add working dir: ${error}`);
-      return { success: false, error: String(error) };
-    }
-  });
-
-  ipcMain.handle('config:updateWorkingDir', (_event, index: number, name: string, dirPath: string) => {
-    try {
-      configLoader.updateWorkingDirectory(index, name, dirPath);
-      return { success: true };
-    } catch (error) {
-      logger.error(`[IPC] Failed to update working dir: ${error}`);
-      return { success: false, error: String(error) };
-    }
-  });
-
-  ipcMain.handle('config:removeWorkingDir', (_event, index: number) => {
-    try {
-      configLoader.removeWorkingDirectory(index);
-      return { success: true };
-    } catch (error) {
-      logger.error(`[IPC] Failed to remove working dir: ${error}`);
-      return { success: false, error: String(error) };
-    }
-  });
-
-  ipcMain.handle('config:reorderWorkingDir', (_event, index: number, direction: 'up' | 'down') => {
-    try {
-      configLoader.reorderWorkingDirectory(index, direction);
-      return { success: true };
-    } catch (error) {
-      logger.error(`[IPC] Failed to reorder working dir: ${error}`);
-      return { success: false, error: String(error) };
-    }
-  });
-
   ipcMain.handle('config:getHapticFeedback', () => {
     try {
       return configLoader.getHapticFeedback();

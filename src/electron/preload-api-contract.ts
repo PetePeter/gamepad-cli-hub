@@ -75,10 +75,6 @@ export const PRELOAD_API_DOMAINS = {
     'configGetEditorPrefs',
     'configSetEditorPrefs',
     'configGetWorkingDirs',
-    'configAddWorkingDir',
-    'configUpdateWorkingDir',
-    'configRemoveWorkingDir',
-    'configReorderWorkingDir',
   ],
   tools: [
     'toolsGetAll',

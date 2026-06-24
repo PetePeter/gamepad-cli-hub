@@ -172,9 +172,38 @@ describe('ConfigLoader', () => {
   });
 
   describe('getWorkingDirectories', () => {
-    it('returns directories from input-config.yaml', () => {
+    it('returns [] when no project store is attached', () => {
       loader.load();
-      expect(loader.getWorkingDirectories()).toEqual(WORKING_DIRS);
+      expect(loader.getWorkingDirectories()).toEqual([]);
+    });
+
+    it('derives one entry per project canonical + alternate path, named by project', () => {
+      loader.load();
+      loader.setProjectStore({
+        list: () => [
+          { id: '1', name: 'Helm', canonicalPath: 'X:\\coding\\helm', createdAt: 0, updatedAt: 0 },
+          { id: '2', name: 'Other', canonicalPath: 'X:\\coding\\other', alternatePaths: ['X:\\coding\\other-alt'], createdAt: 0, updatedAt: 0 },
+        ],
+      } as any);
+
+      expect(loader.getWorkingDirectories()).toEqual([
+        { name: 'Helm', path: 'X:\\coding\\helm' },
+        { name: 'Other', path: 'X:\\coding\\other' },
+        { name: 'Other', path: 'X:\\coding\\other-alt' },
+      ]);
+    });
+
+    it('deduplicates overlapping canonical/alternate paths (normalized)', () => {
+      loader.load();
+      loader.setProjectStore({
+        list: () => [
+          { id: '1', name: 'Helm', canonicalPath: 'X:\\coding\\helm', alternatePaths: ['x:\\coding\\HELM'], createdAt: 0, updatedAt: 0 },
+        ],
+      } as any);
+
+      expect(loader.getWorkingDirectories()).toEqual([
+        { name: 'Helm', path: 'X:\\coding\\helm' },
+      ]);
     });
   });
 
@@ -531,50 +560,6 @@ describe('ConfigLoader', () => {
       loader.removeSequenceGroup('claude-code', 'nonexistent');
       // No throw, sequences unchanged
       expect(loader.getSequences('claude-code')).toHaveProperty('prompts');
-    });
-  });
-
-  // =========================================================================
-  // Working Directory CRUD
-  // =========================================================================
-
-  describe('Working Directory CRUD', () => {
-    it('addWorkingDirectory appends and persists', () => {
-      loader.load();
-      loader.addWorkingDirectory('New', 'D:\\new');
-
-      const dirs = loader.getWorkingDirectories();
-      expect(dirs).toHaveLength(3);
-      expect(dirs[2]).toEqual({ name: 'New', path: 'D:\\new' });
-
-      const onDisk = readYaml<any>('input-config.yaml');
-      expect(onDisk.workingDirectories).toHaveLength(3);
-    });
-
-    it('updateWorkingDirectory updates in place', () => {
-      loader.load();
-      loader.updateWorkingDirectory(0, 'Updated', 'E:\\updated');
-
-      expect(loader.getWorkingDirectories()[0]).toEqual({ name: 'Updated', path: 'E:\\updated' });
-    });
-
-    it('updateWorkingDirectory throws for invalid index', () => {
-      loader.load();
-      expect(() => loader.updateWorkingDirectory(99, 'X', 'X')).toThrow('Invalid working directory index');
-    });
-
-    it('removeWorkingDirectory removes and persists', () => {
-      loader.load();
-      loader.removeWorkingDirectory(0);
-
-      const dirs = loader.getWorkingDirectories();
-      expect(dirs).toHaveLength(1);
-      expect(dirs[0].name).toBe('Home');
-    });
-
-    it('removeWorkingDirectory throws for invalid index', () => {
-      loader.load();
-      expect(() => loader.removeWorkingDirectory(-1)).toThrow('Invalid working directory index');
     });
   });
 

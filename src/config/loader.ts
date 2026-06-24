@@ -15,6 +15,7 @@ import { BindingStore } from './binding-store.js';
 import { InputConfigStore } from './input-config-store.js';
 import { migrateFromProfile } from './profile-migrator.js';
 import { normalizeProjectPath, dirDisplayNameFromPath } from '../session/project-identity.js';
+import type { ProjectStore } from '../session/project-store.js';
 import { DEFAULT_MCP_CONFIG, SettingsManager } from './settings-manager.js';
 import { TelegramConfigManager } from './telegram-config-manager.js';
 
@@ -361,6 +362,7 @@ export class ConfigLoader {
   private settingsManager: SettingsManager;
   private telegramConfigManager: TelegramConfigManager;
   private settings: SettingsConfig | null = null;
+  private projectStore?: ProjectStore;
 
   constructor(configDir: string = DEFAULT_CONFIG_DIR) {
     this.configDir = configDir;
@@ -505,9 +507,32 @@ export class ConfigLoader {
     return path.join(this.configDir, 'skill-analytics.json');
   }
 
+  /**
+   * Working directories are derived from the project store — projects are the
+   * single source of truth. Each project's canonical and alternate paths become
+   * a working directory named after the project (deduplicated by normalized
+   * path). There is no separate persisted working-dir list, so a folder removed
+   * from a project disappears here immediately and can never linger as an
+   * unattributed ("Other") entry.
+   */
   getWorkingDirectories(): WorkingDirectory[] {
     this.ensureLoaded();
-    return this.inputConfigStore.getWorkingDirectories();
+    if (!this.projectStore) return [];
+    const seen = new Set<string>();
+    const dirs: WorkingDirectory[] = [];
+    for (const project of this.projectStore.list()) {
+      for (const dirPath of [project.canonicalPath, ...(project.alternatePaths ?? [])]) {
+        const key = normalizeProjectPath(dirPath);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        dirs.push({ name: project.name, path: dirPath });
+      }
+    }
+    return dirs;
+  }
+
+  setProjectStore(store: ProjectStore): void {
+    this.projectStore = store;
   }
 
   // ---------- Binding edit (backward compatible) -----------------------
@@ -794,48 +819,21 @@ export class ConfigLoader {
     this.saveSettings();
   }
 
-  // ---------- Working Directory CRUD -----------------------------------
-
-  addWorkingDirectory(name: string, dirPath: string): void {
-    this.ensureLoaded();
-    this.inputConfigStore.addWorkingDirectory(name, dirPath);
-  }
+  // ---------- Working Directory resolution -----------------------------
 
   /**
-   * Register dirPath as a working directory unless an entry with the same
-   * normalized path already exists. Returns the existing or newly-created
-   * entry. Self-healing helper shared by project creation, the startup
-   * project reconcile, and the MCP working-dir gate — centralizes the
-   * normalize + dedup + persist logic that was previously duplicated.
+   * Resolve dirPath to a working-directory descriptor. Working dirs are derived
+   * from projects, so this returns a transient (non-persisted) entry — callers
+   * that must validate project membership do so via the working-dir gate. There
+   * is intentionally no persistence side effect: a folder's presence here is
+   * governed solely by whether it belongs to a project.
    */
   ensureWorkingDirectory(dirPath: string, name?: string): WorkingDirectory {
     this.ensureLoaded();
-    const normalized = normalizeProjectPath(dirPath);
-    const existing = this.inputConfigStore
-      .getWorkingDirectories()
-      .find((d) => normalizeProjectPath(d.path) === normalized);
-    if (existing) return existing;
-    const entry: WorkingDirectory = {
+    return {
       name: name?.trim() || dirDisplayNameFromPath(dirPath),
       path: dirPath,
     };
-    this.inputConfigStore.addWorkingDirectory(entry.name, entry.path);
-    return entry;
-  }
-
-  updateWorkingDirectory(index: number, name: string, dirPath: string): void {
-    this.ensureLoaded();
-    this.inputConfigStore.updateWorkingDirectory(index, name, dirPath);
-  }
-
-  removeWorkingDirectory(index: number): void {
-    this.ensureLoaded();
-    this.inputConfigStore.removeWorkingDirectory(index);
-  }
-
-  reorderWorkingDirectory(index: number, direction: 'up' | 'down'): void {
-    this.ensureLoaded();
-    this.inputConfigStore.reorderWorkingDirectory(index, direction);
   }
 
   // ---------- Tools CRUD -----------------------------------------------

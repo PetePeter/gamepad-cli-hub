@@ -399,16 +399,6 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   configGetWorkingDirs: () => ipcRenderer.invoke('config:getWorkingDirs'),
 
   // ========================================================================
-  // Working Directory CRUD
-  // ========================================================================
-
-  configAddWorkingDir: (name: string, dirPath: string) => ipcRenderer.invoke('config:addWorkingDir', name, dirPath),
-  configUpdateWorkingDir: (index: number, name: string, dirPath: string) => ipcRenderer.invoke('config:updateWorkingDir', index, name, dirPath),
-  configRemoveWorkingDir: (index: number) => ipcRenderer.invoke('config:removeWorkingDir', index),
-  configReorderWorkingDir: (index: number, direction: 'up' | 'down') =>
-    ipcRenderer.invoke('config:reorderWorkingDir', index, direction),
-
-  // ========================================================================
   // Project Management
   // ========================================================================
 

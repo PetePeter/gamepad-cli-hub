@@ -83,6 +83,7 @@ const mockConfigLoader = {
     }),
     getPatterns: vi.fn().mockReturnValue([]),
     addBookmarkedDir: vi.fn(),
+    setProjectStore: vi.fn(),
 };
 
 vi.mock('../src/config/loader.js', () => ({

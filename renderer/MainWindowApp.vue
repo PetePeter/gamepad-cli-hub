@@ -117,7 +117,6 @@ import SettingsPanel from './components/sidebar/SettingsPanel.vue';
 import BindingsTab from './components/sidebar/BindingsTab.vue';
 import ToolsTab from './components/sidebar/ToolsTab.vue';
 import TelegramTab from './components/sidebar/TelegramTab.vue';
-import DirectoriesTab from './components/sidebar/DirectoriesTab.vue';
 import ProjectsTab from './components/sidebar/ProjectsTab.vue';
 import ChipbarActionsTab from './components/sidebar/ChipbarActionsTab.vue';
 import McpTab from './components/sidebar/McpTab.vue';
@@ -235,10 +234,6 @@ const {
   onToolClone,
   onToolDelete,
   onToolReorder,
-  onDirectoryAdd,
-  onDirectoryEdit,
-  onDirectoryDelete,
-  onDirectoryReorder,
   onChipbarActionAdd,
   onChipbarActionEdit,
   onChipbarActionDelete,

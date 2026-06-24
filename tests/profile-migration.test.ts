@@ -50,7 +50,6 @@ describe('migrateFromProfile', () => {
     migrateFromProfile(TEST_DIR, ct, b, ic);
     expect(ct.get('cc')?.name).toBe('Claude');
     expect(b.get('cc')?.A).toEqual({ action: 'keyboard', sequence: '{Enter}' });
-    expect(ic.getWorkingDirectories()).toHaveLength(1);
   });
 
   it('renames profiles/default.yaml to .migrated', () => {

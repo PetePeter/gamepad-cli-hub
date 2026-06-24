@@ -61,7 +61,6 @@ export function migrateFromProfile(
         dpad: raw.dpad,
         activity: raw.activity,
         chipActions: raw.chipActions,
-        workingDirectories: raw.workingDirectories,
       });
       inputConfigStore.save();
       logger.info('[Config] Migrated input config from profile');

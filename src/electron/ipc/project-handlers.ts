@@ -6,22 +6,13 @@
  */
 
 import { ipcMain } from 'electron';
-import type { ConfigLoader } from '../../config/loader.js';
 import type { ProjectStore } from '../../session/project-store.js';
 import type { PlanManager } from '../../session/plan-manager.js';
 import type { ContextManager } from '../../session/context-manager.js';
 import { PlanAttachmentManager } from '../../session/plan-attachment-manager.js';
 import { logger } from '../../utils/logger.js';
 
-/**
- * Register a directory as a working directory if not already present.
- * Delegates to the shared, normalize-and-dedup helper on ConfigLoader.
- */
-function ensureWorkingDir(configLoader: ConfigLoader, dirPath: string, name?: string): void {
-  configLoader.ensureWorkingDirectory(dirPath, name);
-}
-
-export function setupProjectHandlers(projectStore: ProjectStore, configLoader: ConfigLoader, planManager?: PlanManager, contextManager?: ContextManager): void {
+export function setupProjectHandlers(projectStore: ProjectStore, planManager?: PlanManager, contextManager?: ContextManager): void {
   const attachmentManager = planManager ? new PlanAttachmentManager(planManager) : null;
 
   ipcMain.handle('project:list', () => {
@@ -61,7 +52,6 @@ export function setupProjectHandlers(projectStore: ProjectStore, configLoader: C
         projectStore.rename(project.id, name);
       }
       projectStore.save();
-      ensureWorkingDir(configLoader, dirPath, project.name);
       logger.info(`[IPC] Created/resolved project ${project.id} for "${dirPath}"`);
       return { success: true, project };
     } catch (error) {
@@ -97,7 +87,6 @@ export function setupProjectHandlers(projectStore: ProjectStore, configLoader: C
   ipcMain.handle('project:addDir', (_event, id: string, dirPath: string) => {
     try {
       projectStore.addDirectory(id, dirPath);
-      ensureWorkingDir(configLoader, dirPath);
       projectStore.save();
       logger.info(`[IPC] Added directory "${dirPath}" to project ${id}`);
       return { success: true };

@@ -562,76 +562,6 @@ export function useSettingsController(options: {
     }
   }
 
-  async function onDirectoryAdd(name: string, path: string): Promise<void> {
-    try {
-      const result = await configClient.configAddWorkingDir(name, path);
-      if (result.success) {
-        const dirs = await configClient.configGetWorkingDirs();
-        settingsDirectories.value = dirs || [];
-        sessionsState.directories = dirs || [];
-        logEvent(`Added directory: ${name}`);
-      } else {
-        logEvent('Failed to add directory');
-      }
-    } catch (error) {
-      console.error('Add directory failed:', error);
-      logEvent('Failed to add directory');
-    }
-  }
-
-  async function onDirectoryEdit(index: number): Promise<void> {
-    const dir = settingsDirectories.value[index];
-    if (!dir) return;
-
-    const result = await showFormModal('Edit Directory', [
-      { key: 'name', label: 'Name', required: true, defaultValue: dir.name },
-      { key: 'path', label: 'Path', required: true, defaultValue: dir.path, browse: true },
-    ]);
-    if (!result) return;
-
-    const updateResult = await configClient.configUpdateWorkingDir(index, result.name, result.path);
-    if (updateResult.success) {
-      const dirs = await configClient.configGetWorkingDirs();
-      settingsDirectories.value = dirs || [];
-      sessionsState.directories = dirs || [];
-      logEvent(`Updated directory: ${result.name}`);
-    } else {
-      logEvent('Failed to update directory');
-    }
-  }
-
-  async function onDirectoryDelete(index: number): Promise<void> {
-    const dir = settingsDirectories.value[index];
-    if (!dir) return;
-
-    try {
-      const result = await configClient.configRemoveWorkingDir(index);
-      if (result.success) {
-        const dirs = await configClient.configGetWorkingDirs();
-        settingsDirectories.value = dirs || [];
-        sessionsState.directories = dirs || [];
-        logEvent(`Deleted directory: ${dir.name}`);
-      }
-    } catch (error) {
-      console.error('Delete directory failed:', error);
-    }
-  }
-
-  async function onDirectoryReorder(index: number, direction: 'up' | 'down'): Promise<void> {
-    try {
-      const result = await configClient.configReorderWorkingDir(index, direction);
-      if (result.success) {
-        const dirs = await configClient.configGetWorkingDirs();
-        settingsDirectories.value = dirs || [];
-        sessionsState.directories = dirs || [];
-        logEvent(`Reordered directory: ${direction}`);
-      } else {
-        logEvent(`Failed to reorder directory: ${result.error || 'unknown error'}`);
-      }
-    } catch (error) {
-      console.error('Reorder directory failed:', error);
-    }
-  }
 
   // Strip Vue reactivity before crossing the IPC boundary. Reactive proxies
   // cannot be structured-cloned, so passing them to configSetChipbarActions
@@ -1057,10 +987,6 @@ export function useSettingsController(options: {
     onToolClone,
     onToolDelete,
     onToolReorder,
-    onDirectoryAdd,
-    onDirectoryEdit,
-    onDirectoryDelete,
-    onDirectoryReorder,
     onChipbarActionAdd,
     onChipbarActionEdit,
     onChipbarActionDelete,
