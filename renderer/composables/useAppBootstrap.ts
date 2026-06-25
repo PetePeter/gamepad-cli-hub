@@ -488,7 +488,7 @@ export async function restoreSnappedBackSession(sessionId: string): Promise<void
   if (!tm) return;
 
   if (!tm.has(sessionId)) {
-    tm.adoptTerminal(sessionId, session.cliType, session.workingDir);
+    tm.adoptTerminal(sessionId, session.cliType, session.workingDir, session.name);
   }
   tm.switchTo(sessionId);
 }
@@ -527,7 +527,7 @@ function setupIpcListeners(): void {
     console.log(`[ExternalSpawn] Adopting session: ${session.id} (${session.cliType})`);
     state.lastOutputTimes.set(session.id, session.lastOutputAt ?? Date.now());
     await configClient.configGetSpawnCommand(session.cliType);
-    tm.adoptTerminal(session.id, session.cliType, session.workingDir);
+    tm.adoptTerminal(session.id, session.cliType, session.workingDir, session.name);
     await refreshSessions();
   });
 

@@ -166,6 +166,7 @@ export class TerminalManager {
     sessionId: string,
     cliType: string,
     cwd?: string,
+    name?: string,
   ): void {
     if (this.terminals.has(sessionId)) return;
 
@@ -196,10 +197,11 @@ export class TerminalManager {
       },
     });
 
-    this.terminals.set(sessionId, { sessionId, cliType, name: cliType, view, element, cwd });
+    const resolvedName = name?.trim() || cliType;
+    this.terminals.set(sessionId, { sessionId, cliType, name: resolvedName, view, element, cwd });
     this.upsertManagedSession({
       id: sessionId,
-      name: cliType,
+      name: resolvedName,
       cliType,
       processId: 0,
       workingDir: cwd,
