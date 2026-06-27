@@ -12,12 +12,21 @@ import {
 } from '../../session/large-text-temp-file.js';
 
 const DEFAULT_DELIVERY_VERIFY_DELAY_MS = 4000;
+const DEFAULT_CLEAR_SETTLE_DELAY_MS = 1500;
+const DEFAULT_CLEAR_COMMAND = '/clear';
 
 function getDeliveryVerifyDelayMs(): number {
   const configured = process.env.HELM_INTERSESSION_VERIFY_DELAY_MS;
   if (configured === undefined) return DEFAULT_DELIVERY_VERIFY_DELAY_MS;
   const parsed = Number(configured);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_DELIVERY_VERIFY_DELAY_MS;
+}
+
+function getClearSettleDelayMs(): number {
+  const configured = process.env.HELM_CLEAR_SETTLE_DELAY_MS;
+  if (configured === undefined) return DEFAULT_CLEAR_SETTLE_DELAY_MS;
+  const parsed = Number(configured);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_CLEAR_SETTLE_DELAY_MS;
 }
 
 /**
@@ -163,6 +172,75 @@ export class HelmSessionDeliveryService {
 
     const verified = !deliveryVerification || deliveryVerification.status === 'confirmed' || deliveryVerification.status === 'retry_confirmed';
     return { ok: true, verified };
+  }
+
+  /**
+   * Self-cleanup: paste the CLI's clear command (default '/clear') into a
+   * session's own PTY to reset its context, then optionally relay a
+   * "note to future self" so the freshly-cleared session retains what matters.
+   *
+   * Unlike sendTextToSession/sendInputToSession this is self-targeted — the
+   * caller clears its OWN session, so no self-send rejection applies. Large
+   * context is offloaded to a temp file (same path as session_send_text).
+   */
+  async clearSession(
+    sessionRef: string,
+    options: { senderSessionId: string; senderSessionName: string; context?: string },
+  ): Promise<{ ok: true; contextRelayed: boolean; usedTempFile: boolean }> {
+    const session = this.findSession(sessionRef);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionRef}`);
+    }
+    if (!this.ptyManager.has(session.id)) {
+      throw new Error(`Session PTY is not running: ${session.id}`);
+    }
+
+    const entry = this.configLoader.getCliTypeEntry(session.cliType);
+    const clearCommand = entry?.clearCommand?.trim() || DEFAULT_CLEAR_COMMAND;
+
+    logger.info(`[HelmSessionDelivery] session_clear for "${session.name}" (${session.id}) using "${clearCommand}"`);
+
+    // Paste the clear command and submit it.
+    await deliverPromptSequenceToSession({
+      sessionId: session.id,
+      text: clearCommand,
+      ptyManager: this.ptyManager,
+      sessionManager: this.sessionManager,
+      configLoader: this.configLoader,
+      impliedSubmit: true,
+    });
+
+    // Give the CLI time to process the clear before relaying the note.
+    await new Promise((resolve) => setTimeout(resolve, getClearSettleDelayMs()));
+
+    const context = options.context?.trim();
+    if (!context) {
+      return { ok: true, contextRelayed: false, usedTempFile: false };
+    }
+
+    let deliveryText = options.context as string;
+    let usedTempFile = false;
+    if (shouldSendLargeTextAsTempFile(entry?.largeTextAsTempFile, options.context as string)) {
+      const tempFilePath = writeLargeTextTempFile(options.context as string, 'session-clear-context');
+      deliveryText = buildLargeTextTempFileNotice(tempFilePath, 'session_clear context');
+      usedTempFile = true;
+      logger.info(`[HelmSessionDelivery] Wrote large session_clear context to temp file for ${session.id}: ${tempFilePath}`);
+    }
+
+    await deliverPromptSequenceToSession({
+      sessionId: session.id,
+      text: deliveryText,
+      ptyManager: this.ptyManager,
+      sessionManager: this.sessionManager,
+      configLoader: this.configLoader,
+      verifyDelivery: {
+        label: 'session_clear context',
+        delayMs: getDeliveryVerifyDelayMs(),
+        retrySubmit: true,
+      },
+    });
+
+    return { ok: true, contextRelayed: true, usedTempFile };
   }
 
   private findSession(sessionRef: string): SessionInfo | null {

@@ -50,6 +50,7 @@ export function getAvailableTools(): McpToolSummary[] {
     { name: 'session_list', title: 'List Sessions', description: 'List currently known Helm sessions, optionally filtered to one working directory or project.' },
     { name: 'session_get', title: 'Get Session', description: 'Get a session by ID or exact display name.' },
     { name: 'session_send_text', title: 'Send Text To Session', description: 'Send text to a running session PTY, with optional reply routing through HELM_MSG metadata.' },
+    { name: 'session_clear', title: 'Clear Own Session Context', description: 'Self-cleanup: paste the CLI clear command (default "/clear") into your own PTY, then optionally relay a note-to-future-self so the cleared session keeps what matters. Large notes are offloaded to a temp file.' },
     { name: 'session_read_terminal', title: 'Read Session Terminal', description: 'Read the recent terminal tail for any known session by ID or exact display name, with raw, stripped, or both output modes.' },
     { name: 'session_plan_claim', title: 'Claim Plan', description: 'Claim a plan for this session: records ownership, auto-transitions ready→coding, and shows the plan badge on the session row.' },
     { name: 'session_set_aiagent_state', title: 'Set Session AIAGENT State', description: 'Update the durable AIAGENT phase for a session. Valid states: planning, implementing, completed, idle.' },

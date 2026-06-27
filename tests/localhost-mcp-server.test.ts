@@ -88,6 +88,7 @@ function makeService(): HelmControlService {
     getSession: vi.fn((sessionId: string) => ({ id: sessionId, name: 'Claude', cliType: 'claude-code' })),
     sendTextToSession: vi.fn(async (sessionRef: string, text: string, _options?: { submit?: boolean; senderSessionId?: string; senderSessionName?: string; expectsResponse?: boolean }) => ({ success: true, sessionId: sessionRef, name: 'Claude' })),
     sendInputToSession: vi.fn(async (sessionRef: string, _sequence: string, _options?: { senderSessionId?: string; senderSessionName?: string; impliedSubmit?: boolean; verify?: boolean }) => ({ success: true, sessionId: sessionRef, name: 'Claude' })),
+    clearSession: vi.fn(async (sessionRef: string, _options: { senderSessionId: string; senderSessionName: string; context?: string }) => ({ ok: true, contextRelayed: false, usedTempFile: false, sessionId: sessionRef })),
     readSessionTerminal: vi.fn((sessionRef: string, lines = 50, mode = 'both') => ({
       sessionId: sessionRef,
       name: 'Claude',
@@ -2154,6 +2155,54 @@ describe('LocalhostMcpServer', () => {
 
       const json = await response.json();
       expect(json.error.message).toContain('Unknown sender session');
+    });
+  });
+
+  describe('session_clear MCP dispatch', () => {
+    it('clears the authenticated caller\'s own session and passes context through', async () => {
+      const service = makeService();
+      (service.listSessions as unknown as ReturnType<typeof vi.fn>).mockReturnValue([
+        { id: 's1', name: 'Claude', cliType: 'claude-code' },
+      ]);
+      const clearMock = (service.clearSession as unknown as ReturnType<typeof vi.fn>);
+
+      const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+      servers.push(server);
+      await server.start();
+      const port = server.getAddress()!.port;
+
+      const response = await rpc(port, 'secret-token', {
+        jsonrpc: '2.0',
+        id: 83,
+        method: 'tools/call',
+        params: { name: 'session_clear', arguments: { context: 'feature X half done' } },
+      }, { 'x-helm-session-id': 's1' });
+
+      const json = await response.json();
+      expect(json.result.structuredContent.ok).toBe(true);
+      expect(clearMock).toHaveBeenCalledWith(
+        's1',
+        expect.objectContaining({ senderSessionId: 's1', senderSessionName: 'Claude', context: 'feature X half done' }),
+      );
+    });
+
+    it('rejects when caller identity cannot be determined', async () => {
+      const service = makeService();
+      const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+      servers.push(server);
+      await server.start();
+      const port = server.getAddress()!.port;
+
+      const response = await rpc(port, 'secret-token', {
+        jsonrpc: '2.0',
+        id: 84,
+        method: 'tools/call',
+        params: { name: 'session_clear', arguments: {} },
+      });
+
+      const json = await response.json();
+      expect(json.error.message).toContain('senderSessionId is required');
+      expect(service.clearSession).not.toHaveBeenCalled();
     });
   });
 

@@ -2,7 +2,7 @@
  * HelmSessionDeliveryService tests — envelope framing and text delivery.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HelmSessionDeliveryService } from '../src/mcp/services/helm-session-delivery-service.js';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -20,7 +20,7 @@ function makeSession(overrides?: Partial<{ id: string; name: string; cliType: st
   };
 }
 
-function makeDeps(opts?: { helmPreambleForInterSession?: boolean; largeTextAsTempFile?: boolean; receiverSession?: ReturnType<typeof makeSession> }) {
+function makeDeps(opts?: { helmPreambleForInterSession?: boolean; largeTextAsTempFile?: boolean; clearCommand?: string; receiverSession?: ReturnType<typeof makeSession>; ptyRunning?: boolean }) {
   const receiver = opts?.receiverSession ?? makeSession();
   const sender = makeSession({ id: 'sender-session', name: 'SenderSession' });
 
@@ -36,7 +36,7 @@ function makeDeps(opts?: { helmPreambleForInterSession?: boolean; largeTextAsTem
   };
 
   const ptyManager = {
-    has: vi.fn(() => true),
+    has: vi.fn(() => opts?.ptyRunning ?? true),
     write: vi.fn(),
     deliverText: vi.fn(async () => {}),
     nudgeResize: vi.fn(async () => {}),
@@ -46,6 +46,7 @@ function makeDeps(opts?: { helmPreambleForInterSession?: boolean; largeTextAsTem
     getCliTypeEntry: vi.fn(() => ({
       helmPreambleForInterSession: opts?.helmPreambleForInterSession ?? true,
       largeTextAsTempFile: opts?.largeTextAsTempFile,
+      clearCommand: opts?.clearCommand,
       submitSuffix: '\\r',
     })),
   };
@@ -165,6 +166,100 @@ describe('HelmSessionDeliveryService', () => {
         else process.env.HOME = oldHome;
         rmSync(tempHome, { recursive: true, force: true });
       }
+    });
+  });
+
+  describe('clearSession', () => {
+    const oldSettle = process.env.HELM_CLEAR_SETTLE_DELAY_MS;
+    beforeEach(() => {
+      process.env.HELM_CLEAR_SETTLE_DELAY_MS = '0';
+    });
+    afterEach(() => {
+      if (oldSettle === undefined) delete process.env.HELM_CLEAR_SETTLE_DELAY_MS;
+      else process.env.HELM_CLEAR_SETTLE_DELAY_MS = oldSettle;
+    });
+
+    function allDelivered(ptyManager: ReturnType<typeof makeDeps>['ptyManager']): string {
+      return ptyManager.deliverText.mock.calls.map((c: any[]) => c[1] ?? '').join('|');
+    }
+
+    it('sends the default /clear command to the caller\'s own PTY', async () => {
+      const { service, ptyManager, receiver } = makeDeps();
+      await service.clearSession(receiver.id, { senderSessionId: receiver.id, senderSessionName: receiver.name });
+      expect(allDelivered(ptyManager)).toContain('/clear');
+    });
+
+    it('self-target is allowed (no self-send rejection)', async () => {
+      const { service, receiver } = makeDeps();
+      const result = await service.clearSession(receiver.id, { senderSessionId: receiver.id, senderSessionName: receiver.name });
+      expect(result.ok).toBe(true);
+    });
+
+    it('uses the per-cliType clearCommand override when configured', async () => {
+      const { service, ptyManager, receiver } = makeDeps({ clearCommand: '/new' });
+      await service.clearSession(receiver.id, { senderSessionId: receiver.id, senderSessionName: receiver.name });
+      const delivered = allDelivered(ptyManager);
+      expect(delivered).toContain('/new');
+      expect(delivered).not.toContain('/clear');
+    });
+
+    it('does not relay any follow-up text when no context is given', async () => {
+      const { service, ptyManager, receiver } = makeDeps();
+      const result = await service.clearSession(receiver.id, { senderSessionId: receiver.id, senderSessionName: receiver.name });
+      expect(result.contextRelayed).toBe(false);
+      // Only the clear command chunks should have been delivered
+      const nonEmpty = ptyManager.deliverText.mock.calls.map((c: any[]) => c[1]).filter((t: string) => t && t.trim());
+      expect(nonEmpty.every((t: string) => t.includes('/clear'))).toBe(true);
+    });
+
+    it('relays context to the PTY after the clear', async () => {
+      const { service, ptyManager, receiver } = makeDeps();
+      const result = await service.clearSession(receiver.id, {
+        senderSessionId: receiver.id,
+        senderSessionName: receiver.name,
+        context: 'remember: feature X is half done',
+      });
+      expect(result.contextRelayed).toBe(true);
+      expect(allDelivered(ptyManager)).toContain('remember: feature X is half done');
+    });
+
+    it('writes a temp file and pastes a notice for large context', async () => {
+      const oldThreshold = process.env.HELM_LARGE_TEXT_TEMP_FILE_THRESHOLD;
+      const oldAppData = process.env.APPDATA;
+      const oldHome = process.env.HOME;
+      const tempHome = mkdtempSync(join(tmpdir(), 'helm-clear-ctx-'));
+      process.env.HELM_LARGE_TEXT_TEMP_FILE_THRESHOLD = '10';
+      process.env.APPDATA = tempHome;
+      process.env.HOME = tempHome;
+      try {
+        const { service, ptyManager, receiver } = makeDeps({ largeTextAsTempFile: true });
+        const result = await service.clearSession(receiver.id, {
+          senderSessionId: receiver.id,
+          senderSessionName: receiver.name,
+          context: 'this is a large note to my future self',
+        });
+        expect(result.usedTempFile).toBe(true);
+        const noticeCall = ptyManager.deliverText.mock.calls.find((c: any[]) => String(c[1]).includes('Read the full file at:'));
+        const noticeText = String(noticeCall?.[1] ?? '');
+        const pathLine = noticeText.split('\n').find((l) => l.startsWith('Read the full file at:'));
+        const tempFilePath = pathLine?.slice('Read the full file at:'.length).trim() ?? '';
+        expect(tempFilePath).toContain('helm-large-text-session-clear-context');
+        expect(readFileSync(tempFilePath, 'utf8')).toBe('this is a large note to my future self');
+        expect(noticeText).not.toContain('this is a large note to my future self');
+      } finally {
+        if (oldThreshold === undefined) delete process.env.HELM_LARGE_TEXT_TEMP_FILE_THRESHOLD;
+        else process.env.HELM_LARGE_TEXT_TEMP_FILE_THRESHOLD = oldThreshold;
+        if (oldAppData === undefined) delete process.env.APPDATA; else process.env.APPDATA = oldAppData;
+        if (oldHome === undefined) delete process.env.HOME; else process.env.HOME = oldHome;
+        rmSync(tempHome, { recursive: true, force: true });
+      }
+    });
+
+    it('throws when the session PTY is not running', async () => {
+      const { service, receiver } = makeDeps({ ptyRunning: false });
+      await expect(
+        service.clearSession(receiver.id, { senderSessionId: receiver.id, senderSessionName: receiver.name }),
+      ).rejects.toThrow('PTY is not running');
     });
   });
 

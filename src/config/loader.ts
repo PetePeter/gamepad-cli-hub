@@ -141,6 +141,8 @@ export interface CliTypeConfig {
   pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
   /** Escape sequence sent after text delivery (e.g. '\r', '\n', or '\r\n'). Empty string clears/uses default. */
   submitSuffix?: string;
+  /** Command pasted into the PTY by session_clear to reset the CLI's context. Default: '/clear'. */
+  clearCommand?: string;
   /** User-defined regex patterns that trigger automated actions when matched against PTY output. */
   patterns?: PatternRule[];
 }

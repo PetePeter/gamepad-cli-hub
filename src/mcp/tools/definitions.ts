@@ -721,6 +721,38 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'session_clear',
+    title: 'Clear Own Session Context',
+    description:
+      'Self-cleanup: reset YOUR OWN session by pasting the CLI clear command (default "/clear") into your PTY, ' +
+      'then optionally relay a "note to future self" so the freshly-cleared session keeps what matters. ' +
+      'This is SELF-TARGETED — it always operates on the calling session (identity from HELM_SESSION_ID); ' +
+      'you do NOT pass a destination sessionId. ' +
+      'The context note is delivered as a new prompt after the clear settles; if it is large it is written to a Helm ' +
+      'temp file and a read-the-file notice is pasted instead. ' +
+      'Use this to compact a long-running session: summarise outstanding work, key decisions, and next steps into context, ' +
+      'then call this tool so your future self resumes with a clean context window plus the essentials.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        context: {
+          type: 'string',
+          description:
+            'Optional note relayed to your freshly-cleared self — outstanding work, decisions, file paths, next steps. ' +
+            'Omit to clear with no follow-up.',
+        },
+        senderSessionId: {
+          type: 'string',
+          description:
+            '[OPTIONAL] Your session ID — defaults to the HELM_SESSION_ID identity injected by Helm. ' +
+            'Only needed for global-token callers.',
+        },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'session_read_terminal',
     title: 'Read Session Terminal',
     description: 'Read the recent terminal tail for any known session by sessionId or exact name. Use this immediately after session_send_text handoffs to verify the recipient received the message and started responding. lines must be a positive integer (buffer holds up to 500). mode controls raw ANSI output, ANSI-stripped output, or both.',
