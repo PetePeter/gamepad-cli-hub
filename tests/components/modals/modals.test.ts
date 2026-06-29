@@ -181,6 +181,14 @@ describe('CloseConfirmModal.vue', () => {
     w.unmount();
   });
 
+  it('renders app close copy when mode is app', () => {
+    const w = factory({ mode: 'app' });
+    expect(w.text()).toContain('Close Helm');
+    expect(w.text()).toContain('Close Helm?');
+    expect(w.text()).not.toContain('Close session');
+    w.unmount();
+  });
+
   it('gamepad D-pad left/right toggles selection', () => {
     const w = factory();
     const vm = w.vm as any;

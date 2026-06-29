@@ -111,6 +111,8 @@ describe('preload API boundary contract', () => {
     expect(helmApi.telegram.telegramStart).toBe(methodImplementations.telegramStart);
     expect(helmApi.keyboard.keyboardTypeString).toBe(methodImplementations.keyboardTypeString);
     expect(helmApi.app.appStartupReady).toBe(methodImplementations.appStartupReady);
+    expect(helmApi.app.appConfirmClose).toBe(methodImplementations.appConfirmClose);
+    expect(helmApi.events.onAppCloseRequest).toBe(methodImplementations.onAppCloseRequest);
 
     expect(gamepadCliApi.sessionSetActive).toBe(helmApi.sessions.sessionSetActive);
     expect(gamepadCliApi.planCreate).toBe(helmApi.plans.planCreate);

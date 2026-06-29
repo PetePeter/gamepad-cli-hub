@@ -317,11 +317,12 @@ function formatTopicCleanupPreview(
     `Mapped topics: ${preview.mappedTopics}`,
     `Alive active topics: ${preview.alive}`,
     `Dead mappings to clear: ${preview.dead}`,
+    `Orphan topics to delete: ${preview.probes.filter(probe => probe.status === 'orphan').length}`,
     `Probe failures: ${preview.failed}`,
   ];
 
-  if (preview.dead > 0) {
-    lines.push('', 'Confirm to clear dead mappings.');
+  if (preview.dead > 0 || preview.probes.some(probe => probe.status === 'orphan')) {
+    lines.push('', 'Confirm to clear dead mappings and delete orphans.');
     lines.push('Active session topics are skipped.');
   } else {
     lines.push('', 'Nothing destructive is pending.');

@@ -47,6 +47,8 @@ let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
 let cleanupIPC: (() => Promise<void>) | null = null;
 let isCleaningUp = false;
+let allowMainWindowClose = false;
+let closeConfirmPending = false;
 let windowBounds = { width: 1280, height: 800, x: undefined as number | undefined, y: undefined as number | undefined };
 let mainWindowReadyToShow = false;
 let rendererStartupReady = false;
@@ -255,7 +257,24 @@ function createWindow(): void {
   mainWindow.on('resize', persistBounds);
   mainWindow.on('move', persistBounds);
 
+  mainWindow.on('close', (event) => {
+    if (allowMainWindowClose || isCleaningUp) return;
+    event.preventDefault();
+
+    if (closeConfirmPending) {
+      mainWindow?.focus();
+      return;
+    }
+
+    closeConfirmPending = true;
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send('app:close-request');
+  });
+
   mainWindow.on('closed', () => {
+    allowMainWindowClose = false;
+    closeConfirmPending = false;
     clearStartupFallbackTimer();
     closeSplashWindow();
     mainWindow = null;
@@ -361,6 +380,14 @@ ipcMain.on('app:startupReady', (event) => {
   rendererStartupReady = true;
   logger.info('[Main] Renderer signaled startup ready');
   maybeShowMainWindow();
+});
+
+ipcMain.on('app:close-confirm-response', (_event, confirmed: boolean) => {
+  closeConfirmPending = false;
+  if (!confirmed || !mainWindow || mainWindow.isDestroyed()) return;
+
+  allowMainWindowClose = true;
+  mainWindow.close();
 });
 
 /**

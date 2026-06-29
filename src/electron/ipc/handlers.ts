@@ -134,12 +134,15 @@ export function registerIPCHandlers(
   const telegramNotifier = new TelegramNotifier(telegramBot, topicManager, sessionManager, () => configLoader.getTelegramConfig());
 
   // Wire the Telegram notifier to the notification manager for LLM-directed notifications when screen is locked
-  notificationManager.setTelegramNotifier(async (_sessionId: string, title: string, content: string) => {
+  notificationManager.setTelegramNotifier(async (sessionId: string, title: string, content: string) => {
     if (!telegramBot.isRunning()) return;
-    const config = configLoader.getTelegramConfig();
+    const session = sessionManager.getSession(sessionId);
+    if (!session) return;
+    const topicId = await topicManager.ensureTopic(session);
+    if (topicId == null) return;
     const text = `${title}\n\n${content}`;
     try {
-      await telegramBot.sendMessage(text);
+      await telegramBot.sendToTopic(topicId, text);
     } catch (error) {
       logger.error(`[IPC] Failed to send LLM notification via Telegram: ${error}`);
     }
@@ -287,7 +290,6 @@ export function registerIPCHandlers(
           telegramBot.start(telegramConfig.botToken, telegramConfig.chatId, telegramConfig.allowedUserIds);
           topicManager.setInstanceName(telegramConfig.instanceName);
           topicManager.ensureAllTopics().catch(err => logger.error(`[Telegram] Failed to ensure topics: ${err}`));
-          telegramModules.dashboard.start().catch(err => logger.error(`[Telegram] Dashboard start failed: ${err}`));
           logger.info('[IPC] Telegram bot auto-started after 60 seconds');
         } catch (err) {
           logger.error(`[IPC] Failed to auto-start Telegram bot: ${err}`);

@@ -20,11 +20,26 @@ export const closeConfirm = reactive({
   sessionId: '',
   sessionName: '',
   draftCount: 0,
+  mode: 'session' as 'session' | 'app',
 });
 
 let _closeConfirmOnConfirm: ((sessionId: string) => void) | null = null;
 export function setCloseConfirmCallback(cb: ((sessionId: string) => void) | null): void { _closeConfirmOnConfirm = cb; }
 export function getCloseConfirmCallback(): ((sessionId: string) => void) | null { return _closeConfirmOnConfirm; }
+
+export function showAppCloseConfirm(onConfirm: () => void, onCancel?: () => void): void {
+  closeConfirm.visible = true;
+  closeConfirm.sessionId = '';
+  closeConfirm.sessionName = 'Helm';
+  closeConfirm.draftCount = 0;
+  closeConfirm.mode = 'app';
+  setCloseConfirmCallback(() => onConfirm());
+  _closeConfirmOnCancel = onCancel ?? null;
+}
+
+let _closeConfirmOnCancel: (() => void) | null = null;
+export function setCloseConfirmCancelCallback(cb: (() => void) | null): void { _closeConfirmOnCancel = cb; }
+export function getCloseConfirmCancelCallback(): (() => void) | null { return _closeConfirmOnCancel; }
 
 // ============================================================================
 // Context Menu

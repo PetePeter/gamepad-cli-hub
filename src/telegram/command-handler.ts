@@ -46,7 +46,9 @@ export function setupCommandHandler(
         await handler(msg, args);
       } catch (err) {
         logger.error(`[CommandHandler] /${cmd} failed: ${err}`);
-        await bot.sendMessage(`❌ Failed to execute /${cmd}`);
+        await bot.sendMessage(`❌ Failed to execute /${cmd}`, {
+          message_thread_id: msg.message_thread_id,
+        });
       }
     };
     bot.on(`command:${cmd}`, wrapper);
@@ -282,7 +284,7 @@ async function handlePeek(
 ): Promise<void> {
   const sessions = sessionManager.getAllSessions();
   if (sessions.length === 0) {
-    await bot.sendMessage('No active sessions');
+    await bot.sendMessage('No active sessions', { message_thread_id: msg.message_thread_id });
     return;
   }
 
@@ -295,7 +297,9 @@ async function handlePeek(
         || s.id.startsWith(args.trim()),
     );
     if (!match) {
-      await bot.sendMessage(`Session not found: ${escapeHtml(args.trim())}`);
+      await bot.sendMessage(`Session not found: ${escapeHtml(args.trim())}`, {
+        message_thread_id: msg.message_thread_id,
+      });
       return;
     }
     targetSession = { id: match.id, name: match.name };
@@ -317,6 +321,7 @@ async function handlePeek(
     // Multiple sessions, no name given — show picker
     const { text, keyboard } = peekSessionPickerKeyboard(sessions, (s) => topicManager.getFormattedName(s));
     await bot.sendMessage(text, {
+      message_thread_id: msg.message_thread_id,
       reply_markup: { inline_keyboard: keyboard },
     });
   }

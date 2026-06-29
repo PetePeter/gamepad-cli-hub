@@ -69,6 +69,7 @@ import {
   draftSubmenu,
   toolEditor,
   isAnyBridgeModalVisible,
+  showAppCloseConfirm,
 } from './stores/modal-bridge.js';
 import { showEditorPopup } from './editor/editor-popup.js';
 import { usePromptApplyFlow } from './composables/usePromptApplyFlow.js';
@@ -201,6 +202,7 @@ let unsubSnapOut: (() => void) | null = null;
 let unsubSnapBack: (() => void) | null = null;
 let unsubFocusSlot: (() => void) | null = null;
 let unsubLlmNotify: (() => void) | null = null;
+let unsubAppCloseRequest: (() => void) | null = null;
 
 // Non-modal local state
 const bindingEditorVisible = ref(false);
@@ -788,6 +790,15 @@ onMounted(async () => {
         })
       : null;
 
+    unsubAppCloseRequest = eventsClient.onAppCloseRequest
+      ? eventsClient.onAppCloseRequest(() => {
+          showAppCloseConfirm(
+            () => { void appClient.appConfirmClose(true); },
+            () => { void appClient.appConfirmClose(false); },
+          );
+        })
+      : null;
+
     onViewChange((view: ViewName) => {
       activeView.value = view;
     });
@@ -836,6 +847,8 @@ onUnmounted(() => {
   unsubFocusSlot = null;
   unsubLlmNotify?.();
   unsubLlmNotify = null;
+  unsubAppCloseRequest?.();
+  unsubAppCloseRequest = null;
   teardown();
 });
 </script>

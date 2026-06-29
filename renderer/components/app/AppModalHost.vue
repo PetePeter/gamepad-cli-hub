@@ -2,6 +2,7 @@
 import { useEditorPopupStore } from '../../stores/editor-popup.js';
 import {
   closeConfirm, getCloseConfirmCallback, setCloseConfirmCallback,
+  getCloseConfirmCancelCallback, setCloseConfirmCancelCallback,
   contextMenu,
   planDeleteConfirm, getPlanDeleteCallback, setPlanDeleteCallback,
   clearDonePlans, getClearDonePlansCallback,
@@ -89,7 +90,10 @@ const editorPopupStore = useEditorPopupStore();
 
 function onCancelClose(): void {
   closeConfirm.visible = false;
+  closeConfirm.mode = 'session';
+  getCloseConfirmCancelCallback()?.();
   setCloseConfirmCallback(null);
+  setCloseConfirmCancelCallback(null);
 }
 
 function onConfirmClose(): void {
@@ -100,7 +104,9 @@ function onConfirmClose(): void {
   } else {
     emit('close-session', closeConfirm.sessionId);
   }
+  closeConfirm.mode = 'session';
   setCloseConfirmCallback(null);
+  setCloseConfirmCancelCallback(null);
 }
 
 function onPlanDeleteConfirm(): void {
@@ -163,6 +169,7 @@ function onToolEditorSave(values: any): void {
     v-model:visible="closeConfirm.visible"
     :session-name="closeConfirm.sessionName"
     :draft-count="closeConfirm.draftCount"
+    :mode="closeConfirm.mode"
     @confirm="onConfirmClose"
     @cancel="onCancelClose"
   />

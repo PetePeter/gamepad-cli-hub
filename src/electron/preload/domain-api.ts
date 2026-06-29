@@ -541,6 +541,12 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     return Promise.resolve();
   },
 
+  /** Confirm or cancel a main-process close request. */
+  appConfirmClose: (confirmed: boolean): Promise<void> => {
+    ipcRenderer.send('app:close-confirm-response', confirmed);
+    return Promise.resolve();
+  },
+
   /** Open external editor (Notepad) for prompt composition */
   editorOpenExternal: (): Promise<{ success: boolean; text?: string; error?: string }> =>
     ipcRenderer.invoke('editor:openExternal'),
@@ -1035,6 +1041,13 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     const listener = () => callback();
     ipcRenderer.on('prompt-template:changed', listener);
     return () => ipcRenderer.removeListener('prompt-template:changed', listener);
+  },
+
+  /** Subscribe to main-process requests to confirm closing the app window. */
+  onAppCloseRequest: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('app:close-request', listener);
+    return () => ipcRenderer.removeListener('app:close-request', listener);
   },
 
 } as const;

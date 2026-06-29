@@ -36,8 +36,8 @@ interface StateTransition {
  * - State change: active → non-active (implementing/planning → completed/idle/waiting)
  * - Crash/error events (future)
  *
- * Each notification includes inline action buttons and is sent to
- * both the session's topic (if exists) and the General topic.
+ * Each notification includes inline action buttons and is sent only to
+ * the session's topic.
  */
 export class TelegramNotifier {
   private lastNotificationTime: Map<string, number> = new Map();

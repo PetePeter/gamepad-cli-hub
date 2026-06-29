@@ -115,8 +115,6 @@ async function forwardToSession(
   const echoText = `➡️ <code>${escapeHtml(text)}</code>`;
   if (replyTopicId) {
     await bot.sendToTopic(replyTopicId, echoText, { parse_mode: 'HTML' });
-  } else {
-    await bot.sendMessage(echoText, { parse_mode: 'HTML' });
   }
 
   logger.info(

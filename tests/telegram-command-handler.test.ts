@@ -259,7 +259,9 @@ describe('command:peek handler', () => {
 
     await peekHandler!({} as any, 'nonexistent');
 
-    expect(sendMessage).toHaveBeenCalledWith('Session not found: nonexistent');
+    expect(sendMessage).toHaveBeenCalledWith('Session not found: nonexistent', {
+      message_thread_id: undefined,
+    });
   });
 
   it('with no sessions, returns "no active sessions"', async () => {
@@ -275,7 +277,9 @@ describe('command:peek handler', () => {
 
     await peekHandler!({} as any, '');
 
-    expect(sendMessage).toHaveBeenCalledWith('No active sessions');
+    expect(sendMessage).toHaveBeenCalledWith('No active sessions', {
+      message_thread_id: undefined,
+    });
   });
 });
 

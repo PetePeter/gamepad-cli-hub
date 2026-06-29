@@ -55,6 +55,22 @@ function makeMockSessionManager(sessions: SessionInfo[]) {
   };
 }
 
+function makeMockTopicRegistry(records: any[] = []) {
+  return {
+    list: vi.fn(() => records),
+    upsert: vi.fn((record: any) => {
+      const existing = records.findIndex(item => item.topicId === record.topicId);
+      const next = { ...record, createdAt: Date.now(), updatedAt: Date.now() };
+      if (existing >= 0) records[existing] = next;
+      else records.push(next);
+    }),
+    remove: vi.fn((topicId: number) => {
+      const index = records.findIndex(item => item.topicId === topicId);
+      if (index >= 0) records.splice(index, 1);
+    }),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -63,6 +79,7 @@ describe('TopicManager', () => {
   let bot: ReturnType<typeof makeMockBot>;
   let session: SessionInfo;
   let sessionManager: ReturnType<typeof makeMockSessionManager>;
+  let topicRegistry: ReturnType<typeof makeMockTopicRegistry>;
   let tm: TopicManager;
 
   beforeEach(() => {
@@ -70,7 +87,8 @@ describe('TopicManager', () => {
     bot = makeMockBot();
     session = makeSession();
     sessionManager = makeMockSessionManager([session]);
-    tm = new TopicManager(bot as any, sessionManager as any, 'Home');
+    topicRegistry = makeMockTopicRegistry();
+    tm = new TopicManager(bot as any, sessionManager as any, 'Home', topicRegistry as any);
   });
 
   // =========================================================================
@@ -122,6 +140,11 @@ describe('TopicManager', () => {
 
       expect(session.topicId).toBe(100);
       expect(saveSessions).toHaveBeenCalled();
+      expect(topicRegistry.upsert).toHaveBeenCalledWith({
+        topicId: 100,
+        sessionId: 'sess-1',
+        sessionName: 'my-session',
+      });
     });
 
     it('returns null when topic creation fails', async () => {
@@ -142,7 +165,7 @@ describe('TopicManager', () => {
       const s1 = makeSession({ id: 'a', name: 'alpha' });
       const s2 = makeSession({ id: 'b', name: 'beta' });
       const mgr = makeMockSessionManager([s1, s2]);
-      const topicMgr = new TopicManager(bot as any, mgr as any, 'Work');
+      const topicMgr = new TopicManager(bot as any, mgr as any, 'Work', makeMockTopicRegistry() as any);
 
       let topicCounter = 200;
       bot.createForumTopic.mockImplementation(async () => ({
@@ -178,6 +201,7 @@ describe('TopicManager', () => {
       await tm.closeSessionTopic(session);
 
       expect(bot.deleteForumTopic).toHaveBeenCalledWith(42);
+      expect(topicRegistry.remove).toHaveBeenCalledWith(42);
     });
 
     it('no-ops when session has no topicId', async () => {
@@ -198,6 +222,7 @@ describe('TopicManager', () => {
 
       expect(bot.deleteForumTopic).toHaveBeenCalledWith(42);
       expect(session.topicId).toBeUndefined();
+      expect(topicRegistry.remove).toHaveBeenCalledWith(42);
     });
 
     it('no-ops when session has no topicId', async () => {
@@ -217,6 +242,7 @@ describe('TopicManager', () => {
       tm.handleTopicClosed(42);
 
       expect(session.topicId).toBeUndefined();
+      expect(topicRegistry.remove).toHaveBeenCalledWith(42);
       expect(sessionManager.getSession).toHaveBeenCalledWith('sess-1'); // session still exists
     });
 
@@ -346,6 +372,42 @@ describe('TopicManager', () => {
       expect(result.cleared).toBe(0);
       expect(result.deleted).toBe(0);
       expect(bot.sendToTopic).not.toHaveBeenCalled();
+    });
+
+    it('deletes orphan topics recorded in the Helm topic registry', async () => {
+      const orphanRegistry = makeMockTopicRegistry([{
+        topicId: 77,
+        sessionId: 'old-session',
+        sessionName: 'old',
+        createdAt: 1,
+        updatedAt: 1,
+      }]);
+      const topicMgr = new TopicManager(bot as any, sessionManager as any, 'Home', orphanRegistry as any);
+
+      const result = await topicMgr.cleanupStaleTopics();
+
+      expect(result.deleted).toBe(1);
+      expect(result.cleared).toBe(0);
+      expect(bot.deleteForumTopic).toHaveBeenCalledWith(77);
+      expect(orphanRegistry.remove).toHaveBeenCalledWith(77);
+    });
+
+    it('keeps orphan registry entries when Telegram deletion fails', async () => {
+      const orphanRegistry = makeMockTopicRegistry([{
+        topicId: 77,
+        sessionId: 'old-session',
+        sessionName: 'old',
+        createdAt: 1,
+        updatedAt: 1,
+      }]);
+      bot.deleteForumTopic.mockResolvedValue(false);
+      const topicMgr = new TopicManager(bot as any, sessionManager as any, 'Home', orphanRegistry as any);
+
+      const result = await topicMgr.cleanupStaleTopics();
+
+      expect(result.deleted).toBe(0);
+      expect(result.failures).toHaveLength(1);
+      expect(orphanRegistry.remove).not.toHaveBeenCalledWith(77);
     });
   });
 

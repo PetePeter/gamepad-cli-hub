@@ -10,6 +10,7 @@ export const PRELOAD_API_DOMAINS = {
   app: [
     'appGetVersion',
     'appStartupReady',
+    'appConfirmClose',
   ],
   sessions: [
     'sessionSetActive',
@@ -262,6 +263,7 @@ export const PRELOAD_API_DOMAINS = {
     'onScheduledTaskChanged',
     'onScheduledTaskHistoryChanged',
     'onPromptTemplateChanged',
+    'onAppCloseRequest',
   ],
 } as const;
 

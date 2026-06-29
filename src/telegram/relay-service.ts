@@ -24,7 +24,7 @@ import {
   shouldSendLargeTextAsTempFile,
   writeLargeTextTempFile,
 } from '../session/large-text-temp-file.js';
-import { escapeHtml, formatAgentMessageForTelegram } from './utils.js';
+import { formatAgentMessageForTelegram } from './utils.js';
 import { OpenWhisprTranscriber, type AudioTranscriber, type AudioTranscriptionResult } from './openwhispr-transcriber.js';
 import type { SessionInfo } from '../types/session.js';
 import type {
@@ -160,6 +160,10 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
       return { sent: false, reason: 'No session or channel specified' };
     }
 
+    if (channel.topicId == null) {
+      return { sent: false, reason: 'Telegram topic could not be created for session' };
+    }
+
     const chatId = this.telegramBot.getChatId();
     if (!chatId) {
       return { sent: false, reason: 'Telegram chat not configured' };
@@ -173,40 +177,15 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
       messageId = attachmentResult.documentId;
     } else {
       const text = formatAgentMessageForTelegram(input.text);
-      const message = channel.topicId
-        ? await this.telegramBot.sendToTopic(channel.topicId, text, {
-            parse_mode: 'HTML',
-            reply_markup: input.keyboard ? { inline_keyboard: input.keyboard } : undefined,
-          })
-        : await this.telegramBot.sendMessage(text, {
-            parse_mode: 'HTML',
-            reply_markup: input.keyboard ? { inline_keyboard: input.keyboard } : undefined,
-          });
+      const message = await this.telegramBot.sendToTopic(channel.topicId, text, {
+        parse_mode: 'HTML',
+        reply_markup: input.keyboard ? { inline_keyboard: input.keyboard } : undefined,
+      });
       if (message) messageId = message.message_id;
     }
 
     if (!messageId) {
       return { sent: false, reason: 'Failed to send message' };
-    }
-
-    // Nudge General Chat with first 80 chars + link to topic
-    if (channel.topicId) {
-      const preview = input.text.substring(0, 80) + (input.text.length > 80 ? '...' : '');
-      try {
-        await this.telegramBot.getBot()?.sendMessage(
-          chatId,
-          `${escapeHtml(preview)}`,
-          {
-            reply_markup: {
-              inline_keyboard: [[
-                { text: 'Go to topic →', url: `https://t.me/c/${String(chatId).replace('-100', '')}/${channel.topicId}` },
-              ]],
-            },
-          },
-        );
-      } catch (err) {
-        logger.warn(`[TelegramRelay] Failed to send General Chat nudge: ${err}`);
-      }
     }
 
     const updated: TelegramChannel = {

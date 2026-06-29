@@ -3,12 +3,13 @@ import type { SessionManager } from '../session/manager.js';
 import type { SessionInfo } from '../types/session.js';
 import { saveSessions } from '../session/persistence.js';
 import { logger } from '../utils/logger.js';
+import { TelegramTopicRegistry, type TelegramTopicRecord } from './topic-registry.js';
 
 export interface StaleTopicProbe {
   sessionId: string;
   sessionName: string;
   topicId: number;
-  status: 'alive' | 'dead' | 'failed';
+  status: 'alive' | 'dead' | 'orphan' | 'failed';
   error?: string;
 }
 
@@ -43,6 +44,7 @@ export class TopicManager {
     private bot: TelegramBotCore,
     private sessionManager: SessionManager,
     private instanceName: string,
+    private topicRegistry = new TelegramTopicRegistry(),
   ) {}
 
   /** Update the instance name prefix for topic names. */
@@ -62,9 +64,15 @@ export class TopicManager {
       if (alive) {
         logger.info(`[TopicManager] Topic ${session.topicId} alive for session ${session.id}`);
         this.topicNames.set(session.topicId, this.formatTopicName(session.name));
+        this.topicRegistry.upsert({
+          topicId: session.topicId,
+          sessionId: session.id,
+          sessionName: session.name,
+        });
         return session.topicId;
       }
       logger.warn(`[TopicManager] Topic ${session.topicId} dead for session ${session.id}, recreating`);
+      this.topicRegistry.remove(session.topicId);
     }
 
     return this.createTopicForSession(session);
@@ -98,6 +106,11 @@ export class TopicManager {
 
     const topicId = topic.message_thread_id;
     this.updateSessionTopicId(session.id, topicId);
+    this.topicRegistry.upsert({
+      topicId,
+      sessionId: session.id,
+      sessionName: session.name,
+    });
     this.topicNames.set(topicId, topicName);
     logger.info(`[TopicManager] Created topic ${topicId} for session ${session.id}: "${topicName}"`);
 
@@ -122,6 +135,7 @@ export class TopicManager {
       return;
     }
     this.topicNames.delete(session.topicId);
+    this.topicRegistry.remove(session.topicId);
     logger.info(`[TopicManager] Deleted topic ${session.topicId} for session ${session.id}`);
   }
 
@@ -137,6 +151,7 @@ export class TopicManager {
       return;
     }
     this.topicNames.delete(session.topicId);
+    this.topicRegistry.remove(session.topicId);
     this.updateSessionTopicId(sessionId, undefined);
     logger.info(`[TopicManager] Deleted topic ${session.topicId} and cleared topicId for session ${sessionId}`);
   }
@@ -150,6 +165,7 @@ export class TopicManager {
     const session = this.findSessionByTopicId(topicId);
     if (session) {
       this.topicNames.delete(topicId);
+      this.topicRegistry.remove(topicId);
       this.updateSessionTopicId(session.id, undefined);
       logger.info(`[TopicManager] Topic ${topicId} closed by user, cleared topicId for session ${session.id}`);
     }
@@ -223,6 +239,15 @@ export class TopicManager {
       }
     }
 
+    for (const record of this.orphanRegistryRecords()) {
+      probes.push({
+        sessionId: record.sessionId,
+        sessionName: record.sessionName,
+        topicId: record.topicId,
+        status: 'orphan',
+      });
+    }
+
     return this.summarizePreview(sessions.length, probes);
   }
 
@@ -233,24 +258,44 @@ export class TopicManager {
   async cleanupStaleTopics(): Promise<StaleTopicCleanupResult> {
     const preview = await this.previewStaleTopics();
     let cleared = 0;
+    let deleted = 0;
     const failures: StaleTopicCleanupResult['failures'] = [];
 
     for (const probe of preview.probes) {
-      if (probe.status !== 'dead') continue;
+      if (probe.status === 'dead') {
+        try {
+          this.updateSessionTopicId(probe.sessionId, undefined);
+          this.topicRegistry.remove(probe.topicId);
+          cleared++;
+          logger.info(`[TopicManager] Cleared dead topic ${probe.topicId} for session ${probe.sessionId}`);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          failures.push({ sessionId: probe.sessionId, topicId: probe.topicId, error: message });
+          logger.error(`[TopicManager] Failed to clear dead topic ${probe.topicId} for ${probe.sessionId}: ${message}`);
+        }
+        continue;
+      }
+
+      if (probe.status !== 'orphan') continue;
       try {
-        this.updateSessionTopicId(probe.sessionId, undefined);
-        cleared++;
-        logger.info(`[TopicManager] Cleared dead topic ${probe.topicId} for session ${probe.sessionId}`);
+        const deleteOk = await this.bot.deleteForumTopic(probe.topicId);
+        if (!deleteOk) {
+          throw new Error('Telegram deleteForumTopic returned false');
+        }
+        this.topicNames.delete(probe.topicId);
+        this.topicRegistry.remove(probe.topicId);
+        deleted++;
+        logger.info(`[TopicManager] Deleted orphan topic ${probe.topicId} for former session ${probe.sessionId}`);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         failures.push({ sessionId: probe.sessionId, topicId: probe.topicId, error: message });
-        logger.error(`[TopicManager] Failed to clear dead topic ${probe.topicId} for ${probe.sessionId}: ${message}`);
+        logger.error(`[TopicManager] Failed to delete orphan topic ${probe.topicId} for ${probe.sessionId}: ${message}`);
       }
     }
 
     return {
       ...preview,
-      deleted: 0,
+      deleted,
       cleared,
       skipped: preview.alive,
       failed: preview.failed + failures.length,
@@ -306,5 +351,17 @@ export class TopicManager {
     if (!session) return;
     session.topicId = topicId;
     saveSessions(this.sessionManager.getAllSessions());
+  }
+
+  private orphanRegistryRecords(): TelegramTopicRecord[] {
+    const liveTopicIds = new Set(
+      this.sessionManager
+        .getAllSessions()
+        .map(session => session.topicId)
+        .filter((topicId): topicId is number => topicId != null),
+    );
+    return this.topicRegistry
+      .list()
+      .filter(record => !liveTopicIds.has(record.topicId));
   }
 }

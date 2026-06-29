@@ -14,6 +14,7 @@ const props = defineProps<{
   visible: boolean;
   sessionName: string;
   draftCount?: number;
+  mode?: 'session' | 'app';
 }>();
 
 const emit = defineEmits<{
@@ -23,11 +24,15 @@ const emit = defineEmits<{
 }>();
 
 const hasDrafts = computed(() => (props.draftCount ?? 0) > 0);
+const isAppClose = computed(() => props.mode === 'app');
+const title = computed(() => isAppClose.value ? 'Close Helm' : 'Close Session');
+const ariaLabel = computed(() => isAppClose.value ? 'Close Helm confirmation' : 'Close session confirmation');
+const prompt = computed(() => isAppClose.value ? 'Close Helm?' : `Close session ${props.sessionName}?`);
 const selectedIndex = ref(0);
-const buttons = [
+const buttons = computed(() => [
   { id: 'cancel', label: 'Cancel' },
-  { id: 'close', label: 'Close', variant: 'danger' },
-] as const;
+  { id: 'close', label: isAppClose.value ? 'Close Helm' : 'Close', variant: 'danger' },
+] as const);
 
 function handleButton(button: string): boolean {
   dialog.value?.syncSelectedIndex(selectedIndex.value);
@@ -48,8 +53,8 @@ defineExpose({ handleButton, selectedIndex });
     ref="dialog"
     :visible="visible"
     :modal-id="MODAL_ID"
-    title="Close Session"
-    aria-label="Close session confirmation"
+    :title="title"
+    :aria-label="ariaLabel"
     :buttons="buttons"
     v-model:selected-index="selectedIndex"
     cancel-action-id="cancel"
@@ -59,7 +64,10 @@ defineExpose({ handleButton, selectedIndex });
     @update:visible="emit('update:visible', $event)"
   >
     <div id="closeConfirmBody">
-      <div>Close session <strong>{{ sessionName }}</strong>?</div>
+      <div>
+        <template v-if="mode === 'app'">{{ prompt }}</template>
+        <template v-else>Close session <strong>{{ sessionName }}</strong>?</template>
+      </div>
       <div v-if="hasDrafts" class="draft-warning">
         ⚠ {{ draftCount }} unsent draft{{ draftCount === 1 ? '' : 's' }} will be deleted
       </div>

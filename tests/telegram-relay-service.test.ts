@@ -234,25 +234,14 @@ describe('TelegramRelayService', () => {
     expect(callArgs[1]).toContain('Respond via telegram_chat MCP tool.');
   });
 
-  it('sends General Chat nudge after successful topic message', async () => {
+  it('does not send a General Chat nudge after successful topic message', async () => {
     const { relay, bot } = makeRelay();
     const innerBot = bot.getBot();
 
     await relay.sendToUser({ sessionId: 's1', text: 'A message that is longer than 80 characters so it gets truncated in the General Chat nudge preview text' });
 
-    expect(innerBot.sendMessage).toHaveBeenCalledWith(
-      -1001234567890,
-      expect.stringContaining('...'),
-      expect.objectContaining({
-        reply_markup: expect.objectContaining({
-          inline_keyboard: expect.arrayContaining([
-            expect.arrayContaining([
-              expect.objectContaining({ text: 'Go to topic →' }),
-            ]),
-          ]),
-        }),
-      }),
-    );
+    expect(innerBot.sendMessage).not.toHaveBeenCalled();
+    expect(bot.sendMessage).not.toHaveBeenCalled();
   });
 
   it('isAvailable() returns true when bot is running', () => {
@@ -349,7 +338,7 @@ describe('TelegramRelayService', () => {
       rmSync(path.dirname(filePath), { recursive: true, force: true });
     });
 
-    it('sends attachment without topic (no topicId)', async () => {
+    it('fails closed for an attachment when no topic can be created', async () => {
       const { relay, bot } = makeRelay();
       const session = { id: 's2', name: 'NoTopic', cliType: 'claude-code' };
       const sm = {
@@ -364,12 +353,9 @@ describe('TelegramRelayService', () => {
         text: 'No topic',
         filePath: pdfPath,
       });
-      expect(result.sent).toBe(true);
-      expect(bot.sendDocument).toHaveBeenCalledWith(
-        expect.any(Buffer),
-        'report.pdf',
-        expect.objectContaining({ topicId: undefined }),
-      );
+      expect(result.sent).toBe(false);
+      expect(result.reason).toContain('Telegram topic could not be created');
+      expect(bot.sendDocument).not.toHaveBeenCalled();
       rmSync(path.dirname(pdfPath), { recursive: true, force: true });
     });
   });
