@@ -417,12 +417,7 @@ function makeSessionListProps(overrides: Record<string, any> = {}) {
       ['s1', 2],
     ]),
     activeFocus: 'sessions',
-    sessionsFocusIndex: 0,
-    navList: [
-      { type: 'overview-button', id: 'overview' },
-      { type: 'group-header', id: '/workspace/a' },
-      { type: 'session-card', id: 's1' },
-    ],
+    focusedNavItem: { id: 'overview', type: 'overview-button' } as { id: string; type: string } | null,
     focusColumn: 0,
     activeSessionId: null,
     editingSessionId: null,
@@ -539,12 +534,7 @@ describe('SessionList', () => {
       props: makeSessionListProps({
         groups: [{ dirPath: '/workspace/a', collapsed: false, sessions: manySessions }],
         navIndexMap,
-        navList: [
-          { type: 'overview-button', id: 'overview' },
-          { type: 'group-header', id: '/workspace/a' },
-          ...manySessions.map((session) => ({ type: 'session-card', id: session.id })),
-        ],
-        sessionsFocusIndex: 25,
+        focusedNavItem: { id: 's24', type: 'session-card' },
         focusColumn: 4,
       }),
     });

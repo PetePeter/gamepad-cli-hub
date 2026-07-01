@@ -694,6 +694,13 @@ function handleSessionsZoneButton(button: string): boolean {
 // ============================================================================
 
 export function updateSessionsFocus(): void {
+  // Vue renders the sidebar highlight from the identity-based focusedNavItem
+  // (see isNavItemFocused). Keep that identity in lockstep with the numeric
+  // stepping cursor for ALL nav item types (cards, group headers, overview
+  // button) so D-pad/keyboard moves onto non-session rows highlight correctly.
+  if (sessionsState.activeFocus === 'sessions') {
+    try { useNavigationStore().captureCurrentFocus(); } catch { /* store not ready */ }
+  }
   const list = document.getElementById('sessionsList');
   if (!list) return;
   // Vue owns the visual focused/card-column classes; this helper only keeps the

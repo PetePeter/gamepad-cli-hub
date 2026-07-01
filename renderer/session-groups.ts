@@ -209,6 +209,30 @@ export function findNavIndexBySessionId(navList: NavItem[], sessionId: string): 
   return navList.findIndex(item => item.type === 'session-card' && item.id === sessionId);
 }
 
+/** Identity-based sidebar cursor — survives navList reorders/rebuilds. */
+export interface FocusedNavItem {
+  id: string;
+  type: string;
+}
+
+/**
+ * Decide whether a sidebar nav item is the focused one.
+ *
+ * Renders the highlight from identity ({id,type}) rather than a stored numeric
+ * index into navList. A numeric index silently points at the wrong card the
+ * moment navList is reordered/rebuilt (activity re-sort, spawn, close), which
+ * is what drifted the highlight away from the active terminal. Identity cannot
+ * drift, so highlight and terminal stay in lockstep by construction.
+ */
+export function isNavItemFocused(
+  activeFocus: string,
+  focused: FocusedNavItem | null | undefined,
+  type: string,
+  id: string,
+): boolean {
+  return activeFocus === 'sessions' && !!focused && focused.type === type && focused.id === id;
+}
+
 // ============================================================================
 // Group reordering
 // ============================================================================

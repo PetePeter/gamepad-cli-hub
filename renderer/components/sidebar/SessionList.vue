@@ -8,6 +8,7 @@
  */
 import SessionGroup from './SessionGroup.vue';
 import SessionCard from './SessionCard.vue';
+import { isNavItemFocused } from '../../session-groups.js';
 
 interface SessionListDirectory {
   name: string;
@@ -43,8 +44,7 @@ const props = defineProps<{
   projects?: SessionListProject[];
   navIndexMap: Map<string, number>;
   activeFocus: string;
-  sessionsFocusIndex: number;
-  navList: Array<{ type: string; id: string }>;
+  focusedNavItem: { id: string; type: string } | null;
   focusColumn: SessionListFocusColumn;
   activeSessionId: string | null;
   editingSessionId: string | null;
@@ -97,7 +97,7 @@ function onSessionStateChange(sessionId: string, newState: string): void {
     <button
       v-if="hasSessions"
       class="overview-nav-button"
-      :class="{ focused: activeFocus === 'sessions' && navList[sessionsFocusIndex]?.type === 'overview-button' }"
+      :class="{ focused: isNavItemFocused(activeFocus, focusedNavItem, 'overview-button', 'overview') }"
       title="Overview — all sessions"
       @click="emit('showGlobalOverview')"
     >
@@ -115,9 +115,7 @@ function onSessionStateChange(sessionId: string, newState: string): void {
               sessionCount: group.sessions.length,
             }"
             :nav-index="navIndexMap.get(group.dirPath) ?? -1"
-            :is-focused="activeFocus === 'sessions'
-              && navList[sessionsFocusIndex]?.type === 'group-header'
-              && navList[sessionsFocusIndex]?.id === group.dirPath"
+            :is-focused="isNavItemFocused(activeFocus, focusedNavItem, 'group-header', group.dirPath)"
             @toggle-collapse="emit('toggleGroupCollapse', $event)"
             @show-overview="emit('showOverview', $event)"
           />
@@ -136,9 +134,7 @@ function onSessionStateChange(sessionId: string, newState: string): void {
               :working-plan-label="workingPlanLabels.get(session.id) || ''"
               :working-plan-tooltip="workingPlanTooltips.get(session.id) || ''"
               :is-active="activeSessionId === session.id"
-              :is-focused="activeFocus === 'sessions'
-                && navList[sessionsFocusIndex]?.type === 'session-card'
-                && navList[sessionsFocusIndex]?.id === session.id"
+              :is-focused="isNavItemFocused(activeFocus, focusedNavItem, 'session-card', session.id)"
               :focus-column="focusColumn"
               :is-editing="editingSessionId === session.id"
               :is-hidden-from-overview="isSessionHiddenFromOverview(session)"
