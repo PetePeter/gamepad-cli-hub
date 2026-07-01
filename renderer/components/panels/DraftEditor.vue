@@ -12,6 +12,7 @@ import { formatDateTime } from '../../utils/date-format.js';
 import { getDisplayTitle } from '../../types.js';
 import PromptTextarea from '../common/PromptTextarea.vue';
 import { attachmentsClient, configClient, dialogClient } from '../../ipc/clients.js';
+import { copyPlanRef } from '../../composables/useCopyPlanRef.js';
 
 type ContextBoundPlan = {
   id: string;
@@ -494,6 +495,7 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
       <span class="draft-editor-title">{{ titleText }}</span>
       <div class="draft-editor-actions">
         <span v-if="saveStatus !== 'clean'" class="plan-save-status" :class="`plan-save-status--${saveStatus}`">{{ saveStatusText }}</span>
+        <button v-if="isPlan && planHumanId" class="btn btn--secondary btn--sm" :title="`Copy reference ${planHumanId}`" @click="copyPlanRef(planHumanId)">⧉ Copy ref</button>
         <button class="btn btn--primary btn--sm" @click="onSave">Save</button>
         <button v-if="showApplyButton" class="btn btn--primary btn--sm" @click="onApply">{{ applyButtonText }}</button>
         <button v-if="showDoneButton" class="btn btn--success btn--sm" @click="onDone">✓ Done</button>

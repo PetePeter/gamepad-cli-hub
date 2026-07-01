@@ -133,6 +133,7 @@ const state = appStore.state;
 import ChipBar from './components/chips/ChipBar.vue';
 import ChipActionBar from './components/chips/ChipActionBar.vue';
 import { useChipBarStore } from './stores/chip-bar.js';
+import { copyPlanRef as copyPlanRefToClipboard } from './composables/useCopyPlanRef.js';
 import { useNavigationStore } from './stores/navigation.js';
 import { useSessionsScreenStore } from './stores/sessions-screen.js';
 import { useNumberAccelerator, slotToIndex } from './composables/useNumberAccelerator.js';
@@ -649,6 +650,10 @@ function onChipBarAction(sequence: string): void {
   void chipBarStore.triggerAction(sequence);
 }
 
+function copyPlanRef(humanId: string): void {
+  void copyPlanRefToClipboard(humanId);
+}
+
 async function onDraftSubmenuApply(draft: { id: string; text: string }): Promise<void> {
   draftSubmenu.visible = false;
   if (state.activeSessionId && draft.text) {
@@ -1068,6 +1073,7 @@ onUnmounted(() => {
         :actions="[]"
         :visible="chipBarVisible && activeView !== 'overview'"
         @plan-chip-click="onChipBarPlanClick"
+        @plan-chip-copy="copyPlanRef"
         @action-click="onChipBarAction"
       />
       <DraftEditor

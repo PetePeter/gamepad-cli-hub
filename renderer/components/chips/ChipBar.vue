@@ -5,6 +5,7 @@ import ChipActionBar from './ChipActionBar.vue';
 
 export interface PlanChipItem {
   id: string;
+  humanId?: string;
   title: string;
   type?: 'bug' | 'feature' | 'research';
   status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done';
@@ -24,6 +25,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   planChipClick: [id: string];
+  planChipCopy: [humanId: string];
   actionClick: [sequence: string];
 }>();
 
@@ -43,6 +45,7 @@ const hasContent = computed(() =>
       :type="chip.type"
       :status="chip.status"
       @click="emit('planChipClick', chip.id)"
+      @copy="chip.humanId && emit('planChipCopy', chip.humanId)"
     />
 
     <ChipActionBar

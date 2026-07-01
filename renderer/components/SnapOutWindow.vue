@@ -20,6 +20,7 @@ import { loadStoredSessions } from '../session-store.js';
 import { getCliDisplayName } from '../utils.js';
 import ChipBar from './chips/ChipBar.vue';
 import ChipActionBar from './chips/ChipActionBar.vue';
+import { copyPlanRef } from '../composables/useCopyPlanRef.js';
 import ContextMenu from './modals/ContextMenu.vue';
 import EscProtectionModal from './modals/EscProtectionModal.vue';
 import DraftEditor from './panels/DraftEditor.vue';
@@ -251,6 +252,7 @@ onUnmounted(() => {
 });
 
 function onChipBarPlanClick(planId: string): void { void chipBarStore.openPlan(planId); }
+function onChipBarPlanCopy(humanId: string): void { void copyPlanRef(humanId); }
 function onChipBarAction(sequence: string): void { void chipBarStore.triggerAction(sequence); }
 
 async function onContextMenuAction(action: string): Promise<void> {
@@ -284,7 +286,7 @@ function onContextMenuCancel(): void { contextMenuVisible.value = false; }
 
 <template>
   <div class="snap-out-window" id="mainArea">
-    <ChipBar :plan-chips="chipBarPlans" :actions="[]" :visible="true" @plan-chip-click="onChipBarPlanClick" @action-click="onChipBarAction" />
+    <ChipBar :plan-chips="chipBarPlans" :actions="[]" :visible="true" @plan-chip-click="onChipBarPlanClick" @plan-chip-copy="onChipBarPlanCopy" @action-click="onChipBarAction" />
     <DraftEditor v-if="draftEditorVisible" ref="draftEditorRef" :visible="draftEditorVisible" :mode="draftEditorMode" :session-id="draftEditorSessionId" :draft-id="draftEditorDraftId" :initial-label="draftEditorLabel" :initial-text="draftEditorText" :plan-status="draftEditorPlanStatus" :plan-state-info="draftEditorPlanStateInfo" :plan-callbacks="draftEditorPlanCallbacks" @save="onDraftSave" @apply="onDraftApply" @delete="onDraftDelete" @close="onDraftClose" />
     <div ref="containerRef" class="snap-out-terminal"></div>
     <div v-if="chipActionBarVisible" class="chip-action-dock"><ChipActionBar :actions="chipBarStore.actions" @action-click="onChipBarAction" /></div>

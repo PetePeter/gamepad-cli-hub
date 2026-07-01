@@ -53,6 +53,34 @@ describe('Plan chip components', () => {
     await chips[1].trigger('click');
     expect(wrapper.emitted('planChipClick')).toEqual([['p2']]);
   });
+
+  it('copy button emits copy without opening details', async () => {
+    const wrapper = mount(PlanChip, { props: { humanId: 'P-3', title: 'Fix login', status: 'ready' } });
+
+    await wrapper.find('.plan-chip__copy').trigger('click');
+
+    expect(wrapper.emitted('copy')).toHaveLength(1);
+    expect(wrapper.emitted('click')).toBeUndefined();
+  });
+
+  it('hides the copy button when there is no human reference', () => {
+    const wrapper = mount(PlanChip, { props: { title: 'No ref', status: 'ready' } });
+    expect(wrapper.find('.plan-chip__copy').exists()).toBe(false);
+  });
+
+  it('ChipBar re-emits planChipCopy with the human reference', async () => {
+    const wrapper = mount(ChipBar, {
+      props: {
+        drafts: [],
+        planChips: [{ id: 'p1', humanId: 'P-7', title: 'Setup DB', status: 'coding' }],
+        actions: [],
+        visible: true,
+      },
+    });
+
+    await wrapper.find('.plan-chip__copy').trigger('click');
+    expect(wrapper.emitted('planChipCopy')).toEqual([['P-7']]);
+  });
 });
 
 describe('Plan chip store integration', () => {
