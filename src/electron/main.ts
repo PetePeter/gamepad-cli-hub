@@ -267,9 +267,9 @@ function createWindow(): void {
     }
 
     closeConfirmPending = true;
-    mainWindow.show();
-    mainWindow.focus();
-    mainWindow.webContents.send('app:close-request');
+    mainWindow?.show();
+    mainWindow?.focus();
+    mainWindow?.webContents.send('app:close-request');
   });
 
   mainWindow.on('closed', () => {

@@ -159,6 +159,7 @@ describe('useAppBootstrap restoreSnappedBackSession', () => {
       'sess-1',
       'claude-code',
       'X:\\coding\\gamepad-cli-hub',
+      'Recovered Session',
     );
     expect(mockSwitchTo).toHaveBeenCalledWith('sess-1');
   });
