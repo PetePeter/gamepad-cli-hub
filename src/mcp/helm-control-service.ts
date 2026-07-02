@@ -4,7 +4,7 @@ import type { PlanManager } from '../session/plan-manager.js';
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
 import type { TerminalOutputMode } from '../session/terminal-output-buffer.js';
-import type { PlanItem, PlanSequence, PlanStatus, PlanType } from '../types/plan.js';
+import type { PlanFilter, PlanItem, PlanSequence, PlanStatus, PlanType } from '../types/plan.js';
 import type { PlanAttachment, PlanAttachmentTempFile } from '../types/plan-attachment.js';
 import type { SessionInfo } from '../types/session.js';
 import type {
@@ -236,12 +236,12 @@ export class HelmControlService extends EventEmitter {
   // Plan CRUD
   // ---------------------------------------------------------------------------
 
-  listPlans(dirPath: string): PlanItem[] {
-    return this.planService.listPlans(dirPath);
+  listPlans(dirPath: string, filter: PlanFilter = 'active'): PlanItem[] {
+    return this.planService.listPlans(dirPath, filter);
   }
 
-  plansSummary(dirPath: string) {
-    return this.planService.plansSummary(dirPath);
+  plansSummary(dirPath: string, filter: PlanFilter = 'active') {
+    return this.planService.plansSummary(dirPath, filter);
   }
 
   getPlan(id: string): (Omit<PlanItem, 'sequenceId'> & {

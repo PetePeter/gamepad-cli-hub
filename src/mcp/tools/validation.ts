@@ -30,6 +30,13 @@ export function asPlanTypeOrNull(value: unknown): 'bug' | 'feature' | 'research'
 }
 
 
+export function asPlanFilter(value: unknown, fallback: 'all' | 'active' | 'startable' = 'active'): 'all' | 'active' | 'startable' {
+  if (value === undefined || value === null) return fallback;
+  if (value === 'all' || value === 'active' || value === 'startable') return value;
+  throw new Error('filter must be one of all, active, or startable');
+}
+
+
 export function asContextBindingTargetType(value: unknown): ContextBindingTargetType {
   if (value === 'sequence' || value === 'plan') {
     return value;

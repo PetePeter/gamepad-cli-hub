@@ -4,6 +4,7 @@ import type { AuthContext } from './types.js';
 import {
   asAiagentState,
   asContextBindingTargetType,
+  asPlanFilter,
   asPlanStatus,
   asPlanTypeOrNull,
   asString,
@@ -35,9 +36,9 @@ export async function callMcpTool(
     logger.info(`[MCP] callTool: ${name} | session=${authContext.sessionId ?? 'anonymous'} (${authContext.sessionName ?? '-'})`);
     switch (name) {
       case 'plan_list':
-        return service.listPlans(asString(args.dirPath, 'dirPath is required'));
+        return service.listPlans(asString(args.dirPath, 'dirPath is required'), asPlanFilter(args.filter));
       case 'plan_summary':
-        return service.plansSummary(asString(args.dirPath, 'dirPath is required'));
+        return service.plansSummary(asString(args.dirPath, 'dirPath is required'), asPlanFilter(args.filter));
       case 'tool_list':
         return service.listClis();
       case 'skill_list':

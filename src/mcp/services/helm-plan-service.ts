@@ -7,7 +7,7 @@ import type { PlanManager, PlanRefResolution } from '../../session/plan-manager.
 import type { PlanAttachmentManager } from '../../session/plan-attachment-manager.js';
 import type { ContextManager } from '../../session/context-manager.js';
 import type { SequenceContextMetadata } from '../../types/context.js';
-import type { PlanItem, PlanStatus, PlanType } from '../../types/plan.js';
+import { filterPlanItems, type PlanFilter, type PlanItem, type PlanStatus, type PlanType } from '../../types/plan.js';
 
 /**
  * Plan CRUD: create, read, update, delete, complete, reopen, state changes,
@@ -22,15 +22,20 @@ export class HelmPlanService {
     private readonly projectStore?: ProjectStore,
   ) {}
 
-  listPlans(dirPath: string): PlanItem[] {
-    return this.planManager.getForDirectory(normalizeProjectPath(dirPath));
-  }
-
-  plansSummary(dirPath: string) {
+  listPlans(dirPath: string, filter: PlanFilter = 'active'): PlanItem[] {
     const exported = this.planManager.exportDirectory(normalizeProjectPath(dirPath));
     if (!exported) return [];
-    const { items, dependencies } = exported;
-    const idToHumanId = new Map(items.map((i) => [i.id, i.humanId ?? i.id]));
+    return filterPlanItems(exported.items, exported.dependencies, filter);
+  }
+
+  plansSummary(dirPath: string, filter: PlanFilter = 'active') {
+    const exported = this.planManager.exportDirectory(normalizeProjectPath(dirPath));
+    if (!exported) return [];
+    const dependencies = exported.dependencies;
+    const items = filterPlanItems(exported.items, dependencies, filter);
+    // Map over the FULL item set so blockedBy/blocks resolve to P-00xx ids even
+    // when the referenced precursor/successor was excluded by the filter.
+    const idToHumanId = new Map(exported.items.map((i) => [i.id, i.humanId ?? i.id]));
     return items.map((item) => ({
       id: item.id,
       humanId: item.humanId ?? item.id,

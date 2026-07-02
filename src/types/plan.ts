@@ -130,3 +130,28 @@ export function isStartable(item: PlanItem, allDeps: PlanDependency[], allItems:
   if (blockers.length === 0) return true;
   return blockers.every(b => b!.status === 'done');
 }
+
+/**
+ * Filter preset for plan listing endpoints.
+ * - all:       every item, including done
+ * - active:    every non-done item (planning/ready/coding/review/blocked)
+ * - startable: non-done items whose precursors are all done (or have none) — the
+ *              dependency frontier, in any non-done state
+ */
+export type PlanFilter = 'all' | 'active' | 'startable';
+
+/** Apply a {@link PlanFilter} preset to a set of plan items. */
+export function filterPlanItems(
+  items: PlanItem[],
+  deps: PlanDependency[],
+  filter: PlanFilter,
+): PlanItem[] {
+  switch (filter) {
+    case 'all':
+      return items;
+    case 'active':
+      return items.filter(i => i.status !== 'done');
+    case 'startable':
+      return items.filter(i => i.status !== 'done' && isStartable(i, deps, items));
+  }
+}

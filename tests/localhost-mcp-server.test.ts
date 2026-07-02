@@ -1148,7 +1148,7 @@ describe('LocalhostMcpServer', () => {
       },
     });
     const json = await response.json();
-    expect(service.plansSummary).toHaveBeenCalledWith('X:\\coding\\gamepad-cli-hub');
+    expect(service.plansSummary).toHaveBeenCalledWith('X:\\coding\\gamepad-cli-hub', 'active');
     expect(json.result.structuredContent).toEqual({
       items: [{ id: 'p1', humanId: 'P-0001', title: 'Task', status: 'ready', blockedBy: [], blocks: [] }],
     });

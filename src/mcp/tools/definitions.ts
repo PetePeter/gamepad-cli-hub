@@ -119,10 +119,13 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'plan_list',
     title: 'List Plans',
-    description: 'List all plan items for a directory. Use this before editing or assigning plan work so you can reference the human-readable P-00xx plan IDs Helm returns.',
+    description: "List plan items for a directory. Use this before editing or assigning plan work so you can reference the human-readable P-00xx plan IDs Helm returns. The optional filter narrows results: 'active' (default) omits completed plans; 'all' includes done plans; 'startable' returns only the dependency frontier — non-done plans whose precursors are all complete (or have none).",
     inputSchema: {
       type: 'object',
-      properties: { dirPath: { type: 'string' } },
+      properties: {
+        dirPath: { type: 'string' },
+        filter: { type: 'string', enum: ['all', 'active', 'startable'], description: "Which plans to include. Default 'active' (non-done). 'all' includes done; 'startable' = non-done plans with all precursors complete." },
+      },
       required: ['dirPath'],
       additionalProperties: false,
     },
@@ -130,10 +133,13 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'plan_summary',
     title: 'Plans Summary',
-    description: 'List all plans for a directory as a compact summary — status, canonical ID, human-readable P-00xx ID, title, and dependency relationships. Call this first when orienting to a project so you know what work exists and what is blocked by what. Use plan_get for the full description of a specific plan before claiming, updating, or creating linked follow-ups.',
+    description: "List plans for a directory as a compact summary — status, canonical ID, human-readable P-00xx ID, title, and dependency relationships. Call this first when orienting to a project so you know what work exists and what is blocked by what. Use plan_get for the full description of a specific plan before claiming, updating, or creating linked follow-ups. The optional filter narrows results: 'active' (default) omits completed plans; 'all' includes done plans; 'startable' returns only the dependency frontier — non-done plans whose precursors are all complete (or have none).",
     inputSchema: {
       type: 'object',
-      properties: { dirPath: { type: 'string' } },
+      properties: {
+        dirPath: { type: 'string' },
+        filter: { type: 'string', enum: ['all', 'active', 'startable'], description: "Which plans to include. Default 'active' (non-done). 'all' includes done; 'startable' = non-done plans with all precursors complete." },
+      },
       required: ['dirPath'],
       additionalProperties: false,
     },
