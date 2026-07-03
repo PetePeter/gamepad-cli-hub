@@ -2,6 +2,7 @@ import { ipcRenderer } from 'electron';
 import type { PtyWriteOptions } from '../../session/delivery-context.js';
 import type { DraftPrompt } from '../../types/session.js';
 import type { ScheduledTaskHistoryEntry } from '../../types/scheduled-task.js';
+import type { RecycleBinEntry } from '../../types/recycle-bin.js';
 import {
   createPreloadDomains,
   type HelmPreloadApi,
@@ -996,6 +997,29 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     const listener = () => callback();
     ipcRenderer.on('scheduled-task-history:changed', listener);
     return () => ipcRenderer.removeListener('scheduled-task-history:changed', listener);
+  },
+
+  // ========================================================================
+  // Recycle Bin (closed recoverable sessions)
+  // ========================================================================
+
+  /** List recoverable closed sessions (newest close first) */
+  recycleBinList: (): Promise<RecycleBinEntry[]> => ipcRenderer.invoke('recycleBin:list'),
+
+  /** Restore an entry: returns it (then removes from bin) for re-spawn with resume */
+  recycleBinRestore: (id: string): Promise<RecycleBinEntry | null> => ipcRenderer.invoke('recycleBin:restore', id),
+
+  /** Forget (permanently delete) a single entry */
+  recycleBinForget: (id: string): Promise<boolean> => ipcRenderer.invoke('recycleBin:forget', id),
+
+  /** Empty the bin */
+  recycleBinEmpty: (): Promise<boolean> => ipcRenderer.invoke('recycleBin:empty'),
+
+  /** Subscribe to recycle-bin change events */
+  onRecycleBinChanged: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('recycle-bin:changed', listener);
+    return () => ipcRenderer.removeListener('recycle-bin:changed', listener);
   },
 
   // ========================================================================

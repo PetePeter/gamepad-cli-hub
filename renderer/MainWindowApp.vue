@@ -60,6 +60,7 @@ import { useToast } from './composables/useToast.js';
 import { useSettingsController } from './composables/useSettingsController.js';
 import { useInputRouter } from './composables/useInputRouter.js';
 import { useSidebarController } from './composables/useSidebarController.js';
+import { useRecycleBin } from './composables/useRecycleBin.js';
 import { useDraftPlanContextEditor } from './composables/useDraftPlanContextEditor.js';
 import { usePlanWorkspaceController } from './composables/usePlanWorkspaceController.js';
 import { appClient, configClient, deliveryClient, draftsClient, eventsClient, sessionsClient, systemClient } from './ipc/clients.js';
@@ -107,6 +108,7 @@ import SpawnGrid from './components/sidebar/SpawnGrid.vue';
 import PlansGrid from './components/sidebar/PlansGrid.vue';
 import SchedulerSection from './components/sidebar/SchedulerSection.vue';
 import ScheduledTaskHistoryModal from './components/sidebar/ScheduledTaskHistoryModal.vue';
+import RecycleBinModal from './components/sidebar/RecycleBinModal.vue';
 
 // Panel components
 import MainView from './components/panels/MainView.vue';
@@ -714,7 +716,11 @@ async function onBindingEditorSave(binding: any): Promise<void> {
 // Lifecycle
 // ============================================================================
 
+const recycleBin = useRecycleBin();
+
 onMounted(async () => {
+  recycleBin.ensureSubscribed();
+
   if (!terminalContainerRef.value) {
     await appClient.appStartupReady();
     return;
@@ -1029,6 +1035,7 @@ onUnmounted(() => {
           @history="openSchedulerHistory"
         />
         <ScheduledTaskHistoryModal v-model:visible="historyModalVisible" @recreate="recreateFromHistory" />
+        <RecycleBinModal v-model:visible="recycleBin.modalVisible.value" />
       </div>
 
       <div id="quickSpawnSection" v-show="!settingsVisible" class="spawn-section" :class="{ 'spawn-section--collapsed': spawnCollapsed }">
@@ -1058,6 +1065,17 @@ onUnmounted(() => {
           :is-active="sessionsState.activeFocus === 'plans'"
           @show-plans="onShowPlans"
         />
+        <button
+          v-show="!plannerCollapsed"
+          class="recycle-bin-btn"
+          type="button"
+          title="Recycle Bin — restore closed sessions"
+          @click="recycleBin.modalVisible.value = true"
+        >
+          <span class="recycle-bin-icon">🗑️</span>
+          <span class="recycle-bin-label">Recycle Bin</span>
+          <span v-if="recycleBin.count.value > 0" class="recycle-bin-badge">{{ recycleBin.count.value }}</span>
+        </button>
       </div>
     </div>
 

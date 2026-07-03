@@ -189,6 +189,12 @@ export const PRELOAD_API_DOMAINS = {
     'scheduledTaskListHistory',
     'scheduledTaskClearHistory',
   ],
+  recycleBin: [
+    'recycleBinList',
+    'recycleBinRestore',
+    'recycleBinForget',
+    'recycleBinEmpty',
+  ],
   patterns: [
     'toolsGetPatterns',
     'toolsAddPattern',
@@ -262,6 +268,7 @@ export const PRELOAD_API_DOMAINS = {
     'onPatternScheduleCancelled',
     'onScheduledTaskChanged',
     'onScheduledTaskHistoryChanged',
+    'onRecycleBinChanged',
     'onPromptTemplateChanged',
     'onAppCloseRequest',
   ],

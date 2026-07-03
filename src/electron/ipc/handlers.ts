@@ -22,6 +22,7 @@ import { PlanBackupManager } from '../../session/plan-backup-manager.js';
 import { PatternMatcher } from '../../session/pattern-matcher.js';
 import { ScheduledTaskManager } from '../../session/scheduled-task-manager.js';
 import { ScheduledTaskHistoryManager } from '../../session/scheduled-task-history-manager.js';
+import { RecycleBinManager, recordRemovedSession } from '../../session/recycle-bin-manager.js';
 import { setupPowerMonitor } from '../../session/power-monitor.js';
 import { ConfigLoader } from '../../config/loader.js';
 import { keyboard } from '../../output/keyboard.js';
@@ -43,6 +44,7 @@ import { setupTelegramHandlers } from './telegram-handlers.js';
 import { setupDraftHandlers } from './draft-handlers.js';
 import { setupPlanHandlers } from './plan-handlers.js';
 import { setupScheduledTaskHandlers } from './scheduled-task-handlers.js';
+import { setupRecycleBinHandlers } from './recycle-bin-handlers.js';
 import { setupBackupPlanHandlers } from './plan-backup-handlers.js';
 import { setupProjectHandlers } from './project-handlers.js';
 import { setupSkillHandlers } from './skill-handlers.js';
@@ -117,6 +119,7 @@ export function registerIPCHandlers(
   const skillAnalyticsManager = new SkillAnalyticsManager(getSkillAnalyticsPath ? getSkillAnalyticsPath.call(configLoader) : 'src/config/skill-analytics.json');
   const backupManager = new PlanBackupManager(planManager);
   const scheduledTaskHistoryManager = new ScheduledTaskHistoryManager();
+  const recycleBinManager = new RecycleBinManager();
   const scheduledTaskManager = new ScheduledTaskManager(sessionManager, ptyManager, planManager, configLoader, scheduledTaskHistoryManager);
   const notificationManager = new NotificationManager(windowManager, sessionManager);
 
@@ -196,6 +199,7 @@ export function registerIPCHandlers(
   setupSkillHandlers(skillManager, skillAnalyticsManager);
   setupPlanHandlers(planManager, contextManager, windowManager, incomingWatcher, dirname);
   setupScheduledTaskHandlers(scheduledTaskManager, scheduledTaskHistoryManager, windowManager);
+  setupRecycleBinHandlers(recycleBinManager, windowManager);
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, undefined, undefined, undefined, patternMatcher);
   setupBackupPlanHandlers(ipcMain, windowManager, () => backupManager);
   const cleanupPromptTemplates = promptTemplatesPath
@@ -256,10 +260,9 @@ export function registerIPCHandlers(
     }
   });
   sessionManager.on('session:removed', (event) => {
-    // Auto-bookmark directory when a session with cliSessionName is removed
-    if (event.session?.cliSessionName && event.session?.workingDir) {
-      configLoader.addBookmarkedDir(event.session.workingDir);
-    }
+    // Recoverable (has a cliSessionName) closed sessions go to the recycle bin,
+    // and their directory is auto-bookmarked so the group header persists.
+    recordRemovedSession(event, recycleBinManager, dir => configLoader.addBookmarkedDir(dir));
 
     if (!telegramBot.isRunning()) return;
     telegramNotifier.removeSession(event.sessionId);

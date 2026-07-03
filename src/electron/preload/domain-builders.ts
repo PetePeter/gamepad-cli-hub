@@ -37,6 +37,7 @@ export const preloadDomainBuilders = {
   incoming: <TMethodMap extends PreloadMethodMap>(methodMap: TMethodMap) => pickDomainApi(methodMap, 'incoming'),
   drafts: <TMethodMap extends PreloadMethodMap>(methodMap: TMethodMap) => pickDomainApi(methodMap, 'drafts'),
   scheduler: <TMethodMap extends PreloadMethodMap>(methodMap: TMethodMap) => pickDomainApi(methodMap, 'scheduler'),
+  recycleBin: <TMethodMap extends PreloadMethodMap>(methodMap: TMethodMap) => pickDomainApi(methodMap, 'recycleBin'),
   patterns: <TMethodMap extends PreloadMethodMap>(methodMap: TMethodMap) => pickDomainApi(methodMap, 'patterns'),
   promptTemplates: <TMethodMap extends PreloadMethodMap>(methodMap: TMethodMap) => pickDomainApi(methodMap, 'promptTemplates'),
   telegram: <TMethodMap extends PreloadMethodMap>(methodMap: TMethodMap) => pickDomainApi(methodMap, 'telegram'),

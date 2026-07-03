@@ -135,6 +135,8 @@ Ctrl+G opens the in-app Prompt Editor (`EditorPopup.vue`, bridged via `renderer/
         DEL["deliverPromptSequence()<br/>sequence-executor"] --> PTY[(Active PTY)]
     ```
 
+28. **Recycle Bin (closed recoverable sessions)** — When a session that carried a `cliSessionName` (resume UUID) is closed, it is snapshotted to a rolling 30-day bin instead of vanishing entirely. Managed by `RecycleBinManager` (`src/session/recycle-bin-manager.ts`, EventEmitter, mirrors the ScheduledTaskHistoryManager rolling-window pattern — prune on append + defensive re-filter on load, injectable clock), persisted to `%APPDATA%/Helm/config/recycle-bin.yaml`. The `session:removed` listener routes through `recordRemovedSession()`, which keeps the existing auto-bookmark side effect and adds the bin entry under the same condition (has `cliSessionName` + `workingDir`); ephemeral sessions are never recorded. Restore reuses the normal spawn-with-resume flow: `recycleBin:restore` returns the entry and removes it, then the renderer calls `doSpawn(cliType, workingDir, _, cliSessionName)` — identical to startup resume. IPC: 4 channels (`recycleBin:list/restore/forget/empty`) + `recycle-bin:changed` event (new `recycleBin` preload domain). UI: a 🗑️ Recycle Bin button with a live badge count sits in the Project Planner section (bottom-left), opening `RecycleBinModal.vue` — entries grouped by working directory, each row with relative close time, expiry countdown (rows fade near the 30-day edge), and Restore ↺ / Forget 🗑 actions plus an Empty bin control. Reactive state lives in the `useRecycleBin` composable (module-singleton refs shared by badge + modal).
+
 ## Architecture Principles
 
 - DRY, YAGNI, KISS
