@@ -450,6 +450,18 @@ export class HelmControlService extends EventEmitter {
   // Project management
   // ---------------------------------------------------------------------------
 
+  createProject(dirPath: string, name?: string) {
+    return this.requireProjectService().createProject(dirPath, name);
+  }
+
+  renameProject(projectId: string, name: string) {
+    return this.requireProjectService().renameProject(projectId, name);
+  }
+
+  deleteProject(projectId: string) {
+    return this.requireProjectService().deleteProject(projectId);
+  }
+
   listProjects() {
     return this.requireProjectService().listProjects();
   }

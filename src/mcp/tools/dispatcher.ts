@@ -309,6 +309,18 @@ export async function callMcpTool(
         );
       case 'directory_list':
         return service.listDirectories();
+      case 'project_create':
+        return service.createProject(
+          asString(args.dirPath, 'dirPath is required'),
+          typeof args.name === 'string' ? args.name : undefined,
+        );
+      case 'project_rename':
+        return service.renameProject(
+          asString(args.projectId, 'projectId is required'),
+          asString(args.name, 'name is required'),
+        );
+      case 'project_delete':
+        return service.deleteProject(asString(args.projectId, 'projectId is required'));
       case 'project_list':
         return service.listProjects();
       case 'project_dir_list':

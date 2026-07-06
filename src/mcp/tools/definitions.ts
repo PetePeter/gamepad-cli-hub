@@ -567,6 +567,47 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'project_create',
+    title: 'Create Project',
+    description: 'Register a new project (working directory) so it becomes a valid target for plan_create, sequence_create, and context_create. The directory must exist on disk and must not already be registered (as a canonical or alternate path). Changes are persisted immediately. Note: the running app loads projects once at startup — a restart_helm may be required before the new directory is accepted by other tools.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dirPath: { type: 'string' },
+        name: { type: 'string' },
+      },
+      required: ['dirPath'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'project_rename',
+    title: 'Rename Project',
+    description: 'Change the display name of an existing project by its ID. Changes are persisted immediately.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string' },
+        name: { type: 'string' },
+      },
+      required: ['projectId', 'name'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'project_delete',
+    title: 'Delete Project',
+    description: 'Remove a project registration by its ID. This deletes only the Helm project record (working-directory registration); it does not touch files on disk. Changes are persisted immediately.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string' },
+      },
+      required: ['projectId'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'project_list',
     title: 'List Projects',
     description: 'List all known projects with their IDs, names, canonical paths, directories, and root kinds. Call this before creating plans or sessions to discover which project directories Helm tracks.',

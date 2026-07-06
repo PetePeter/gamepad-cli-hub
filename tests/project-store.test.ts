@@ -230,6 +230,54 @@ describe('ProjectStore', () => {
     });
   });
 
+  describe('createProject', () => {
+    it('creates a new standalone project record', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.createProject('X:\\coding\\fresh');
+      expect(record.id).toBeTruthy();
+      expect(store.list()).toHaveLength(1);
+      expect(store.getById(record.id)).toBe(record);
+    });
+
+    it('sets canonicalPath to the normalized input path', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.createProject('X:\\coding\\Fresh\\');
+      expect(record.canonicalPath).toBe('x:\\coding\\fresh');
+    });
+
+    it('defaults name to the trailing folder segment', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.createProject('X:\\coding\\my-fresh-project');
+      expect(record.name).toBe('my-fresh-project');
+    });
+
+    it('uses an explicit name when provided', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.createProject('X:\\coding\\fresh', 'Fresh Label');
+      expect(record.name).toBe('Fresh Label');
+    });
+
+    it('throws when the canonical path is already registered', () => {
+      const store = new ProjectStore(projectsFile);
+      store.createProject('X:\\coding\\fresh');
+      expect(() => store.createProject('x:\\coding\\Fresh')).toThrow(/already registered/i);
+    });
+
+    it('throws when the path is already an alternate path of another project', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.addDirectory(record.id, 'X:\\coding\\worktree-b');
+      expect(() => store.createProject('X:\\coding\\worktree-b')).toThrow(/already registered/i);
+    });
+
+    it('marks store dirty', () => {
+      const store = new ProjectStore(projectsFile);
+      store.save();
+      store.createProject('X:\\coding\\fresh');
+      expect(store.isDirty()).toBe(true);
+    });
+  });
+
   describe('save / isDirty', () => {
     it('is dirty after resolveForPath creates a new record', () => {
       const store = new ProjectStore(projectsFile);

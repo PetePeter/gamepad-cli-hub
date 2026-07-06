@@ -47,6 +47,34 @@ export class ProjectStore {
     return record;
   }
 
+  /**
+   * Register a brand-new standalone project for the given directory.
+   * Unlike resolveForPath, this rejects a path that is already registered
+   * (as a canonical or alternate path of any project) so callers get an
+   * explicit failure instead of silently reusing an existing project.
+   */
+  createProject(dirPath: string, name?: string): ProjectRecord {
+    const existing = this.findByPath(dirPath);
+    if (existing) {
+      throw new Error(
+        `Directory is already registered to project "${existing.name}" (${existing.id})`,
+      );
+    }
+    const normalized = normalizeProjectPath(dirPath);
+    const now = Date.now();
+    const record: ProjectRecord = {
+      id: randomUUID(),
+      name: name?.trim() || dirDisplayNameFromPath(dirPath),
+      canonicalPath: normalized,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.records.push(record);
+    this.cache.set(normalized, record);
+    this.dirty = true;
+    return record;
+  }
+
   save(): void {
     if (!this.dirty) return;
     saveProjectRecords(this.records, this.projectsFile);
