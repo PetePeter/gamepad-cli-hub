@@ -1,7 +1,7 @@
 {
   "name": "helm",
   "productName": "Helm",
-  "version": "1.9.5",
+  "version": "1.9.6",
   "main": "dist-electron/main.js",
   "type": "module",
   "description": "Helm \u2014 steer your fleet of agents",
