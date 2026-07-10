@@ -124,6 +124,32 @@ describe('PlanManager', () => {
       withProjects.getForDirectory('/projects/backend');
       expect(findByPath).toHaveBeenCalledTimes(2);
     });
+
+    // Regression: a plan created in a project's non-canonical (alternate) folder
+    // must roll up to the project and be visible when the planner queries by any
+    // of the project's directories. Uses the REAL ProjectStore so create's
+    // resolveForPath and list's findByPath resolve to the same project.
+    describe('alternate-folder plans roll up to the project (regression)', () => {
+      let projectStore: ProjectStore;
+      let itemId: string;
+
+      beforeEach(() => {
+        projectStore = new ProjectStore();
+        const project = projectStore.resolveForPath('/projects/app');
+        projectStore.addDirectory(project.id, '/projects/app/sub-folder');
+        const withProjects = new PlanManager(projectStore);
+        itemId = withProjects.createWithType('/projects/app/sub-folder', 'Task', 'desc').id;
+        pm = withProjects;
+      });
+
+      it('is returned when querying by the project canonical path', () => {
+        expect(pm.getForDirectory('/projects/app').map((i) => i.id)).toContain(itemId);
+      });
+
+      it('is returned when querying by the folder path itself', () => {
+        expect(pm.getForDirectory('/projects/app/sub-folder').map((i) => i.id)).toContain(itemId);
+      });
+    });
   });
 
   describe('update', () => {

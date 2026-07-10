@@ -26,9 +26,10 @@ export class ProjectStore {
     const cached = this.cache.get(normalized);
     if (cached) return cached;
 
-    let record = this.records.find(
-      (r) => normalizeProjectPath(r.canonicalPath) === normalized,
-    );
+    // Match canonical OR alternate paths (consistent with findByPath) so a plan
+    // created against a project's added folder rolls up to that project instead
+    // of spawning a phantom project the planner can never resolve back to.
+    let record = this.findByPath(dirPath);
 
     if (!record) {
       const now = Date.now();

@@ -52,6 +52,42 @@ describe('ProjectStore', () => {
     expect(record.name).toBe('my-project');
   });
 
+  describe('resolveForPath with alternate paths', () => {
+    it('returns the existing project when the path is a registered alternate (no phantom project)', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.addDirectory(record.id, 'X:\\coding\\folder-b');
+      const resolved = store.resolveForPath('X:\\coding\\folder-b');
+      expect(resolved.id).toBe(record.id);
+    });
+
+    it('does not create a duplicate project for an alternate path', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.addDirectory(record.id, 'X:\\coding\\folder-b');
+      store.resolveForPath('X:\\coding\\folder-b');
+      expect(store.list()).toHaveLength(1);
+    });
+
+    it('resolves a case/slash-variant alternate path to the same project', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.addDirectory(record.id, 'X:\\coding\\folder-b');
+      const resolved = store.resolveForPath('X:\\Coding\\Folder-B\\');
+      expect(resolved.id).toBe(record.id);
+      expect(store.list()).toHaveLength(1);
+    });
+
+    it('still creates a new standalone project for a genuinely unregistered path', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.addDirectory(record.id, 'X:\\coding\\folder-b');
+      const other = store.resolveForPath('X:\\coding\\unrelated');
+      expect(other.id).not.toBe(record.id);
+      expect(store.list()).toHaveLength(2);
+    });
+  });
+
   describe('getById', () => {
     it('returns record by id', () => {
       const store = new ProjectStore(projectsFile);
