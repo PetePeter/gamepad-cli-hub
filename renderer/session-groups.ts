@@ -72,6 +72,10 @@ export function pathsMatch(a: string, b: string): boolean {
 /**
  * Resolve the best display name for a directory path.
  * Priority: project name > configured directory name > path tail.
+ *
+ * When a project owns more than one directory, the folder name of the matched
+ * directory is appended ("Project - folder") so the otherwise-identical group
+ * headers can be told apart. Single-directory projects show just the name.
  */
 export function resolveGroupDisplayName(
   dirPath: string,
@@ -81,8 +85,11 @@ export function resolveGroupDisplayName(
   // Project identity is the durable owner. Directory labels are only fallback aliases.
   if (projects) {
     for (const project of projects) {
-      if (pathsMatch(project.canonicalPath, dirPath)) return project.name;
-      if (project.alternatePaths.some(alt => pathsMatch(alt, dirPath))) return project.name;
+      const isCanonical = pathsMatch(project.canonicalPath, dirPath);
+      const isAlternate = project.alternatePaths.some(alt => pathsMatch(alt, dirPath));
+      if (!isCanonical && !isAlternate) continue;
+      const dirCount = 1 + project.alternatePaths.length;
+      return dirCount > 1 ? `${project.name} - ${dirDisplayName(dirPath)}` : project.name;
     }
   }
 

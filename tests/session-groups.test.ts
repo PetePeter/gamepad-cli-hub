@@ -82,21 +82,27 @@ describe('resolveGroupDisplayName', () => {
   });
 
   describe('project matching', () => {
+    // Multi-directory projects (canonical + at least one alternate).
     const projects = [
       { name: 'Helm Hub', canonicalPath: 'X:\\coding\\helm-hub', alternatePaths: ['X:\\coding\\helm-hub-worktree'] },
       { name: 'Work App', canonicalPath: '/home/user/work', alternatePaths: ['/home/user/work-v2'] },
     ];
 
-    it('returns project name when canonicalPath matches', () => {
-      expect(resolveGroupDisplayName('X:\\coding\\helm-hub', [], projects)).toBe('Helm Hub');
+    it('appends the folder for the canonical dir of a multi-dir project', () => {
+      expect(resolveGroupDisplayName('X:\\coding\\helm-hub', [], projects)).toBe('Helm Hub - helm-hub');
     });
 
-    it('returns project name when alternatePaths matches', () => {
-      expect(resolveGroupDisplayName('X:\\coding\\helm-hub-worktree', [], projects)).toBe('Helm Hub');
+    it('appends the folder for an alternate dir of a multi-dir project', () => {
+      expect(resolveGroupDisplayName('X:\\coding\\helm-hub-worktree', [], projects)).toBe('Helm Hub - helm-hub-worktree');
     });
 
-    it('project name takes priority over configured directory aliases', () => {
-      expect(resolveGroupDisplayName('X:\\coding\\helm-hub', [{ name: 'Custom Dir Name', path: 'X:\\coding\\helm-hub' }], projects)).toBe('Helm Hub');
+    it('shows only the project name when the project has a single directory', () => {
+      const single = [{ name: 'Solo', canonicalPath: 'X:\\coding\\solo', alternatePaths: [] as string[] }];
+      expect(resolveGroupDisplayName('X:\\coding\\solo', [], single)).toBe('Solo');
+    });
+
+    it('project identity takes priority over configured directory aliases', () => {
+      expect(resolveGroupDisplayName('X:\\coding\\helm-hub', [{ name: 'Custom Dir Name', path: 'X:\\coding\\helm-hub' }], projects)).toBe('Helm Hub - helm-hub');
     });
 
     it('falls back to path tail when no project matches', () => {
