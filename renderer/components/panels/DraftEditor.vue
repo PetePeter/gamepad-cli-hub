@@ -143,7 +143,9 @@ const attachmentError = ref('');
 
 const heightDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const editorHeightKey = computed(() => isDraft.value ? 'draftEditorHeight' : isContext.value ? 'contextEditorHeight' : 'planEditorHeight');
-const planEditorMaxHeightPx = computed(() => isPlan.value ? Math.round(window.innerHeight * 0.75) : undefined);
+// Plan and context editors are large content editors — let the body textarea
+// grow up to 75% of the viewport when dragged. Draft memos stay compact.
+const tallEditorMaxHeightPx = computed(() => (isPlan.value || isContext.value) ? Math.round(window.innerHeight * 0.75) : undefined);
 
 const isDraft = computed(() => props.mode === 'draft');
 const isPlan = computed(() => props.mode === 'plan');
@@ -489,7 +491,7 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
   <div
     v-if="visible"
     class="draft-editor"
-    :class="{ 'draft-editor--plan': isPlan }"
+    :class="{ 'draft-editor--plan': isPlan, 'draft-editor--context': isContext }"
   >
     <div class="draft-editor-header">
       <span class="draft-editor-title">{{ titleText }}</span>
@@ -547,7 +549,7 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
         :rows="4"
         :min-rows="4"
         :max-rows="18"
-        :max-height-px="planEditorMaxHeightPx"
+        :max-height-px="tallEditorMaxHeightPx"
         textarea-class="draft-editor-content"
         @resized="scheduleHeightSave"
       />

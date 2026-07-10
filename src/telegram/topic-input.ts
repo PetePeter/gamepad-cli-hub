@@ -16,6 +16,7 @@ import type { SessionManager } from '../session/manager.js';
 import type { TelegramRelayService } from './relay-service.js';
 import type { ConfigLoader } from '../config/loader.js';
 import { deliverPromptSequenceToSession } from '../session/sequence-delivery.js';
+import { handleHelp } from './command-handler.js';
 import {
   buildLargeTextTempFileNotice,
   shouldSendLargeTextAsTempFile,
@@ -52,12 +53,18 @@ export function setupTopicInput(
       return;
     }
 
+    // A plain message sent to no specific topic (the General/root thread) has
+    // no session context — treat it like /help rather than silently forwarding
+    // to whichever session happens to be active.
+    if (!msg.message_thread_id) {
+      if (sessionManager) await handleHelp(bot, sessionManager, topicManager, msg);
+      return;
+    }
+
     let sessionId: string | null = null;
 
-    if (msg.message_thread_id) {
-      const session = topicManager.findSessionByTopicId(msg.message_thread_id);
-      if (session) sessionId = session.id;
-    }
+    const session = topicManager.findSessionByTopicId(msg.message_thread_id);
+    if (session) sessionId = session.id;
 
     if (!sessionId && sessionManager) {
       const active = sessionManager.getActiveSession();

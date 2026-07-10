@@ -3823,7 +3823,8 @@ kbd {
   overflow-y: auto;
 }
 
-.draft-editor--plan {
+.draft-editor--plan,
+.draft-editor--context {
   max-height: 82vh;
 }
 

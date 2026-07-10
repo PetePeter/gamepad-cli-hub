@@ -71,7 +71,7 @@ export function setupCommandHandler(
   };
 }
 
-async function handleHelp(
+export async function handleHelp(
   bot: TelegramBotCore,
   sessionManager: SessionManager,
   topicManager: TopicManager,
