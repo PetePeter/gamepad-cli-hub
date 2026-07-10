@@ -298,7 +298,10 @@ let _toolEditorOnSave: ((values: any) => void) | null = null;
 export function setToolEditorCallback(cb: ((values: any) => void) | null): void { _toolEditorOnSave = cb; }
 export function getToolEditorCallback(): ((values: any) => void) | null { return _toolEditorOnSave; }
 
-export function resetToolEditorData(): ToolEditorBridgeData { return { ...EMPTY_TOOL_DATA }; }
+// Deep-copy the nested/array fields so callers never share (and mutate) the frozen default.
+export function resetToolEditorData(): ToolEditorBridgeData {
+  return { ...EMPTY_TOOL_DATA, env: [], initialPrompt: [], helmActions: { clear: '', compact: '', export: '' } };
+}
 
 export function buildToolEditorOptions(values: Record<string, any>): {
   env?: ToolEditorEnvEntry[];

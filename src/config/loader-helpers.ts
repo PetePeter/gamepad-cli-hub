@@ -18,7 +18,8 @@ export interface EnvVarEntry {
  * action is unsupported and its MCP tool returns an error.
  */
 export interface HelmActionMap {
-  /** Reset/clear context. No parameters. Example: "/clear{Enter}". */
+  /** Reset/clear context. No parameters. Example: "/clear{Enter}". When blank, falls back to
+   *  legacy clearCommand then '/clear' (unlike compact/export, clear is never "unsupported"). */
   clear?: string;
   /** Compact context. $instruction is replaced with the caller's focus. Example: "/compact $instruction{Enter}". */
   compact?: string;

@@ -146,7 +146,8 @@ export interface CliTypeConfig {
    *  @deprecated Prefer helmActions.clear — clearCommand is kept as a fallback for legacy configs. */
   clearCommand?: string;
   /** Maps the three Helm worker-control actions to this CLI's built-in commands, in sequence syntax.
-   *  Empty/absent field = unsupported (the matching MCP tool returns an error).
+   *  Blank/absent compact & export = unsupported (their MCP tool returns an error). clear is special:
+   *  when blank it falls back to legacy clearCommand, then '/clear', so session_clear always has a default.
    *  Use {Wait N} to hold the MCP call's return (delivery is awaited), {NoSend} to suppress the implied Enter. */
   helmActions?: HelmActionMap;
   /** User-defined regex patterns that trigger automated actions when matched against PTY output. */

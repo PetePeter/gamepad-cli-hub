@@ -205,7 +205,8 @@ export class HelmSessionDeliveryService {
     // helmActions.clear is the modern mapping; clearCommand is the legacy fallback.
     const template = entry?.helmActions?.clear?.trim() || entry?.clearCommand?.trim() || DEFAULT_CLEAR_COMMAND;
 
-    logger.info(`[HelmSessionDelivery] session_clear for "${session.name}" (${session.id}) using "${template}"`);
+    const by = options.senderSessionName ? ` by "${options.senderSessionName}"` : '';
+    logger.info(`[HelmSessionDelivery] session_clear for "${session.name}" (${session.id})${by} using "${template}"`);
     await this.deliverActionSequence(session.id, template);
 
     // Give the CLI time to process the clear before relaying the note.
