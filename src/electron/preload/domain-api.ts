@@ -470,6 +470,7 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
       largeTextAsTempFile?: boolean;
       pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
       submitSuffix?: string;
+      helmActions?: { clear?: string; compact?: string; export?: string };
     },
   ) => ipcRenderer.invoke('tools:addCliType', key, name, initialPrompt, initialPromptDelay, options),
   toolsUpdateCliType: (
@@ -486,6 +487,7 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
       largeTextAsTempFile?: boolean;
       pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
       submitSuffix?: string;
+      helmActions?: { clear?: string; compact?: string; export?: string };
     },
   ) => ipcRenderer.invoke('tools:updateCliType', key, name, initialPrompt, initialPromptDelay, options),
   toolsRemoveCliType: (key: string) => ipcRenderer.invoke('tools:removeCliType', key),

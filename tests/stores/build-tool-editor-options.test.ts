@@ -134,6 +134,20 @@ describe('buildToolEditorOptions', () => {
       largeTextAsTempFile: true,
       pasteMode: 'sendkeysindividual',
       submitSuffix: '\\r',
+      helmActions: { clear: '', compact: '', export: '' },
+    });
+  });
+
+  it('trims helmActions fields and defaults to empty strings', () => {
+    expect(buildToolEditorOptions({}).helmActions).toEqual({ clear: '', compact: '', export: '' });
+
+    const result = buildToolEditorOptions({
+      helmActions: { clear: '  /clear{Enter} ', compact: '/compact $instruction{Enter}', export: 42 as any },
+    });
+    expect(result.helmActions).toEqual({
+      clear: '/clear{Enter}',
+      compact: '/compact $instruction{Enter}',
+      export: '', // non-string coerced to empty
     });
   });
 });

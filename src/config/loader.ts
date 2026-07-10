@@ -8,6 +8,7 @@ import {
   parseCommandTemplate,
   type CliTypeOptions,
   type EnvVarEntry,
+  type HelmActionMap,
   type SpawnConfig,
 } from './loader-helpers.js';
 import { CliTypeStore } from './cli-type-store.js';
@@ -20,7 +21,7 @@ import { DEFAULT_MCP_CONFIG, SettingsManager } from './settings-manager.js';
 import { TelegramConfigManager } from './telegram-config-manager.js';
 
 export { parseCliArgs, resolveEnvWithMode, slugify } from './loader-helpers.js';
-export type { CliTypeOptions, EnvVarEntry, SpawnConfig } from './loader-helpers.js';
+export type { CliTypeOptions, EnvVarEntry, HelmActionMap, SpawnConfig } from './loader-helpers.js';
 
 // ============================================================================
 // Action & Binding Types
@@ -141,8 +142,13 @@ export interface CliTypeConfig {
   pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
   /** Escape sequence sent after text delivery (e.g. '\r', '\n', or '\r\n'). Empty string clears/uses default. */
   submitSuffix?: string;
-  /** Command pasted into the PTY by session_clear to reset the CLI's context. Default: '/clear'. */
+  /** Command pasted into the PTY by session_clear to reset the CLI's context. Default: '/clear'.
+   *  @deprecated Prefer helmActions.clear — clearCommand is kept as a fallback for legacy configs. */
   clearCommand?: string;
+  /** Maps the three Helm worker-control actions to this CLI's built-in commands, in sequence syntax.
+   *  Empty/absent field = unsupported (the matching MCP tool returns an error).
+   *  Use {Wait N} to hold the MCP call's return (delivery is awaited), {NoSend} to suppress the implied Enter. */
+  helmActions?: HelmActionMap;
   /** User-defined regex patterns that trigger automated actions when matched against PTY output. */
   patterns?: PatternRule[];
 }
@@ -873,7 +879,20 @@ export class ConfigLoader {
     if (options?.helmPreambleForInterSession !== undefined) tool.helmPreambleForInterSession = options.helmPreambleForInterSession;
     if (options?.largeTextAsTempFile === true) tool.largeTextAsTempFile = true;
     if (options?.pasteMode) tool.pasteMode = options.pasteMode;
+    const helmActions = this.cleanHelmActions(options?.helmActions);
+    if (helmActions) tool.helmActions = helmActions;
     this.cliTypeStore.add(key, tool);
+  }
+
+  /** Drop blank action mappings; return null when nothing remains (so callers can omit the field). */
+  private cleanHelmActions(map?: HelmActionMap): HelmActionMap | null {
+    if (!map) return null;
+    const out: HelmActionMap = {};
+    for (const key of ['clear', 'compact', 'export'] as const) {
+      const value = map[key]?.trim();
+      if (value) out[key] = value;
+    }
+    return Object.keys(out).length > 0 ? out : null;
   }
 
   updateCliType(
@@ -929,6 +948,12 @@ export class ConfigLoader {
         } else {
           existing.largeTextAsTempFile = true;
         }
+      }
+      if (options.helmActions !== undefined) {
+        // undefined = preserve; provided = replace with the cleaned map (empty fields drop, empty map clears).
+        const cleaned = this.cleanHelmActions(options.helmActions);
+        if (cleaned) existing.helmActions = cleaned;
+        else delete (existing as any).helmActions;
       }
     }
 

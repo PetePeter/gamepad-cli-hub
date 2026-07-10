@@ -143,6 +143,10 @@ export class HelmSessionService {
   }
 
   private toSessionSummary(session: SessionInfo): SessionSummary {
+    // While the dot is green, the session is active right now, so report "now".
+    // Otherwise report the frozen last-active moment (fall back to createdAt).
+    const isActive = session.activityLevel === 'active';
+    const lastActiveMs = isActive ? Date.now() : (session.lastActiveAt ?? session.createdAt);
     return {
       id: session.id,
       name: session.name,
@@ -155,6 +159,12 @@ export class HelmSessionService {
       cliSessionName: session.cliSessionName,
       currentPlanId: session.currentPlanId,
       windowId: session.windowId,
+      ...(session.createdAt != null
+        ? { createdAtEpochMs: session.createdAt, createdAtIso: new Date(session.createdAt).toISOString() }
+        : {}),
+      ...(lastActiveMs != null
+        ? { lastActiveAtEpochMs: lastActiveMs, lastActiveAtIso: new Date(lastActiveMs).toISOString() }
+        : {}),
     };
   }
 

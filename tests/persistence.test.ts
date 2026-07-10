@@ -136,6 +136,23 @@ describe('persistence', () => {
       const parsed = YAML.parse(content);
       expect(parsed.sessions[0]).not.toHaveProperty('cliSessionName');
     });
+
+    it('persists createdAt and lastActiveAt when present (epoch ms)', () => {
+      saveSessions([{ ...mockSession1, createdAt: 1700000000000, lastActiveAt: 1700000123456 }]);
+
+      const [, content] = (fs.writeFileSync as any).mock.calls[0];
+      const parsed = YAML.parse(content);
+      expect(parsed.sessions[0].createdAt).toBe(1700000000000);
+      expect(parsed.sessions[0].lastActiveAt).toBe(1700000123456);
+    });
+
+    it('does not persist ephemeral activityLevel', () => {
+      saveSessions([{ ...mockSession1, activityLevel: 'active' } as any]);
+
+      const [, content] = (fs.writeFileSync as any).mock.calls[0];
+      const parsed = YAML.parse(content);
+      expect(parsed.sessions[0]).not.toHaveProperty('activityLevel');
+    });
   });
 
   describe('loadSessions', () => {
@@ -277,6 +294,31 @@ describe('SessionManager persistence integration', () => {
 
     // saveSessions is called, which calls writeFileSync
     expect(fs.writeFileSync).toHaveBeenCalled();
+  });
+
+  it('stamps createdAt and lastActiveAt on a new session', () => {
+    const before = Date.now();
+    manager.addSession({ ...mockSession1 });
+    const stored = manager.getSession(mockSession1.id)!;
+
+    // Allow a tiny margin for Date.now() resolution/monotonicity quirks on Windows.
+    expect(stored.createdAt!).toBeGreaterThanOrEqual(before - 50);
+    expect(stored.createdAt!).toBeLessThanOrEqual(Date.now() + 50);
+    // lastActiveAt defaults to createdAt for a fresh session.
+    expect(stored.lastActiveAt).toBe(stored.createdAt);
+  });
+
+  it('preserves persisted createdAt/lastActiveAt on restore (does not overwrite)', () => {
+    (fs.existsSync as any).mockReturnValue(true);
+    (fs.readFileSync as any).mockReturnValue(
+      YAML.stringify({ sessions: [{ ...mockSession1, createdAt: 111, lastActiveAt: 222 }] })
+    );
+
+    manager.restoreSessions();
+
+    const stored = manager.getSession(mockSession1.id)!;
+    expect(stored.createdAt).toBe(111);
+    expect(stored.lastActiveAt).toBe(222);
   });
 
   it('persists after removeSession', () => {

@@ -17,6 +17,10 @@ export interface SessionCardSession {
   cliType: string;
   title?: string;
   cliSessionName?: string;
+  /** Epoch ms when the session was first spawned. */
+  createdAt?: number;
+  /** Epoch ms when the activity dot last left green. */
+  lastActiveAt?: number;
 }
 
 export type SessionCardFocusColumn = 0 | 1 | 2 | 3 | 4;
@@ -70,6 +74,20 @@ const emit = defineEmits<{
   dismissNotification: [notificationId: string];
   dismissSessionNotifications: [sessionId: string];
 }>();
+
+// --- Timer tooltip: clarify the ambiguous elapsed label with absolute times ---
+
+function formatClockTime(ts?: number): string {
+  return ts ? new Date(ts).toLocaleString() : '—';
+}
+
+const timerTooltip = computed(() => {
+  const created = formatClockTime(props.session.createdAt);
+  const lastActive = props.activityLevel === 'active'
+    ? 'now (active)'
+    : formatClockTime(props.session.lastActiveAt);
+  return `Time since last output\nCreated: ${created}\nLast active: ${lastActive}`;
+});
 
 // --- Local state ---
 
@@ -202,7 +220,7 @@ function onCardClick(e: MouseEvent): void {
 
       <span style="flex: 1" />
 
-      <span class="session-timer">{{ elapsedText }}</span>
+      <span class="session-timer" :title="timerTooltip">{{ elapsedText }}</span>
 
       <!-- Copy session id button -->
       <button

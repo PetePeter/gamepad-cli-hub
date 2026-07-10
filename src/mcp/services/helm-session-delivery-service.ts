@@ -15,6 +15,19 @@ const DEFAULT_DELIVERY_VERIFY_DELAY_MS = 4000;
 const DEFAULT_CLEAR_SETTLE_DELAY_MS = 1500;
 const DEFAULT_CLEAR_COMMAND = '/clear';
 
+/** Advisory returned by worker-control actions — CLIs process clear/compact/export asynchronously. */
+const ACTION_WAIT_NOTE =
+  'Command delivered. The CLI may take up to ~1 minute to finish — wait before reading its output.';
+
+/** Replace $-prefixed placeholders (e.g. $instruction, $path) in an action template. */
+function substituteActionParams(template: string, params: Record<string, string>): string {
+  let result = template;
+  for (const [key, value] of Object.entries(params)) {
+    result = result.split(key).join(value);
+  }
+  return result;
+}
+
 function getDeliveryVerifyDelayMs(): number {
   const configured = process.env.HELM_INTERSESSION_VERIFY_DELAY_MS;
   if (configured === undefined) return DEFAULT_DELIVERY_VERIFY_DELAY_MS;
@@ -175,47 +188,32 @@ export class HelmSessionDeliveryService {
   }
 
   /**
-   * Self-cleanup: paste the CLI's clear command (default '/clear') into a
-   * session's own PTY to reset its context, then optionally relay a
-   * "note to future self" so the freshly-cleared session retains what matters.
+   * Clear a session's context by delivering its configured clear command, then
+   * optionally relay a "note to future self" so the freshly-cleared session
+   * retains what matters. Targets any session by sessionId (required).
    *
-   * Unlike sendTextToSession/sendInputToSession this is self-targeted — the
-   * caller clears its OWN session, so no self-send rejection applies. Large
-   * context is offloaded to a temp file (same path as session_send_text).
+   * The clear sequence is resolved from helmActions.clear, falling back to the
+   * legacy clearCommand, then '/clear'. Large context notes are offloaded to a
+   * temp file (same path as session_send_text).
    */
   async clearSession(
     sessionRef: string,
-    options: { senderSessionId: string; senderSessionName: string; context?: string },
-  ): Promise<{ ok: true; contextRelayed: boolean; usedTempFile: boolean }> {
-    const session = this.findSession(sessionRef);
-    if (!session) {
-      throw new Error(`Session not found: ${sessionRef}`);
-    }
-    if (!this.ptyManager.has(session.id)) {
-      throw new Error(`Session PTY is not running: ${session.id}`);
-    }
-
+    options: { senderSessionId?: string; senderSessionName?: string; context?: string },
+  ): Promise<{ ok: true; action: 'clear'; sessionId: string; contextRelayed: boolean; usedTempFile: boolean; note: string }> {
+    const session = this.requireRunningSession(sessionRef);
     const entry = this.configLoader.getCliTypeEntry(session.cliType);
-    const clearCommand = entry?.clearCommand?.trim() || DEFAULT_CLEAR_COMMAND;
+    // helmActions.clear is the modern mapping; clearCommand is the legacy fallback.
+    const template = entry?.helmActions?.clear?.trim() || entry?.clearCommand?.trim() || DEFAULT_CLEAR_COMMAND;
 
-    logger.info(`[HelmSessionDelivery] session_clear for "${session.name}" (${session.id}) using "${clearCommand}"`);
-
-    // Paste the clear command and submit it.
-    await deliverPromptSequenceToSession({
-      sessionId: session.id,
-      text: clearCommand,
-      ptyManager: this.ptyManager,
-      sessionManager: this.sessionManager,
-      configLoader: this.configLoader,
-      impliedSubmit: true,
-    });
+    logger.info(`[HelmSessionDelivery] session_clear for "${session.name}" (${session.id}) using "${template}"`);
+    await this.deliverActionSequence(session.id, template);
 
     // Give the CLI time to process the clear before relaying the note.
     await new Promise((resolve) => setTimeout(resolve, getClearSettleDelayMs()));
 
     const context = options.context?.trim();
     if (!context) {
-      return { ok: true, contextRelayed: false, usedTempFile: false };
+      return { ok: true, action: 'clear', sessionId: session.id, contextRelayed: false, usedTempFile: false, note: ACTION_WAIT_NOTE };
     }
 
     let deliveryText = options.context as string;
@@ -240,7 +238,89 @@ export class HelmSessionDeliveryService {
       },
     });
 
-    return { ok: true, contextRelayed: true, usedTempFile };
+    return { ok: true, action: 'clear', sessionId: session.id, contextRelayed: true, usedTempFile, note: ACTION_WAIT_NOTE };
+  }
+
+  /**
+   * Compact a session's context via its configured helmActions.compact command.
+   * $instruction is substituted with the caller's focus (empty if omitted).
+   */
+  async compactSession(
+    sessionRef: string,
+    options?: { instruction?: string },
+  ): Promise<{ ok: true; action: 'compact'; sessionId: string; note: string }> {
+    const session = this.requireRunningSession(sessionRef);
+    const template = this.requireActionTemplate(session.cliType, 'compact');
+    const sequence = substituteActionParams(template, { $instruction: options?.instruction?.trim() ?? '' });
+
+    logger.info(`[HelmSessionDelivery] session_compact for "${session.name}" (${session.id})`);
+    await this.deliverActionSequence(session.id, sequence);
+
+    return { ok: true, action: 'compact', sessionId: session.id, note: ACTION_WAIT_NOTE };
+  }
+
+  /**
+   * Export a session's detail to a caller-supplied file path via its configured
+   * helmActions.export command. $path is substituted; the path is echoed back so
+   * the caller can read the file once the CLI finishes writing it.
+   */
+  async exportSession(
+    sessionRef: string,
+    options: { path: string },
+  ): Promise<{ ok: true; action: 'export'; sessionId: string; path: string; note: string }> {
+    const exportPath = options.path?.trim();
+    if (!exportPath) {
+      throw new Error('path is required for session_export');
+    }
+    const session = this.requireRunningSession(sessionRef);
+    const template = this.requireActionTemplate(session.cliType, 'export');
+    const sequence = substituteActionParams(template, { $path: exportPath });
+
+    logger.info(`[HelmSessionDelivery] session_export for "${session.name}" (${session.id}) → ${exportPath}`);
+    await this.deliverActionSequence(session.id, sequence);
+
+    return {
+      ok: true,
+      action: 'export',
+      sessionId: session.id,
+      path: exportPath,
+      note: `${ACTION_WAIT_NOTE} Then read the exported file at the returned path.`,
+    };
+  }
+
+  /** Resolve a running session or throw a caller-friendly error. */
+  private requireRunningSession(sessionRef: string): SessionInfo {
+    const session = this.findSession(sessionRef);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionRef}`);
+    }
+    if (!this.ptyManager.has(session.id)) {
+      throw new Error(`Session PTY is not running: ${session.id}`);
+    }
+    return session;
+  }
+
+  /** Resolve the configured helmActions template for an action, or throw if unconfigured. */
+  private requireActionTemplate(cliType: string, action: 'clear' | 'compact' | 'export'): string {
+    const template = this.configLoader.getCliTypeEntry(cliType)?.helmActions?.[action]?.trim();
+    if (!template) {
+      throw new Error(
+        `CLI type "${cliType}" has no "${action}" action configured. Set helmActions.${action} in its CLI config to enable session_${action}.`,
+      );
+    }
+    return template;
+  }
+
+  /** Deliver an action sequence to a PTY with an implied submit ({NoSend} suppresses it). */
+  private async deliverActionSequence(sessionId: string, sequence: string): Promise<void> {
+    await deliverPromptSequenceToSession({
+      sessionId,
+      text: sequence,
+      ptyManager: this.ptyManager,
+      sessionManager: this.sessionManager,
+      configLoader: this.configLoader,
+      impliedSubmit: true,
+    });
   }
 
   private findSession(sessionRef: string): SessionInfo | null {

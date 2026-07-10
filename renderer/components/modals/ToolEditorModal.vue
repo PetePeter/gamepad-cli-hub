@@ -43,6 +43,7 @@ export interface ToolEditorData {
   helmPreambleForInterSession?: boolean;
   largeTextAsTempFile: boolean;
   submitSuffix: string;
+  helmActions: { clear: string; compact: string; export: string };
   initialPrompt: Array<{ label: string; sequence: string }>;
 }
 
@@ -67,6 +68,7 @@ const emit = defineEmits<{
     helmPreambleForInterSession?: boolean;
     largeTextAsTempFile: boolean;
     submitSuffix: string;
+    helmActions: { clear: string; compact: string; export: string };
     _promptItems: Array<{ label: string; sequence: string }>;
   }): void;
   (e: 'cancel'): void;
@@ -86,6 +88,9 @@ const handoffCommand = ref('');
 const helmPreambleForInterSession = ref(true);
 const largeTextAsTempFile = ref(false);
 const submitSuffix = ref<SubmitSuffixOption>('\\r');
+const helmActionClear = ref('');
+const helmActionCompact = ref('');
+const helmActionExport = ref('');
 
 interface SeqItem { label: string; sequence: string }
 const promptItems = ref<SeqItem[]>([]);
@@ -145,6 +150,9 @@ function initForm(): void {
   helmPreambleForInterSession.value = d.helmPreambleForInterSession !== false;
   largeTextAsTempFile.value = Boolean(d.largeTextAsTempFile);
   submitSuffix.value = normalizeSubmitSuffix(d.submitSuffix);
+  helmActionClear.value = d.helmActions?.clear ?? '';
+  helmActionCompact.value = d.helmActions?.compact ?? '';
+  helmActionExport.value = d.helmActions?.export ?? '';
   promptItems.value = Array.isArray(d.initialPrompt)
     ? d.initialPrompt.map(item => ({
         label: typeof item?.label === 'string' ? item.label : '',
@@ -196,6 +204,11 @@ function onSave(): void {
     ...(helmPreambleForInterSession.value !== true ? { helmPreambleForInterSession: helmPreambleForInterSession.value } : {}),
     largeTextAsTempFile: largeTextAsTempFile.value,
     submitSuffix: submitSuffix.value,
+    helmActions: {
+      clear: helmActionClear.value.trim(),
+      compact: helmActionCompact.value.trim(),
+      export: helmActionExport.value.trim(),
+    },
     _promptItems: promptItems.value.map(i => ({ label: i.label, sequence: i.sequence })),
   });
   emit('update:visible', false);
@@ -307,6 +320,28 @@ defineExpose({ handleButton });
             <p class="te-section__hint">When enabled, large session_send_text payloads are written to a temp file and the recipient gets the file path plus reading instructions.</p>
           </fieldset>
 
+          <fieldset class="te-section">
+            <legend class="te-section__legend">Helm Actions</legend>
+            <p class="te-section__hint">
+              Map Helm's worker-control MCP tools to this CLI's built-in commands, in sequence syntax
+              (<code>{Enter}</code>, <code>{Wait 500}</code>, <code>{Ctrl+C}</code>). Leave a field blank to mark the
+              action unsupported — its MCP tool then returns an error. Default is an implied Enter; add
+              <code>{NoSend}</code> to suppress it, and <code>{Wait N}</code> to hold the MCP call's return by N ms.
+            </p>
+            <div class="te-field">
+              <label for="te-action-clear">Clear <span class="te-params">no params</span></label>
+              <input id="te-action-clear" v-model="helmActionClear" type="text" placeholder="e.g. /clear{Enter}" class="te-input te-input--mono" />
+            </div>
+            <div class="te-field">
+              <label for="te-action-compact">Compact <span class="te-params">params: <code>$instruction</code></span></label>
+              <input id="te-action-compact" v-model="helmActionCompact" type="text" placeholder="e.g. /compact $instruction{Enter}" class="te-input te-input--mono" />
+            </div>
+            <div class="te-field">
+              <label for="te-action-export">Export <span class="te-params">params: <code>$path</code></span></label>
+              <input id="te-action-export" v-model="helmActionExport" type="text" placeholder="e.g. /export $path{Enter}" class="te-input te-input--mono" />
+            </div>
+          </fieldset>
+
           <fieldset class="te-section te-section--prompts">
             <legend class="te-section__legend">Initial Prompts</legend>
             <div class="te-prompts-list">
@@ -343,6 +378,8 @@ defineExpose({ handleButton });
 <style scoped>
 .tool-editor-modal { max-width: 720px; max-height: 90vh; }
 .tool-editor-modal .modal-body { display: flex; flex-direction: column; gap: var(--spacing-md); }
+.te-params { color: var(--text-muted, #9aa3b2); font-weight: 400; font-size: 0.85em; margin-left: var(--spacing-xs); }
+.te-params code { color: #ffd479; }
 .te-env-list { display: flex; flex-direction: column; gap: var(--spacing-sm); }
 .te-env-item { align-items: center; }
 .te-env-item--readonly { opacity: 0.85; }

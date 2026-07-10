@@ -668,6 +668,63 @@ describe('ConfigLoader', () => {
       expect(entry!.initialPromptDelay).toBeUndefined();
     });
 
+    it('addCliType stores helmActions, dropping blank fields', () => {
+      loader.load();
+      loader.addCliType('worker', 'Worker', [], 0, {
+        helmActions: { clear: '/clear{Enter}', compact: '  ', export: '/export $path{Enter}' },
+      });
+
+      const entry = loader.getCliTypeEntry('worker');
+      expect(entry!.helmActions).toEqual({ clear: '/clear{Enter}', export: '/export $path{Enter}' });
+      const onDisk = readYaml<any>('cli-types.yaml');
+      expect(onDisk['worker'].helmActions).toEqual({ clear: '/clear{Enter}', export: '/export $path{Enter}' });
+    });
+
+    it('addCliType omits helmActions entirely when all fields blank', () => {
+      loader.load();
+      loader.addCliType('worker', 'Worker', [], 0, { helmActions: { clear: '', compact: '', export: '' } });
+      expect(loader.getCliTypeEntry('worker')!.helmActions).toBeUndefined();
+    });
+
+    it('updateCliType sets and later clears helmActions', () => {
+      loader.load();
+      loader.updateCliType('claude-code', 'Claude Code', [], 0, {
+        helmActions: { compact: '/compact $instruction{Enter}' },
+      });
+      expect(loader.getCliTypeEntry('claude-code')!.helmActions).toEqual({ compact: '/compact $instruction{Enter}' });
+
+      // Providing an all-blank map clears the field.
+      loader.updateCliType('claude-code', 'Claude Code', [], 0, {
+        helmActions: { clear: '', compact: '', export: '' },
+      });
+      expect(loader.getCliTypeEntry('claude-code')!.helmActions).toBeUndefined();
+    });
+
+    it('updateCliType preserves helmActions when options omit the field', () => {
+      loader.load();
+      loader.updateCliType('claude-code', 'Claude Code', [], 0, { helmActions: { clear: '/clear{Enter}' } });
+      // A later update with no helmActions key must not wipe it.
+      loader.updateCliType('claude-code', 'Claude Renamed', 'cc');
+      expect(loader.getCliTypeEntry('claude-code')!.helmActions).toEqual({ clear: '/clear{Enter}' });
+    });
+
+    it('helmActions round-trips from disk on fresh load', () => {
+      writeYaml('cli-types.yaml', {
+        'claude-code': {
+          name: 'Claude Code',
+          spawnCommand: 'cc',
+          initialPrompt: [],
+          helmActions: { clear: '/clear{Enter}', compact: '/compact $instruction{Enter}', export: '/export $path{Enter}' },
+        },
+      });
+      loader.load();
+      expect(loader.getCliTypeEntry('claude-code')!.helmActions).toEqual({
+        clear: '/clear{Enter}',
+        compact: '/compact $instruction{Enter}',
+        export: '/export $path{Enter}',
+      });
+    });
+
     it('addCliType with initialPromptDelay saves it', () => {
       loader.load();
       loader.addCliType('my-tool', 'My Tool', 'mytool', [{ label: 'Prompt', sequence: 'hello' }], 5000);

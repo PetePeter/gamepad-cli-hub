@@ -2159,7 +2159,7 @@ describe('LocalhostMcpServer', () => {
   });
 
   describe('session_clear MCP dispatch', () => {
-    it('clears the authenticated caller\'s own session and passes context through', async () => {
+    it('clears the target session and passes context through', async () => {
       const service = makeService();
       (service.listSessions as unknown as ReturnType<typeof vi.fn>).mockReturnValue([
         { id: 's1', name: 'Claude', cliType: 'claude-code' },
@@ -2175,18 +2175,19 @@ describe('LocalhostMcpServer', () => {
         jsonrpc: '2.0',
         id: 83,
         method: 'tools/call',
-        params: { name: 'session_clear', arguments: { context: 'feature X half done' } },
+        params: { name: 'session_clear', arguments: { sessionId: 's1', context: 'feature X half done' } },
       }, { 'x-helm-session-id': 's1' });
 
       const json = await response.json();
       expect(json.result.structuredContent.ok).toBe(true);
+      // Target sessionId is required; the authenticated caller is passed as sender for audit.
       expect(clearMock).toHaveBeenCalledWith(
         's1',
-        expect.objectContaining({ senderSessionId: 's1', senderSessionName: 'Claude', context: 'feature X half done' }),
+        expect.objectContaining({ senderSessionId: 's1', context: 'feature X half done' }),
       );
     });
 
-    it('rejects when caller identity cannot be determined', async () => {
+    it('rejects when the target sessionId is missing', async () => {
       const service = makeService();
       const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
       servers.push(server);
@@ -2198,10 +2199,10 @@ describe('LocalhostMcpServer', () => {
         id: 84,
         method: 'tools/call',
         params: { name: 'session_clear', arguments: {} },
-      });
+      }, { 'x-helm-session-id': 's1' });
 
       const json = await response.json();
-      expect(json.error.message).toContain('senderSessionId is required');
+      expect(json.error.message).toContain('sessionId is required');
       expect(service.clearSession).not.toHaveBeenCalled();
     });
   });

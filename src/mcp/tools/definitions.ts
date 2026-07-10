@@ -769,33 +769,88 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: 'session_clear',
-    title: 'Clear Own Session Context',
+    title: 'Clear Session Context',
     description:
-      'Self-cleanup: reset YOUR OWN session by pasting the CLI clear command (default "/clear") into your PTY, ' +
-      'then optionally relay a "note to future self" so the freshly-cleared session keeps what matters. ' +
-      'This is SELF-TARGETED — it always operates on the calling session (identity from HELM_SESSION_ID); ' +
-      'you do NOT pass a destination sessionId. ' +
-      'The context note is delivered as a new prompt after the clear settles; if it is large it is written to a Helm ' +
+      'Reset a target session by delivering its configured clear command into its PTY, then optionally relay a ' +
+      '"note to future self" so the freshly-cleared session keeps what matters. ' +
+      'The clear sequence comes from the CLI config helmActions.clear (falling back to legacy clearCommand, then "/clear"). ' +
+      'DESTINATION: sessionId is REQUIRED — the session to clear (may be your own or a worker you manage). ' +
+      'The optional context note is delivered as a new prompt after the clear settles; large notes are written to a Helm ' +
       'temp file and a read-the-file notice is pasted instead. ' +
-      'Use this to compact a long-running session: summarise outstanding work, key decisions, and next steps into context, ' +
-      'then call this tool so your future self resumes with a clean context window plus the essentials.',
+      'The CLI processes the clear asynchronously — wait ~1 min before reading results.',
     inputSchema: {
       type: 'object',
       properties: {
+        sessionId: {
+          type: 'string',
+          description: '[DESTINATION] Target session ID to clear (required).',
+        },
         context: {
           type: 'string',
           description:
-            'Optional note relayed to your freshly-cleared self — outstanding work, decisions, file paths, next steps. ' +
+            'Optional note relayed to the freshly-cleared session — outstanding work, decisions, file paths, next steps. ' +
             'Omit to clear with no follow-up.',
         },
         senderSessionId: {
           type: 'string',
           description:
-            '[OPTIONAL] Your session ID — defaults to the HELM_SESSION_ID identity injected by Helm. ' +
-            'Only needed for global-token callers.',
+            '[OPTIONAL] Your session ID for audit — defaults to the HELM_SESSION_ID identity injected by Helm.',
         },
       },
-      required: [],
+      required: ['sessionId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'session_compact',
+    title: 'Compact Session Context',
+    description:
+      'Compact a target session by delivering its configured compact command into its PTY. ' +
+      'The sequence comes from the CLI config helmActions.compact, where the $instruction placeholder is replaced with ' +
+      'the optional instruction you supply (e.g. "/compact $instruction"). ' +
+      'DESTINATION: sessionId is REQUIRED. Returns an error if the target CLI has no compact action configured. ' +
+      'The CLI processes the compaction asynchronously — wait ~1 min before reading results.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: {
+          type: 'string',
+          description: '[DESTINATION] Target session ID to compact (required).',
+        },
+        instruction: {
+          type: 'string',
+          description:
+            'Optional focus for the compaction, substituted into the CLI command\'s $instruction placeholder. ' +
+            'Omit if the configured command takes no argument.',
+        },
+      },
+      required: ['sessionId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'session_export',
+    title: 'Export Session To File',
+    description:
+      'Export a target session\'s detail to a file by delivering its configured export command into its PTY. ' +
+      'The sequence comes from the CLI config helmActions.export, where the $path placeholder is replaced with the ' +
+      'caller-supplied path (e.g. "/export $path"). The CLI itself writes the file; Helm only supplies the path and ' +
+      'echoes it back in the result. Use this to harvest an old session\'s knowledge into a temp file WITHOUT paying to ' +
+      'reactivate it. DESTINATION: sessionId is REQUIRED. Returns an error if the target CLI has no export action configured. ' +
+      'The CLI writes the file asynchronously — wait ~1 min, then read the file at the returned path.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: {
+          type: 'string',
+          description: '[DESTINATION] Target session ID to export (required).',
+        },
+        path: {
+          type: 'string',
+          description: 'Absolute file path the CLI should write the export to, substituted into the $path placeholder (required).',
+        },
+      },
+      required: ['sessionId', 'path'],
       additionalProperties: false,
     },
   },

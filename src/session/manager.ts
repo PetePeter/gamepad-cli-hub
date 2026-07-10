@@ -40,6 +40,15 @@ export class SessionManager extends EventEmitter {
       throw new Error(`Session with id "${id}" already exists`);
     }
 
+    // Stamp creation/last-active times on first registration. Preserved on restore
+    // (restored sessions already carry persisted values, so we never overwrite them).
+    if (sessionInfo.createdAt === undefined) {
+      sessionInfo.createdAt = Date.now();
+    }
+    if (sessionInfo.lastActiveAt === undefined) {
+      sessionInfo.lastActiveAt = sessionInfo.createdAt;
+    }
+
     this.sessions.set(id, sessionInfo);
     this.sessionOrder.push(id);
 

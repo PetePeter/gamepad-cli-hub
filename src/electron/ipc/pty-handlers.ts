@@ -5,7 +5,7 @@ import type { PatternMatcher } from '../../session/pattern-matcher.js';
 import type { SessionManager } from '../../session/manager.js';
 import type { PipelineQueue } from '../../session/pipeline-queue.js';
 import type { ConfigLoader } from '../../config/loader.js';
-import { type SessionState, VALID_SESSION_STATES } from '../../types/session.js';
+import { type SessionState, type SessionInfo, VALID_SESSION_STATES } from '../../types/session.js';
 import type { NotificationManager } from '../../session/notification-manager.js';
 import { spawnConfiguredSession } from '../../session/configured-session-spawn.js';
 import { logger } from '../../utils/logger.js';
@@ -211,8 +211,17 @@ export function setupPtyHandlers(
 
   // Forward activity change events to renderer
   stateDetector.on('activity-change', (event) => {
-    if (event.lastOutputAt !== undefined && event.lastOutputAt > 0 && sessionManager.hasSession(event.sessionId)) {
-      sessionManager.updateSession(event.sessionId, { lastOutputAt: event.lastOutputAt });
+    if (sessionManager.hasSession(event.sessionId)) {
+      const updates: Partial<SessionInfo> = { activityLevel: event.level };
+      if (event.lastOutputAt !== undefined && event.lastOutputAt > 0) {
+        updates.lastOutputAt = event.lastOutputAt;
+        // When leaving the active (green) state, freeze lastActiveAt at the last output moment.
+        // While active, lastActiveAt is reported live as "now" by the MCP layer.
+        if (event.level !== 'active') {
+          updates.lastActiveAt = event.lastOutputAt;
+        }
+      }
+      sessionManager.updateSession(event.sessionId, updates);
     }
 
     const win = windowManager.getWindowForSession(event.sessionId);

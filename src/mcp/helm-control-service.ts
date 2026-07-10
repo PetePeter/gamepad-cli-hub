@@ -57,6 +57,14 @@ export interface SessionSummary {
   cliSessionName?: string;
   currentPlanId?: string;
   windowId?: number;
+  /** Epoch MILLISECONDS when the session was first spawned. */
+  createdAtEpochMs?: number;
+  /** ISO-8601 rendering of createdAtEpochMs (convenience). */
+  createdAtIso?: string;
+  /** Epoch MILLISECONDS of when the activity dot last left green; reports "now" while currently active. */
+  lastActiveAtEpochMs?: number;
+  /** ISO-8601 rendering of lastActiveAtEpochMs (convenience). */
+  lastActiveAtIso?: string;
 }
 
 export interface CliSummary {
@@ -652,9 +660,17 @@ export class HelmControlService extends EventEmitter {
 
   async clearSession(
     sessionRef: string,
-    options: { senderSessionId: string; senderSessionName: string; context?: string },
+    options: { senderSessionId?: string; senderSessionName?: string; context?: string },
   ) {
     return this.sessionDelivery.clearSession(sessionRef, options);
+  }
+
+  async compactSession(sessionRef: string, options?: { instruction?: string }) {
+    return this.sessionDelivery.compactSession(sessionRef, options);
+  }
+
+  async exportSession(sessionRef: string, options: { path: string }) {
+    return this.sessionDelivery.exportSession(sessionRef, options);
   }
 
   // ---------------------------------------------------------------------------

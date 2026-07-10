@@ -12,6 +12,20 @@ export interface EnvVarEntry {
   mode?: 'replace' | 'append' | 'prepend';
 }
 
+/**
+ * Per-CLI mapping from Helm's three worker-control actions to the CLI's own
+ * built-in commands, in sequence-parser syntax. A blank/absent value means the
+ * action is unsupported and its MCP tool returns an error.
+ */
+export interface HelmActionMap {
+  /** Reset/clear context. No parameters. Example: "/clear{Enter}". */
+  clear?: string;
+  /** Compact context. $instruction is replaced with the caller's focus. Example: "/compact $instruction{Enter}". */
+  compact?: string;
+  /** Export session detail to a file. $path is replaced with the caller-supplied path. Example: "/export $path{Enter}". */
+  export?: string;
+}
+
 export type CliTypeOptions = {
   env?: EnvVarEntry[];
   handoffCommand?: string;
@@ -23,6 +37,7 @@ export type CliTypeOptions = {
   largeTextAsTempFile?: boolean;
   pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
   submitSuffix?: string;
+  helmActions?: HelmActionMap;
 };
 
 export function parseCliArgs(argsText?: string): string[] {

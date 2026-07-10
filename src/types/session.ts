@@ -44,6 +44,13 @@ export interface SessionInfo {
   topicId?: number;
   /** Last real PTY output or session/input activity timestamp for elapsed timers. */
   lastOutputAt?: number;
+  /** Wall-clock epoch MILLISECONDS when this hub session was first spawned. Persists across restarts. */
+  createdAt?: number;
+  /** Wall-clock epoch MILLISECONDS of when the activity dot last left green (active→inactive).
+   *  While the session is currently active, MCP reports this as "now". Persists across restarts. */
+  lastActiveAt?: number;
+  /** Current activity dot level. Ephemeral — NOT persisted; kept in sync by the pty activity-change listener. */
+  activityLevel?: ActivityLevel;
   /** BrowserWindow ID if this session is snapped out to a child window. Undefined/null means main window. */
   windowId?: number;
   /** AIAGENT state controlled by external agents (planning, implementing, completed, idle). Persists across restarts. */

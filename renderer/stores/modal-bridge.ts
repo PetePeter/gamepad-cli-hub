@@ -275,6 +275,7 @@ export interface ToolEditorBridgeData {
   helmPreambleForInterSession?: boolean;
   largeTextAsTempFile: boolean;
   submitSuffix: string;
+  helmActions: { clear: string; compact: string; export: string };
   initialPrompt: Array<{ label: string; sequence: string }>;
 }
 
@@ -283,7 +284,7 @@ const EMPTY_TOOL_DATA: ToolEditorBridgeData = {
   pasteMode: 'pty', spawnCommand: '', resumeCommand: '', continueCommand: '',
   renameCommand: '', handoffCommand: '', helmPreambleForInterSession: true,
   largeTextAsTempFile: false,
-  submitSuffix: '\\r', initialPrompt: [],
+  submitSuffix: '\\r', helmActions: { clear: '', compact: '', export: '' }, initialPrompt: [],
 };
 
 export const toolEditor = reactive({
@@ -310,12 +311,19 @@ export function buildToolEditorOptions(values: Record<string, any>): {
   largeTextAsTempFile?: boolean;
   pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
   submitSuffix?: string;
+  helmActions?: { clear?: string; compact?: string; export?: string };
 } {
   const fields = ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const;
   const options: Record<string, string> = {};
   for (const field of fields) {
     options[field] = typeof values[field] === 'string' ? values[field].trim() : '';
   }
+  const ha = values.helmActions ?? {};
+  const helmActions = {
+    clear: typeof ha.clear === 'string' ? ha.clear.trim() : '',
+    compact: typeof ha.compact === 'string' ? ha.compact.trim() : '',
+    export: typeof ha.export === 'string' ? ha.export.trim() : '',
+  };
   const env = Array.isArray(values.env)
     ? values.env
         .map((item: any) => ({
@@ -332,6 +340,7 @@ export function buildToolEditorOptions(values: Record<string, any>): {
     helmPreambleForInterSession: values.helmPreambleForInterSession !== false,
     largeTextAsTempFile: Boolean(values.largeTextAsTempFile),
     submitSuffix: typeof values.submitSuffix === 'string' ? values.submitSuffix : '\\r',
+    helmActions,
     ...(pasteMode === 'pty' || pasteMode === 'ptyindividual' || pasteMode === 'sendkeys' || pasteMode === 'sendkeysindividual' || pasteMode === 'clippaste'
       ? { pasteMode }
       : {}),

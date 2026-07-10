@@ -19,6 +19,8 @@ function serializeSession(s: SessionInfo): Record<string, unknown> {
     ...(s.currentPlanId ? { currentPlanId: s.currentPlanId } : {}),
     ...(s.topicId != null ? { topicId: s.topicId } : {}),
     ...(s.aiagentState ? { aiagentState: s.aiagentState } : {}),
+    ...(s.createdAt != null ? { createdAt: s.createdAt } : {}),
+    ...(s.lastActiveAt != null ? { lastActiveAt: s.lastActiveAt } : {}),
   };
 }
 

@@ -420,35 +420,23 @@ export async function callMcpTool(
         );
       }
       case 'session_clear': {
-        // Self-cleanup: the caller clears its OWN session, so identity == target.
+        // Worker-control: clears the TARGET session (sessionId required); sender is for audit only.
         const explicitSenderId = typeof args.senderSessionId === 'string' ? args.senderSessionId : undefined;
         const senderSessionId = explicitSenderId ?? authContext.sessionId;
-        if (!senderSessionId) {
-          throw new Error(
-            'senderSessionId is required — use the HELM_SESSION_ID environment variable injected by Helm at startup.',
-          );
-        }
-        let senderSessionName: string;
-        if (!explicitSenderId && authContext.sessionName) {
-          senderSessionName = authContext.sessionName;
-        } else {
-          const knownSessions = service.listSessions();
-          const senderSession = knownSessions.find((s) => s.id === senderSessionId);
-          if (!senderSession) {
-            throw new Error(
-              `Unknown sender session: senderSessionId "${senderSessionId}" does not match any active Helm session. ` +
-                'senderSessionId must be the exact value of the HELM_SESSION_ID environment variable ' +
-                'that Helm injected into your session at startup — do not guess or construct this value.',
-            );
-          }
-          senderSessionName = senderSession.name;
-        }
-        return service.clearSession(senderSessionId, {
-          senderSessionId,
-          senderSessionName,
+        return service.clearSession(asString(args.sessionId, 'sessionId is required'), {
+          ...(senderSessionId ? { senderSessionId } : {}),
+          ...(authContext.sessionName ? { senderSessionName: authContext.sessionName } : {}),
           ...(typeof args.context === 'string' ? { context: args.context } : {}),
         });
       }
+      case 'session_compact':
+        return service.compactSession(asString(args.sessionId, 'sessionId is required'), {
+          ...(typeof args.instruction === 'string' ? { instruction: args.instruction } : {}),
+        });
+      case 'session_export':
+        return service.exportSession(asString(args.sessionId, 'sessionId is required'), {
+          path: asString(args.path, 'path is required'),
+        });
       case 'session_read_terminal':
         return service.readSessionTerminal(
           asString(args.sessionId ?? args.name, 'sessionId or name is required'),

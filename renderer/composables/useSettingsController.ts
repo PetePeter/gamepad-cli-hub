@@ -273,6 +273,11 @@ export function useSettingsController(options: {
       helmPreambleForInterSession: value?.helmPreambleForInterSession !== false,
       largeTextAsTempFile: Boolean(value?.largeTextAsTempFile),
       submitSuffix: value?.submitSuffix ?? '\\r',
+      helmActions: {
+        clear: value?.helmActions?.clear ?? '',
+        compact: value?.helmActions?.compact ?? '',
+        export: value?.helmActions?.export ?? '',
+      },
       initialPrompt: Array.isArray(value?.initialPrompt)
         ? value.initialPrompt.map((i: any) => ({ label: i.label || '', sequence: i.sequence || '' }))
         : [],
@@ -422,6 +427,7 @@ export function useSettingsController(options: {
       helmPreambleForInterSession: true,
       largeTextAsTempFile: false,
       submitSuffix: '\\r',
+      helmActions: { clear: '', compact: '', export: '' },
       initialPrompt: [],
     };
     setToolEditorCallback(async (values) => {

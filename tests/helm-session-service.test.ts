@@ -82,3 +82,39 @@ describe('HelmSessionService.listSessions', () => {
     expect(result.map((r) => r.id).sort()).toEqual(['s1', 's2']);
   });
 });
+
+describe('HelmSessionService session times', () => {
+  it('exposes createdAt/lastActiveAt as epoch ms + ISO on the summary', () => {
+    const sessionManager = makeSessionManager([
+      { id: 's1', name: 'A', cliType: 'claude-code', createdAt: 1700000000000, lastActiveAt: 1700000500000, activityLevel: 'inactive' } as any,
+    ]);
+    const service = new HelmSessionService(sessionManager as any, makePtyManager() as any, makeConfigLoader() as any, makePlanManager() as any);
+
+    const summary = service.getSession('s1')!;
+    expect(summary.createdAtEpochMs).toBe(1700000000000);
+    expect(summary.lastActiveAtEpochMs).toBe(1700000500000);
+    expect(summary.createdAtIso).toBe(new Date(1700000000000).toISOString());
+    expect(summary.lastActiveAtIso).toBe(new Date(1700000500000).toISOString());
+  });
+
+  it('reports lastActiveAt as "now" while the session is active (green)', () => {
+    const sessionManager = makeSessionManager([
+      { id: 's1', name: 'A', cliType: 'claude-code', createdAt: 1700000000000, lastActiveAt: 1700000500000, activityLevel: 'active' } as any,
+    ]);
+    const service = new HelmSessionService(sessionManager as any, makePtyManager() as any, makeConfigLoader() as any, makePlanManager() as any);
+
+    const before = Date.now();
+    const summary = service.getSession('s1')!;
+    expect(summary.lastActiveAtEpochMs).toBeGreaterThanOrEqual(before);
+  });
+
+  it('falls back to createdAt when lastActiveAt is missing', () => {
+    const sessionManager = makeSessionManager([
+      { id: 's1', name: 'A', cliType: 'claude-code', createdAt: 1700000000000 } as any,
+    ]);
+    const service = new HelmSessionService(sessionManager as any, makePtyManager() as any, makeConfigLoader() as any, makePlanManager() as any);
+
+    const summary = service.getSession('s1')!;
+    expect(summary.lastActiveAtEpochMs).toBe(1700000000000);
+  });
+});
