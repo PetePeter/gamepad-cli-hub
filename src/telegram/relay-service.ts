@@ -213,57 +213,52 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
 
     const msgContext = { chatId, messageId: msg.message_id };
 
-    // Find session by topic mapping
+    // Find session by topic mapping. A topic that maps to no session is stale
+    // (its session was closed) — reject rather than misrouting to the active
+    // session, which would inject the message into an unrelated CLI.
     const session = this.topicManager.findSessionByTopicId(topicId);
-    if (session) {
-      const wrapped = wrapTelegramEnvelope(this.resolveTelegramTextPayload(session, msg.text), from, chatId);
-      // Set channel affinity and inject first-contact instructions
-      let text = wrapped;
-      if (session.interactionChannel !== 'telegram') {
-        this.sessionManager.updateSession(session.id, { interactionChannel: 'telegram' });
-        text = TELEGRAM_MODE_INSTRUCTIONS + '\n\n' + wrapped;
-      }
-      await deliverPromptSequenceToSession({
-        sessionId: session.id,
-        text,
-        ptyManager: this.ptyManager,
-        sessionManager: this.sessionManager,
-        configLoader: this.configLoader,
-        verifyDelivery: {
-          label: 'telegram message',
-          delayMs: 4000,
-          retrySubmit: true,
-          background: true,
-          onComplete: (result) => void this.handleDeliveryVerification(session.id, topicId, result, msgContext),
-        },
-      });
-      logger.info(`[TelegramRelay] Injected user message to session ${session.id}`);
+    if (!session) {
+      await this.notifyStaleTopic(topicId);
+      logger.warn(`[TelegramRelay] Stale topic ${topicId} — no mapped session; message not delivered`);
       return true;
     }
 
-    // Fall back to active session
-    const active = this.sessionManager.getActiveSession();
-    if (active) {
-      const wrapped = wrapTelegramEnvelope(this.resolveTelegramTextPayload(active, msg.text), from, chatId);
-      await deliverPromptSequenceToSession({
-        sessionId: active.id,
-        text: wrapped,
-        ptyManager: this.ptyManager,
-        sessionManager: this.sessionManager,
-        configLoader: this.configLoader,
-        verifyDelivery: {
-          label: 'telegram message',
-          delayMs: 4000,
-          retrySubmit: true,
-          background: true,
-          onComplete: (result) => void this.handleDeliveryVerification(active.id, topicId, result, msgContext),
-        },
-      });
-      logger.info(`[TelegramRelay] Injected user message to active session ${active.id} (unmapped topic ${topicId})`);
-      return true;
+    const wrapped = wrapTelegramEnvelope(this.resolveTelegramTextPayload(session, msg.text), from, chatId);
+    // Set channel affinity and inject first-contact instructions
+    let text = wrapped;
+    if (session.interactionChannel !== 'telegram') {
+      this.sessionManager.updateSession(session.id, { interactionChannel: 'telegram' });
+      text = TELEGRAM_MODE_INSTRUCTIONS + '\n\n' + wrapped;
     }
+    await deliverPromptSequenceToSession({
+      sessionId: session.id,
+      text,
+      ptyManager: this.ptyManager,
+      sessionManager: this.sessionManager,
+      configLoader: this.configLoader,
+      verifyDelivery: {
+        label: 'telegram message',
+        delayMs: 4000,
+        retrySubmit: true,
+        background: true,
+        onComplete: (result) => void this.handleDeliveryVerification(session.id, topicId, result, msgContext),
+      },
+    });
+    logger.info(`[TelegramRelay] Injected user message to session ${session.id}`);
+    return true;
+  }
 
-    return false;
+  /**
+   * Notify the user in a stale forum topic that their message was not delivered.
+   * A stale topic is one that still exists in Telegram but no longer maps to a
+   * live hub session, so there is nowhere to route the message.
+   */
+  private async notifyStaleTopic(topicId: number): Promise<void> {
+    if (!this.telegramBot.isRunning()) return;
+    await this.telegramBot.sendToTopic(
+      topicId,
+      '⚠️ This session no longer exists. Your message was not delivered.',
+    );
   }
 
   private resolveTelegramTextPayload(session: SessionInfo, text: string): string {
@@ -288,6 +283,13 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     // Resolve target session before any IO so we can reject early without downloading.
     const topicId = msg.message_thread_id;
     const session = topicId ? this.topicManager.findSessionByTopicId(topicId) : undefined;
+    // A topic that maps to no session is stale — reject rather than misrouting the
+    // attachment to the active (unrelated) session.
+    if (topicId && !session) {
+      await this.notifyStaleTopic(topicId);
+      logger.warn(`[TelegramRelay] Stale topic ${topicId} — no mapped session; attachment not delivered`);
+      return true;
+    }
     const targetSession = session ?? this.sessionManager.getActiveSession();
     if (!targetSession) return false;
 

@@ -160,8 +160,8 @@ describe('TelegramRelayService', () => {
     });
   });
 
-  it('handleIncomingTelegramMessage() wraps active-session messages in envelope too', async () => {
-    const { relay, ptyManager } = makeRelay();
+  it('handleIncomingTelegramMessage() rejects stale topics with a notice instead of routing to active session', async () => {
+    const { relay, bot, ptyManager, sessionManager } = makeRelay();
 
     const consumed = await relay.handleIncomingTelegramMessage({
       message_id: 78,
@@ -171,9 +171,13 @@ describe('TelegramRelayService', () => {
       from: { username: 'someone' },
     } as any);
 
+    // Consumed (claimed) but NOT delivered anywhere — stale topic.
     expect(consumed).toBe(true);
-    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('[HELM_TELEGRAM from:@someone'));
-    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('Respond via telegram_chat MCP tool.'));
+    expect(ptyManager.deliverText).not.toHaveBeenCalled();
+    // Must not fall back to the active session.
+    expect(sessionManager.getActiveSession).not.toHaveBeenCalled();
+    // Posts a notice back into the stale topic.
+    expect(bot.sendToTopic).toHaveBeenCalledWith(999, expect.stringContaining('no longer exists'));
   });
 
   it('writes large Telegram messages to a temp file when the target CLI enables it', async () => {
@@ -536,11 +540,10 @@ describe('TelegramRelayService', () => {
       rmSync(path.dirname(filePath), { recursive: true, force: true });
     });
 
-    it('returns false when no session found for attachment', async () => {
-      const { relay, bot, sessionManager } = makeRelay();
+    it('rejects a stale topic attachment with a notice instead of routing to active session', async () => {
+      const { relay, bot, ptyManager, sessionManager } = makeRelay();
       const filePath = tempAttachmentPath('photo_82.jpg');
       bot.downloadFile.mockResolvedValue(filePath);
-      sessionManager.getActiveSession.mockReturnValue(null);
 
       const consumed = await relay.handleIncomingTelegramMessage({
         message_id: 82,
@@ -550,7 +553,31 @@ describe('TelegramRelayService', () => {
         photo: [{ file_id: 'p1', file_size: 1000 }],
       } as any);
 
-      expect(consumed).toBe(false);
+      // Claimed but not routed: no download, no delivery, no active-session fallback.
+      expect(consumed).toBe(true);
+      await vi.runAllTimersAsync();
+      expect(bot.downloadFile).not.toHaveBeenCalled();
+      expect(ptyManager.deliverText).not.toHaveBeenCalled();
+      expect(sessionManager.getActiveSession).not.toHaveBeenCalled();
+      expect(bot.sendToTopic).toHaveBeenCalledWith(999, expect.stringContaining('no longer exists'));
+      rmSync(path.dirname(filePath), { recursive: true, force: true });
+    });
+
+    it('still routes an attachment with no topic id to the active session', async () => {
+      const { relay, bot, ptyManager } = makeRelay();
+      const filePath = tempAttachmentPath('photo_87.jpg');
+      bot.downloadFile.mockResolvedValue(filePath);
+
+      const consumed = await relay.handleIncomingTelegramMessage({
+        message_id: 87,
+        chat: { id: 12345 },
+        from: { username: 'testuser' },
+        photo: [{ file_id: 'p1', file_size: 1000 }],
+      } as any);
+
+      expect(consumed).toBe(true);
+      await vi.runAllTimersAsync();
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('[HELM_TELEGRAM_ATTACHMENT'));
       rmSync(path.dirname(filePath), { recursive: true, force: true });
     });
 
@@ -728,18 +755,19 @@ describe('TelegramRelayService', () => {
       rmSync(path.dirname(filePath), { recursive: true, force: true });
     });
 
-    it('injects first-contact instructions for active session fallback (unmapped topic)', async () => {
-      const { relay, ptyManager, sessionManager } = makeRelay();
+    it('does not inject or deliver anything for a stale (unmapped) topic', async () => {
+      const { relay, bot, ptyManager } = makeRelay();
 
-      await relay.handleIncomingTelegramMessage({
+      const consumed = await relay.handleIncomingTelegramMessage({
         message_id: 83, message_thread_id: 999,
-        text: 'Message for active session',
+        text: 'Message for stale topic',
         chat: { id: 12345 }, from: { username: 'tguser' },
       } as any);
 
-      // Active session fallback does NOT get channel affinity injection
-      // (only topic-mapped sessions get it to avoid injecting on unrelated messages)
-      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.not.stringContaining('HELM_TELEGRAM_MODE'));
+      // Stale topic: nothing delivered, only a notice posted back to the topic.
+      expect(consumed).toBe(true);
+      expect(ptyManager.deliverText).not.toHaveBeenCalled();
+      expect(bot.sendToTopic).toHaveBeenCalledWith(999, expect.stringContaining('no longer exists'));
     });
   });
 });
