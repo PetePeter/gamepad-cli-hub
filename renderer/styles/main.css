@@ -1089,8 +1089,8 @@ button {
   display: flex;
   align-items: center;
   gap: 6px;
-  width: 100%;
-  margin-top: 4px;
+  width: auto;
+  margin: var(--spacing-sm);
   padding: var(--spacing-sm);
   background: var(--bg-secondary);
   border: 1px solid var(--border);
@@ -1098,6 +1098,7 @@ button {
   cursor: pointer;
   font-size: var(--font-size-sm);
   transition: background 0.15s, border-color 0.15s;
+  flex-shrink: 0;
 }
 .recycle-bin-btn:hover { background: var(--bg-tertiary); border-color: var(--accent); }
 .recycle-bin-icon { font-size: 14px; flex-shrink: 0; }

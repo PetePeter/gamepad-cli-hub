@@ -1065,18 +1065,20 @@ onUnmounted(() => {
           :is-active="sessionsState.activeFocus === 'plans'"
           @show-plans="onShowPlans"
         />
-        <button
-          v-show="!plannerCollapsed"
-          class="recycle-bin-btn"
-          type="button"
-          title="Recycle Bin — restore closed sessions"
-          @click="recycleBin.modalVisible.value = true"
-        >
-          <span class="recycle-bin-icon">🗑️</span>
-          <span class="recycle-bin-label">Recycle Bin</span>
-          <span v-if="recycleBin.count.value > 0" class="recycle-bin-badge">{{ recycleBin.count.value }}</span>
-        </button>
       </div>
+
+      <!-- Recycle Bin pinned at bottom of sidebar — always visible -->
+      <button
+        v-show="!settingsVisible"
+        class="recycle-bin-btn"
+        type="button"
+        title="Recycle Bin — restore closed sessions"
+        @click="recycleBin.modalVisible.value = true"
+      >
+        <span class="recycle-bin-icon">🗑️</span>
+        <span class="recycle-bin-label">Recycle Bin</span>
+        <span v-if="recycleBin.count.value > 0" class="recycle-bin-badge">{{ recycleBin.count.value }}</span>
+      </button>
     </div>
 
     <!-- Resize handle -->
