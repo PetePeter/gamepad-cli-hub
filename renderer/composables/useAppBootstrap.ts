@@ -12,6 +12,7 @@ import { initConfigCache } from '../bindings.js';
 import { browserGamepad } from '../gamepad.js';
 import { setupGamepad, teardownGamepad } from './useGamepadBootstrap.js';
 import { startTimerRefresh, stopTimerRefresh } from './useTimerRefresh.js';
+import { useFlashAttention } from './useFlashAttention.js';
 import { TerminalManager } from '../terminal/terminal-manager.js';
 import { formatElapsed } from '../../src/utils/time-parser.js';
 import { setTerminalManager, getTerminalManager } from '../runtime/terminal-provider.js';
@@ -451,6 +452,8 @@ function cleanupRendererSession(sessionId: string, detachTerminal = false): void
   state.workingPlanTooltips.delete(sessionId);
   state.pendingSchedules.delete(sessionId);
   state.snappedOutSessions.delete(sessionId);
+  // Drop any pending flash so a closed/exited session leaves no lingering singleton entry.
+  useFlashAttention().clear(sessionId);
 }
 
 export async function doCloseSession(sessionId: string): Promise<void> {

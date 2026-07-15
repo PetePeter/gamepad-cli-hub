@@ -43,6 +43,7 @@ export interface SessionCardProps {
   scheduledAt?: string | null;
   isSnappedOut?: boolean;
   llmNotifications?: Array<{ id: string; title: string; content: string; createdAt?: number }>;
+  flashEntry?: { accentColor: string | null; textColor: string | null; phase: 'pulse' | 'solid' } | null;
   shortcutKey?: number | null;
 }
 
@@ -122,6 +123,20 @@ watch(() => props.isEditing, async (editing) => {
 // --- Computed ---
 
 const dotColor = computed(() => getActivityColor(props.activityLevel));
+
+// Flash-attention: pulse (beating) or solid (steady accent) until focused.
+const flashClass = computed(() => {
+  if (!props.flashEntry) return '';
+  return props.flashEntry.phase === 'solid' ? 'flash-solid' : 'flash-pulse';
+});
+const flashStyle = computed<Record<string, string>>(() => {
+  const entry = props.flashEntry;
+  if (!entry) return {};
+  return {
+    '--flash-accent': entry.accentColor ?? 'var(--accent)',
+    '--flash-text': entry.textColor ?? 'var(--accent-contrast)',
+  };
+});
 const stateLabel = computed(() => STATE_LABELS[props.sessionState] || '💤 Idle');
 const eyeIcon = computed(() => props.isHiddenFromOverview ? '👁‍🗨' : '👁');
 const eyeTitle = computed(() => props.isHiddenFromOverview ? 'Show in overview' : 'Hide from overview');
@@ -184,7 +199,8 @@ function onCardClick(e: MouseEvent): void {
   <div
     ref="cardEl"
     class="session-card"
-    :class="{ active: isActive, focused: isFocused, 'snapped-out': isSnappedOut }"
+    :class="[{ active: isActive, focused: isFocused, 'snapped-out': isSnappedOut }, flashClass]"
+    :style="flashStyle"
     :data-session-id="session.id"
     :data-nav-index="navIndex"
     @click="onCardClick"

@@ -13,22 +13,40 @@ export interface SessionGroupData {
   sessionCount: number;
 }
 
+import { computed } from 'vue';
+
 const props = defineProps<{
   group: SessionGroupData;
   navIndex: number;
   isFocused: boolean;
+  /** When the group is collapsed and a member session is flashing, drives the header flash. */
+  flashEntry?: { accentColor: string | null; textColor: string | null; phase: 'pulse' | 'solid' } | null;
 }>();
 
 const emit = defineEmits<{
   toggleCollapse: [dirPath: string];
   showOverview: [dirPath: string];
 }>();
+
+const flashClass = computed(() => {
+  if (!props.flashEntry) return '';
+  return props.flashEntry.phase === 'solid' ? 'flash-solid' : 'flash-pulse';
+});
+const flashStyle = computed<Record<string, string>>(() => {
+  const entry = props.flashEntry;
+  if (!entry) return {};
+  return {
+    '--flash-accent': entry.accentColor ?? 'var(--accent)',
+    '--flash-text': entry.textColor ?? 'var(--accent-contrast)',
+  };
+});
 </script>
 
 <template>
   <div
     class="group-header"
-    :class="{ focused: isFocused }"
+    :class="[{ focused: isFocused }, flashClass]"
+    :style="flashStyle"
     :data-dir-path="group.dirPath"
     :data-nav-index="navIndex"
     @click="emit('toggleCollapse', group.dirPath)"

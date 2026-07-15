@@ -971,6 +971,19 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'flash_attention',
+    title: 'Flash Session For Attention',
+    description: 'Grab the user\'s attention by flashing a session in the Helm sidebar. The session card beats between its normal background and the Windows theme accent colour for 15 seconds, then holds the accent colour until the user focuses the session. If the session\'s directory group is collapsed, the group header flashes instead. Use this when you need the user to look at a specific session — e.g. you are blocked waiting for input or a long task just finished. Provide sessionId or exact session name.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string', description: 'Target Helm session ID. Provide this or name.' },
+        name: { type: 'string', description: 'Exact target Helm session name. Provide this or sessionId.' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'get_app_visibility',
     title: 'Get App Visibility',
     description: 'Return the current app visibility/focus bucket, screen-lock state, and activeSessionId for notification routing decisions.',

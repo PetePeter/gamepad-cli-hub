@@ -141,6 +141,7 @@ import { useSessionsScreenStore } from './stores/sessions-screen.js';
 import { useNumberAccelerator, slotToIndex } from './composables/useNumberAccelerator.js';
 import { resolveFocusSlot } from './composables/focus-slot.js';
 import { useLlmNotificationsStore } from './stores/llmNotifications.js';
+import { useFlashAttention } from './composables/useFlashAttention.js';
 
 // ============================================================================
 // Reactive view state
@@ -153,6 +154,13 @@ const chipBarStore = useChipBarStore();
 const navStore = useNavigationStore();
 const sessionsScreenStore = useSessionsScreenStore();
 const llmNotificationsStore = useLlmNotificationsStore();
+const flashAttention = useFlashAttention();
+
+// Bringing the window forward while viewing the active session means the user has
+// seen it — clear its flash. (The activeSessionId watcher handles session switches.)
+const onWindowFocusClearFlash = (): void => {
+  if (state.activeSessionId) flashAttention.clear(state.activeSessionId);
+};
 
 const {
   draftEditorVisible,
@@ -205,6 +213,7 @@ let unsubSnapOut: (() => void) | null = null;
 let unsubSnapBack: (() => void) | null = null;
 let unsubFocusSlot: (() => void) | null = null;
 let unsubLlmNotify: (() => void) | null = null;
+let unsubFlashAttention: (() => void) | null = null;
 let unsubAppCloseRequest: (() => void) | null = null;
 
 // Non-modal local state
@@ -454,6 +463,8 @@ watch(() => activeView.value, (view) => {
 
 watch(() => state.activeSessionId, (next, prev) => {
   if (!next) return;
+  // Focusing a session clears any flash-attention pulse on it.
+  flashAttention.clear(next);
   if (prev && prev !== next) {
     state.lastSelectedSessionId = prev;
   }
@@ -801,6 +812,17 @@ onMounted(async () => {
         })
       : null;
 
+    // Flash-attention IPC listener — skip only when the user is already looking at
+    // the target (it is active AND the window has focus); a backgrounded active
+    // session still flashes so the attention grab is not silently dropped.
+    unsubFlashAttention = eventsClient.onFlashAttention
+      ? eventsClient.onFlashAttention(({ sessionId, accentColor, textColor }) => {
+          if (sessionId === state.activeSessionId && document.hasFocus()) return;
+          flashAttention.start({ sessionId, accentColor, textColor });
+        })
+      : null;
+    window.addEventListener('focus', onWindowFocusClearFlash);
+
     unsubAppCloseRequest = eventsClient.onAppCloseRequest
       ? eventsClient.onAppCloseRequest(() => {
           showAppCloseConfirm(
@@ -858,6 +880,10 @@ onUnmounted(() => {
   unsubFocusSlot = null;
   unsubLlmNotify?.();
   unsubLlmNotify = null;
+  unsubFlashAttention?.();
+  unsubFlashAttention = null;
+  window.removeEventListener('focus', onWindowFocusClearFlash);
+  flashAttention.clearAll();
   unsubAppCloseRequest?.();
   unsubAppCloseRequest = null;
   teardown();
@@ -916,6 +942,7 @@ onUnmounted(() => {
             :pending-schedules="state.pendingSchedules"
             :snapped-out-sessions="state.snappedOutSessions"
             :llm-notifications="llmNotificationsStore.bySession"
+            :flash-entries="flashAttention.entries"
             :get-cli-display-name="getCliDisplayName"
             :resolve-group-display-name="resolveGroupDisplayName"
             :is-session-hidden-from-overview="(session) => isSessionHiddenFromOverview(session, sessionsState.groupPrefs)"

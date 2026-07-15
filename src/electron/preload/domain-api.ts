@@ -359,6 +359,13 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     return () => ipcRenderer.removeListener('notification:llmNotify', listener);
   },
 
+  /** Subscribe to flash-attention requests (flash a session/group in the sidebar) */
+  onFlashAttention: (callback: (data: { sessionId: string; accentColor: string | null; textColor: string | null }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: { sessionId: string; accentColor: string | null; textColor: string | null }) => callback(data);
+    ipcRenderer.on('session:flashAttention', listener);
+    return () => ipcRenderer.removeListener('session:flashAttention', listener);
+  },
+
   /** Subscribe to externally-spawned session events (e.g. from Telegram) */
   onSessionSpawned: (callback: (session: { id: string; name: string; cliType: string; processId: number; workingDir?: string; cliSessionName?: string; lastOutputAt?: number }) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);

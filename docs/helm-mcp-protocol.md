@@ -327,6 +327,8 @@ Reply to me
 | `session_get(name)` | Get session metadata |
 | `sessions_list(dirPath?)` | List active sessions |
 | `session_plan_claim(sessionId, planId)` | Claim a plan: records ownership, transitions ready→coding, shows plan badge |
+| `notify_user(sessionId\|name, title, content)` | LLM-directed notification with smart routing (toast / taskbar flash / bubble / Telegram) |
+| `flash_attention(sessionId\|name)` | Flash a session in the sidebar for attention — beats card/collapsed-group header between its bg and the Windows accent for 15s, then holds the accent until focused |
 
 ## See Also
 

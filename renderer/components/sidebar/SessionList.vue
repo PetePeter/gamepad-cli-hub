@@ -9,6 +9,14 @@
 import SessionGroup from './SessionGroup.vue';
 import SessionCard from './SessionCard.vue';
 import { isNavItemFocused } from '../../session-groups.js';
+import { pickGroupFlashEntry } from '../../composables/useFlashAttention.js';
+
+interface FlashEntry {
+  accentColor: string | null;
+  textColor: string | null;
+  phase: 'pulse' | 'solid';
+  startedAt: number;
+}
 
 interface SessionListDirectory {
   name: string;
@@ -56,6 +64,7 @@ const props = defineProps<{
   pendingSchedules: Map<string, string>;
   snappedOutSessions: Set<string>;
   llmNotifications: Map<string, Array<{ id: string; title: string; content: string; createdAt?: number }>>;
+  flashEntries?: Map<string, FlashEntry>;
   getCliDisplayName: (cliType: string) => string;
   resolveGroupDisplayName: (dirPath: string, directories: SessionListDirectory[], projects?: SessionListProject[]) => string;
   isSessionHiddenFromOverview: (session: SessionListGroupSession) => boolean;
@@ -90,6 +99,12 @@ function onRequestClose(sessionId: string, displayName: string): void {
 function onSessionStateChange(sessionId: string, newState: string): void {
   emit('sessionStateChange', sessionId, newState);
 }
+
+/** Colours driving a collapsed group-header flash — newest pulse wins (see pickGroupFlashEntry). */
+function groupFlashEntry(sessions: SessionListGroupSession[]): FlashEntry | null {
+  if (!props.flashEntries) return null;
+  return pickGroupFlashEntry(props.flashEntries, sessions.map((session) => session.id));
+}
 </script>
 
 <template>
@@ -116,6 +131,7 @@ function onSessionStateChange(sessionId: string, newState: string): void {
             }"
             :nav-index="navIndexMap.get(group.dirPath) ?? -1"
             :is-focused="isNavItemFocused(activeFocus, focusedNavItem, 'group-header', group.dirPath)"
+            :flash-entry="group.collapsed ? groupFlashEntry(group.sessions) : null"
             @toggle-collapse="emit('toggleGroupCollapse', $event)"
             @show-overview="emit('showOverview', $event)"
           />
@@ -141,6 +157,7 @@ function onSessionStateChange(sessionId: string, newState: string): void {
               :scheduled-at="pendingSchedules.get(session.id) ?? null"
               :is-snapped-out="snappedOutSessions.has(session.id)"
               :llm-notifications="llmNotifications.get(session.id) ?? []"
+              :flash-entry="flashEntries?.get(session.id) ?? null"
               :shortcut-key="sessionShortcutMap.get(session.id) ?? null"
               @click="emit('sessionClick', $event)"
               @rename="emit('sessionRename', $event)"

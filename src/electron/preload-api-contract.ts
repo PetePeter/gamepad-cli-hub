@@ -251,6 +251,7 @@ export const PRELOAD_API_DOMAINS = {
     'onPtyHandoff',
     'onNotificationClick',
     'onLlmNotify',
+    'onFlashAttention',
     'onSessionSpawned',
     'onSessionUpdated',
     'onSnapOut',

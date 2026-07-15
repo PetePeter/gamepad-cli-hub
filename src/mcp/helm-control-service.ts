@@ -128,6 +128,7 @@ export class HelmControlService extends EventEmitter {
   private readonly contextService: HelmContextService;
   private readonly planAttachmentService: HelmPlanAttachmentService;
   private readonly telegramService: HelmTelegramService;
+  private notificationManager: NotificationManager | null = null;
   private readonly schedulerService: HelmSchedulerService | null;
   private readonly projectService: HelmProjectService | null;
   private readonly directoryService: HelmDirectoryService;
@@ -233,6 +234,7 @@ export class HelmControlService extends EventEmitter {
   }
 
   setNotificationManager(nm: NotificationManager): void {
+    this.notificationManager = nm;
     this.telegramService.setNotificationManager(nm);
   }
 
@@ -710,6 +712,22 @@ export class HelmControlService extends EventEmitter {
 
   notifyUser(sessionRef: string, title: string, content: string): { delivered: 'toast' | 'bubble' | 'telegram' | 'taskbar_flash' | 'none' } {
     return this.telegramService.notifyUser(sessionRef, title, content);
+  }
+
+  /**
+   * Flash a session in the sidebar to grab the user's attention (flash_attention
+   * MCP tool). Resolves the session ref to its canonical id, then delegates to
+   * NotificationManager which owns accent-colour resolution and renderer broadcast.
+   */
+  flashAttention(sessionRef: string): { flashed: boolean } {
+    if (!this.notificationManager) {
+      throw new Error('flash_attention is unavailable — notification manager not initialised.');
+    }
+    const session = this.getSession(sessionRef);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionRef}`);
+    }
+    return this.notificationManager.flashAttention(session.id);
   }
 
   getAppVisibility(): {

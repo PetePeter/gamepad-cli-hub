@@ -1,7 +1,17 @@
-import { Notification, BrowserWindow } from 'electron';
+import { Notification, BrowserWindow, systemPreferences } from 'electron';
 import type { SessionManager } from './manager.js';
 import { logger } from '../utils/logger.js';
 import type { WindowManager } from '../electron/window-manager.js';
+import { parseAccentColor, contrastText } from './color-contrast.js';
+
+/** Payload broadcast to renderers to start a flash-attention pulse on a session. */
+export interface FlashAttentionPayload {
+  sessionId: string;
+  /** Normalised `#rrggbb` Windows accent, or null → renderer falls back to the app accent. */
+  accentColor: string | null;
+  /** Readable text colour for the accent, or null when accentColor is null. */
+  textColor: string | null;
+}
 
 interface NotificationContent {
   title: string;
@@ -26,6 +36,7 @@ export class NotificationManager {
   private screenLockChecker: (() => boolean) | null = null;
   private telegramNotifier: ((sessionId: string, title: string, content: string) => Promise<void>) | null = null;
   private activeSessionIdGetter: (() => string | null) | null = null;
+  private accentColorReader: (() => string | null) | null = null;
 
   constructor(
     private windowManager: WindowManager,
@@ -37,6 +48,45 @@ export class NotificationManager {
   setTelegramNotifier(fn: (sessionId: string, title: string, content: string) => Promise<void>): void { this.telegramNotifier = fn; }
 
   setActiveSessionIdGetter(fn: () => string | null): void { this.activeSessionIdGetter = fn; }
+
+  /** Override the accent-colour source (tests inject a fake; default reads the OS theme). */
+  setAccentColorReader(fn: () => string | null): void { this.accentColorReader = fn; }
+
+  private readAccentColor(): string | null {
+    if (this.accentColorReader) return this.accentColorReader();
+    try {
+      return systemPreferences?.getAccentColor?.() ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Flash a session to grab the user's attention (Helm flash_attention MCP tool).
+   *
+   * Resolves the Windows theme accent, derives a readable text colour, and
+   * broadcasts `session:flashAttention` to every live renderer. The renderer
+   * owns the pulse→solid timing and decides whether to flash the session card
+   * or its (collapsed) group header. Unknown sessions are a graceful no-op.
+   */
+  flashAttention(sessionId: string): { flashed: boolean } {
+    const session = this.sessionManager.getSession(sessionId);
+    if (!session) {
+      logger.warn(`[Flash] Ignoring flash_attention for unknown session: ${sessionId}`);
+      return { flashed: false };
+    }
+
+    const accentColor = parseAccentColor(this.readAccentColor());
+    const textColor = accentColor ? contrastText(accentColor) : null;
+    const payload: FlashAttentionPayload = { sessionId, accentColor, textColor };
+
+    const windows = BrowserWindow.getAllWindows().filter((window) => !window.isDestroyed());
+    for (const window of windows) {
+      window.webContents.send('session:flashAttention', payload);
+    }
+    logger.info(`[Flash] flash_attention for session ${sessionId} (accent=${accentColor ?? 'app-default'})`);
+    return { flashed: true };
+  }
 
   getAppVisibility(): 'visible-focused' | 'visible-background' | 'hidden' {
     const focusedWin = BrowserWindow.getAllWindows().find(w => w.isFocused());
