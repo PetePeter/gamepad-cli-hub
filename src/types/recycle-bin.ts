@@ -19,4 +19,8 @@ export interface RecycleBinEntry {
   cliSessionName: string;
   /** Epoch ms the session was closed / added to the bin. */
   closedAt: number;
+  /** If the closed session was in a runtime group, its group id — restore re-adds it (recreating the group if gone). */
+  runtimeGroupId?: string;
+  /** The runtime group's display name at close time, used to recreate the group on restore. */
+  runtimeGroupName?: string;
 }
