@@ -23,6 +23,8 @@ import { PatternMatcher } from '../../session/pattern-matcher.js';
 import { ScheduledTaskManager } from '../../session/scheduled-task-manager.js';
 import { ScheduledTaskHistoryManager } from '../../session/scheduled-task-history-manager.js';
 import { RecycleBinManager, recordRemovedSession } from '../../session/recycle-bin-manager.js';
+import { RuntimeGroupManager } from '../../session/runtime-group-manager.js';
+import { saveRuntimeGroups, loadRuntimeGroups } from '../../session/runtime-group-persistence.js';
 import { setupPowerMonitor } from '../../session/power-monitor.js';
 import { ConfigLoader } from '../../config/loader.js';
 import { keyboard } from '../../output/keyboard.js';
@@ -45,6 +47,7 @@ import { setupDraftHandlers } from './draft-handlers.js';
 import { setupPlanHandlers } from './plan-handlers.js';
 import { setupScheduledTaskHandlers } from './scheduled-task-handlers.js';
 import { setupRecycleBinHandlers } from './recycle-bin-handlers.js';
+import { setupRuntimeGroupHandlers } from './runtime-group-handlers.js';
 import { setupBackupPlanHandlers } from './plan-backup-handlers.js';
 import { setupProjectHandlers } from './project-handlers.js';
 import { setupSkillHandlers } from './skill-handlers.js';
@@ -81,7 +84,7 @@ export function registerIPCHandlers(
   dirname?: string,
   configLoader: ConfigLoader = new ConfigLoader(),
   options: IpcStartupOptions = {},
-): { cleanup: () => Promise<void>; sessionManager: SessionManager; ptyManager: PtyManager; incomingWatcher: IncomingPlansWatcher; windowManager: WindowManager; helmControlService: HelmControlService } {
+): { cleanup: () => Promise<void>; sessionManager: SessionManager; ptyManager: PtyManager; incomingWatcher: IncomingPlansWatcher; windowManager: WindowManager; helmControlService: HelmControlService; runtimeGroupManager: RuntimeGroupManager } {
   logger.info('[IPC] Registering handlers');
   const startupDelayMs = Math.max(0, options.startupDelayMs ?? 0);
 
@@ -120,6 +123,8 @@ export function registerIPCHandlers(
   const backupManager = new PlanBackupManager(planManager);
   const scheduledTaskHistoryManager = new ScheduledTaskHistoryManager();
   const recycleBinManager = new RecycleBinManager();
+  const runtimeGroupManager = new RuntimeGroupManager(saveRuntimeGroups);
+  runtimeGroupManager.importAll(loadRuntimeGroups());
   const scheduledTaskManager = new ScheduledTaskManager(sessionManager, ptyManager, planManager, configLoader, scheduledTaskHistoryManager);
   const notificationManager = new NotificationManager(windowManager, sessionManager);
 
@@ -200,6 +205,7 @@ export function registerIPCHandlers(
   setupPlanHandlers(planManager, contextManager, windowManager, incomingWatcher, dirname);
   setupScheduledTaskHandlers(scheduledTaskManager, scheduledTaskHistoryManager, windowManager);
   setupRecycleBinHandlers(recycleBinManager, windowManager);
+  setupRuntimeGroupHandlers(runtimeGroupManager, windowManager);
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, undefined, undefined, undefined, patternMatcher);
   setupBackupPlanHandlers(ipcMain, windowManager, () => backupManager);
   const cleanupPromptTemplates = promptTemplatesPath
@@ -261,8 +267,17 @@ export function registerIPCHandlers(
   });
   sessionManager.on('session:removed', (event) => {
     // Recoverable (has a cliSessionName) closed sessions go to the recycle bin,
-    // and their directory is auto-bookmarked so the group header persists.
-    recordRemovedSession(event, recycleBinManager, dir => configLoader.addBookmarkedDir(dir));
+    // and their directory is auto-bookmarked so the group header persists. Tag
+    // the bin entry with the session's runtime group (if any) so restore can
+    // re-attach it, then evict the closed session from that group.
+    const runtimeGroup = runtimeGroupManager.groupForSession(event.sessionId);
+    recordRemovedSession(
+      event,
+      recycleBinManager,
+      dir => configLoader.addBookmarkedDir(dir),
+      runtimeGroup ? { id: runtimeGroup.id, name: runtimeGroup.name } : undefined,
+    );
+    runtimeGroupManager.removeSessionEverywhere(event.sessionId);
 
     if (!telegramBot.isRunning()) return;
     telegramNotifier.removeSession(event.sessionId);
@@ -353,5 +368,6 @@ export function registerIPCHandlers(
     incomingWatcher,
     windowManager,
     helmControlService,
+    runtimeGroupManager,
   };
 }

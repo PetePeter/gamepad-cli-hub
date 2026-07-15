@@ -3,6 +3,7 @@ import type { PtyWriteOptions } from '../../session/delivery-context.js';
 import type { DraftPrompt } from '../../types/session.js';
 import type { ScheduledTaskHistoryEntry } from '../../types/scheduled-task.js';
 import type { RecycleBinEntry } from '../../types/recycle-bin.js';
+import type { RuntimeGroup } from '../../types/runtime-group.js';
 import {
   createPreloadDomains,
   type HelmPreloadApi,
@@ -1031,6 +1032,50 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     const listener = () => callback();
     ipcRenderer.on('recycle-bin:changed', listener);
     return () => ipcRenderer.removeListener('recycle-bin:changed', listener);
+  },
+
+  // ========================================================================
+  // Runtime Session Groups
+  // ========================================================================
+
+  /** List all runtime groups in display order */
+  runtimeGroupList: (): Promise<RuntimeGroup[]> => ipcRenderer.invoke('runtimeGroup:list'),
+
+  /** Create a new empty runtime group */
+  runtimeGroupCreate: (name: string): Promise<RuntimeGroup | null> =>
+    ipcRenderer.invoke('runtimeGroup:create', name),
+
+  /** Rename a runtime group */
+  runtimeGroupRename: (id: string, name: string): Promise<RuntimeGroup | null> =>
+    ipcRenderer.invoke('runtimeGroup:rename', id, name),
+
+  /** Set a runtime group's collapsed state */
+  runtimeGroupSetCollapsed: (id: string, collapsed: boolean): Promise<boolean> =>
+    ipcRenderer.invoke('runtimeGroup:setCollapsed', id, collapsed),
+
+  /** Add a session to a group (exclusive membership) */
+  runtimeGroupAddSession: (groupId: string, sessionId: string): Promise<RuntimeGroup | null> =>
+    ipcRenderer.invoke('runtimeGroup:addSession', groupId, sessionId),
+
+  /** Remove a session from every group */
+  runtimeGroupRemoveSession: (sessionId: string): Promise<boolean> =>
+    ipcRenderer.invoke('runtimeGroup:removeSession', sessionId),
+
+  /** Delete a runtime group entirely */
+  runtimeGroupCloseGroup: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('runtimeGroup:closeGroup', id),
+
+  /** Re-attach a restored session to its original runtime group (recreates if needed) */
+  runtimeGroupReattach: (
+    entry: { runtimeGroupId?: string; runtimeGroupName?: string },
+    sessionId: string,
+  ): Promise<boolean> => ipcRenderer.invoke('runtimeGroup:reattach', entry, sessionId),
+
+  /** Subscribe to runtime-group change events */
+  onRuntimeGroupChanged: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('runtime-group:changed', listener);
+    return () => ipcRenderer.removeListener('runtime-group:changed', listener);
   },
 
   // ========================================================================
