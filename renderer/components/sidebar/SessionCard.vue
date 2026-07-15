@@ -8,6 +8,8 @@
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
 import { getActivityColor } from '../../state-colors.js';
 import NotificationCarousel from './NotificationCarousel.vue';
+import { useRuntimeGroups } from '../../composables/useRuntimeGroups.js';
+import { useSessionDrag } from '../../composables/useSessionDrag.js';
 
 // --- Types ---
 
@@ -145,6 +147,38 @@ const metaText = computed(() => {
   return title && title !== props.displayName ? title : '';
 });
 
+// --- Runtime group badge + drag ---
+
+const { groups: runtimeGroups } = useRuntimeGroups();
+const { beginDrag, endDrag } = useSessionDrag();
+
+/** The runtime group this session belongs to (null when ungrouped). */
+const runtimeGroup = computed(() =>
+  runtimeGroups.value.find(g => g.sessionIds.includes(props.session.id)) ?? null,
+);
+
+/** Short badge label — first word of the group name (mirrors the mockup). */
+const groupBadgeLabel = computed(() => {
+  const name = runtimeGroup.value?.name ?? '';
+  return name.split(' ')[0] ?? '';
+});
+
+const isDragging = ref(false);
+
+function onDragStart(e: DragEvent): void {
+  beginDrag(props.session.id);
+  isDragging.value = true;
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', props.session.id);
+  }
+}
+
+function onDragEnd(): void {
+  endDrag();
+  isDragging.value = false;
+}
+
 // Column focus helpers
 function colClass(col: number): string {
   return props.isFocused && props.focusColumn === col ? 'card-col-focused' : '';
@@ -199,11 +233,14 @@ function onCardClick(e: MouseEvent): void {
   <div
     ref="cardEl"
     class="session-card"
-    :class="[{ active: isActive, focused: isFocused, 'snapped-out': isSnappedOut }, flashClass]"
+    :class="[{ active: isActive, focused: isFocused, 'snapped-out': isSnappedOut, dragging: isDragging, grouped: !!runtimeGroup }, flashClass]"
     :style="flashStyle"
     :data-session-id="session.id"
     :data-nav-index="navIndex"
+    :draggable="!isEditing"
     @click="onCardClick"
+    @dragstart="onDragStart"
+    @dragend="onDragEnd"
   >
     <!-- Line 1: top row -->
     <div class="session-top-row">
@@ -233,6 +270,13 @@ function onCardClick(e: MouseEvent): void {
 
       <!-- Draft badge -->
       <span v-if="draftCount > 0" class="draft-badge">📝{{ draftCount }}</span>
+
+      <!-- Runtime group badge -->
+      <span
+        v-if="runtimeGroup"
+        class="group-badge"
+        :title="`In group: ${runtimeGroup.name}`"
+      >🗂️ {{ groupBadgeLabel }}</span>
 
       <span style="flex: 1" />
 

@@ -14,10 +14,11 @@ import { closeConfirm, setCloseConfirmCallback } from '../stores/modal-bridge.js
 import { sortSessions, type SessionSortField, type SortDirection } from '../sort-logic.js';
 import { getOrderedSessionIds } from '../utils/session-shortcut-map.js';
 import {
-  groupSessionsByDirectory, buildFlatNavList,
+  buildSessionGroups, buildFlatNavList,
   toggleCollapse,
   findNavIndexBySessionId, getSessionOverviewAliases, getSessionOverviewKey,
 } from '../session-groups.js';
+import { useRuntimeGroups } from '../composables/useRuntimeGroups.js';
 import {
   getOverviewSessions, handleOverviewInput, hideOverview, isOverviewVisible, refreshOverview,
 } from './group-overview.js';
@@ -247,6 +248,14 @@ export async function toggleSessionOverviewVisibility(sessionId: string): Promis
 }
 
 export async function toggleGroupCollapse(dirPath: string): Promise<void> {
+  // Runtime groups own their collapse state in the runtime-group store (keyed by
+  // group id, which is the nav header id). Directory collapse stays in prefs.
+  const runtime = useRuntimeGroups().groups.value.find(g => g.id === dirPath);
+  if (runtime) {
+    await useRuntimeGroups().setCollapsed(runtime.id, !runtime.collapsed);
+    await loadSessions();
+    return;
+  }
   sessionsState.groupPrefs = {
     ...sessionsState.groupPrefs,
     collapsed: toggleCollapse(sessionsState.groupPrefs.collapsed, dirPath),
@@ -556,8 +565,11 @@ export async function loadSessionsData(): Promise<void> {
     getSessionActivity,
   );
 
-  // Build groups and flat navigation list
-  sessionsState.groups = groupSessionsByDirectory(state.sessions, getSessionCwd, sessionsState.groupPrefs);
+  // Build groups and flat navigation list. Runtime groups render first, then
+  // directory groups; runtime groups take exclusive ownership of their members.
+  sessionsState.groups = buildSessionGroups(
+    state.sessions, getSessionCwd, sessionsState.groupPrefs, useRuntimeGroups().groups.value,
+  );
   sessionsState.navList = buildFlatNavList(sessionsState.groups);
   useNavigationStore().onNavListRebuilt();
 

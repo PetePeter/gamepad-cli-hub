@@ -20,8 +20,9 @@ import { setupKeyboardRelay } from '../paste-handler.js';
 import { resolveNextTerminalId } from '../tab-cycling.js';
 import { sortSessions, type SessionSortField, type SortDirection } from '../sort-logic.js';
 import {
-  groupSessionsByDirectory, buildFlatNavList, findNavIndexBySessionId,
+  buildSessionGroups, buildFlatNavList, findNavIndexBySessionId,
 } from '../session-groups.js';
+import { useRuntimeGroups } from './useRuntimeGroups.js';
 
 // Side-effect imports — modules that call registerView() at top level
 import '../screens/group-overview.js';
@@ -206,7 +207,9 @@ export async function refreshSessions(): Promise<void> {
     nextSessions, sortField, sortDirection, getSessionState, getSessionCwd, getSessionActivity,
   );
 
-  sessionsState.groups = groupSessionsByDirectory(state.sessions, getSessionCwd, sessionsState.groupPrefs);
+  sessionsState.groups = buildSessionGroups(
+    state.sessions, getSessionCwd, sessionsState.groupPrefs, useRuntimeGroups().groups.value,
+  );
   sessionsState.navList = buildFlatNavList(sessionsState.groups);
   try { useNavigationStore().onNavListRebuilt(); } catch { /* store may not be initialized yet */ }
 

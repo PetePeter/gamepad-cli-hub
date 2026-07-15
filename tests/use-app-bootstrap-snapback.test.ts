@@ -56,6 +56,7 @@ vi.mock('../renderer/sort-logic.js', () => ({
 
 vi.mock('../renderer/session-groups.js', () => ({
   groupSessionsByDirectory: vi.fn(() => []),
+  buildSessionGroups: vi.fn(() => []),
   buildFlatNavList: vi.fn(() => []),
   findNavIndexBySessionId: vi.fn(() => 0),
 }));

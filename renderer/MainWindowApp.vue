@@ -61,6 +61,8 @@ import { useSettingsController } from './composables/useSettingsController.js';
 import { useInputRouter } from './composables/useInputRouter.js';
 import { useSidebarController } from './composables/useSidebarController.js';
 import { useRecycleBin } from './composables/useRecycleBin.js';
+import { useRuntimeGroups } from './composables/useRuntimeGroups.js';
+import { useRuntimeGroupActions } from './composables/useRuntimeGroupActions.js';
 import { useDraftPlanContextEditor } from './composables/useDraftPlanContextEditor.js';
 import { usePlanWorkspaceController } from './composables/usePlanWorkspaceController.js';
 import { appClient, configClient, deliveryClient, draftsClient, eventsClient, sessionsClient, systemClient } from './ipc/clients.js';
@@ -71,6 +73,7 @@ import {
   toolEditor,
   isAnyBridgeModalVisible,
   showAppCloseConfirm,
+  openRuntimeGroupMoveSubmenu,
 } from './stores/modal-bridge.js';
 import { showEditorPopup } from './editor/editor-popup.js';
 import { usePromptApplyFlow } from './composables/usePromptApplyFlow.js';
@@ -155,6 +158,9 @@ const navStore = useNavigationStore();
 const sessionsScreenStore = useSessionsScreenStore();
 const llmNotificationsStore = useLlmNotificationsStore();
 const flashAttention = useFlashAttention();
+const recycleBin = useRecycleBin();
+const runtimeGroups = useRuntimeGroups();
+const runtimeGroupActions = useRuntimeGroupActions();
 
 // Bringing the window forward while viewing the active session means the user has
 // seen it — clear its flash. (The activeSessionId watcher handles session switches.)
@@ -385,6 +391,13 @@ const plansDirItems = computed(() =>
 
 const hasActiveSession = computed(() => !!state.activeSessionId);
 
+// Runtime group name for the session the context menu targets (null when ungrouped).
+const contextMenuGroupName = computed<string | null>(() => {
+  const sessionId = contextMenu.sourceSessionId || state.activeSessionId;
+  if (!sessionId) return null;
+  return runtimeGroupActions.groupOfSession(sessionId)?.name ?? null;
+});
+
 
 const hasDrafts = computed(() => {
   if (!state.activeSessionId) return false;
@@ -454,7 +467,12 @@ watch(() => activeView.value, (view) => {
     if (sessionsState.overviewIsGlobal) {
       overviewGroupLabel.value = 'All Sessions';
     } else if (sessionsState.overviewGroup) {
-      overviewGroupLabel.value = resolveGroupDisplayName(sessionsState.overviewGroup, sessionsState.directories, settingsProjects.value);
+      // Runtime groups carry their own display name (their id is a UUID, not a
+      // directory path), so prefer the group's own name when present.
+      const grp = sessionsState.groups.find(g => g.dirPath === sessionsState.overviewGroup);
+      overviewGroupLabel.value = grp?.kind === 'runtime'
+        ? grp.displayName
+        : resolveGroupDisplayName(sessionsState.overviewGroup, sessionsState.directories, settingsProjects.value);
     } else {
       overviewGroupLabel.value = 'Sessions';
     }
@@ -584,6 +602,23 @@ function onContextMenuAction(action: string): void {
         });
       }
       break;
+    case 'move-to-group': {
+      const sessionId = contextMenu.sourceSessionId || state.activeSessionId;
+      if (sessionId) {
+        const current = runtimeGroupActions.groupOfSession(sessionId);
+        openRuntimeGroupMoveSubmenu(
+          sessionId,
+          current?.id ?? null,
+          runtimeGroups.groups.value.map(g => ({ id: g.id, name: g.name })),
+        );
+      }
+      break;
+    }
+    case 'remove-from-group': {
+      const sessionId = contextMenu.sourceSessionId || state.activeSessionId;
+      if (sessionId) void runtimeGroupActions.removeFromGroup(sessionId);
+      break;
+    }
     case 'snap-out':
       if (state.activeSessionId) void onSessionSnapOut(state.activeSessionId);
       break;
@@ -727,10 +762,36 @@ async function onBindingEditorSave(binding: any): Promise<void> {
 // Lifecycle
 // ============================================================================
 
-const recycleBin = useRecycleBin();
+// Runtime group sidebar actions (split button, headers, drop targets).
+function onNewGroup(): void {
+  runtimeGroupActions.promptCreate();
+}
+function onNewGroupWithSession(sessionId: string): void {
+  runtimeGroupActions.promptCreate(sessionId);
+}
+function onGroupRename(groupId: string): void {
+  const group = runtimeGroups.groups.value.find(g => g.id === groupId);
+  if (group) runtimeGroupActions.promptRename(group);
+}
+function onGroupClose(groupId: string): void {
+  const group = runtimeGroups.groups.value.find(g => g.id === groupId);
+  if (group) runtimeGroupActions.requestClose(group);
+}
+function onGroupAddSession(groupId: string, sessionId: string): void {
+  void runtimeGroupActions.moveToGroup(groupId, sessionId);
+}
+function onGroupRemoveSession(sessionId: string): void {
+  void runtimeGroupActions.removeFromGroup(sessionId);
+}
+
+// Rebuild the session list whenever runtime groups change (create/rename/close,
+// membership moves). buildSessionGroups reads the live groups ref, so a rebuild
+// re-partitions sessions between runtime and directory groups.
+watch(runtimeGroups.groups, () => { refreshSessions(); }, { deep: true });
 
 onMounted(async () => {
   recycleBin.ensureSubscribed();
+  runtimeGroups.ensureSubscribed();
 
   if (!terminalContainerRef.value) {
     await appClient.appStartupReady();
@@ -949,6 +1010,12 @@ onUnmounted(() => {
             :session-elapsed-text="sessionElapsedText"
             :session-shortcut-map="sessionsScreenStore.sessionShortcutMap"
             @show-global-overview="onShowGlobalOverview"
+            @new-group="onNewGroup"
+            @new-group-with-session="onNewGroupWithSession"
+            @group-rename="onGroupRename"
+            @group-close="onGroupClose"
+            @group-add-session="onGroupAddSession"
+            @group-remove-session="onGroupRemoveSession"
             @toggle-group-collapse="onGroupToggleCollapse"
             @show-overview="onShowOverview"
             @session-click="onSessionClick"
@@ -1247,6 +1314,7 @@ onUnmounted(() => {
       :has-sequences="false"
       :has-drafts="hasDrafts"
       :is-active-session-snapped-out="state.activeSessionId ? state.snappedOutSessions.has(state.activeSessionId) : false"
+      :context-menu-group-name="contextMenuGroupName"
       v-model:binding-editor-visible="bindingEditorVisible"
       :binding-editor-button="bindingEditorButton"
       :binding-editor-cli-type="bindingEditorCliType"

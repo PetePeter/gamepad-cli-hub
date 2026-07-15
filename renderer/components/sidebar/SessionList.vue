@@ -6,10 +6,12 @@
  * Quick Spawn and Folder Planner sections outside this component so they stay
  * pinned below the scrolling list.
  */
+import { ref } from 'vue';
 import SessionGroup from './SessionGroup.vue';
 import SessionCard from './SessionCard.vue';
 import { isNavItemFocused } from '../../session-groups.js';
 import { pickGroupFlashEntry } from '../../composables/useFlashAttention.js';
+import { useSessionDrag } from '../../composables/useSessionDrag.js';
 
 interface FlashEntry {
   accentColor: string | null;
@@ -41,8 +43,11 @@ type SessionListFocusColumn = 0 | 1 | 2 | 3 | 4;
 
 interface SessionListGroup {
   dirPath: string;
+  displayName: string;
   collapsed: boolean;
   sessions: SessionListGroupSession[];
+  kind?: 'directory' | 'runtime';
+  groupId?: string;
 }
 
 const props = defineProps<{
@@ -74,6 +79,12 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   showGlobalOverview: [];
+  newGroup: [];
+  newGroupWithSession: [sessionId: string];
+  groupRename: [groupId: string];
+  groupClose: [groupId: string];
+  groupAddSession: [groupId: string, sessionId: string];
+  groupRemoveSession: [sessionId: string];
   toggleGroupCollapse: [dirPath: string];
   showOverview: [dirPath: string];
   sessionClick: [sessionId: string];
@@ -105,38 +116,92 @@ function groupFlashEntry(sessions: SessionListGroupSession[]): FlashEntry | null
   if (!props.flashEntries) return null;
   return pickGroupFlashEntry(props.flashEntries, sessions.map((session) => session.id));
 }
+
+// Dropping a session onto the ＋ New Group segment creates a group prefilled and
+// moves the session in (mirrors the mockup).
+const { draggedSessionId } = useSessionDrag();
+const newGroupDropActive = ref(false);
+
+function onNewGroupDragOver(e: DragEvent): void {
+  if (!draggedSessionId.value) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  newGroupDropActive.value = true;
+}
+function onNewGroupDragLeave(): void {
+  newGroupDropActive.value = false;
+}
+function onNewGroupDrop(e: DragEvent): void {
+  newGroupDropActive.value = false;
+  const sid = draggedSessionId.value;
+  if (!sid) return;
+  e.preventDefault();
+  emit('newGroupWithSession', sid);
+}
 </script>
 
 <template>
   <div class="sessions-list-shell">
-    <button
-      v-if="hasSessions"
-      class="overview-nav-button"
-      :class="{ focused: isNavItemFocused(activeFocus, focusedNavItem, 'overview-button', 'overview') }"
-      title="Overview — all sessions"
-      @click="emit('showGlobalOverview')"
-    >
-      Overview
-    </button>
+    <!-- Split button: [ ▦ Overview | ＋ New Group ] -->
+    <div class="runtime-split-button">
+      <button
+        class="split-seg"
+        :class="{ focused: isNavItemFocused(activeFocus, focusedNavItem, 'overview-button', 'overview') }"
+        title="Overview grid of all live sessions"
+        @click="emit('showGlobalOverview')"
+      >▦ Overview</button>
+      <span class="split-divider" aria-hidden="true"></span>
+      <button
+        class="split-seg"
+        :class="{ 'drop-ok': newGroupDropActive }"
+        title="Create a new runtime group"
+        @click="emit('newGroup')"
+        @dragover="onNewGroupDragOver"
+        @dragleave="onNewGroupDragLeave"
+        @drop="onNewGroupDrop"
+      >＋ New Group</button>
+    </div>
 
     <div class="sessions-list" id="sessionsList">
       <template v-for="group in groups" :key="group.dirPath">
-        <template v-if="group.sessions.length > 0">
+        <!-- Runtime groups always render (even empty); directory groups only when non-empty. -->
+        <template v-if="group.sessions.length > 0 || group.kind === 'runtime'">
           <SessionGroup
             :group="{
               dirPath: group.dirPath,
-              displayName: resolveGroupDisplayName(group.dirPath, directories, projects),
+              displayName: group.kind === 'runtime'
+                ? group.displayName
+                : resolveGroupDisplayName(group.dirPath, directories, projects),
               collapsed: group.collapsed,
               sessionCount: group.sessions.length,
+              kind: group.kind,
+              groupId: group.groupId,
             }"
             :nav-index="navIndexMap.get(group.dirPath) ?? -1"
             :is-focused="isNavItemFocused(activeFocus, focusedNavItem, 'group-header', group.dirPath)"
             :flash-entry="group.collapsed ? groupFlashEntry(group.sessions) : null"
             @toggle-collapse="emit('toggleGroupCollapse', $event)"
             @show-overview="emit('showOverview', $event)"
+            @rename="emit('groupRename', $event)"
+            @close-group="emit('groupClose', $event)"
+            @add-session="(gid, sid) => emit('groupAddSession', gid, sid)"
+            @remove-session="emit('groupRemoveSession', $event)"
           />
 
           <template v-if="!group.collapsed">
+            <!-- Empty runtime group placeholder -->
+            <div
+              v-if="group.sessions.length === 0 && group.kind === 'runtime'"
+              class="runtime-group-placeholder"
+            >
+              <span>No active sessions</span>
+              <button
+                class="placeholder-close"
+                title="Close empty group"
+                @click="emit('groupClose', group.groupId ?? group.dirPath)"
+              >✕</button>
+            </div>
+
             <SessionCard
               v-for="session in group.sessions"
               :key="session.id"

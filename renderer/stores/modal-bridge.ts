@@ -373,6 +373,106 @@ export function isPlanHelpVisible(): boolean {
 }
 
 // ============================================================================
+// Runtime Group Name (create / rename)
+// ============================================================================
+
+export const runtimeGroupName = reactive({
+  visible: false,
+  mode: 'create' as 'create' | 'rename',
+  /** Prefilled name (rename mode). */
+  initialName: '',
+});
+
+/** Called with the entered name when the user confirms. */
+let _runtimeGroupNameOnSubmit: ((name: string) => void) | null = null;
+export function getRuntimeGroupNameCallback(): ((name: string) => void) | null { return _runtimeGroupNameOnSubmit; }
+
+export function openRuntimeGroupNameModal(
+  mode: 'create' | 'rename',
+  onSubmit: (name: string) => void,
+  initialName = '',
+): void {
+  runtimeGroupName.visible = true;
+  runtimeGroupName.mode = mode;
+  runtimeGroupName.initialName = initialName;
+  _runtimeGroupNameOnSubmit = onSubmit;
+}
+
+export function closeRuntimeGroupNameModal(): void {
+  runtimeGroupName.visible = false;
+  runtimeGroupName.initialName = '';
+  _runtimeGroupNameOnSubmit = null;
+}
+
+// ============================================================================
+// Runtime Group Move Submenu (context-menu "Move to group ▸")
+// ============================================================================
+
+export const runtimeGroupMove = reactive({
+  visible: false,
+  /** Session being moved. */
+  sessionId: '',
+  /** Runtime group id the session is currently in (for the ✓ marker), or ''. */
+  currentGroupId: '',
+  /** Groups to list: { id, name }. */
+  groups: [] as Array<{ id: string; name: string }>,
+});
+
+export function openRuntimeGroupMoveSubmenu(
+  sessionId: string,
+  currentGroupId: string | null,
+  groups: Array<{ id: string; name: string }>,
+): void {
+  runtimeGroupMove.visible = true;
+  runtimeGroupMove.sessionId = sessionId;
+  runtimeGroupMove.currentGroupId = currentGroupId ?? '';
+  runtimeGroupMove.groups = [...groups];
+}
+
+export function closeRuntimeGroupMoveSubmenu(): void {
+  runtimeGroupMove.visible = false;
+  runtimeGroupMove.sessionId = '';
+  runtimeGroupMove.currentGroupId = '';
+  runtimeGroupMove.groups = [];
+}
+
+// ============================================================================
+// Runtime Group Close (3-way dialog)
+// ============================================================================
+
+export const runtimeGroupClose = reactive({
+  visible: false,
+  groupId: '',
+  groupName: '',
+  memberCount: 0,
+});
+
+/** mode is 'keep' (dissolve, keep sessions) or 'closeAll' (close sessions too). */
+let _runtimeGroupCloseOnConfirm: ((mode: 'keep' | 'closeAll') => void) | null = null;
+export function getRuntimeGroupCloseCallback(): ((mode: 'keep' | 'closeAll') => void) | null { return _runtimeGroupCloseOnConfirm; }
+
+export function openRuntimeGroupCloseModal(
+  groupId: string,
+  groupName: string,
+  memberCount: number,
+  onConfirm: (mode: 'keep' | 'closeAll') => void,
+): void {
+  runtimeGroupClose.visible = true;
+  runtimeGroupClose.groupId = groupId;
+  runtimeGroupClose.groupName = groupName;
+  runtimeGroupClose.memberCount = memberCount;
+  _runtimeGroupCloseOnConfirm = onConfirm;
+}
+
+export function closeRuntimeGroupCloseModal(): void {
+  runtimeGroupClose.visible = false;
+  runtimeGroupClose.groupId = '';
+  runtimeGroupClose.groupName = '';
+  runtimeGroupClose.memberCount = 0;
+  _runtimeGroupCloseOnConfirm = null;
+}
+
+// ============================================================================
 // Guard helper — check if ANY bridge modal is visible (for race condition guard)
 // ============================================================================
 
@@ -386,6 +486,7 @@ export function isAnyBridgeModalVisible(): boolean {
   return closeConfirm.visible || contextMenu.visible || planDeleteConfirm.visible ||
     clearDonePlans.visible || quickSpawn.visible || dirPicker.visible ||
     draftSubmenu.visible || formModal.visible || editorPopupStore.visible || toolEditor.visible ||
-    planHelp.visible || promptTree.visible || escProtection.isProtecting.value;
+    planHelp.visible || promptTree.visible || runtimeGroupName.visible || runtimeGroupClose.visible ||
+    runtimeGroupMove.visible || escProtection.isProtecting.value;
 }
 

@@ -13,7 +13,11 @@ import {
   formModal, getFormModalResolve,
   toolEditor, getToolEditorCallback,
   planHelp, hidePlanHelpModal,
+  runtimeGroupName, getRuntimeGroupNameCallback, closeRuntimeGroupNameModal,
+  runtimeGroupClose, getRuntimeGroupCloseCallback, closeRuntimeGroupCloseModal,
+  runtimeGroupMove, closeRuntimeGroupMoveSubmenu,
 } from '../../stores/modal-bridge.js';
+import { useRuntimeGroupActions } from '../../composables/useRuntimeGroupActions.js';
 import type { ScheduledTask, ScheduledTaskHistoryEntry } from '../../../src/types/scheduled-task.js';
 import CloseConfirmModal from '../modals/CloseConfirmModal.vue';
 import PlanDeleteConfirmModal from '../modals/PlanDeleteConfirmModal.vue';
@@ -30,6 +34,9 @@ import EscProtectionModal from '../modals/EscProtectionModal.vue';
 import PlanHelpModal from '../modals/PlanHelpModal.vue';
 import BackupRestoreModal from '../modals/BackupRestoreModal.vue';
 import ClearDonePlansModal from '../modals/ClearDonePlansModal.vue';
+import RuntimeGroupNameModal from '../modals/RuntimeGroupNameModal.vue';
+import RuntimeGroupCloseDialog from '../modals/RuntimeGroupCloseDialog.vue';
+import RuntimeGroupMoveSubmenu from '../modals/RuntimeGroupMoveSubmenu.vue';
 import ScheduledTasksTab from '../sidebar/ScheduledTasksTab.vue';
 import ToastNotification from '../ToastNotification.vue';
 
@@ -51,6 +58,7 @@ defineProps<{
   hasSequences: boolean;
   hasDrafts: boolean;
   isActiveSessionSnappedOut: boolean;
+  contextMenuGroupName?: string | null;
   bindingEditorVisible: boolean;
   bindingEditorButton: string;
   bindingEditorCliType: string;
@@ -162,6 +170,44 @@ function onToolEditorSave(values: any): void {
   toolEditor.visible = false;
   getToolEditorCallback()?.(values);
 }
+
+function onRuntimeGroupNameSubmit(name: string): void {
+  const cb = getRuntimeGroupNameCallback();
+  closeRuntimeGroupNameModal();
+  cb?.(name);
+}
+
+function onRuntimeGroupNameCancel(): void {
+  closeRuntimeGroupNameModal();
+}
+
+function onRuntimeGroupCloseConfirm(mode: 'keep' | 'closeAll'): void {
+  const cb = getRuntimeGroupCloseCallback();
+  closeRuntimeGroupCloseModal();
+  cb?.(mode);
+}
+
+function onRuntimeGroupCloseCancel(): void {
+  closeRuntimeGroupCloseModal();
+}
+
+const runtimeGroupActions = useRuntimeGroupActions();
+
+function onRuntimeGroupMovePick(groupId: string): void {
+  const sessionId = runtimeGroupMove.sessionId;
+  closeRuntimeGroupMoveSubmenu();
+  if (sessionId) void runtimeGroupActions.moveToGroup(groupId, sessionId);
+}
+
+function onRuntimeGroupMoveNewGroup(): void {
+  const sessionId = runtimeGroupMove.sessionId;
+  closeRuntimeGroupMoveSubmenu();
+  if (sessionId) runtimeGroupActions.promptCreate(sessionId);
+}
+
+function onRuntimeGroupMoveCancel(): void {
+  closeRuntimeGroupMoveSubmenu();
+}
 </script>
 
 <template>
@@ -215,6 +261,7 @@ function onToolEditorSave(values: any): void {
     :has-sequences="hasSequences"
     :has-drafts="hasDrafts"
     :is-snapped-out="isActiveSessionSnappedOut"
+    :current-group-name="contextMenuGroupName ?? null"
     @action="emit('context-menu-action', $event)"
     @cancel="contextMenu.visible = false"
   />
@@ -273,6 +320,34 @@ function onToolEditorSave(values: any): void {
     @update:visible="emit('update:bindingEditorVisible', $event)"
     @save="emit('binding-save', $event)"
     @cancel="emit('update:bindingEditorVisible', false)"
+  />
+
+  <RuntimeGroupNameModal
+    :visible="runtimeGroupName.visible"
+    :mode="runtimeGroupName.mode"
+    :initial-name="runtimeGroupName.initialName"
+    @submit="onRuntimeGroupNameSubmit"
+    @cancel="onRuntimeGroupNameCancel"
+    @update:visible="runtimeGroupName.visible = $event"
+  />
+
+  <RuntimeGroupCloseDialog
+    :visible="runtimeGroupClose.visible"
+    :group-name="runtimeGroupClose.groupName"
+    :member-count="runtimeGroupClose.memberCount"
+    @confirm="onRuntimeGroupCloseConfirm"
+    @cancel="onRuntimeGroupCloseCancel"
+    @update:visible="runtimeGroupClose.visible = $event"
+  />
+
+  <RuntimeGroupMoveSubmenu
+    :visible="runtimeGroupMove.visible"
+    :current-group-id="runtimeGroupMove.currentGroupId"
+    :groups="runtimeGroupMove.groups"
+    @pick="onRuntimeGroupMovePick"
+    @new-group="onRuntimeGroupMoveNewGroup"
+    @cancel="onRuntimeGroupMoveCancel"
+    @update:visible="runtimeGroupMove.visible = $event"
   />
 
   <EscProtectionModal />

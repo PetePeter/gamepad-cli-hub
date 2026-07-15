@@ -25,6 +25,8 @@ const props = defineProps<{
   hasSequences: boolean;
   hasDrafts: boolean;
   isSnappedOut: boolean;
+  /** Name of the runtime group the context session is in, or null when ungrouped. */
+  currentGroupName?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -44,6 +46,12 @@ const menuItems = computed<MenuItem[]>(() => [
   { id: 'new-session-with-selection', label: '📌 New Session with Selection', enabled: props.hasSelection },
   { id: 'prompts', label: '⚡ Prompts…', enabled: props.hasActiveSession },
   { id: 'drafts', label: '📝 Drafts…', enabled: props.hasActiveSession },
+  { id: 'move-to-group', label: '🗂️ Move to group…', enabled: props.hasActiveSession },
+  {
+    id: 'remove-from-group',
+    label: props.currentGroupName ? `↩ Remove from “${props.currentGroupName}”` : '↩ Remove from group',
+    enabled: props.hasActiveSession && !!props.currentGroupName,
+  },
   { id: 'snap-out', label: '📤 Snap Out', enabled: props.hasActiveSession && !props.isSnappedOut },
   { id: 'snap-back', label: '📥 Snap Back', enabled: props.isSnappedOut },
   { id: 'cancel', label: '✖ Cancel', enabled: true },

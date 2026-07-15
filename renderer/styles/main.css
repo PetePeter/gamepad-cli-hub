@@ -628,6 +628,108 @@ button {
   text-overflow: ellipsis;
 }
 
+/* ── Runtime (custom) groups ──────────────────────────────── */
+
+.group-header.runtime {
+  border-top-color: #a07aff;
+  background: linear-gradient(90deg, rgba(160, 122, 255, 0.12), #1a1a1a 70%);
+}
+.group-header.runtime:hover { background: linear-gradient(90deg, rgba(160, 122, 255, 0.18), var(--bg-tertiary) 70%); }
+
+/* Split button: [ ▦ Overview | ＋ New Group ] */
+.runtime-split-button {
+  display: flex;
+  width: 100%;
+  flex: 0 0 auto;
+  border: 1px dashed #3a4150;
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.runtime-split-button .split-seg {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px;
+  background: transparent;
+  color: var(--accent);
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  user-select: none;
+}
+.runtime-split-button .split-seg:hover { background: var(--bg-tertiary); }
+.runtime-split-button .split-divider {
+  width: 1px;
+  flex: 0 0 auto;
+  background: #3a4150;
+}
+.runtime-split-button .split-seg.drop-ok {
+  background: #1d2a1d;
+  color: var(--activity-active, #44cc44);
+}
+
+/* Group header action buttons (rename / close / overview) */
+.group-header-actions {
+  display: flex;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.group-header-action {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1;
+}
+.group-header-action:hover {
+  background: rgba(120, 130, 150, 0.2);
+  color: var(--text-primary);
+}
+.group-header-action.overview { color: var(--accent); }
+
+/* Drop-target highlighting */
+.group-header.drop-ok {
+  outline: 2px solid var(--activity-active, #44cc44);
+  outline-offset: -1px;
+  background: #1d2a1d;
+}
+.group-header.drop-bad {
+  outline: 2px dashed #6a3a3a;
+  outline-offset: -1px;
+  opacity: 0.6;
+}
+
+/* Empty runtime group placeholder */
+.runtime-group-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+  font-style: italic;
+  font-size: 11.5px;
+  padding: 6px 10px 6px 14px;
+}
+.runtime-group-placeholder .placeholder-close {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 5px;
+  border-radius: 6px;
+}
+.runtime-group-placeholder .placeholder-close:hover {
+  background: rgba(120, 130, 150, 0.2);
+  color: var(--text-primary);
+}
+
 
 /* ── Session cards ────────────────────────────────────────── */
 
@@ -3755,6 +3857,29 @@ kbd {
   flex-shrink: 0;
   white-space: nowrap;
 }
+
+/* Runtime group membership badge on a session card */
+.group-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  background: #2b2740;
+  border: 1px solid #3a3358;
+  border-radius: 8px;
+  font-size: 10px;
+  color: #a07aff;
+  flex-shrink: 0;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Natural draggability — whole card, no handle */
+.session-card[draggable='true'] { cursor: grab; }
+.session-card[draggable='true']:active { cursor: grabbing; }
+.session-card.dragging { opacity: 0.4; }
 
 /* ============================================================================
    Plan Chips — badges on session cards and pills in draft strip

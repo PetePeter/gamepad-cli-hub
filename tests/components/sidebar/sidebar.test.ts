@@ -439,10 +439,13 @@ function makeSessionListProps(overrides: Record<string, any> = {}) {
 }
 
 describe('SessionList', () => {
-  it('owns the scrollable sessionsList container and overview button', () => {
+  it('owns the scrollable sessionsList container and overview split button', () => {
     const w = mount(SessionList, { props: makeSessionListProps() });
     expect(w.find('#sessionsList').exists()).toBe(true);
-    expect(w.find('.overview-nav-button').text()).toBe('Overview');
+    const segs = w.findAll('.runtime-split-button .split-seg');
+    expect(segs).toHaveLength(2);
+    expect(segs[0].text()).toContain('Overview');
+    expect(segs[1].text()).toContain('New Group');
   });
 
   it('renders grouped sessions through SessionGroup and SessionCard', () => {
@@ -453,10 +456,16 @@ describe('SessionList', () => {
     expect(w.find('.session-card').attributes('data-nav-index')).toBe('2');
   });
 
-  it('emits showGlobalOverview on overview button click', async () => {
+  it('emits showGlobalOverview on overview segment click', async () => {
     const w = mount(SessionList, { props: makeSessionListProps() });
-    await w.find('.overview-nav-button').trigger('click');
+    await w.findAll('.runtime-split-button .split-seg')[0].trigger('click');
     expect(w.emitted('showGlobalOverview')).toEqual([[]]);
+  });
+
+  it('emits newGroup on New Group segment click', async () => {
+    const w = mount(SessionList, { props: makeSessionListProps() });
+    await w.findAll('.runtime-split-button .split-seg')[1].trigger('click');
+    expect(w.emitted('newGroup')).toEqual([[]]);
   });
 
   it('forwards session and group events', async () => {
