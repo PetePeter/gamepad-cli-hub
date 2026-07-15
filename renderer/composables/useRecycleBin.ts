@@ -40,12 +40,14 @@ async function restore(id: string): Promise<void> {
   if (!entry) return;
   // Reuse the standard resume path: new session id, resume the CLI-internal UUID.
   const newSessionId = `pty-${entry.cliType}-${Date.now()}`;
-  await doSpawn(entry.cliType, entry.workingDir, undefined, entry.cliSessionName, newSessionId);
-  // Re-attach to the original runtime group (recreated by id/name if it's gone).
-  if (entry.runtimeGroupId) {
+  const spawnedId = await doSpawn(entry.cliType, entry.workingDir, undefined, entry.cliSessionName, newSessionId);
+  // Re-attach to the original runtime group (recreated by id/name if it's gone) —
+  // but ONLY when the session actually spawned, otherwise we'd recreate an empty
+  // group / plant a ghost membership for a session that never came back.
+  if (spawnedId && entry.runtimeGroupId) {
     await runtimeGroupClient.runtimeGroupReattach(
       { runtimeGroupId: entry.runtimeGroupId, runtimeGroupName: entry.runtimeGroupName },
-      newSessionId,
+      spawnedId,
     );
   }
   await refresh();

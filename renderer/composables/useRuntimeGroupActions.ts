@@ -76,6 +76,10 @@ export function useRuntimeGroupActions() {
   /**
    * Execute the ordered close plan. Sessions are closed FIRST (through the shared
    * session-close path, so recycle-bin tagging fires), then the group is removed.
+   *
+   * If any member fails to close, ABORT before removing the group: leaving the
+   * group intact keeps the still-running session grouped (and therefore taggable
+   * if it is closed later) rather than orphaning it.
    */
   async function executeClosePlan(
     groupId: string,
@@ -84,7 +88,8 @@ export function useRuntimeGroupActions() {
   ): Promise<void> {
     const plan = buildCloseGroupPlan(mode, memberIds.map(id => ({ id })));
     for (const sessionId of plan.closeSessionIds) {
-      await doCloseSession(sessionId);
+      const closed = await doCloseSession(sessionId);
+      if (!closed) return;
     }
     if (plan.closeGroup) {
       await rg.closeGroup(groupId);

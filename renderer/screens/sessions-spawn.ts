@@ -83,18 +83,25 @@ export function clamp(value: number, min: number, max: number): number {
 // Spawn flow
 // ============================================================================
 
-export async function doSpawn(cliType: string, workingDir?: string, contextText?: string, resumeSessionName?: string, sessionId?: string): Promise<void> {
+/**
+ * Spawn a session. Returns the created session id on success, or null on any
+ * failure path (no spawn command, no config, PTY creation failed, exception) so
+ * callers such as recycle-bin restore can act transactionally — e.g. only
+ * re-attach a restored session to its runtime group once it actually spawned.
+ */
+export async function doSpawn(cliType: string, workingDir?: string, contextText?: string, resumeSessionName?: string, sessionId?: string): Promise<string | null> {
   // Resume spawns never use context text (it was one-time context for the original spawn)
   const resolvedContextText = resumeSessionName
     ? undefined
     : (contextText ?? pendingContextText ?? undefined);
   if (!resumeSessionName) pendingContextText = null;
 
+  let spawnedId: string | null = null;
   try {
     logEvent(`Spawning ${cliType}${workingDir ? ` in ${workingDir}` : ''}...`);
     if (!configClient.configGetSpawnCommand) {
       logEvent('Spawn failed: gamepadCli not available');
-      return;
+      return null;
     }
 
     const tm = getTerminalManager();
@@ -103,7 +110,7 @@ export async function doSpawn(cliType: string, workingDir?: string, contextText?
       const spawnInfo = await configClient.configGetSpawnCommand(cliType);
       if (!spawnInfo) {
         logEvent(`Spawn failed: no command configured for ${cliType}`);
-        return;
+        return null;
       }
 
       const resolvedSessionId = sessionId || `pty-${cliType}-${Date.now()}`;
@@ -118,6 +125,7 @@ export async function doSpawn(cliType: string, workingDir?: string, contextText?
       );
 
       if (success) {
+        spawnedId = resolvedSessionId;
         logEvent(`Spawned embedded terminal: ${cliType}`);
         // Auto-select the new session through the shared navigation owner.
         await useNavigationStore().navigateToSession(resolvedSessionId);
@@ -145,6 +153,7 @@ export async function doSpawn(cliType: string, workingDir?: string, contextText?
     console.error('[Sessions] Failed to spawn session:', error);
     logEvent('Spawn failed');
   }
+  return spawnedId;
 }
 
 // ============================================================================

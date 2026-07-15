@@ -70,20 +70,29 @@ export class RuntimeGroupManager extends EventEmitter {
   }
 
   /**
-   * Add a session to a group with exclusive membership: the session is first
-   * removed from EVERY group, then appended to the target (deduped). Returns the
-   * target group, or null if it does not exist.
+   * Add a session to a group with exclusive membership: the session is evicted
+   * from every OTHER group, then appended to the target if not already present.
+   * Returns the target group, or null if it does not exist.
+   *
+   * Idempotent: re-adding a session to the group it already solely belongs to is
+   * a no-op — it does NOT reorder the session to the end or fire a spurious
+   * change/persist (the "Move to group" menu leaves the current group selectable,
+   * so this path is user-reachable).
    */
   addSession(groupId: string, sessionId: string): RuntimeGroup | null {
     const target = this.find(groupId);
     if (!target) return null;
 
+    const inTarget = target.sessionIds.includes(sessionId);
+    const elsewhere = this.groups.some(g => g !== target && g.sessionIds.includes(sessionId));
+    if (inTarget && !elsewhere) return target;
+
+    // Evict from OTHER groups only — the target keeps the session's existing slot.
     for (const group of this.groups) {
+      if (group === target) continue;
       group.sessionIds = group.sessionIds.filter(id => id !== sessionId);
     }
-    if (!target.sessionIds.includes(sessionId)) {
-      target.sessionIds.push(sessionId);
-    }
+    if (!inTarget) target.sessionIds.push(sessionId);
     target.updatedAt = this.now();
     this.markChanged();
     return target;

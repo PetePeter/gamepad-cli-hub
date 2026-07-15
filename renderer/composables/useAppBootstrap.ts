@@ -459,20 +459,27 @@ function cleanupRendererSession(sessionId: string, detachTerminal = false): void
   useFlashAttention().clear(sessionId);
 }
 
-export async function doCloseSession(sessionId: string): Promise<void> {
+/**
+ * Close a session through the canonical main-process path. Returns true when the
+ * session is confirmed gone (closed, or already "not found"), false on a real
+ * failure — callers such as the runtime-group close-all flow rely on this to
+ * abort before removing the group so a still-running member keeps its tag.
+ */
+export async function doCloseSession(sessionId: string): Promise<boolean> {
   try {
     const result = await sessionsClient.sessionClose(sessionId);
     if (!result?.success && result?.error !== 'Session not found') {
       console.error(`[Bootstrap] Failed to close session ${sessionId}:`, result?.error ?? 'unknown error');
-      return;
+      return false;
     }
   } catch (error) {
     console.error(`[Bootstrap] Failed to close session ${sessionId}:`, error);
-    return;
+    return false;
   }
 
   cleanupRendererSession(sessionId, true);
   await refreshSessions();
+  return true;
 }
 
 export async function restoreSnappedBackSession(sessionId: string): Promise<void> {

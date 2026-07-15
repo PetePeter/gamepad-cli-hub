@@ -35,6 +35,34 @@ describe('RuntimeGroupManager', () => {
     expect(mgr.get(a.id)!.sessionIds).toEqual(['s1']);
   });
 
+  it('M2b idempotent order: re-adding a session to its current group preserves position and does not persist', () => {
+    const persist = vi.fn();
+    const mgr = new RuntimeGroupManager(persist);
+    const a = mgr.create('A');       // persist #1
+    mgr.addSession(a.id, 's1');       // persist #2
+    mgr.addSession(a.id, 's2');       // persist #3
+    expect(persist).toHaveBeenCalledTimes(3);
+
+    // Re-adding s1 (already sole owner) must NOT move it to the end or persist.
+    mgr.addSession(a.id, 's1');
+    expect(mgr.get(a.id)!.sessionIds).toEqual(['s1', 's2']);
+    expect(persist).toHaveBeenCalledTimes(3);
+  });
+
+  it('M2c eviction preserves the target slot: moving from another group keeps existing order', () => {
+    const mgr = new RuntimeGroupManager();
+    const a = mgr.create('A');
+    const b = mgr.create('B');
+    mgr.addSession(a.id, 's1');
+    mgr.addSession(a.id, 's2');
+    mgr.addSession(b.id, 'sx');
+
+    // sx already in B at index 0; add s2 (from A) to B — sx keeps its slot, s2 appends.
+    mgr.addSession(b.id, 's2');
+    expect(mgr.get(b.id)!.sessionIds).toEqual(['sx', 's2']);
+    expect(mgr.get(a.id)!.sessionIds).toEqual(['s1']);
+  });
+
   it('M3 removeSessionEverywhere: strips membership and is a safe no-op on repeat', () => {
     const mgr = new RuntimeGroupManager();
     const a = mgr.create('A');
