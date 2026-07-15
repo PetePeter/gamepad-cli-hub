@@ -52,6 +52,7 @@ export const schedulerClient = new Proxy(baseSchedulerClient, {
   clearHistory: () => ReturnType<typeof baseSchedulerClient.scheduledTaskClearHistory>;
 };
 export const recycleBinClient = domainClient('recycleBin');
+export const runtimeGroupClient = domainClient('runtimeGroups');
 export const patternsClient = domainClient('patterns');
 export const telegramClient = domainClient('telegram');
 export const keyboardClient = domainClient('keyboard');

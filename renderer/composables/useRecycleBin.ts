@@ -7,7 +7,7 @@
  * identical to how startup resume works.
  */
 import { ref } from 'vue';
-import { recycleBinClient, eventsClient } from '../ipc/clients.js';
+import { recycleBinClient, runtimeGroupClient, eventsClient } from '../ipc/clients.js';
 import { doSpawn } from '../screens/sessions-spawn.js';
 import type { RecycleBinEntry } from '../../src/types/recycle-bin.js';
 
@@ -39,7 +39,15 @@ async function restore(id: string): Promise<void> {
   const entry = await recycleBinClient.recycleBinRestore(id);
   if (!entry) return;
   // Reuse the standard resume path: new session id, resume the CLI-internal UUID.
-  await doSpawn(entry.cliType, entry.workingDir, undefined, entry.cliSessionName);
+  const newSessionId = `pty-${entry.cliType}-${Date.now()}`;
+  await doSpawn(entry.cliType, entry.workingDir, undefined, entry.cliSessionName, newSessionId);
+  // Re-attach to the original runtime group (recreated by id/name if it's gone).
+  if (entry.runtimeGroupId) {
+    await runtimeGroupClient.runtimeGroupReattach(
+      { runtimeGroupId: entry.runtimeGroupId, runtimeGroupName: entry.runtimeGroupName },
+      newSessionId,
+    );
+  }
   await refresh();
 }
 

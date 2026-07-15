@@ -4,6 +4,7 @@
  */
 
 import type { Session } from './state.js';
+import type { RuntimeGroup } from '../src/types/runtime-group.js';
 
 // ============================================================================
 // Types
@@ -18,6 +19,14 @@ export interface SessionGroup {
   sessions: Session[];
   /** Whether this group is collapsed. */
   collapsed: boolean;
+  /**
+   * Group kind. 'directory' groups bucket sessions by working directory (the
+   * legacy default). 'runtime' groups are ad-hoc, user-created groups that cut
+   * across directories and persist as visible headers even when empty.
+   */
+  kind?: 'directory' | 'runtime';
+  /** Runtime group id (only set when kind === 'runtime'). */
+  groupId?: string;
 }
 
 export type NavItemType = 'overview-button' | 'group-header' | 'session-card';
@@ -154,7 +163,64 @@ export function groupSessionsByDirectory(
     displayName: dirDisplayName(dir),
     sessions: buckets.get(dir) || [],
     collapsed: collapsedSet.has(dir),
+    kind: 'directory' as const,
   }));
+}
+
+/**
+ * Build the full set of sidebar groups: runtime groups first, directory groups after.
+ *
+ * Runtime groups take exclusive ownership of their member sessions — any session
+ * claimed by a runtime group is removed from directory grouping so it appears in
+ * exactly one place. Runtime groups are kept even when empty (they persist as
+ * visible, user-managed headers); directory groups only appear when non-empty
+ * (or bookmarked, handled by groupSessionsByDirectory).
+ *
+ * @param sessions       All live sessions.
+ * @param getDir         Resolve a session id to its working directory.
+ * @param prefs          Directory group order/collapse/bookmark prefs.
+ * @param runtimeGroups  Runtime groups in display order (array order preserved).
+ */
+export function buildSessionGroups(
+  sessions: Session[],
+  getDir: (id: string) => string,
+  prefs: SessionGroupPrefs,
+  runtimeGroups: RuntimeGroup[],
+): SessionGroup[] {
+  // Every session id owned by any runtime group — excluded from directory grouping.
+  const claimed = new Set<string>();
+  for (const rg of runtimeGroups) {
+    for (const sid of rg.sessionIds) claimed.add(sid);
+  }
+
+  const byId = new Map<string, Session>();
+  for (const session of sessions) byId.set(session.id, session);
+
+  // Runtime groups first, preserving both group order and intra-group session order.
+  const runtimeSessionGroups: SessionGroup[] = runtimeGroups.map(rg => {
+    const members: Session[] = [];
+    for (const sid of rg.sessionIds) {
+      const session = byId.get(sid);
+      if (session) members.push(session); // skip ids with no live session
+    }
+    return {
+      dirPath: rg.id, // nav header id
+      displayName: rg.name,
+      sessions: members,
+      collapsed: rg.collapsed,
+      kind: 'runtime' as const,
+      groupId: rg.id,
+    };
+  });
+
+  // Directory groups exclude any claimed session.
+  const directoryGroups = groupSessionsByDirectory(
+    sessions.filter(s => !claimed.has(s.id)),
+    getDir,
+    prefs,
+  );
+
+  return [...runtimeSessionGroups, ...directoryGroups];
 }
 
 // ============================================================================
@@ -173,7 +239,9 @@ export function buildFlatNavList(groups: SessionGroup[]): NavItem[] {
   }
   for (let gi = 0; gi < groups.length; gi++) {
     const group = groups[gi];
-    if (group.sessions.length === 0) continue;
+    // Runtime groups persist as visible headers even when empty (so the UI can
+    // show a placeholder + rename/close controls). Empty directory groups are skipped.
+    if (group.sessions.length === 0 && group.kind !== 'runtime') continue;
     items.push({ type: 'group-header', id: group.dirPath, groupIndex: gi });
     if (!group.collapsed) {
       for (const session of group.sessions) {
