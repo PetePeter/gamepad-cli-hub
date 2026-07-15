@@ -9,6 +9,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { SearchAddon } from '@xterm/addon-search';
+import { systemClient } from '../ipc/clients.js';
 
 export interface TerminalViewOptions {
   sessionId: string;
@@ -71,7 +72,11 @@ export class TerminalView {
     this.searchAddon = new SearchAddon();
 
     this.terminal.loadAddon(this.fitAddon);
-    this.terminal.loadAddon(new WebLinksAddon());
+    // Route clicked links to the OS default handler (system browser) instead of
+    // opening an in-app Electron window. Bypasses window.open entirely.
+    this.terminal.loadAddon(new WebLinksAddon((_event, uri) => {
+      void systemClient.systemOpenExternalUrl(uri);
+    }));
     this.terminal.loadAddon(this.searchAddon);
 
     this.terminal.open(this.container);

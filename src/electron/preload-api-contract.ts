@@ -239,6 +239,7 @@ export const PRELOAD_API_DOMAINS = {
   system: [
     'systemOpenLogsFolder',
     'systemOpenHelp',
+    'systemOpenExternalUrl',
   ],
   events: [
     'onPtyData',

@@ -39,6 +39,17 @@ export function setupSystemHandlers(dirname: string): void {
       return { success: false, error: String(error) };
     }
   });
+  // system:openExternalUrl — hand a clicked terminal link to the OS default handler
+  // (default browser for http/https, registered handler otherwise) instead of an in-app window.
+  ipcMain.handle('system:openExternalUrl', async (_e, url: string) => {
+    try {
+      await shell.openExternal(url);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to open external URL "${url}": ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
   ipcMain.handle('system:openLogsFolder', async () => {
     try {
       const errorMessage = await shell.openPath(logDir);
