@@ -152,16 +152,14 @@ const metaText = computed(() => {
 const { groups: runtimeGroups } = useRuntimeGroups();
 const { beginDrag, endDrag } = useSessionDrag();
 
-/** The runtime group this session belongs to (null when ungrouped). */
+/**
+ * The runtime group this session belongs to (null when ungrouped). Drives the
+ * `grouped` card class and drag behaviour — the card sits under its group header,
+ * so it deliberately does NOT render a redundant group badge.
+ */
 const runtimeGroup = computed(() =>
   runtimeGroups.value.find(g => g.sessionIds.includes(props.session.id)) ?? null,
 );
-
-/** Short badge label — first word of the group name (mirrors the mockup). */
-const groupBadgeLabel = computed(() => {
-  const name = runtimeGroup.value?.name ?? '';
-  return name.split(' ')[0] ?? '';
-});
 
 const isDragging = ref(false);
 
@@ -270,13 +268,6 @@ function onCardClick(e: MouseEvent): void {
 
       <!-- Draft badge -->
       <span v-if="draftCount > 0" class="draft-badge">📝{{ draftCount }}</span>
-
-      <!-- Runtime group badge -->
-      <span
-        v-if="runtimeGroup"
-        class="group-badge"
-        :title="`In group: ${runtimeGroup.name}`"
-      >🗂️ {{ groupBadgeLabel }}</span>
 
       <span style="flex: 1" />
 

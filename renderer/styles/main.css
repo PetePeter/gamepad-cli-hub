@@ -3858,24 +3858,6 @@ kbd {
   white-space: nowrap;
 }
 
-/* Runtime group membership badge on a session card */
-.group-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 1px 6px;
-  background: #2b2740;
-  border: 1px solid #3a3358;
-  border-radius: 8px;
-  font-size: 10px;
-  color: #a07aff;
-  flex-shrink: 0;
-  white-space: nowrap;
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 /* Natural draggability — whole card, no handle */
 .session-card[draggable='true'] { cursor: grab; }
 .session-card[draggable='true']:active { cursor: grabbing; }
