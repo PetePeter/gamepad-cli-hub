@@ -855,6 +855,66 @@ describe('deliverBulkText', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // Bracketed paste readiness wait — fixes multi-line selection into a session
+  // that has not yet enabled DEC 2004 (e.g. just-spawned "new session with
+  // selection"), which otherwise submits line-by-line and drops all but the last.
+  // ---------------------------------------------------------------------------
+
+  describe('bracketed paste readiness wait (multi-line)', () => {
+    it('waits for bracketed paste to turn on, then wraps multi-line text', async () => {
+      mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
+      mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
+      let enabled = false;
+      mockGetTerminalManager.mockReturnValue({
+        getSession: (id: string) => id === 'sess-1' ? {
+          view: { isBracketedPasteEnabled: () => enabled },
+        } : undefined,
+      });
+
+      const promise = deliverBulkText('sess-1', 'line1\nline2');
+      // Parked in the readiness wait — nothing delivered yet.
+      expect(mockPtyWrite).not.toHaveBeenCalled();
+
+      enabled = true;
+      await vi.advanceTimersByTimeAsync(100);
+      await promise;
+
+      expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', '\x1b[200~line1\nline2\x1b[201~');
+    });
+
+    it('gives up after the budget and delivers multi-line text raw', async () => {
+      mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
+      mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
+      mockGetTerminalManager.mockReturnValue({
+        getSession: (id: string) => id === 'sess-1' ? {
+          view: { isBracketedPasteEnabled: () => false },
+        } : undefined,
+      });
+
+      const promise = deliverBulkText('sess-1', 'line1\nline2');
+      await vi.advanceTimersByTimeAsync(2000);
+      await promise;
+
+      expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'line1\nline2');
+    });
+
+    it('does not wait for single-line text', async () => {
+      mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
+      mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
+      const isEnabled = vi.fn().mockReturnValue(false);
+      mockGetTerminalManager.mockReturnValue({
+        getSession: (id: string) => id === 'sess-1' ? { view: { isBracketedPasteEnabled: isEnabled } } : undefined,
+      });
+
+      await deliverBulkText('sess-1', 'single line');
+
+      expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'single line');
+      // Only the initial synchronous check — no polling loop for single-line text.
+      expect(isEnabled).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // PTY individual mode (char-by-char PTY writes for Ink-based CLIs)
   // ---------------------------------------------------------------------------
 

@@ -12,7 +12,10 @@ interface PendingRequest {
   timer: ReturnType<typeof setTimeout>;
 }
 
-const REQUEST_TIMEOUT_MS = 1500;
+// Comfortably exceeds the renderer's bracketed-paste readiness wait (~1.5s for
+// just-spawned sessions) so a legitimately-waiting renderer is not preempted into
+// a raw-write fallback, which would mangle multi-line text.
+const REQUEST_TIMEOUT_MS = 3000;
 
 export class RendererTextDeliverer {
   private pending = new Map<string, PendingRequest>();
