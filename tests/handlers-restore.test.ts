@@ -216,6 +216,7 @@ vi.mock('../src/mcp/helm-control-service.js', () => ({
   HelmControlService: vi.fn(function (this: any) {
     this.on = vi.fn();
     this.setNotificationManager = vi.fn();
+    this.setRuntimeGroupManager = vi.fn();
   }),
 }));
 

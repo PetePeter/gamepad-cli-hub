@@ -661,15 +661,94 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'session_create',
     title: 'Create Session',
-    description: 'Spawn a new CLI session in a configured working directory and give it a stable display name for later lookup. Call this when no suitable session exists yet and you need Helm to launch one. After spawning, wait readyAfterMs before calling session_send_text to deliver the first prompt — this ensures the CLI has finished its init sequence and large text is routed safely through the delivery pipeline.',
+    description: 'Spawn a new CLI session in a configured working directory and give it a stable display name for later lookup. Call this when no suitable session exists yet and you need Helm to launch one. After spawning, wait readyAfterMs before calling session_send_text to deliver the first prompt — this ensures the CLI has finished its init sequence and large text is routed safely through the delivery pipeline. A session is always made for its project (dirPath); a runtime group is an optional overlay. runtimeGroupId: omit to inherit YOUR (the creator\'s) runtime group when you are in one, pass a group id (from session_group_list / session_group_create) to place it in a specific group, or "none" to force project-only placement. The result echoes runtimeGroupId/runtimeGroupName when the session landed in a group.',
     inputSchema: {
       type: 'object',
       properties: {
         cliType: { type: 'string' },
         dirPath: { type: 'string' },
         name: { type: 'string' },
+        runtimeGroupId: { type: 'string' },
       },
       required: ['cliType', 'dirPath', 'name'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'session_group_list',
+    title: 'List Session Groups',
+    description: 'List runtime session groups — the user-created, cross-directory overlay grouping. Each group has an id, name, member sessionIds, and collapsed flag. Use the ids here to place sessions with session_create runtimeGroupId or session_group_add. Directory/project grouping is not a runtime group and is listed via directory_list / project_list / session_list instead.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'session_group_create',
+    title: 'Create Session Group',
+    description: 'Create a new empty runtime session group and return its id. Add sessions with session_group_add or by passing the id to session_create runtimeGroupId.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+      },
+      required: ['name'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'session_group_add',
+    title: 'Add Session To Group',
+    description: 'Add a session to a runtime group by group id and session id (or exact display name). Membership is exclusive — the session is moved out of any other runtime group it was in.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        groupId: { type: 'string' },
+        sessionId: { type: 'string' },
+        name: { type: 'string' },
+      },
+      required: ['groupId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'session_group_remove',
+    title: 'Remove Session From Group',
+    description: 'Remove a session from whichever runtime group it belongs to (identified by session id or exact display name). The session remains under its project.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        name: { type: 'string' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'session_group_rename',
+    title: 'Rename Session Group',
+    description: 'Rename a runtime session group by id.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        groupId: { type: 'string' },
+        name: { type: 'string' },
+      },
+      required: ['groupId', 'name'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'session_group_close',
+    title: 'Close Session Group',
+    description: 'Delete a runtime session group by id. Member sessions are not closed — they fall back to their project/directory grouping.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        groupId: { type: 'string' },
+      },
+      required: ['groupId'],
       additionalProperties: false,
     },
   },

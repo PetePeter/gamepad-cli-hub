@@ -238,6 +238,11 @@ export class HelmControlService extends EventEmitter {
     this.telegramService.setNotificationManager(nm);
   }
 
+  /** Wire the RuntimeGroupManager so session_create can place into runtime groups. */
+  setRuntimeGroupManager(manager: import('../session/runtime-group-manager.js').RuntimeGroupManager): void {
+    this.sessionService.setRuntimeGroupManager(manager);
+  }
+
   invalidateCapabilityCache(): void {
     this.capabilityDetector.invalidateCache();
   }
@@ -500,8 +505,41 @@ export class HelmControlService extends EventEmitter {
     return this.sessionService.getSession(sessionRef);
   }
 
-  spawnCli(cliType: string, dirPath: string, name: string) {
-    return this.sessionService.spawnCli(cliType, dirPath, name);
+  spawnCli(
+    cliType: string,
+    dirPath: string,
+    name: string,
+    opts: { creatorSessionId?: string; runtimeGroupId?: string } = {},
+  ) {
+    return this.sessionService.spawnCli(cliType, dirPath, name, opts);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Runtime session groups (manageable overlay)
+  // ---------------------------------------------------------------------------
+
+  listSessionGroups() {
+    return this.sessionService.listSessionGroups();
+  }
+
+  createSessionGroup(name: string) {
+    return this.sessionService.createSessionGroup(name);
+  }
+
+  addSessionToGroup(groupId: string, sessionRef: string) {
+    return this.sessionService.addSessionToGroup(groupId, sessionRef);
+  }
+
+  removeSessionFromGroups(sessionRef: string) {
+    return this.sessionService.removeSessionFromGroups(sessionRef);
+  }
+
+  renameSessionGroup(groupId: string, name: string) {
+    return this.sessionService.renameSessionGroup(groupId, name);
+  }
+
+  closeSessionGroup(groupId: string) {
+    return this.sessionService.closeSessionGroup(groupId);
   }
 
   renameSession(sessionRef: string, name: string) {

@@ -340,7 +340,31 @@ export async function callMcpTool(
           asString(args.cliType, 'cliType is required'),
           asString(args.dirPath, 'dirPath is required'),
           asString(args.name, 'name is required'),
+          {
+            ...(authContext.sessionId ? { creatorSessionId: authContext.sessionId } : {}),
+            ...(typeof args.runtimeGroupId === 'string' ? { runtimeGroupId: args.runtimeGroupId } : {}),
+          },
         );
+      case 'session_group_list':
+        return service.listSessionGroups();
+      case 'session_group_create':
+        return service.createSessionGroup(asString(args.name, 'name is required'));
+      case 'session_group_add':
+        return service.addSessionToGroup(
+          asString(args.groupId, 'groupId is required'),
+          asString(args.sessionId ?? args.name, 'sessionId or name is required'),
+        );
+      case 'session_group_remove':
+        return service.removeSessionFromGroups(
+          asString(args.sessionId ?? args.name, 'sessionId or name is required'),
+        );
+      case 'session_group_rename':
+        return service.renameSessionGroup(
+          asString(args.groupId, 'groupId is required'),
+          asString(args.name, 'name is required'),
+        );
+      case 'session_group_close':
+        return service.closeSessionGroup(asString(args.groupId, 'groupId is required'));
       case 'session_list':
         return service.listSessions(
           typeof args.dirPath === 'string' ? args.dirPath : undefined,

@@ -11,6 +11,9 @@ import { HelmSessionPlanService } from './helm-session-plan-service.js';
 import { normalizeProjectPath } from '../../session/project-identity.js';
 import { resolveWorkingDirectory } from './working-dir-gate.js';
 import type { ProjectStore } from '../../session/project-store.js';
+import type { RuntimeGroupManager } from '../../session/runtime-group-manager.js';
+import type { RuntimeGroup } from '../../types/runtime-group.js';
+import { placeSessionInRuntimeGroup } from '../../session/runtime-group-placement.js';
 
 /** Throw if value is null, otherwise return it. */
 function requireResult<T>(value: T | null, message: string): T {
@@ -26,6 +29,8 @@ function requireResult<T>(value: T | null, message: string): T {
  */
 export class HelmSessionService {
   readonly planService: HelmSessionPlanService;
+  /** Runtime session groups (optional overlay on top of project grouping). */
+  private runtimeGroupManager: RuntimeGroupManager | null = null;
 
   constructor(
     private readonly sessionManager: SessionManager,
@@ -35,6 +40,18 @@ export class HelmSessionService {
     private readonly projectStore?: ProjectStore,
   ) {
     this.planService = new HelmSessionPlanService(sessionManager, planManager, configLoader);
+  }
+
+  /** Late-bound: the RuntimeGroupManager lives in the main process orchestrator. */
+  setRuntimeGroupManager(manager: RuntimeGroupManager): void {
+    this.runtimeGroupManager = manager;
+  }
+
+  private requireRuntimeGroupManager(): RuntimeGroupManager {
+    if (!this.runtimeGroupManager) {
+      throw new Error('Runtime session groups are not available in this context');
+    }
+    return this.runtimeGroupManager;
   }
 
   listSessions(dirPath?: string, projectId?: string): SessionSummary[] {
@@ -57,7 +74,12 @@ export class HelmSessionService {
     return session ? this.toSessionSummary(session) : null;
   }
 
-  spawnCli(cliType: string, dirPath: string, name: string): { id: string } {
+  spawnCli(
+    cliType: string,
+    dirPath: string,
+    name: string,
+    opts: { creatorSessionId?: string; runtimeGroupId?: string } = {},
+  ): { id: string; runtimeGroupId?: string; runtimeGroupName?: string } {
     const workingDir = this.requireWorkingDirectory(dirPath);
     this.requireCliEntry(cliType);
     const sessionName = name.trim();
@@ -71,7 +93,68 @@ export class HelmSessionService {
       fallbackCompleteDelayMs: 500,
     });
 
-    return { id: sessionId };
+    // A session is always made for its project; the runtime group is an optional
+    // overlay. Placement is skipped entirely when no group manager is wired.
+    const placement = this.runtimeGroupManager
+      ? placeSessionInRuntimeGroup(this.runtimeGroupManager, {
+          runtimeGroupId: opts.runtimeGroupId,
+          creatorSessionId: opts.creatorSessionId,
+          newSessionId: sessionId,
+        })
+      : null;
+
+    return {
+      id: sessionId,
+      ...(placement
+        ? { runtimeGroupId: placement.runtimeGroupId, runtimeGroupName: placement.runtimeGroupName }
+        : {}),
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Runtime session groups (manageable overlay). Directory/project grouping is
+  // covered by directory_list / project_list / session_list — not duplicated here.
+  // ---------------------------------------------------------------------------
+
+  listSessionGroups(): RuntimeGroup[] {
+    return this.requireRuntimeGroupManager().list();
+  }
+
+  createSessionGroup(name: string): RuntimeGroup {
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error('name is required');
+    return this.requireRuntimeGroupManager().create(trimmed);
+  }
+
+  addSessionToGroup(groupId: string, sessionRef: string): RuntimeGroup {
+    const manager = this.requireRuntimeGroupManager();
+    const session = this.findSession(sessionRef);
+    if (!session) throw new Error(`Session not found: ${sessionRef}`);
+    const group = manager.addSession(groupId, session.id);
+    if (!group) throw new Error(`Runtime group not found: ${groupId}`);
+    return group;
+  }
+
+  removeSessionFromGroups(sessionRef: string): { ok: true } {
+    const manager = this.requireRuntimeGroupManager();
+    const session = this.findSession(sessionRef);
+    if (!session) throw new Error(`Session not found: ${sessionRef}`);
+    manager.removeSessionEverywhere(session.id);
+    return { ok: true };
+  }
+
+  renameSessionGroup(groupId: string, name: string): RuntimeGroup {
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error('name is required');
+    const group = this.requireRuntimeGroupManager().rename(groupId, trimmed);
+    if (!group) throw new Error(`Runtime group not found: ${groupId}`);
+    return group;
+  }
+
+  closeSessionGroup(groupId: string): { ok: true } {
+    const removed = this.requireRuntimeGroupManager().closeGroup(groupId);
+    if (!removed) throw new Error(`Runtime group not found: ${groupId}`);
+    return { ok: true };
   }
 
   closeSession(sessionRef: string): { ok: true } {

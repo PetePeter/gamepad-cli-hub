@@ -107,6 +107,32 @@ Right** overview, and collapse work through the existing flow. **Moving** a sess
 into a group is mouse/context-menu only (drag needs a pointer); there is no
 gamepad "grab-and-carry" mode.
 
+## MCP surface (AI-driven grouping)
+
+An AI (via the Helm MCP server) can create and manage runtime groups by **id**, and
+newly spawned sessions inherit their creator's group by default. The rule mirrors
+the UI model: **a session is always made for its project (`dirPath`); the runtime
+group is an optional overlay.**
+
+- `session_create(cliType, dirPath, name, runtimeGroupId?)`
+  - `runtimeGroupId` **omitted** → inherit the creating (calling) session's runtime
+    group, if it has one; otherwise project-only.
+  - `runtimeGroupId: "<id>"` → join that group (project-only if the id is unknown).
+  - `runtimeGroupId: "none"` → force project-only, ignoring inherit.
+  - The result echoes `runtimeGroupId` / `runtimeGroupName` when the session landed
+    in a group.
+- `session_group_list` → runtime groups only (`{ id, name, sessionIds, collapsed }`).
+  Directory/project grouping is **not** re-exposed here — use `directory_list` /
+  `project_list` / `session_list`.
+- `session_group_create(name)` → `{ id }`
+- `session_group_add(groupId, sessionId | name)` — exclusive move.
+- `session_group_remove(sessionId | name)` — session stays under its project.
+- `session_group_rename(groupId, name)` · `session_group_close(groupId)`.
+
+The creator's session id is resolved from the MCP call's auth context (no explicit
+argument). Placement is a pure resolver — see `runtime-group-placement.ts` — so the
+three cases are covered without the caller reasoning about them.
+
 ## Key modules
 
 | File | Role |
@@ -114,6 +140,8 @@ gamepad "grab-and-carry" mode.
 | `src/types/runtime-group.ts` | `RuntimeGroup` interface |
 | `src/session/runtime-group-manager.ts` | Manager (EventEmitter, one-group-max) |
 | `src/session/runtime-group-persistence.ts` | YAML load/save |
+| `src/session/runtime-group-placement.ts` | `placeSessionInRuntimeGroup` — inherit/none/join resolver for `session_create` |
+| `src/mcp/services/helm-session-service.ts` | `spawnCli` placement + `session_group_*` CRUD wrappers |
 | `src/session/runtime-group-restore.ts` | `reattachRestoredSession` (recreate-if-gone) |
 | `src/electron/ipc/runtime-group-handlers.ts` | 8 IPC channels + change forwarding |
 | `renderer/session-groups.ts` | `buildSessionGroups`, extended `buildFlatNavList` |

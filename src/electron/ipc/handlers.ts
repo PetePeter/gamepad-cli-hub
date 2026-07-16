@@ -136,6 +136,7 @@ export function registerIPCHandlers(
   // Create HelmControlService before Telegram modules (Telegram relay needs it)
   const helmControlService = new HelmControlService(planManager, sessionManager, ptyManager, configLoader, undefined, contextManager, scheduledTaskManager, projectStore, skillManager, skillAnalyticsManager);
   helmControlService.setNotificationManager(notificationManager);
+  helmControlService.setRuntimeGroupManager(runtimeGroupManager);
 
   const telegramBot = new TelegramBotCore();
   const topicManager = new TopicManager(telegramBot, sessionManager, configLoader.getTelegramConfig().instanceName);
