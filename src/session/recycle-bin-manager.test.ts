@@ -82,6 +82,32 @@ describe('RecycleBinManager', () => {
     expect(ids).not.toContain('stale');
   });
 
+  it('emits recycle-bin:expired with entries that age out at runtime', () => {
+    let nowVal = 1_700_000_000_000;
+    manager = new RecycleBinManager(() => nowVal);
+    // Appended fresh, so it survives its own append-time prune.
+    manager.append(makeEntry({ sessionId: 'stale', closedAt: nowVal }));
+
+    const expiredListener = vi.fn();
+    manager.on('recycle-bin:expired', expiredListener);
+    // Advance past the retention window, then a later append prunes the aged entry.
+    nowVal += RECYCLE_BIN_WINDOW_MS + 1;
+    manager.append(makeEntry({ sessionId: 'fresh', closedAt: nowVal }));
+
+    expect(expiredListener).toHaveBeenCalledTimes(1);
+    const expired = expiredListener.mock.calls[0][0] as Array<{ sessionId: string }>;
+    expect(expired.map(e => e.sessionId)).toEqual(['stale']);
+  });
+
+  it('does NOT emit recycle-bin:expired when nothing ages out', () => {
+    const nowVal = 1_700_000_000_000;
+    manager = new RecycleBinManager(() => nowVal);
+    const expiredListener = vi.fn();
+    manager.on('recycle-bin:expired', expiredListener);
+    manager.append(makeEntry({ sessionId: 'fresh', closedAt: nowVal }));
+    expect(expiredListener).not.toHaveBeenCalled();
+  });
+
   it('loads existing entries from persistence on construction', () => {
     diskStore = [{ ...makeEntry({ sessionId: 'prior' }), id: 'id-prior' }];
     const loaded = new RecycleBinManager();
@@ -121,14 +147,14 @@ describe('RecycleBinManager', () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
-  it('restore returns the entry then removes it from the bin', () => {
+  it('peek returns the entry WITHOUT removing it (restore commits separately)', () => {
     const a = manager.append(makeEntry({ sessionId: 'a', cliSessionName: 'resume-uuid' }));
 
-    const restored = manager.restore(a.id);
+    const peeked = manager.peek(a.id);
 
-    expect(restored?.cliSessionName).toBe('resume-uuid');
-    expect(manager.list()).toHaveLength(0);
-    expect(manager.restore('missing-id')).toBeNull();
+    expect(peeked?.cliSessionName).toBe('resume-uuid');
+    expect(manager.list()).toHaveLength(1); // still present until commit (forget)
+    expect(manager.peek('missing-id')).toBeNull();
   });
 });
 

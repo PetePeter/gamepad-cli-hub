@@ -91,7 +91,7 @@ describe('recycle-bin handlers — artifact lifecycle', () => {
     expect(artifacts.count('s2')).toBe(0);
   });
 
-  it('Restore does NOT clear artifacts (session returns with them)', async () => {
+  it('Restore PEEKS: returns the entry, keeps it in the bin, and never clears artifacts', async () => {
     artifacts.create('s1', 'A', 'markdown', 'v1');
     const e1 = binSession('s1');
 
@@ -99,6 +99,41 @@ describe('recycle-bin handlers — artifact lifecycle', () => {
 
     expect(restored?.sessionId).toBe('s1');   // original id preserved for reuse
     expect(artifacts.count('s1')).toBe(1);    // artifacts intact
-    expect(bin.count()).toBe(0);              // entry removed from bin
+    expect(bin.count()).toBe(1);              // entry stays until commit (retryable)
+  });
+
+  it('commitRestore removes the entry but keeps the artifacts (session owns them now)', async () => {
+    artifacts.create('s1', 'A', 'markdown', 'v1');
+    const e1 = binSession('s1');
+
+    await getHandler('recycleBin:commitRestore')(null, e1.id);
+
+    expect(bin.count()).toBe(0);              // entry gone
+    expect(artifacts.count('s1')).toBe(1);    // artifacts preserved for the reused id
+  });
+
+  it('a bin entry that expires at runtime has its artifacts cleared', async () => {
+    // Fresh entry now, then a later append past the window prunes it and fires expired.
+    let nowVal = 1_700_000_000_000;
+    diskStore = [];
+    handleCalls.clear();
+    const clockBin = new RecycleBinManager(() => nowVal);
+    const art = new ArtifactManager();
+    setupRecycleBinHandlers(clockBin, art);
+
+    art.create('s1', 'A', 'markdown', 'v1');
+    clockBin.append({
+      sessionId: 's1', name: 'c', cliType: 'claude-code', workingDir: 'X:\\work',
+      cliSessionName: 'u1', closedAt: nowVal,
+    });
+    expect(art.count('s1')).toBe(1);
+
+    nowVal += 30 * 24 * 60 * 60 * 1000 + 1;
+    clockBin.append({
+      sessionId: 's2', name: 'c', cliType: 'claude-code', workingDir: 'X:\\work',
+      cliSessionName: 'u2', closedAt: nowVal,
+    });
+
+    expect(art.count('s1')).toBe(0); // expired entry's artifacts reclaimed at runtime
   });
 });

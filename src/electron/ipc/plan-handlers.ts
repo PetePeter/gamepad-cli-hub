@@ -10,6 +10,7 @@ import { logger } from '../../utils/logger.js';
 import type { PlanItem, PlanDependency } from '../../types/plan.js';
 import type { WindowManager } from '../window-manager.js';
 import { getRendererHtmlPath, getTempDir } from '../../utils/app-paths.js';
+import { applyNavigationPolicy } from '../navigation-policy.js';
 import { resolveWindowIconPath } from '../window-icon.js';
 import { getDisplayTitle } from '../../types/plan.js';
 
@@ -466,6 +467,7 @@ export function setupPlanHandlers(
         },
       });
 
+      applyNavigationPolicy(childWindow);
       childWindow.loadFile(rendererPath, {
         query: { plannerPopOut: '1', dirPath },
       });

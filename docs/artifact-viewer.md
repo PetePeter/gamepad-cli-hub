@@ -16,8 +16,8 @@ Artifacts belong to a single session, keyed by its hub `sessionId`. Their fate
 follows the session's **recoverability**:
 
 - **Recoverable close** (session carried a `cliSessionName` → goes to the recycle bin): the `session:removed` listener **keeps** the artifacts under the same id. They live alongside the bin entry for its 30-day window.
-- **Restore** reuses the session's **original id** (exactly like startup auto-resume — `doSpawn(..., entry.sessionId)`), so the preserved artifacts come straight back attached, with no re-keying.
-- **Forget** (delete one bin entry) clears that entry's artifacts; **Empty** clears every binned entry's artifacts.
+- **Restore** reuses the session's **original id** (exactly like startup auto-resume — `doSpawn(..., entry.sessionId)`), so the preserved artifacts come straight back attached, with no re-keying. Restore is **two-phase**: `recycleBin:restore` *peeks* the entry (no removal), and only a successful re-spawn calls `recycleBin:commitRestore` to remove it — a failed spawn leaves the entry (and its artifacts) intact and retryable.
+- **Forget** (delete one bin entry) clears that entry's artifacts; **Empty** clears every binned entry's artifacts. An entry that **expires** past the 30-day window at runtime fires `recycle-bin:expired` and its artifacts are cleared then too (not only at startup).
 - **Non-recoverable / ephemeral close** (no bin entry): the listener clears the artifacts immediately.
 - **Startup reclamation**: `pruneOrphanArtifacts` drops any stored artifact whose session is neither live nor in the bin — crash orphans, or a bin entry that expired past the 30-day window.
 - Nothing leaves the session except an explicit **Export** to a user-chosen file.
@@ -72,10 +72,12 @@ terminal out; the `SnapOutWindow` mounts its own `ArtifactViewer` bound to that
 window's session, so artifacts travel with the terminal and never render in two
 windows at once.
 
-**Security:** artifact bodies are AI-authored (untrusted). Every render path
-goes through `renderArtifact()` → markdown compiled by a synchronous `marked`
-instance, then **`DOMPurify.sanitize`** (HTML kind is sanitized directly). No
-unsanitized markup ever reaches `v-html`.
+**Security:** artifact bodies are AI-authored (untrusted) and render via `v-html`
+inside the *privileged* Electron window, so defence is layered:
+- `renderArtifact()` compiles markdown with a synchronous `marked` instance, then runs **`DOMPurify.sanitize`** against a strict **document allowlist** — prose/lists/tables/code/links only. Forms, controls, media, inline `style` (no `position:fixed` overlay spoofing), `target`, and non-`http(s)`/`mailto` URLs are stripped.
+- Link clicks inside the rendered doc are intercepted (`onDocClick`) and `http(s)` links open in the OS browser via `shell.openExternal`; they never navigate the app.
+- `system:openExternalUrl` re-validates the scheme (http/https/mailto only).
+- An app-wide navigation policy (`src/electron/navigation-policy.ts`) is applied to every privileged window (main, snap-out, planner pop-out): `will-navigate` to non-`file:` targets is denied (web URLs go to `shell.openExternal`) and `setWindowOpenHandler` blocks all in-app window opens.
 
 ## Data flow
 
@@ -120,6 +122,7 @@ graph TB
 | `src/mcp/tools/{definitions,dispatcher,validation}.ts` | 7 MCP tools, caller-session scoping, ownership check |
 | `src/mcp/helm-control-service.ts` | Service methods + `requireOwnedArtifact` guard |
 | `src/mcp/guides/session-info-guide.ts` | `artifact_viewer` advert in `session_info` |
-| `renderer/artifacts/render-artifact.ts` | marked + DOMPurify sanitized render |
+| `renderer/artifacts/render-artifact.ts` | marked + DOMPurify strict-allowlist sanitized render |
+| `src/electron/navigation-policy.ts` | App-wide privileged-window navigation guard (deny remote nav / window opens) |
 | `renderer/composables/useArtifactViewer.ts` | Module-singleton reactive state + event subscription |
 | `renderer/components/panels/ArtifactViewer.vue` | Master/detail panel |

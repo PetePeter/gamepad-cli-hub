@@ -83,6 +83,20 @@ describe('artifact-persistence', () => {
     files.set(ARTIFACTS_FILE, YAML.stringify({ artifacts: 42 }));
     expect(loadArtifacts()).toEqual({});
   });
+
+  it('rejects an artifact with an empty version stack', async () => {
+    const YAML = await importYaml();
+    files.set(ARTIFACTS_FILE, YAML.stringify({
+      artifacts: {
+        s1: [makeArtifact({ versions: [] }), makeArtifact({ id: 'a2' })],
+      },
+    }));
+
+    const loaded = loadArtifacts();
+    // The versionless artifact is dropped; the well-formed one survives.
+    expect(loaded.s1).toHaveLength(1);
+    expect(loaded.s1[0].id).toBe('a2');
+  });
 });
 
 // yaml is a runtime dep; import lazily to avoid top-level await in test setup.

@@ -14,6 +14,7 @@
 import { computed, onMounted, watch } from 'vue';
 import { useArtifactViewer } from '../../composables/useArtifactViewer.js';
 import { renderArtifact } from '../../artifacts/render-artifact.js';
+import { systemClient } from '../../ipc/clients.js';
 import type { Artifact } from '../../../src/types/artifact.js';
 
 const props = defineProps<{ sessionId: string }>();
@@ -146,6 +147,21 @@ function onDeleteSelected(): void { if (selectedId.value) void viewer.remove(sel
 function onClearAll(): void { void viewer.clearAll(props.sessionId); }
 function onExport(): void { if (selectedId.value) void viewer.export(selectedId.value); }
 
+/**
+ * Intercept clicks on links inside the rendered artifact. The content is
+ * AI-authored and lives in the privileged window, so we never let a link
+ * navigate the app itself — http/https links open in the OS browser via
+ * shell.openExternal, everything else is inert. (render-artifact already strips
+ * js:/data:/file: hrefs; this is the second half of that defence.)
+ */
+function onDocClick(e: MouseEvent): void {
+  const anchor = (e.target as HTMLElement | null)?.closest('a');
+  if (!anchor) return;
+  e.preventDefault();
+  const href = anchor.getAttribute('href') ?? '';
+  if (/^https?:\/\//i.test(href)) void systemClient.systemOpenExternalUrl(href);
+}
+
 // ── Session binding / lifecycle ────────────────────────────────────────────
 
 onMounted(() => {
@@ -241,8 +257,9 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
           </div>
 
           <div class="ap-body">
-            <!-- renderedHtml is always DOMPurify-sanitized in render-artifact.ts -->
-            <div class="ap-doc" v-html="renderedHtml"></div>
+            <!-- renderedHtml is always DOMPurify-sanitized in render-artifact.ts;
+                 onDocClick keeps AI-authored links from navigating the app window. -->
+            <div class="ap-doc" v-html="renderedHtml" @click="onDocClick"></div>
           </div>
         </template>
         <div v-else class="ap-detail-empty">

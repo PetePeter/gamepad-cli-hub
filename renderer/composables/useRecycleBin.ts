@@ -35,23 +35,36 @@ function ensureSubscribed(): void {
   void refresh();
 }
 
+// Ids currently mid-restore, so a rapid double-click can't spawn the same session twice.
+const restoring = new Set<string>();
+
 async function restore(id: string): Promise<void> {
-  const entry = await recycleBinClient.recycleBinRestore(id);
-  if (!entry) return;
-  // Reuse the ORIGINAL session id (freed on close), exactly as startup auto-resume
-  // does. Keeping the same id means anything keyed by it — notably the session's
-  // artifacts, preserved in the bin — comes back attached with no re-keying.
-  const spawnedId = await doSpawn(entry.cliType, entry.workingDir, undefined, entry.cliSessionName, entry.sessionId);
-  // Re-attach to the original runtime group (recreated by id/name if it's gone) —
-  // but ONLY when the session actually spawned, otherwise we'd recreate an empty
-  // group / plant a ghost membership for a session that never came back.
-  if (spawnedId && entry.runtimeGroupId) {
-    await runtimeGroupClient.runtimeGroupReattach(
-      { runtimeGroupId: entry.runtimeGroupId, runtimeGroupName: entry.runtimeGroupName },
-      spawnedId,
-    );
+  if (restoring.has(id)) return;
+  restoring.add(id);
+  try {
+    // PEEK the entry — it stays in the bin until the re-spawn actually succeeds, so a
+    // failed restore is retryable and never orphans the preserved artifacts.
+    const entry = await recycleBinClient.recycleBinRestore(id);
+    if (!entry) return;
+    // Reuse the ORIGINAL session id (freed on close), exactly as startup auto-resume
+    // does. Keeping the same id means anything keyed by it — notably the session's
+    // artifacts, preserved in the bin — comes back attached with no re-keying.
+    const spawnedId = await doSpawn(entry.cliType, entry.workingDir, undefined, entry.cliSessionName, entry.sessionId);
+    if (!spawnedId) return; // spawn failed → leave the entry in the bin for a retry
+
+    // Commit: remove the bin entry now that the session is back (artifacts stay put).
+    await recycleBinClient.recycleBinCommitRestore(id);
+    // Re-attach to the original runtime group (recreated by id/name if it's gone).
+    if (entry.runtimeGroupId) {
+      await runtimeGroupClient.runtimeGroupReattach(
+        { runtimeGroupId: entry.runtimeGroupId, runtimeGroupName: entry.runtimeGroupName },
+        spawnedId,
+      );
+    }
+    await refresh();
+  } finally {
+    restoring.delete(id);
   }
-  await refresh();
 }
 
 async function forget(id: string): Promise<void> {

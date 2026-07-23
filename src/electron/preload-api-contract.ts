@@ -192,6 +192,7 @@ export const PRELOAD_API_DOMAINS = {
   recycleBin: [
     'recycleBinList',
     'recycleBinRestore',
+    'recycleBinCommitRestore',
     'recycleBinForget',
     'recycleBinEmpty',
   ],

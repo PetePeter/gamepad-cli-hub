@@ -9,6 +9,7 @@ import { app, BrowserWindow, Menu, crashReporter, ipcMain } from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { registerIPCHandlers } from './ipc/handlers.js';
+import { applyNavigationPolicy } from './navigation-policy.js';
 import { WindowManager } from './window-manager.js';
 import { resolveWindowIconPath } from './window-icon.js';
 import { buildSplashHtml } from './splash-html.js';
@@ -182,6 +183,9 @@ function createWindow(): void {
     },
     title: `Helm — steer your fleet of agents v${app.getVersion()}`,
   });
+
+  // Confine this privileged window to its own app content (deny remote navigation).
+  applyNavigationPolicy(mainWindow);
 
   // Load the renderer HTML (__dirname-relative, works inside asar)
   const rendererPath = getRendererHtmlPath(__dirname);

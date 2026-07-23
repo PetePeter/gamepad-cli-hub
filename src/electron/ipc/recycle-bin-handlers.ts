@@ -9,6 +9,7 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import type { RecycleBinManager } from '../../session/recycle-bin-manager.js';
 import type { ArtifactManager } from '../../session/artifact-manager.js';
+import type { RecycleBinEntry } from '../../types/recycle-bin.js';
 import type { WindowManager } from '../window-manager.js';
 import { logger } from '../../utils/logger.js';
 
@@ -25,6 +26,12 @@ export function setupRecycleBinHandlers(
     }
   });
 
+  // An entry that ages out of the retention window at runtime takes its preserved
+  // artifacts with it — same effect as a Forget.
+  recycleBin.on('recycle-bin:expired', (expired: RecycleBinEntry[]) => {
+    for (const entry of expired) artifactManager.clearSession(entry.sessionId);
+  });
+
   ipcMain.handle('recycleBin:list', () => {
     try {
       return recycleBin.list();
@@ -34,12 +41,26 @@ export function setupRecycleBinHandlers(
     }
   });
 
+  // Restore is a two-phase transaction so a failed re-spawn cannot lose the entry
+  // (and its preserved artifacts): restore PEEKS the entry, the renderer re-spawns,
+  // and only a successful spawn calls commitRestore to remove it. Artifacts are kept
+  // either way — the reused session id owns them once it comes back.
   ipcMain.handle('recycleBin:restore', (_event, id: string) => {
     try {
-      return recycleBin.restore(id);
+      return recycleBin.peek(id);
     } catch (err) {
       logger.error(`[recycleBin:restore] Failed: ${err}`);
       return null;
+    }
+  });
+
+  ipcMain.handle('recycleBin:commitRestore', (_event, id: string) => {
+    try {
+      recycleBin.forget(id); // remove the entry only; artifacts stay with the reused id
+      return true;
+    } catch (err) {
+      logger.error(`[recycleBin:commitRestore] Failed: ${err}`);
+      return false;
     }
   });
 

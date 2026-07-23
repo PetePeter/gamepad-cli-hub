@@ -1019,8 +1019,11 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   /** List recoverable closed sessions (newest close first) */
   recycleBinList: (): Promise<RecycleBinEntry[]> => ipcRenderer.invoke('recycleBin:list'),
 
-  /** Restore an entry: returns it (then removes from bin) for re-spawn with resume */
+  /** Peek an entry (no removal) so the caller can re-spawn with resume, then commit */
   recycleBinRestore: (id: string): Promise<RecycleBinEntry | null> => ipcRenderer.invoke('recycleBin:restore', id),
+
+  /** Commit a restore: remove the entry after a successful re-spawn (artifacts kept) */
+  recycleBinCommitRestore: (id: string): Promise<boolean> => ipcRenderer.invoke('recycleBin:commitRestore', id),
 
   /** Forget (permanently delete) a single entry */
   recycleBinForget: (id: string): Promise<boolean> => ipcRenderer.invoke('recycleBin:forget', id),

@@ -12,6 +12,7 @@ import type { WindowManager } from '../window-manager.js';
 import type { ConfigLoader } from '../../config/loader.js';
 import type { SessionInfo } from '../../types/session.js';
 import { resolveWindowIconPath } from '../window-icon.js';
+import { applyNavigationPolicy } from '../navigation-policy.js';
 import { logger } from '../../utils/logger.js';
 
 // ============================================================================
@@ -186,6 +187,9 @@ export function setupSessionHandlers(
           sandbox: false,
         },
       });
+
+      // Confine this privileged snap-out window to its own app content.
+      applyNavigationPolicy(childWindow);
 
       // Load renderer with snap-out query params
       childWindow.loadFile(rendererPath, {

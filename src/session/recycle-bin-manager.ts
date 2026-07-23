@@ -38,9 +38,12 @@ export class RecycleBinManager extends EventEmitter {
   append(entry: Omit<RecycleBinEntry, 'id'>): RecycleBinEntry {
     const created: RecycleBinEntry = { id: randomUUID(), ...entry };
     this.entries.unshift(created);
-    this.prune();
+    const expired = this.prune();
     saveRecycleBin(this.entries);
     this.emit('recycle-bin:changed');
+    // Entries that aged out of the retention window at runtime need their
+    // preserved artifacts reclaimed too (startup pruning only covers restarts).
+    if (expired.length > 0) this.emit('recycle-bin:expired', expired);
     return created;
   }
 
@@ -54,14 +57,9 @@ export class RecycleBinManager extends EventEmitter {
     return this.entries.length;
   }
 
-  /**
-   * Restore an entry: returns it (so the caller can re-spawn with
-   * resumeSessionName) and removes it from the bin. Returns null if unknown.
-   */
-  restore(id: string): RecycleBinEntry | null {
-    const found = this.entries.find(e => e.id === id) ?? null;
-    if (found) this.forget(id);
-    return found;
+  /** Look up an entry without removing it (restore peeks, then commits on success). */
+  peek(id: string): RecycleBinEntry | null {
+    return this.entries.find(e => e.id === id) ?? null;
   }
 
   /** Forget (permanently delete) a single entry. */
@@ -80,10 +78,12 @@ export class RecycleBinManager extends EventEmitter {
     this.emit('recycle-bin:changed');
   }
 
-  /** Drop entries whose closedAt falls outside the retention window. */
-  private prune(): void {
+  /** Drop entries whose closedAt falls outside the retention window; return them. */
+  private prune(): RecycleBinEntry[] {
     const cutoff = this.now() - RECYCLE_BIN_WINDOW_MS;
-    this.entries = this.entries.filter(e => e.closedAt >= cutoff);
+    const expired = this.entries.filter(e => e.closedAt < cutoff);
+    if (expired.length > 0) this.entries = this.entries.filter(e => e.closedAt >= cutoff);
+    return expired;
   }
 }
 

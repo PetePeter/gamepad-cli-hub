@@ -42,6 +42,13 @@ export function setupSystemHandlers(dirname: string): void {
   // system:openExternalUrl — hand a clicked terminal link to the OS default handler
   // (default browser for http/https, registered handler otherwise) instead of an in-app window.
   ipcMain.handle('system:openExternalUrl', async (_e, url: string) => {
+    // Only ever hand safe web/mail schemes to the OS. Blocks file:, custom-protocol,
+    // and other handlers that a malicious link (e.g. inside an AI-authored artifact)
+    // could otherwise trigger via the shell.
+    if (typeof url !== 'string' || !/^(?:https?|mailto):/i.test(url)) {
+      logger.warn(`[IPC] Refused to open external URL with disallowed scheme: "${url}"`);
+      return { success: false, error: 'Disallowed URL scheme' };
+    }
     try {
       await shell.openExternal(url);
       return { success: true };

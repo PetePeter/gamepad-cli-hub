@@ -16,6 +16,7 @@ const electronMockState = vi.hoisted(() => {
     this.options = options;
     this.loadFile = vi.fn();
     this.on = vi.fn();
+    this.webContents = { on: vi.fn(), send: vi.fn(), setWindowOpenHandler: vi.fn() };
     this.close = vi.fn();
     this.isDestroyed = vi.fn(() => false);
     this.isMaximized = vi.fn(() => false);

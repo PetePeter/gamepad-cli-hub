@@ -19,6 +19,7 @@ function isArtifact(value: unknown): value is Artifact {
     && isAnyString(value.title)
     && (value.kind === 'markdown' || value.kind === 'html')
     && Array.isArray(value.versions)
+    && value.versions.length > 0        // a versionless artifact would break update()/render
     && value.versions.every(isArtifactVersion)
     && isNumber(value.createdAt)
     && isNumber(value.updatedAt);
