@@ -27,6 +27,7 @@ import { RuntimeGroupManager } from '../../session/runtime-group-manager.js';
 import { saveRuntimeGroups, loadRuntimeGroups } from '../../session/runtime-group-persistence.js';
 import { ArtifactManager } from '../../session/artifact-manager.js';
 import { saveArtifacts, loadArtifacts } from '../../session/artifact-persistence.js';
+import { pruneOrphanArtifacts } from '../../session/artifact-orphan-prune.js';
 import { setupPowerMonitor } from '../../session/power-monitor.js';
 import { ConfigLoader } from '../../config/loader.js';
 import { keyboard } from '../../output/keyboard.js';
@@ -173,15 +174,19 @@ export function registerIPCHandlers(
   const restored = sessionManager.restoreSessions();
   logger.info(`[IPC] Restored ${restored.length} session(s) from previous run`);
 
-  // Artifacts are ephemeral to a session. On a clean close they are dropped via
-  // the session:removed listener, but a crash can leave orphans in artifacts.yaml
-  // for sessions that did not survive the restore. Drop those now — live restored
-  // sessions keep theirs; closed/recycle-restored sessions get a fresh id and so
-  // never match an orphaned key.
+  // Reclaim orphaned artifacts left by a crash (which bypasses the session:removed
+  // cleanup). Keep artifacts for any live restored session OR any recycle-bin entry
+  // (a recoverable session awaiting restore, which reuses its original id); drop the
+  // rest. A bin entry that later expires (30d) has its artifacts reclaimed here on a
+  // subsequent startup.
   const liveSessionIds = new Set(sessionManager.getAllSessions().map(s => s.id));
-  for (const sessionId of Object.keys(artifactManager.exportAll())) {
-    if (!liveSessionIds.has(sessionId)) artifactManager.clearSession(sessionId);
-  }
+  const binSessionIds = new Set(recycleBinManager.list().map(e => e.sessionId));
+  pruneOrphanArtifacts(
+    Object.keys(artifactManager.exportAll()),
+    liveSessionIds,
+    binSessionIds,
+    id => artifactManager.clearSession(id),
+  );
 
   draftManager.importAll(loadDrafts());
   // PlanManager loads from disk in its constructor — no explicit importAll needed
@@ -221,7 +226,7 @@ export function registerIPCHandlers(
   setupSkillHandlers(skillManager, skillAnalyticsManager);
   setupPlanHandlers(planManager, contextManager, windowManager, incomingWatcher, dirname);
   setupScheduledTaskHandlers(scheduledTaskManager, scheduledTaskHistoryManager, windowManager);
-  setupRecycleBinHandlers(recycleBinManager, windowManager);
+  setupRecycleBinHandlers(recycleBinManager, artifactManager, windowManager);
   setupRuntimeGroupHandlers(runtimeGroupManager, windowManager);
   setupArtifactHandlers(artifactManager, windowManager);
 
@@ -315,7 +320,7 @@ export function registerIPCHandlers(
     // the bin entry with the session's runtime group (if any) so restore can
     // re-attach it, then evict the closed session from that group.
     const runtimeGroup = runtimeGroupManager.groupForSession(event.sessionId);
-    recordRemovedSession(
+    const binned = recordRemovedSession(
       event,
       recycleBinManager,
       dir => configLoader.addBookmarkedDir(dir),
@@ -323,9 +328,11 @@ export function registerIPCHandlers(
     );
     runtimeGroupManager.removeSessionEverywhere(event.sessionId);
 
-    // Artifacts are ephemeral to a live session — drop them on close. Recycle-bin
-    // restore mints a fresh sessionId, so a restored session naturally has none.
-    artifactManager.clearSession(event.sessionId);
+    // Artifacts follow the session's recoverability. A recoverable session goes to
+    // the recycle bin, so KEEP its artifacts under the same id — restore reuses that
+    // id and they come straight back; only Forget/Empty clears them. A non-recoverable
+    // (ephemeral) close has no bin entry, so drop its artifacts now.
+    if (!binned) artifactManager.clearSession(event.sessionId);
 
     if (!telegramBot.isRunning()) return;
     telegramNotifier.removeSession(event.sessionId);

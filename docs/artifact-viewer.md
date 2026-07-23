@@ -10,12 +10,16 @@ Distinct from:
 - **Plans** (per-directory DAG work items).
 - **Contexts** (project knowledge nodes).
 
-## Lifecycle — strictly ephemeral
+## Lifecycle — tied to the recycle bin
 
-- Artifacts belong to a single session, keyed by its hub `sessionId`.
-- On **session close** the `session:removed` listener calls `clearSession(sessionId)`, so artifacts vanish.
-- A **recycle-bin restore** mints a *fresh* `sessionId`, so a restored session naturally has **no** artifacts — by design.
-- A **crash** can leave orphans in `artifacts.yaml`; on startup, after `restoreSessions()`, any artifact whose session did not survive the restore is pruned. Live restored sessions keep theirs.
+Artifacts belong to a single session, keyed by its hub `sessionId`. Their fate
+follows the session's **recoverability**:
+
+- **Recoverable close** (session carried a `cliSessionName` → goes to the recycle bin): the `session:removed` listener **keeps** the artifacts under the same id. They live alongside the bin entry for its 30-day window.
+- **Restore** reuses the session's **original id** (exactly like startup auto-resume — `doSpawn(..., entry.sessionId)`), so the preserved artifacts come straight back attached, with no re-keying.
+- **Forget** (delete one bin entry) clears that entry's artifacts; **Empty** clears every binned entry's artifacts.
+- **Non-recoverable / ephemeral close** (no bin entry): the listener clears the artifacts immediately.
+- **Startup reclamation**: `pruneOrphanArtifacts` drops any stored artifact whose session is neither live nor in the bin — crash orphans, or a bin entry that expired past the 30-day window.
 - Nothing leaves the session except an explicit **Export** to a user-chosen file.
 
 Persisted to `%APPDATA%/Helm/config/artifacts.yaml` (global file, keyed by session; sessions with zero artifacts are omitted on export).
@@ -78,12 +82,13 @@ unsanitized markup ever reaches `v-html`.
 ```mermaid
 graph TB
     subgraph "Main process"
-        AM["ArtifactManager<br/>versioned, ephemeral<br/>persist + clock injected"]
+        AM["ArtifactManager<br/>versioned<br/>persist + clock injected"]
         IPC["artifact-handlers<br/>list/get/delete/deleteAll/reveal/export"]
         MCP["MCP tools + dispatcher<br/>caller-session scoped + ownership check"]
         SVC["HelmControlService"]
         YAML[("artifacts.yaml")]
         SR["session:removed"]
+        BIN["Recycle bin<br/>forget / empty / restore"]
     end
     subgraph "Renderer"
         COMP["useArtifactViewer<br/>(module-singleton state)"]
@@ -98,7 +103,8 @@ graph TB
     COMP --> VIEW --> RENDER
     MAIN --> VIEW
     VIEW -->|list/delete/export| IPC --> AM
-    SR -->|clearSession| AM
+    SR -->|"clear only if ephemeral<br/>(keep if recoverable)"| AM
+    BIN -->|"forget/empty → clearSession<br/>restore → reuse id, artifacts return"| AM
 ```
 
 ## Key modules
@@ -108,6 +114,8 @@ graph TB
 | `src/types/artifact.ts` | `Artifact`, `ArtifactVersion`, `ArtifactKind` |
 | `src/session/artifact-manager.ts` | CRUD + versioning + reveal, `artifact:changed`/`artifact:reveal` events |
 | `src/session/artifact-persistence.ts` | YAML save/load + type-guard sanitize |
+| `src/session/artifact-orphan-prune.ts` | Pure startup reclamation of artifacts with no live/binned owner |
+| `src/electron/ipc/recycle-bin-handlers.ts` | Forget/Empty clear a binned session's artifacts; restore preserves them |
 | `src/electron/ipc/artifact-handlers.ts` | IPC channels incl. `artifact:export` (native save dialog) |
 | `src/mcp/tools/{definitions,dispatcher,validation}.ts` | 7 MCP tools, caller-session scoping, ownership check |
 | `src/mcp/helm-control-service.ts` | Service methods + `requireOwnedArtifact` guard |

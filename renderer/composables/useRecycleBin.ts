@@ -38,9 +38,10 @@ function ensureSubscribed(): void {
 async function restore(id: string): Promise<void> {
   const entry = await recycleBinClient.recycleBinRestore(id);
   if (!entry) return;
-  // Reuse the standard resume path: new session id, resume the CLI-internal UUID.
-  const newSessionId = `pty-${entry.cliType}-${Date.now()}`;
-  const spawnedId = await doSpawn(entry.cliType, entry.workingDir, undefined, entry.cliSessionName, newSessionId);
+  // Reuse the ORIGINAL session id (freed on close), exactly as startup auto-resume
+  // does. Keeping the same id means anything keyed by it — notably the session's
+  // artifacts, preserved in the bin — comes back attached with no re-keying.
+  const spawnedId = await doSpawn(entry.cliType, entry.workingDir, undefined, entry.cliSessionName, entry.sessionId);
   // Re-attach to the original runtime group (recreated by id/name if it's gone) —
   // but ONLY when the session actually spawned, otherwise we'd recreate an empty
   // group / plant a ghost membership for a session that never came back.
