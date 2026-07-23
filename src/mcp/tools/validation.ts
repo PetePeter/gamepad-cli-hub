@@ -1,4 +1,5 @@
 import type { ContextBindingTargetType } from '../../types/context.js';
+import type { ArtifactKind } from '../../types/artifact.js';
 
 export function asString(value: unknown, errorMessage: string): string {
   if (typeof value !== 'string' || value.length === 0) {
@@ -57,6 +58,14 @@ export function asTerminalOutputMode(value: unknown): 'raw' | 'stripped' | 'both
   if (value === undefined) return 'both';
   if (value === 'raw' || value === 'stripped' || value === 'both') return value;
   throw new Error('mode must be one of raw, stripped, or both');
+}
+
+
+export function asArtifactKind(value: unknown): ArtifactKind {
+  if (value === 'markdown' || value === 'html') {
+    return value;
+  }
+  throw new Error('kind must be one of markdown or html');
 }
 
 

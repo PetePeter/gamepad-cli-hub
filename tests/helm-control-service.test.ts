@@ -558,8 +558,9 @@ describe('HelmControlService.getSessionInfo', () => {
 
     const info = service.getSessionInfo({ sessionId: 's1', sessionName: 'Claude' });
 
-    expect(Object.keys(info).sort()).toEqual(['helm_workflow', 'your_session_id', 'your_working_dir']);
+    expect(Object.keys(info).sort()).toEqual(['artifact_viewer', 'helm_workflow', 'your_session_id', 'your_working_dir']);
     expect(info.helm_workflow).toContain('startup');
+    expect(info.artifact_viewer).toContain('artifact_create');
     expect(info).not.toHaveProperty('mandatory_rules');
     expect(info).not.toHaveProperty('mcp_url');
     expect(info).not.toHaveProperty('mcp_token');
@@ -1672,5 +1673,30 @@ describe('parseSubmitSuffix', () => {
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', 'command');
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', '', { submitSuffix: '\r\n' });
     });
+  });
+});
+
+describe('HelmControlService artifact session ownership', () => {
+  it('blocks a session from reading, updating, revealing, or deleting another session\'s artifact', async () => {
+    const { ArtifactManager } = await import('../src/session/artifact-manager.js');
+    const { service } = makeService();
+    const artifacts = new ArtifactManager();
+    service.setArtifactManager(artifacts);
+
+    // Session A owns an artifact; session B must not touch it by id.
+    const owned = service.createArtifact('sessA', 'Report', 'markdown', 'v1 body');
+
+    // Owner still works.
+    expect(service.getArtifact('sessA', owned.id).id).toBe(owned.id);
+    expect(service.updateArtifact('sessA', owned.id, 'v2 body').versions).toHaveLength(2);
+
+    // Cross-session access is denied with an existence-preserving "not found".
+    expect(() => service.getArtifact('sessB', owned.id)).toThrow('Artifact not found');
+    expect(() => service.updateArtifact('sessB', owned.id, 'hijack')).toThrow('Artifact not found');
+    expect(() => service.showArtifact('sessB', owned.id)).toThrow('Artifact not found');
+    expect(() => service.deleteArtifact('sessB', owned.id)).toThrow('Artifact not found');
+
+    // The artifact was never mutated by the rejected calls.
+    expect(service.getArtifact('sessA', owned.id).versions).toHaveLength(2);
   });
 });

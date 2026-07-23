@@ -167,6 +167,20 @@ Ctrl+G opens the in-app Prompt Editor (`EditorPopup.vue`, bridged via `renderer/
         BIN -->|"restore → reattach<br/>(recreate if gone)"| RGM
     ```
 
+31. **Artifact Manager + Viewer (ephemeral per-session reports)** — A per-session, **ephemeral** store of renderable outputs an AI produces for the user to *read* (explanations, reports, analyses, results — NOT code), shown in a dedicated in-app panel instead of the user opening a file. Managed by `ArtifactManager` (`src/session/artifact-manager.ts`, EventEmitter, injected `persist` + injectable clock, mirrors DraftManager) — `create` (always a new uuid; duplicate titles allowed) `/update(id)` (append version) `/reveal(id)` (bring forward, no mutation) `/get/getForSession/count/delete/deleteAllForSession/clearSession/exportAll/importAll`; emits `artifact:changed` (persist sink) and `artifact:reveal` (create/update/reveal). Persisted to `%APPDATA%/Helm/config/artifacts.yaml` (global, keyed by session). **Versioned**: each artifact holds an ordered `versions[]` stack; the AI writes only the head, the user reads any prior version. **Strictly ephemeral**: the `session:removed` listener calls `clearSession`; recycle-bin restore mints a fresh sessionId so a restored session has none; a crash's orphans are pruned on startup against live restored sessions. Content is **markdown or HTML**, always rendered through `renderArtifact()` (`renderer/artifacts/render-artifact.ts`) → synchronous `marked` → **`DOMPurify.sanitize`** before `v-html` (AI content is untrusted). **MCP surface (7 tools, session from auth context):** `artifact_create/update/show/delete/delete_all/list/get` — id-based tools additionally verify caller ownership (`requireOwnedArtifact`, uniform `Artifact not found` to avoid existence leaks); `session_info` advertises the viewer. IPC: `artifact:list/get/delete/deleteAll/reveal/export` (export = native save dialog) + `artifact:changed`/`artifact:reveal` events forwarded to the main and the session's own window. UI: `ArtifactViewer.vue` — a resizable right-hand **master/detail** panel (index rail with search/sort/Today-Earlier groups/unread dots/collapse; detail pane with version ‹›+dropdown, older-version banner, Export/Delete/Clear-all). Reactive state in the `useArtifactViewer` composable (module-singleton). Show/hide via a `📄 Artifacts` toolbar toggle (badge), `✕`, or `Ctrl+Shift+A`; collapsed = terminal full width + a pulsing right edge tab. **Snap-out follow**: the panel is bound to its session, so `SnapOutWindow` renders its own `ArtifactViewer` and the panel travels with a snapped-out terminal (never shown in two windows at once). See [docs/artifact-viewer.md](docs/artifact-viewer.md).
+
+    ```mermaid
+    graph LR
+        AI["AI"] -->|"artifact_* (own session)"| MCP["MCP dispatcher<br/>caller-scoped + ownership"]
+        MCP --> SVC["HelmControlService"] --> AM["ArtifactManager<br/>versioned · ephemeral"]
+        AM -->|persist| YAML[("artifacts.yaml")]
+        AM -. "artifact:changed / reveal" .-> COMP["useArtifactViewer"]
+        COMP --> VIEW["ArtifactViewer.vue<br/>master/detail"]
+        VIEW --> RENDER["renderArtifact<br/>marked → DOMPurify"]
+        VIEW -->|list/delete/export| AM
+        SR["session:removed"] -->|clearSession| AM
+    ```
+
 ## Architecture Principles
 
 - DRY, YAGNI, KISS
@@ -230,6 +244,7 @@ Detailed reference docs are in `docs/`:
 | [docs/group-overview.md](docs/group-overview.md) | Group overview grid — entry/exit, navigation, live previews, architecture |
 | [docs/directory-plans.md](docs/directory-plans.md) | Directory Plans — DAG work items, lifecycle, canvas, layout, badges |
 | [docs/runtime-groups.md](docs/runtime-groups.md) | Runtime Session Groups — custom cross-directory groups, exclusive membership, restore-to-group, drag/close flows |
+| [docs/artifact-viewer.md](docs/artifact-viewer.md) | Artifact Manager + Viewer — ephemeral per-session versioned md/html reports, MCP tools, sanitized render, master/detail panel |
 
 ## graphify
 

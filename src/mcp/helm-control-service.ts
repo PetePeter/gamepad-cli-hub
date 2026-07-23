@@ -7,6 +7,7 @@ import type { TerminalOutputMode } from '../session/terminal-output-buffer.js';
 import type { PlanFilter, PlanItem, PlanSequence, PlanStatus, PlanType } from '../types/plan.js';
 import type { PlanAttachment, PlanAttachmentTempFile } from '../types/plan-attachment.js';
 import type { SessionInfo } from '../types/session.js';
+import type { Artifact, ArtifactKind } from '../types/artifact.js';
 import type {
   TelegramBridge,
   TelegramChannel,
@@ -106,6 +107,7 @@ export interface SessionInfoResponse {
   your_session_id: string;
   your_working_dir: string;
   helm_workflow: string;
+  artifact_viewer: string;
 }
 
 interface McpSkillSummary {
@@ -129,6 +131,7 @@ export class HelmControlService extends EventEmitter {
   private readonly planAttachmentService: HelmPlanAttachmentService;
   private readonly telegramService: HelmTelegramService;
   private notificationManager: NotificationManager | null = null;
+  private artifactManager?: import('../session/artifact-manager.js').ArtifactManager;
   private readonly schedulerService: HelmSchedulerService | null;
   private readonly projectService: HelmProjectService | null;
   private readonly directoryService: HelmDirectoryService;
@@ -241,6 +244,86 @@ export class HelmControlService extends EventEmitter {
   /** Wire the RuntimeGroupManager so session_create can place into runtime groups. */
   setRuntimeGroupManager(manager: import('../session/runtime-group-manager.js').RuntimeGroupManager): void {
     this.sessionService.setRuntimeGroupManager(manager);
+  }
+
+  /** Wire the ArtifactManager so the artifact_* MCP tools can produce session reports. */
+  setArtifactManager(manager: import('../session/artifact-manager.js').ArtifactManager): void {
+    this.artifactManager = manager;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Artifacts (AI-authored, session-scoped renderable reports)
+  // ---------------------------------------------------------------------------
+
+  private requireArtifactManager(): import('../session/artifact-manager.js').ArtifactManager {
+    if (!this.artifactManager) {
+      throw new Error('Artifacts are not available: ArtifactManager is not configured.');
+    }
+    return this.artifactManager;
+  }
+
+  createArtifact(sessionId: string, title: string, kind: ArtifactKind, content: string): Artifact {
+    return this.requireArtifactManager().create(sessionId, title, kind, content);
+  }
+
+  /**
+   * Resolve an artifact and assert it belongs to the calling session. Artifacts
+   * are session-scoped: a session must never read or mutate another session's
+   * artifact by id-guessing, so a mismatch surfaces the same "not found" error
+   * as a genuinely missing id (no cross-session existence leak).
+   */
+  private requireOwnedArtifact(callerSessionId: string, id: string): Artifact {
+    const artifact = this.requireArtifactManager().get(id);
+    if (!artifact || artifact.sessionId !== callerSessionId) {
+      throw new Error(`Artifact not found: ${id}`);
+    }
+    return artifact;
+  }
+
+  updateArtifact(callerSessionId: string, id: string, content: string): Artifact {
+    this.requireOwnedArtifact(callerSessionId, id);
+    const updated = this.requireArtifactManager().update(id, content);
+    if (!updated) throw new Error(`Artifact not found: ${id}`);
+    return updated;
+  }
+
+  showArtifact(callerSessionId: string, id: string): { id: string; revealed: true } {
+    this.requireOwnedArtifact(callerSessionId, id);
+    if (!this.requireArtifactManager().reveal(id)) {
+      throw new Error(`Artifact not found: ${id}`);
+    }
+    return { id, revealed: true };
+  }
+
+  deleteArtifact(callerSessionId: string, id: string): { id: string; deleted: boolean } {
+    this.requireOwnedArtifact(callerSessionId, id);
+    return { id, deleted: this.requireArtifactManager().delete(id) };
+  }
+
+  deleteAllArtifacts(sessionId: string): { sessionId: string; cleared: true } {
+    this.requireArtifactManager().deleteAllForSession(sessionId);
+    return { sessionId, cleared: true };
+  }
+
+  /** Summaries of this session's artifacts (no content) so the LLM can see its own. */
+  listArtifacts(sessionId: string): Array<{ id: string; title: string; kind: ArtifactKind; versionCount: number; createdAt: number; updatedAt: number }> {
+    return this.requireArtifactManager().getForSession(sessionId).map(a => ({
+      id: a.id,
+      title: a.title,
+      kind: a.kind,
+      versionCount: a.versions.length,
+      createdAt: a.createdAt,
+      updatedAt: a.updatedAt,
+    }));
+  }
+
+  /** Full artifact (latest version), or a specific version's content when requested. */
+  getArtifact(callerSessionId: string, id: string, version?: number): Artifact & { requestedVersionContent?: string } {
+    const artifact = this.requireOwnedArtifact(callerSessionId, id);
+    if (version === undefined) return artifact;
+    const match = artifact.versions.find(v => v.version === version);
+    if (!match) throw new Error(`Artifact ${id} has no version ${version}`);
+    return { ...artifact, requestedVersionContent: match.content };
   }
 
   invalidateCapabilityCache(): void {

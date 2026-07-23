@@ -61,6 +61,7 @@ import { useSettingsController } from './composables/useSettingsController.js';
 import { useInputRouter } from './composables/useInputRouter.js';
 import { useSidebarController } from './composables/useSidebarController.js';
 import { useRecycleBin } from './composables/useRecycleBin.js';
+import { useArtifactViewer } from './composables/useArtifactViewer.js';
 import { useRuntimeGroups } from './composables/useRuntimeGroups.js';
 import { useRuntimeGroupActions } from './composables/useRuntimeGroupActions.js';
 import { useDraftPlanContextEditor } from './composables/useDraftPlanContextEditor.js';
@@ -117,6 +118,7 @@ import RecycleBinModal from './components/sidebar/RecycleBinModal.vue';
 import MainView from './components/panels/MainView.vue';
 import OverviewGrid from './components/panels/OverviewGrid.vue';
 import PlanScreen from './components/panels/PlanScreen.vue';
+import ArtifactViewer from './components/panels/ArtifactViewer.vue';
 import SettingsPanel from './components/sidebar/SettingsPanel.vue';
 
 // Settings tab components
@@ -161,6 +163,7 @@ const flashAttention = useFlashAttention();
 const recycleBin = useRecycleBin();
 const runtimeGroups = useRuntimeGroups();
 const runtimeGroupActions = useRuntimeGroupActions();
+const artifactViewer = useArtifactViewer();
 
 // Bringing the window forward while viewing the active session means the user has
 // seen it — clear its flash. (The activeSessionId watcher handles session switches.)
@@ -340,6 +343,34 @@ const {
 // Panel resize
 const { splitterRef, panelRef } = usePanelResize({
   onResized: () => { getTerminalManager()?.fitActive(); },
+});
+
+// Artifact panel resize (right-docked). Own storage key so it never collides
+// with the sidebar width; drag comes from the panel's LEFT edge (fromRight).
+const { splitterRef: artifactSplitterRef, panelRef: artifactPanelRef } = usePanelResize({
+  onResized: () => { getTerminalManager()?.fitActive(); },
+  minWidth: 320,
+  maxWidth: 900,
+  defaultWidth: 480,
+  storageKey: 'helm:artifact-panel-width',
+  fromRight: true,
+});
+
+// Badge count for the ACTIVE session's artifact panel.
+const artifactBadge = computed(() => artifactViewer.artifacts.value.length);
+const artifactHasUnread = computed(() => artifactViewer.unreadCount.value > 0);
+
+// Re-fit terminals after the panel opens/closes/resizes — the terminal column
+// width changes, so xterm needs a fresh fit on the next frame.
+function refitTerminalsSoon(): void {
+  requestAnimationFrame(() => { getTerminalManager()?.fitActive(); });
+}
+
+watch(() => artifactViewer.panelVisible.value, () => { refitTerminalsSoon(); });
+
+// Keep the panel bound to whichever session is active; reload on switch.
+watch(() => state.activeSessionId, (id) => {
+  void artifactViewer.setActiveSession(id ?? null);
 });
 const { addToast } = useToast();
 const {
@@ -555,6 +586,26 @@ function handleClearSessionNotifications(e: Event): void {
 
 // Prompt-template apply flow (picker → editor → deliverPromptSequence).
 const { openPromptPicker } = usePromptApplyFlow(() => state.activeSessionId);
+
+// Ctrl+Shift+A toggles the artifact panel. Ignored while a modal overlay,
+// settings, an editor, or the plan screen owns input — consistent with the
+// app's other document-level shortcuts (see paste-handler guards).
+function onArtifactShortcut(e: KeyboardEvent): void {
+  if (!(e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a'))) return;
+  if (settingsVisible.value || activeView.value === 'plan') return;
+  if (draftEditorVisible.value || isAnyBridgeModalVisible()) return;
+  if (document.querySelector('.modal-overlay.modal--visible')) return;
+  e.preventDefault();
+  e.stopPropagation();
+  artifactViewer.togglePanel();
+}
+
+// ⧉ pop-out: the panel travels with its terminal. Snapping the active session
+// out mounts a SnapOutWindow that renders its own ArtifactViewer, so the panel
+// is available there and never shown in two windows at once.
+function onArtifactPopOut(): void {
+  if (state.activeSessionId) void onSessionSnapOut(state.activeSessionId);
+}
 
 // Context menu
 function onContextMenuAction(action: string): void {
@@ -792,6 +843,9 @@ watch(runtimeGroups.groups, () => { refreshSessions(); }, { deep: true });
 onMounted(async () => {
   recycleBin.ensureSubscribed();
   runtimeGroups.ensureSubscribed();
+  artifactViewer.ensureSubscribed();
+  void artifactViewer.setActiveSession(state.activeSessionId ?? null);
+  window.addEventListener('keydown', onArtifactShortcut, true);
 
   if (!terminalContainerRef.value) {
     await appClient.appStartupReady();
@@ -929,6 +983,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleModalKeyboardBridge, true);
+  window.removeEventListener('keydown', onArtifactShortcut, true);
   window.removeEventListener('rename-session-request', handleRenameRequest);
   window.removeEventListener('clear-session-notifications', handleClearSessionNotifications);
   offTextDeliver?.();
@@ -963,6 +1018,20 @@ onUnmounted(() => {
           <span class="sidebar-tagline">steer your fleet of agents</span>
         </span>
         <div class="sidebar-actions">
+          <button
+            class="sidebar-btn artifact-toggle-btn"
+            :class="{ 'artifact-toggle-btn--on': artifactViewer.panelVisible.value }"
+            title="Toggle artifact panel (Ctrl+Shift+A)"
+            :disabled="!hasActiveSession"
+            @click="artifactViewer.togglePanel()"
+          >
+            📄
+            <span
+              v-if="artifactBadge > 0"
+              class="artifact-toggle-badge"
+              :class="{ 'artifact-toggle-badge--pulse': artifactHasUnread }"
+            >{{ artifactBadge }}</span>
+          </button>
           <button class="sidebar-btn" title="User Guide" @click="onOpenHelp">ℹ️</button>
           <button class="sidebar-btn" title="Open Logs Folder" @click="onOpenLogsFolder">🐛</button>
           <button class="sidebar-btn" title="Settings" @click="onOpenSettings">⚙</button>
@@ -1307,6 +1376,42 @@ onUnmounted(() => {
         />
       </div>
     </div>
+
+    <!-- Artifact panel: right-docked master/detail, bound to the active session. -->
+    <template v-if="hasActiveSession">
+      <div
+        v-show="artifactViewer.panelVisible.value"
+        class="artifact-splitter"
+        ref="artifactSplitterRef"
+        title="Drag to resize"
+      ></div>
+      <div
+        v-show="artifactViewer.panelVisible.value"
+        class="artifact-panel-dock"
+        ref="artifactPanelRef"
+      >
+        <ArtifactViewer
+          :session-id="state.activeSessionId!"
+          @close="artifactViewer.hidePanel()"
+          @pop-out="onArtifactPopOut"
+        />
+      </div>
+
+      <!-- Collapsed edge tab — reopens the panel; pulses while unread. -->
+      <div
+        v-show="!artifactViewer.panelVisible.value"
+        class="artifact-edge"
+        title="Show artifacts"
+        @click="artifactViewer.showPanel()"
+      >
+        <span
+          v-if="artifactBadge > 0"
+          class="artifact-edge-badge"
+          :class="{ 'artifact-edge-badge--pulse': artifactHasUnread }"
+        >{{ artifactBadge }}</span>
+        <span class="artifact-edge-tab">📄 Artifacts</span>
+      </div>
+    </template>
 
     <AppModalHost
       :cli-types="state.cliTypes"

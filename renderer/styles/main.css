@@ -4169,4 +4169,92 @@ kbd {
   color: var(--text-secondary);
 }
 
+/* ── Artifact panel (right-docked master/detail) ──────────────────────────── */
+
+/* Dock column that hosts the ArtifactViewer; width is driven by usePanelResize. */
+.artifact-panel-dock {
+  width: 480px;
+  flex-shrink: 0;
+  min-width: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Drag handle on the panel's left edge (mirror of .panel-splitter). */
+.artifact-splitter {
+  width: 4px;
+  cursor: col-resize;
+  background: var(--border);
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.artifact-splitter:hover,
+.artifact-splitter--dragging {
+  background: var(--accent);
+}
+
+/* Collapsed edge tab — slim vertical strip that reopens the panel. */
+.artifact-edge {
+  width: 34px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding-top: 14px;
+  cursor: pointer;
+}
+.artifact-edge:hover { background: var(--bg-tertiary); }
+.artifact-edge-tab {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+}
+.artifact-edge-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 0.66rem;
+  display: grid;
+  place-items: center;
+}
+.artifact-edge-badge--pulse {
+  box-shadow: 0 0 0 0 var(--focus);
+  animation: artifact-pulse 2s ease-out infinite;
+}
+@keyframes artifact-pulse {
+  0% { box-shadow: 0 0 0 0 var(--focus); }
+  70% { box-shadow: 0 0 0 8px rgba(79, 208, 139, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(79, 208, 139, 0); }
+}
+
+/* Sidebar-header toggle button + badge. */
+.artifact-toggle-btn { position: relative; }
+.artifact-toggle-btn--on { color: var(--accent); }
+.artifact-toggle-btn:disabled { opacity: 0.4; cursor: default; }
+.artifact-toggle-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 0.58rem;
+  display: grid;
+  place-items: center;
+}
+.artifact-toggle-badge--pulse {
+  box-shadow: 0 0 0 0 var(--focus);
+  animation: artifact-pulse 2s ease-out infinite;
+}
 

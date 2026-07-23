@@ -21,16 +21,24 @@ export interface PanelResizeOptions {
   minWidth?: number;
   /** Max panel width (default 600) */
   maxWidth?: number;
+  /** localStorage key for width persistence (default the sidebar key). */
+  storageKey?: string;
+  /** Grab the drag from the right edge instead of the left (right-docked panels). */
+  fromRight?: boolean;
+  /** Initial/default width when nothing is persisted (default 320). */
+  defaultWidth?: number;
 }
 
 export function usePanelResize(options: PanelResizeOptions = {}) {
   const splitterRef: Ref<HTMLElement | null> = ref(null);
   const panelRef: Ref<HTMLElement | null> = ref(null);
   const isDragging = ref(false);
-  const panelWidth = ref(320); // default
+  const panelWidth = ref(options.defaultWidth ?? 320); // default
 
   const minW = options.minWidth ?? MIN_WIDTH;
   const maxW = options.maxWidth ?? MAX_WIDTH;
+  const storageKey = options.storageKey ?? PANEL_WIDTH_KEY;
+  const dragSign = options.fromRight ? -1 : 1;
 
   let startX = 0;
   let startWidth = 0;
@@ -54,7 +62,7 @@ export function usePanelResize(options: PanelResizeOptions = {}) {
     const splitterWidth = splitterRef.value?.getBoundingClientRect().width ?? 0;
     const viewportMax = Math.max(0, window.innerWidth - splitterWidth);
     const effectiveMax = Math.min(maxW, viewportMax);
-    const newWidth = Math.max(minW, Math.min(effectiveMax, startWidth + (e.clientX - startX)));
+    const newWidth = Math.max(minW, Math.min(effectiveMax, startWidth + dragSign * (e.clientX - startX)));
     panel.style.width = `${newWidth}px`;
     panelWidth.value = newWidth;
   }
@@ -67,13 +75,13 @@ export function usePanelResize(options: PanelResizeOptions = {}) {
     document.body.style.userSelect = '';
 
     const w = Math.round(panelWidth.value);
-    localStorage.setItem(PANEL_WIDTH_KEY, String(w));
+    localStorage.setItem(storageKey, String(w));
     options.onResized?.(w);
   }
 
   /** Restore persisted width from localStorage */
   function restoreWidth(): void {
-    const saved = localStorage.getItem(PANEL_WIDTH_KEY);
+    const saved = localStorage.getItem(storageKey);
     if (saved) {
       const w = parseInt(saved, 10);
       if (Number.isFinite(w) && w >= minW) {

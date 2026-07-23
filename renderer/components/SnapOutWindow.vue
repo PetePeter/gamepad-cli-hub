@@ -2,7 +2,7 @@
 /**
  * SnapOutWindow.vue — Full terminal view for a snapped-out session.
  */
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { TerminalView } from '../terminal/terminal-view.js';
 import { useKeyboardRelay } from '../composables/useKeyboardRelay.js';
 import { useNumberAccelerator, slotToIndex } from '../composables/useNumberAccelerator.js';
@@ -24,6 +24,9 @@ import { copyPlanRef } from '../composables/useCopyPlanRef.js';
 import ContextMenu from './modals/ContextMenu.vue';
 import EscProtectionModal from './modals/EscProtectionModal.vue';
 import DraftEditor from './panels/DraftEditor.vue';
+import ArtifactViewer from './panels/ArtifactViewer.vue';
+import { useArtifactViewer } from '../composables/useArtifactViewer.js';
+import { usePanelResize } from '../composables/usePanelResize.js';
 import {
   setPlanEditorOpener as setChipBarPlanEditorOpener,
 } from '../stores/chip-bar.js';
@@ -63,6 +66,30 @@ const draftEditorPlanStatus = ref<import('../../src/types/plan.js').PlanStatus>(
 const draftEditorPlanStateInfo = ref('');
 const draftEditorPlanCallbacks = ref<import('./panels/DraftEditor.vue').PlanCallbacks | null>(null);
 const draftEditorRef = ref<InstanceType<typeof DraftEditor> | null>(null);
+
+// Artifact panel — bound to THIS popout's session so its artifacts travel with
+// the terminal. Ctrl+Shift+A toggles it here too.
+const artifactViewer = useArtifactViewer();
+const artifactBadge = computed(() => artifactViewer.artifacts.value.length);
+const artifactHasUnread = computed(() => artifactViewer.unreadCount.value > 0);
+function onArtifactShortcut(e: KeyboardEvent): void {
+  if (!(e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a'))) return;
+  if (draftEditorVisible.value || contextMenuVisible.value || promptTree.visible || editorPopupStore.visible) return;
+  e.preventDefault();
+  e.stopPropagation();
+  artifactViewer.togglePanel();
+}
+const { splitterRef: artifactSplitterRef, panelRef: artifactPanelRef } = usePanelResize({
+  onResized: () => { view?.fit(); },
+  minWidth: 320,
+  maxWidth: 900,
+  defaultWidth: 480,
+  storageKey: 'helm:artifact-panel-width',
+  fromRight: true,
+});
+watch(() => artifactViewer.panelVisible.value, () => {
+  requestAnimationFrame(() => { view?.fit(); });
+});
 
 const chipBarStore = useChipBarStore();
 const chipBarPlans = computed(() => chipBarStore.plans);
@@ -235,9 +262,15 @@ onMounted(async () => {
   // open modals (e.g. the context menu) before the keyboard relay swallows them.
   window.addEventListener('keydown', handleModalKeyboardBridge, true);
 
+  // Artifact panel bound to this popout's session.
+  artifactViewer.ensureSubscribed();
+  void artifactViewer.setActiveSession(props.sessionId);
+  window.addEventListener('keydown', onArtifactShortcut, true);
+
   onUnmounted(() => {
     window.removeEventListener('resize', handleResize);
     window.removeEventListener('keydown', handleModalKeyboardBridge, true);
+    window.removeEventListener('keydown', onArtifactShortcut, true);
     containerRef.value?.removeEventListener('contextmenu', handleContextMenu);
     resizeObserver?.disconnect();
   });
@@ -288,7 +321,17 @@ function onContextMenuCancel(): void { contextMenuVisible.value = false; }
   <div class="snap-out-window" id="mainArea">
     <ChipBar :plan-chips="chipBarPlans" :actions="[]" :visible="true" @plan-chip-click="onChipBarPlanClick" @plan-chip-copy="onChipBarPlanCopy" @action-click="onChipBarAction" />
     <DraftEditor v-if="draftEditorVisible" ref="draftEditorRef" :visible="draftEditorVisible" :mode="draftEditorMode" :session-id="draftEditorSessionId" :draft-id="draftEditorDraftId" :initial-label="draftEditorLabel" :initial-text="draftEditorText" :plan-status="draftEditorPlanStatus" :plan-state-info="draftEditorPlanStateInfo" :plan-callbacks="draftEditorPlanCallbacks" @save="onDraftSave" @apply="onDraftApply" @delete="onDraftDelete" @close="onDraftClose" />
-    <div ref="containerRef" class="snap-out-terminal"></div>
+    <div class="snap-out-body">
+      <div ref="containerRef" class="snap-out-terminal"></div>
+      <div v-show="artifactViewer.panelVisible.value" class="artifact-splitter" ref="artifactSplitterRef" title="Drag to resize"></div>
+      <div v-show="artifactViewer.panelVisible.value" class="artifact-panel-dock" ref="artifactPanelRef">
+        <ArtifactViewer :session-id="props.sessionId" @close="artifactViewer.hidePanel()" @pop-out="artifactViewer.hidePanel()" />
+      </div>
+      <div v-show="!artifactViewer.panelVisible.value" class="artifact-edge" title="Show artifacts" @click="artifactViewer.showPanel()">
+        <span v-if="artifactBadge > 0" class="artifact-edge-badge" :class="{ 'artifact-edge-badge--pulse': artifactHasUnread }">{{ artifactBadge }}</span>
+        <span class="artifact-edge-tab">📄 Artifacts</span>
+      </div>
+    </div>
     <div v-if="chipActionBarVisible" class="chip-action-dock"><ChipActionBar :actions="chipBarStore.actions" @action-click="onChipBarAction" /></div>
     <ContextMenu v-model:visible="contextMenuVisible" :has-selection="contextMenuHasSelection" :has-active-session="true" :has-sequences="false" :has-drafts="false" :is-snapped-out="true" @action="onContextMenuAction" @cancel="onContextMenuCancel" />
     <PromptTreeModal
@@ -312,6 +355,7 @@ function onContextMenuCancel(): void { contextMenuVisible.value = false; }
 
 <style scoped>
 .snap-out-window { width: 100vw; height: 100vh; background: #0a0a0a; display: flex; flex-direction: column; }
-.snap-out-terminal { flex: 1; min-height: 0; position: relative; overflow: hidden; z-index: 1; }
+.snap-out-body { flex: 1; min-height: 0; display: flex; flex-direction: row; }
+.snap-out-terminal { flex: 1; min-width: 0; min-height: 0; position: relative; overflow: hidden; z-index: 1; }
 .chip-action-dock { border-top: 1px solid #333; background: #1a1a1a; position: relative; z-index: 10; }
 </style>

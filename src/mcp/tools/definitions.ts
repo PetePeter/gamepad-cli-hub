@@ -1222,5 +1222,99 @@ export const MCP_TOOLS: McpTool[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'artifact_create',
+    title: 'Create Artifact',
+    description:
+      'Create a NEW readable report artifact for THIS session and show it in the user\'s in-app Artifact panel. Use for user-facing explanations, reports, analyses, results, or summaries the USER should read — NOT for code (write code to files instead). kind is "markdown" or "html". Returns the new artifact including its id. Auto-reveals (brings it forward) so the user sees it immediately. Ephemeral: artifacts belong to this session and are discarded when it closes. The session is resolved from your auth context — no sessionId argument.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Display title for the artifact.' },
+        kind: { type: 'string', enum: ['markdown', 'html'], description: 'Renderable content kind.' },
+        content: { type: 'string', description: 'The artifact body (markdown or HTML source).' },
+      },
+      required: ['title', 'kind', 'content'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'artifact_update',
+    title: 'Update Artifact',
+    description:
+      'Append a NEW version to an existing artifact you created and bring it forward in the viewer. Use to revise a report/analysis/result as your work progresses. Prior versions are retained; the newest becomes the live content. Returns the updated artifact. Use for user-facing content only, not code.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'The artifact id to revise.' },
+        content: { type: 'string', description: 'The new full content body (becomes the latest version).' },
+      },
+      required: ['id', 'content'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'artifact_show',
+    title: 'Show Artifact',
+    description:
+      'Bring an existing artifact forward in the user\'s in-app viewer without changing its content. Use to re-surface a report/analysis you already created so the user looks at it again.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'The artifact id to reveal.' },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'artifact_delete',
+    title: 'Delete Artifact',
+    description: 'Delete a single artifact by id from this session\'s in-app Artifact panel.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'The artifact id to delete.' },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'artifact_delete_all',
+    title: 'Delete All Artifacts',
+    description: 'Clear ALL artifacts for THIS session (resolved from your auth context). Use to tidy up the panel when your reports are no longer needed.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'artifact_list',
+    title: 'List Artifacts',
+    description:
+      'List THIS session\'s artifacts (resolved from your auth context) so you can see the reports/analyses you have already produced. Returns id, title, kind, version count, and timestamps for each — call artifact_get(id) to re-read full content.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'artifact_get',
+    title: 'Get Artifact',
+    description:
+      'Re-read one of your own artifacts by id. Returns the latest version by default, or the given version number\'s content. Use this to recover the content of a report/analysis you authored earlier this session.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'The artifact id to read.' },
+        version: { type: 'number', description: 'Optional 1-based version number; omit for the latest.' },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
 ];
 

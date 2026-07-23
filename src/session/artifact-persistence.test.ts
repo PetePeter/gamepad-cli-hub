@@ -1,0 +1,91 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { Artifact } from '../types/artifact.js';
+
+// Mock the file layer so persistence can be exercised without touching disk.
+const files = new Map<string, string>();
+
+vi.mock('./persistence-utils.js', async () => {
+  const actual = await vi.importActual<typeof import('./persistence-utils.js')>('./persistence-utils.js');
+  return {
+    ...actual,
+    atomicWriteFileSync: (filePath: string, content: string) => {
+      files.set(filePath, content);
+    },
+  };
+});
+
+vi.mock('node:fs', async () => {
+  const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
+  return {
+    ...actual,
+    existsSync: (p: string) => files.has(String(p)),
+    readFileSync: (p: string) => {
+      const v = files.get(String(p));
+      if (v === undefined) throw new Error('ENOENT');
+      return v;
+    },
+  };
+});
+
+import { saveArtifacts, loadArtifacts } from './artifact-persistence.js';
+import { ARTIFACTS_FILE } from './persistence-paths.js';
+
+function makeArtifact(overrides: Partial<Artifact> = {}): Artifact {
+  return {
+    id: 'a1',
+    sessionId: 's1',
+    title: 'Report',
+    kind: 'markdown',
+    versions: [{ version: 1, content: 'body', createdAt: 100 }],
+    createdAt: 100,
+    updatedAt: 100,
+    ...overrides,
+  };
+}
+
+describe('artifact-persistence', () => {
+  beforeEach(() => files.clear());
+  afterEach(() => vi.clearAllMocks());
+
+  it('round-trips save -> load with equality', () => {
+    const data: Record<string, Artifact[]> = {
+      s1: [makeArtifact()],
+      s2: [makeArtifact({ id: 'a2', sessionId: 's2', title: 'Other', kind: 'html' })],
+    };
+    saveArtifacts(data);
+    const loaded = loadArtifacts();
+    expect(loaded).toEqual(data);
+  });
+
+  it('returns {} when the file does not exist', () => {
+    expect(loadArtifacts()).toEqual({});
+  });
+
+  it('drops malformed / garbage entries on load', async () => {
+    const YAML = await importYaml();
+    files.set(ARTIFACTS_FILE, YAML.stringify({
+      artifacts: {
+        good: [makeArtifact()],
+        bad1: 'not-an-array',
+        bad2: [{ id: 'x' /* missing fields */ }],
+        bad3: [{ ...makeArtifact(), versions: 'nope' }],
+        empty: [],
+      },
+    }));
+
+    const loaded = loadArtifacts();
+    expect(Object.keys(loaded)).toEqual(['good']);
+    expect(loaded.good).toHaveLength(1);
+  });
+
+  it('returns {} when the payload is entirely garbage', async () => {
+    const YAML = await importYaml();
+    files.set(ARTIFACTS_FILE, YAML.stringify({ artifacts: 42 }));
+    expect(loadArtifacts()).toEqual({});
+  });
+});
+
+// yaml is a runtime dep; import lazily to avoid top-level await in test setup.
+async function importYaml() {
+  return await import('yaml');
+}

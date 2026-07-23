@@ -3,6 +3,7 @@ import type { HelmControlService } from '../helm-control-service.js';
 import type { AuthContext } from './types.js';
 import {
   asAiagentState,
+  asArtifactKind,
   asContextBindingTargetType,
   asPlanFilter,
   asPlanStatus,
@@ -12,6 +13,22 @@ import {
   requireBooleanResult,
   requireResult,
 } from './validation.js';
+
+/**
+ * Resolve the caller's own session for session-scoped tools (artifacts). The
+ * only trustworthy identity is the server-derived authContext.sessionId; throw
+ * a clear error when Helm did not inject it, mirroring telegram_chat.
+ */
+function requireCallerSession(authContext: AuthContext, tool: string): string {
+  if (!authContext.sessionId) {
+    throw new Error(
+      `${tool} could not determine your session. Call session_info to get your own ` +
+        'sessionId and ensure Helm injected the X-Helm-Session-Id header ' +
+        '(HELM_SESSION_ID env var) at startup.',
+    );
+  }
+  return authContext.sessionId;
+}
 
 export interface McpToolDispatcherDeps {
   service: HelmControlService;
@@ -573,6 +590,47 @@ export async function callMcpTool(
         return service.cancelScheduledTask(asString(args.id, 'id is required'));
       case 'scheduler_delete':
         return service.deleteScheduledTask(asString(args.id, 'id is required'));
+      case 'artifact_create': {
+        const sessionId = requireCallerSession(authContext, 'artifact_create');
+        return service.createArtifact(
+          sessionId,
+          asString(args.title, 'title is required'),
+          asArtifactKind(args.kind),
+          asString(args.content, 'content is required'),
+        );
+      }
+      case 'artifact_update': {
+        const sessionId = requireCallerSession(authContext, 'artifact_update');
+        return service.updateArtifact(
+          sessionId,
+          asString(args.id, 'id is required'),
+          asString(args.content, 'content is required'),
+        );
+      }
+      case 'artifact_show': {
+        const sessionId = requireCallerSession(authContext, 'artifact_show');
+        return service.showArtifact(sessionId, asString(args.id, 'id is required'));
+      }
+      case 'artifact_delete': {
+        const sessionId = requireCallerSession(authContext, 'artifact_delete');
+        return service.deleteArtifact(sessionId, asString(args.id, 'id is required'));
+      }
+      case 'artifact_delete_all': {
+        const sessionId = requireCallerSession(authContext, 'artifact_delete_all');
+        return service.deleteAllArtifacts(sessionId);
+      }
+      case 'artifact_list': {
+        const sessionId = requireCallerSession(authContext, 'artifact_list');
+        return service.listArtifacts(sessionId);
+      }
+      case 'artifact_get': {
+        const sessionId = requireCallerSession(authContext, 'artifact_get');
+        return service.getArtifact(
+          sessionId,
+          asString(args.id, 'id is required'),
+          typeof args.version === 'number' ? args.version : undefined,
+        );
+      }
       default:
         throw new Error(`Unknown tool: ${name}`);
     }

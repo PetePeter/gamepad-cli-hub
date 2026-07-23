@@ -12,9 +12,14 @@ describe('getSessionInfo', () => {
   const mgr = new FakeSessionManager() as any;
 
   describe('response shape', () => {
-    it('has exactly your_session_id, your_working_dir, helm_workflow', () => {
+    it('has exactly artifact_viewer, your_session_id, your_working_dir, helm_workflow', () => {
       const info = getSessionInfo(mgr, authContext);
-      expect(Object.keys(info).sort()).toEqual(['helm_workflow', 'your_session_id', 'your_working_dir']);
+      expect(Object.keys(info).sort()).toEqual(['artifact_viewer', 'helm_workflow', 'your_session_id', 'your_working_dir']);
+    });
+
+    it('artifact_viewer advertises the artifact tools', () => {
+      const info = getSessionInfo(mgr, authContext);
+      expect(info.artifact_viewer).toContain('artifact_create');
     });
 
     it('your_session_id reflects authContext', () => {

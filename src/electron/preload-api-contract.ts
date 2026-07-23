@@ -205,6 +205,14 @@ export const PRELOAD_API_DOMAINS = {
     'runtimeGroupCloseGroup',
     'runtimeGroupReattach',
   ],
+  artifacts: [
+    'artifactList',
+    'artifactGet',
+    'artifactDelete',
+    'artifactDeleteAll',
+    'artifactReveal',
+    'artifactExport',
+  ],
   patterns: [
     'toolsGetPatterns',
     'toolsAddPattern',
@@ -282,6 +290,8 @@ export const PRELOAD_API_DOMAINS = {
     'onScheduledTaskHistoryChanged',
     'onRecycleBinChanged',
     'onRuntimeGroupChanged',
+    'onArtifactChanged',
+    'onArtifactReveal',
     'onPromptTemplateChanged',
     'onAppCloseRequest',
   ],

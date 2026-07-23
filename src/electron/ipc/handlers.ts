@@ -25,6 +25,8 @@ import { ScheduledTaskHistoryManager } from '../../session/scheduled-task-histor
 import { RecycleBinManager, recordRemovedSession } from '../../session/recycle-bin-manager.js';
 import { RuntimeGroupManager } from '../../session/runtime-group-manager.js';
 import { saveRuntimeGroups, loadRuntimeGroups } from '../../session/runtime-group-persistence.js';
+import { ArtifactManager } from '../../session/artifact-manager.js';
+import { saveArtifacts, loadArtifacts } from '../../session/artifact-persistence.js';
 import { setupPowerMonitor } from '../../session/power-monitor.js';
 import { ConfigLoader } from '../../config/loader.js';
 import { keyboard } from '../../output/keyboard.js';
@@ -48,6 +50,7 @@ import { setupPlanHandlers } from './plan-handlers.js';
 import { setupScheduledTaskHandlers } from './scheduled-task-handlers.js';
 import { setupRecycleBinHandlers } from './recycle-bin-handlers.js';
 import { setupRuntimeGroupHandlers } from './runtime-group-handlers.js';
+import { setupArtifactHandlers } from './artifact-handlers.js';
 import { setupBackupPlanHandlers } from './plan-backup-handlers.js';
 import { setupProjectHandlers } from './project-handlers.js';
 import { setupSkillHandlers } from './skill-handlers.js';
@@ -114,6 +117,8 @@ export function registerIPCHandlers(
   const stateDetector = new StateDetector();
   const pipelineQueue = new PipelineQueue();
   const draftManager = new DraftManager(saveDrafts);
+  const artifactManager = new ArtifactManager((all) => saveArtifacts(all));
+  artifactManager.importAll(loadArtifacts());
   const planManager = new PlanManager(projectStore);
   const contextManager = new ContextManager(planManager);
   const getSkillsPath = (configLoader as ConfigLoader & { getSkillsPath?: () => string }).getSkillsPath;
@@ -137,6 +142,7 @@ export function registerIPCHandlers(
   const helmControlService = new HelmControlService(planManager, sessionManager, ptyManager, configLoader, undefined, contextManager, scheduledTaskManager, projectStore, skillManager, skillAnalyticsManager);
   helmControlService.setNotificationManager(notificationManager);
   helmControlService.setRuntimeGroupManager(runtimeGroupManager);
+  helmControlService.setArtifactManager(artifactManager);
 
   const telegramBot = new TelegramBotCore();
   const topicManager = new TopicManager(telegramBot, sessionManager, configLoader.getTelegramConfig().instanceName);
@@ -166,6 +172,16 @@ export function registerIPCHandlers(
   // Restore sessions persisted from previous run
   const restored = sessionManager.restoreSessions();
   logger.info(`[IPC] Restored ${restored.length} session(s) from previous run`);
+
+  // Artifacts are ephemeral to a session. On a clean close they are dropped via
+  // the session:removed listener, but a crash can leave orphans in artifacts.yaml
+  // for sessions that did not survive the restore. Drop those now — live restored
+  // sessions keep theirs; closed/recycle-restored sessions get a fresh id and so
+  // never match an orphaned key.
+  const liveSessionIds = new Set(sessionManager.getAllSessions().map(s => s.id));
+  for (const sessionId of Object.keys(artifactManager.exportAll())) {
+    if (!liveSessionIds.has(sessionId)) artifactManager.clearSession(sessionId);
+  }
 
   draftManager.importAll(loadDrafts());
   // PlanManager loads from disk in its constructor — no explicit importAll needed
@@ -207,6 +223,33 @@ export function registerIPCHandlers(
   setupScheduledTaskHandlers(scheduledTaskManager, scheduledTaskHistoryManager, windowManager);
   setupRecycleBinHandlers(recycleBinManager, windowManager);
   setupRuntimeGroupHandlers(runtimeGroupManager, windowManager);
+  setupArtifactHandlers(artifactManager, windowManager);
+
+  // Forward artifact mutations/reveals to the main window AND the session's own
+  // popout window (mirrors the session:updated dual-window forwarding below), so
+  // whichever window is showing the session sees the change. Channel literals are
+  // spelled out per-window so the IPC contract test can find the main sender.
+  const artifactWindowsFor = (sessionId: string): BrowserWindow[] => {
+    const targets: BrowserWindow[] = [];
+    const mainWin = windowManager.getMainWindow();
+    if (mainWin && !mainWin.isDestroyed()) targets.push(mainWin);
+    const sessionWindowId = windowManager.getWindowIdForSession(sessionId);
+    if (sessionWindowId !== undefined) {
+      const sessionWindow = windowManager.getWindow(sessionWindowId);
+      if (sessionWindow && !sessionWindow.isDestroyed()) targets.push(sessionWindow);
+    }
+    return targets;
+  };
+  artifactManager.on('artifact:changed', (sessionId: string) => {
+    for (const win of artifactWindowsFor(sessionId)) {
+      win.webContents.send('artifact:changed', { sessionId });
+    }
+  });
+  artifactManager.on('artifact:reveal', (sessionId: string, artifactId: string) => {
+    for (const win of artifactWindowsFor(sessionId)) {
+      win.webContents.send('artifact:reveal', { sessionId, artifactId });
+    }
+  });
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, undefined, undefined, undefined, patternMatcher);
   setupBackupPlanHandlers(ipcMain, windowManager, () => backupManager);
   const cleanupPromptTemplates = promptTemplatesPath
@@ -279,6 +322,10 @@ export function registerIPCHandlers(
       runtimeGroup ? { id: runtimeGroup.id, name: runtimeGroup.name } : undefined,
     );
     runtimeGroupManager.removeSessionEverywhere(event.sessionId);
+
+    // Artifacts are ephemeral to a live session — drop them on close. Recycle-bin
+    // restore mints a fresh sessionId, so a restored session naturally has none.
+    artifactManager.clearSession(event.sessionId);
 
     if (!telegramBot.isRunning()) return;
     telegramNotifier.removeSession(event.sessionId);

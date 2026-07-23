@@ -4,6 +4,7 @@ import type { DraftPrompt } from '../../types/session.js';
 import type { ScheduledTaskHistoryEntry } from '../../types/scheduled-task.js';
 import type { RecycleBinEntry } from '../../types/recycle-bin.js';
 import type { RuntimeGroup } from '../../types/runtime-group.js';
+import type { Artifact } from '../../types/artifact.js';
 import {
   createPreloadDomains,
   type HelmPreloadApi,
@@ -1032,6 +1033,42 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     const listener = () => callback();
     ipcRenderer.on('recycle-bin:changed', listener);
     return () => ipcRenderer.removeListener('recycle-bin:changed', listener);
+  },
+
+  // ========================================================================
+  // Artifacts (versioned renderable session outputs; AI-authored via MCP)
+  // ========================================================================
+
+  /** List a session's artifacts (newest-updated first) */
+  artifactList: (sessionId: string): Promise<Artifact[]> => ipcRenderer.invoke('artifact:list', sessionId),
+
+  /** Get a single artifact by id (or null if unknown) */
+  artifactGet: (artifactId: string): Promise<Artifact | null> => ipcRenderer.invoke('artifact:get', artifactId),
+
+  /** Delete a single artifact by id */
+  artifactDelete: (artifactId: string): Promise<boolean> => ipcRenderer.invoke('artifact:delete', artifactId),
+
+  /** Delete every artifact owned by a session */
+  artifactDeleteAll: (sessionId: string): Promise<boolean> => ipcRenderer.invoke('artifact:deleteAll', sessionId),
+
+  /** Bring an artifact forward in the viewer without mutating it */
+  artifactReveal: (artifactId: string): Promise<boolean> => ipcRenderer.invoke('artifact:reveal', artifactId),
+
+  /** Export an artifact's latest version to a user-chosen file; returns the path or null */
+  artifactExport: (artifactId: string): Promise<string | null> => ipcRenderer.invoke('artifact:export', artifactId),
+
+  /** Subscribe to artifact mutation events for a session */
+  onArtifactChanged: (callback: (event: { sessionId: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: { sessionId: string }) => callback(data);
+    ipcRenderer.on('artifact:changed', listener);
+    return () => ipcRenderer.removeListener('artifact:changed', listener);
+  },
+
+  /** Subscribe to artifact reveal (bring-forward) events */
+  onArtifactReveal: (callback: (event: { sessionId: string; artifactId: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: { sessionId: string; artifactId: string }) => callback(data);
+    ipcRenderer.on('artifact:reveal', listener);
+    return () => ipcRenderer.removeListener('artifact:reveal', listener);
   },
 
   // ========================================================================
