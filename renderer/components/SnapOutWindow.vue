@@ -82,7 +82,7 @@ function onArtifactShortcut(e: KeyboardEvent): void {
 const { splitterRef: artifactSplitterRef, panelRef: artifactPanelRef } = usePanelResize({
   onResized: () => { view?.fit(); },
   minWidth: 320,
-  maxWidth: 900,
+  // No max — the panel may grow to cover the whole terminal (viewport-clamped).
   defaultWidth: 480,
   storageKey: 'helm:artifact-panel-width',
   fromRight: true,

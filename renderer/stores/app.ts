@@ -24,6 +24,7 @@ export const appState: AppState = reactive({
   sessionActivityLevels: new Map(),
   lastOutputTimes: new Map(),
   draftCounts: new Map(),
+  artifactCounts: new Map(),
   planCodingCounts: new Map(),
   planStartableCounts: new Map(),
   planDirStartableCounts: new Map(),

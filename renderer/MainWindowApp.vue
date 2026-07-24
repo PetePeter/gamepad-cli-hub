@@ -350,7 +350,8 @@ const { splitterRef, panelRef } = usePanelResize({
 const { splitterRef: artifactSplitterRef, panelRef: artifactPanelRef } = usePanelResize({
   onResized: () => { getTerminalManager()?.fitActive(); },
   minWidth: 320,
-  maxWidth: 900,
+  // No max — the panel may grow to cover the whole terminal (the composable still
+  // clamps to the viewport; the terminal column has min-width:0 so it shrinks away).
   defaultWidth: 480,
   storageKey: 'helm:artifact-panel-width',
   fromRight: true,
@@ -605,6 +606,13 @@ function onArtifactShortcut(e: KeyboardEvent): void {
 // is available there and never shown in two windows at once.
 function onArtifactPopOut(): void {
   if (state.activeSessionId) void onSessionSnapOut(state.activeSessionId);
+}
+
+// Session-card 📄 badge: an additional entry point that SHOWS (never toggles)
+// the artifact panel for that session — activate it, then reveal the panel.
+function onShowArtifactsForSession(sessionId: string): void {
+  onSessionClick(sessionId);
+  artifactViewer.showPanel();
 }
 
 // Context menu
@@ -1018,20 +1026,6 @@ onUnmounted(() => {
           <span class="sidebar-tagline">steer your fleet of agents</span>
         </span>
         <div class="sidebar-actions">
-          <button
-            class="sidebar-btn artifact-toggle-btn"
-            :class="{ 'artifact-toggle-btn--on': artifactViewer.panelVisible.value }"
-            title="Toggle artifact panel (Ctrl+Shift+A)"
-            :disabled="!hasActiveSession"
-            @click="artifactViewer.togglePanel()"
-          >
-            📄
-            <span
-              v-if="artifactBadge > 0"
-              class="artifact-toggle-badge"
-              :class="{ 'artifact-toggle-badge--pulse': artifactHasUnread }"
-            >{{ artifactBadge }}</span>
-          </button>
           <button class="sidebar-btn" title="User Guide" @click="onOpenHelp">ℹ️</button>
           <button class="sidebar-btn" title="Open Logs Folder" @click="onOpenLogsFolder">🐛</button>
           <button class="sidebar-btn" title="Settings" @click="onOpenSettings">⚙</button>
@@ -1067,6 +1061,7 @@ onUnmounted(() => {
             :session-states="state.sessionStates"
             :session-activity-levels="state.sessionActivityLevels"
             :draft-counts="state.draftCounts"
+            :artifact-counts="state.artifactCounts"
             :working-plan-labels="state.workingPlanLabels"
             :working-plan-tooltips="state.workingPlanTooltips"
             :pending-schedules="state.pendingSchedules"
@@ -1094,6 +1089,7 @@ onUnmounted(() => {
             @request-close="onRequestClose"
             @session-state-change="onSessionStateChange"
             @toggle-overview="onToggleOverview"
+            @show-artifacts="onShowArtifactsForSession"
             @cancel-schedule="onCancelSchedule"
             @dismiss-notification="llmNotificationsStore.dismiss"
             @dismiss-session-notifications="llmNotificationsStore.dismissSession"

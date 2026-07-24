@@ -26,6 +26,15 @@ export function setupArtifactHandlers(
     return artifactManager.getForSession(sessionId);
   });
 
+  // Version-agnostic artifact count per session, for the session-card badges.
+  ipcMain.handle('artifact:counts', (): Record<string, number> => {
+    const counts: Record<string, number> = {};
+    for (const [sessionId, artifacts] of Object.entries(artifactManager.exportAll())) {
+      counts[sessionId] = artifacts.length;
+    }
+    return counts;
+  });
+
   ipcMain.handle('artifact:get', (_event, artifactId: string) => {
     return artifactManager.get(artifactId);
   });

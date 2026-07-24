@@ -1045,6 +1045,9 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   /** List a session's artifacts (newest-updated first) */
   artifactList: (sessionId: string): Promise<Artifact[]> => ipcRenderer.invoke('artifact:list', sessionId),
 
+  /** Version-agnostic artifact count per session (for session-card badges) */
+  artifactCounts: (): Promise<Record<string, number>> => ipcRenderer.invoke('artifact:counts'),
+
   /** Get a single artifact by id (or null if unknown) */
   artifactGet: (artifactId: string): Promise<Artifact | null> => ipcRenderer.invoke('artifact:get', artifactId),
 

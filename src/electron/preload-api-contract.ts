@@ -208,6 +208,7 @@ export const PRELOAD_API_DOMAINS = {
   ],
   artifacts: [
     'artifactList',
+    'artifactCounts',
     'artifactGet',
     'artifactDelete',
     'artifactDeleteAll',

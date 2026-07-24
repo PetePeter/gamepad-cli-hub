@@ -64,6 +64,7 @@ const props = defineProps<{
   sessionStates: Map<string, string>;
   sessionActivityLevels: Map<string, string>;
   draftCounts: Map<string, number>;
+  artifactCounts: Map<string, number>;
   workingPlanLabels: Map<string, string>;
   workingPlanTooltips: Map<string, string>;
   pendingSchedules: Map<string, string>;
@@ -94,6 +95,7 @@ const emit = defineEmits<{
   requestClose: [sessionId: string, displayName: string];
   sessionStateChange: [sessionId: string, newState: string];
   toggleOverview: [sessionId: string];
+  showArtifacts: [sessionId: string];
   cancelSchedule: [sessionId: string];
   dismissNotification: [notificationId: string];
   dismissSessionNotifications: [sessionId: string];
@@ -211,6 +213,7 @@ function onNewGroupDrop(e: DragEvent): void {
               :activity-level="sessionActivityLevels.get(session.id) || 'idle'"
               :display-name="session.name !== session.cliType ? session.name : getCliDisplayName(session.cliType)"
               :draft-count="draftCounts.get(session.id) ?? 0"
+              :artifact-count="artifactCounts.get(session.id) ?? 0"
               :elapsed-text="sessionElapsedText(session.id)"
               :working-plan-label="workingPlanLabels.get(session.id) || ''"
               :working-plan-tooltip="workingPlanTooltips.get(session.id) || ''"
@@ -231,6 +234,7 @@ function onNewGroupDrop(e: DragEvent): void {
               @close="onRequestClose"
               @state-change="onSessionStateChange"
               @toggle-overview="emit('toggleOverview', $event)"
+              @show-artifacts="emit('showArtifacts', $event)"
               @cancel-schedule="emit('cancelSchedule', $event)"
               @dismiss-notification="emit('dismissNotification', $event)"
               @dismiss-session-notifications="emit('dismissSessionNotifications', $event)"

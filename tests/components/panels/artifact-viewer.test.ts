@@ -100,18 +100,33 @@ describe('ArtifactViewer', () => {
     expect(w.find('.ap-doc').html()).toContain('Newest content');
   });
 
-  it('deletes the selected artifact via the client and reloads', async () => {
+  it('deletes an artifact via the rail per-item control after confirm', async () => {
     const { w } = await mountWith([makeArtifact()]);
 
-    // After delete, the list is empty on reload.
+    // First click arms the inline confirm — nothing is deleted yet.
+    await w.find('.ap-it-del').trigger('click');
+    await flushPromises();
+    expect(artifactDelete).not.toHaveBeenCalled();
+    expect(w.find('.ap-it-confirm').exists()).toBe(true);
+
+    // Confirm actually deletes; the list is empty on reload.
     artifactList.mockResolvedValue([]);
-    const deleteBtn = w.findAll('.ap-btn').find((b) => b.text().includes('Delete'));
-    await deleteBtn!.trigger('click');
+    await w.find('.ap-it-confirm-yes').trigger('click');
     await flushPromises();
 
     expect(artifactDelete).toHaveBeenCalledWith('a1');
     expect(w.findAll('.ap-item')).toHaveLength(0);
     expect(w.find('.ap-detail-empty').exists()).toBe(true);
+  });
+
+  it('cancel on the rail confirm does not delete', async () => {
+    const { w } = await mountWith([makeArtifact()]);
+    await w.find('.ap-it-del').trigger('click');
+    await flushPromises();
+    await w.find('.ap-it-confirm-no').trigger('click');
+    await flushPromises();
+    expect(artifactDelete).not.toHaveBeenCalled();
+    expect(w.find('.ap-it-confirm').exists()).toBe(false);
   });
 
   it('filters the rail by search query', async () => {
@@ -123,18 +138,6 @@ describe('ArtifactViewer', () => {
 
     const titles = w.findAll('.ap-it-title').map((t) => t.text());
     expect(titles).toEqual(['Perf Benchmark']);
-  });
-
-  it('clears all artifacts for the session', async () => {
-    const { w } = await mountWith([makeArtifact()]);
-
-    artifactList.mockResolvedValue([]);
-    const clearBtn = w.findAll('.ap-btn').find((b) => b.text() === 'Clear all');
-    await clearBtn!.trigger('click');
-    await flushPromises();
-
-    expect(artifactDeleteAll).toHaveBeenCalledWith('sess-1');
-    expect(w.findAll('.ap-item')).toHaveLength(0);
   });
 
   it('emits close and pop-out from the header', async () => {

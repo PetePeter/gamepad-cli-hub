@@ -34,6 +34,7 @@ export interface SessionCardProps {
   activityLevel: string;
   displayName: string;
   draftCount: number;
+  artifactCount: number;
   elapsedText: string;
   workingPlanLabel: string;
   workingPlanTooltip: string;
@@ -73,6 +74,7 @@ const emit = defineEmits<{
   close: [sessionId: string, displayName: string];
   stateChange: [sessionId: string, newState: string];
   toggleOverview: [sessionId: string];
+  showArtifacts: [sessionId: string];
   cancelSchedule: [sessionId: string];
   dismissNotification: [notificationId: string];
   dismissSessionNotifications: [sessionId: string];
@@ -268,6 +270,15 @@ function onCardClick(e: MouseEvent): void {
 
       <!-- Draft badge -->
       <span v-if="draftCount > 0" class="draft-badge">📝{{ draftCount }}</span>
+
+      <!-- Artifact badge — click to show this session's artifact panel -->
+      <button
+        v-if="artifactCount > 0"
+        class="artifact-badge"
+        type="button"
+        :title="`Show ${artifactCount} artifact${artifactCount === 1 ? '' : 's'}`"
+        @click.stop="emit('showArtifacts', session.id)"
+      >📄{{ artifactCount }}</button>
 
       <span style="flex: 1" />
 

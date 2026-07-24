@@ -61,6 +61,8 @@ export interface AppState {
   lastOutputTimes: Map<string, number>;
   /** Per-session draft count cache */
   draftCounts: Map<string, number>;
+  /** Per-session artifact count cache (version-agnostic — number of artifacts) */
+  artifactCounts: Map<string, number>;
   /** Per-session plan coding count cache */
   planCodingCounts: Map<string, number>;
   /** Per-session plan startable count cache */

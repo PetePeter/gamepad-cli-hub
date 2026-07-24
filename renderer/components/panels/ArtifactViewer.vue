@@ -170,9 +170,12 @@ const count = computed(() => artifacts.value.length);
 // ── Actions ────────────────────────────────────────────────────────────────
 
 function onSelect(id: string): void { viewer.select(id); }
-function onDeleteItem(id: string): void { void viewer.remove(id); }
-function onDeleteSelected(): void { if (selectedId.value) void viewer.remove(selectedId.value); }
-function onClearAll(): void { void viewer.clearAll(props.sessionId); }
+// Per-artifact delete is guarded by an inline confirm so it can't be a one-click
+// accident. onDeleteItem arms the confirm; confirmDelete actually removes.
+const confirmDeleteId = ref<string | null>(null);
+function onDeleteItem(id: string): void { confirmDeleteId.value = id; }
+function confirmDelete(id: string): void { confirmDeleteId.value = null; void viewer.remove(id); }
+function cancelDelete(): void { confirmDeleteId.value = null; }
 function onExport(): void { if (selectedId.value) void viewer.export(selectedId.value); }
 
 /**
@@ -253,7 +256,12 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
                     <span>{{ relativeTime(row.artifact!.updatedAt) }}</span>
                   </div>
                 </div>
-                <button class="ap-it-del" title="Delete" @click.stop="onDeleteItem(row.artifact!.id)">🗑</button>
+                <span v-if="confirmDeleteId === row.artifact!.id" class="ap-it-confirm" @click.stop>
+                  <span class="ap-it-confirm-label">Delete?</span>
+                  <button class="ap-it-confirm-yes" title="Confirm delete" @click.stop="confirmDelete(row.artifact!.id)">✓</button>
+                  <button class="ap-it-confirm-no" title="Cancel" @click.stop="cancelDelete()">✕</button>
+                </span>
+                <button v-else class="ap-it-del" title="Delete" @click.stop="onDeleteItem(row.artifact!.id)">🗑</button>
               </div>
             </template>
           </div>
@@ -298,9 +306,7 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
 
         <div class="ap-foot">
           <button class="ap-btn" title="Save to a location you pick" :disabled="!selected" @click="onExport">⭳ Export…</button>
-          <button class="ap-btn ap-btn--danger" title="Delete this artifact" :disabled="!selected" @click="onDeleteSelected">🗑 Delete</button>
           <span class="ap-grow"></span>
-          <button class="ap-btn ap-btn--danger" title="Delete every artifact in this session" :disabled="count === 0" @click="onClearAll">Clear all</button>
         </div>
       </div>
     </div>
@@ -361,8 +367,13 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
 .ap-kind--md { color: var(--accent); }
 .ap-kind--html { color: var(--blue, #6c8cff); }
 .ap-vcount { color: var(--text-dim); }
-.ap-it-del { opacity: 0; color: var(--text-dim); font-size: 0.8rem; margin-top: 2px; background: none; border: none; }
+.ap-it-del { opacity: 0.65; color: var(--text-primary); font-size: 0.85rem; margin-top: 2px; background: none; border: none; cursor: pointer; }
 .ap-it-del:hover { color: var(--red, #ff6666); }
+.ap-it-confirm { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; margin-top: 2px; }
+.ap-it-confirm-label { font-size: 0.68rem; color: var(--text-primary); }
+.ap-it-confirm-yes, .ap-it-confirm-no { background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary); font-size: 0.72rem; cursor: pointer; padding: 0 5px; line-height: 1.4; }
+.ap-it-confirm-yes:hover { border-color: var(--red, #ff6666); color: var(--red, #ff6666); }
+.ap-it-confirm-no:hover { border-color: var(--accent); color: var(--accent); }
 
 /* detail */
 .ap-detail { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg-primary); }

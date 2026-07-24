@@ -31,6 +31,7 @@ import '../screens/sessions-spawn.js';
 import { setTerminalManagerGetter as setSpawnTerminalManagerGetter } from '../screens/sessions-spawn.js';
 import { getTabCycleSessionIds, updateSessionsFocus } from '../screens/sessions.js';
 import {
+  artifactsClient,
   configClient,
   draftsClient,
   eventsClient,
@@ -233,7 +234,20 @@ export async function refreshSessions(): Promise<void> {
 
   // Refresh draft counts
   await refreshDraftCounts();
+  await refreshArtifactCounts();
   await refreshPlanCounts();
+}
+
+/** Refresh the per-session artifact-count cache that drives the card badges. */
+async function refreshArtifactCounts(): Promise<void> {
+  if (!artifactsClient.artifactCounts) return;
+  try {
+    const counts = await artifactsClient.artifactCounts();
+    state.artifactCounts.clear();
+    for (const [sessionId, n] of Object.entries(counts)) {
+      if (n > 0) state.artifactCounts.set(sessionId, n);
+    }
+  } catch { /* ignore */ }
 }
 
 async function refreshDraftCounts(): Promise<void> {
@@ -449,6 +463,7 @@ function cleanupRendererSession(sessionId: string, detachTerminal = false): void
   state.sessionActivityLevels.delete(sessionId);
   state.lastOutputTimes.delete(sessionId);
   state.draftCounts.delete(sessionId);
+  state.artifactCounts.delete(sessionId);
   state.planCodingCounts.delete(sessionId);
   state.planStartableCounts.delete(sessionId);
   state.workingPlanLabels.delete(sessionId);
@@ -525,6 +540,9 @@ function setupIpcListeners(): void {
     cleanupRendererSession(sessionId, true);
     void refreshSessions();
   });
+
+  // Keep the session-card artifact badges live.
+  eventsClient.onArtifactChanged?.(() => { void refreshArtifactCounts(); });
 
   eventsClient.onNotificationClick((event) => {
     const session = state.sessions.find(s => s.id === event.sessionId);
