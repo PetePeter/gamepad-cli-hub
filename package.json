@@ -58,11 +58,12 @@
     "mac": {
       "icon": "build/icon.icns",
       "category": "public.app-category.developer-tools",
+      "x64ArchFiles": "**/{prebuilds,bin}/**",
       "target": [
         {
           "target": "dmg",
           "arch": [
-            "x64"
+            "universal"
           ]
         }
       ]

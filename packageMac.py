@@ -3,7 +3,8 @@
  Helm macOS Packager — mac counterpart of prepareDeploy.py's packaging step.
 
  Builds the app and produces release/Helm-<version>.dmg containing Helm.app
- with an /Applications symlink.
+ with an /Applications symlink. The app is a universal binary (arm64 + x64)
+ so it runs natively on Apple Silicon and Intel Macs — no Rosetta on arm64.
 
  Why not electron-builder's dmg target: its bundled dmgbuild tool requires
  Homebrew gettext and a Python built for a newer macOS than this machine runs
@@ -53,14 +54,15 @@ def main() -> None:
         sys.exit(1)
 
     version = json.loads(Path("package.json").read_text())["version"]
-    print(f"[INFO] Packaging Helm {version} for macOS x64")
+    print(f"[INFO] Packaging Helm {version} for macOS (universal: arm64 + x64)")
 
     create_deploy_configs()
     run("npm run build")
     # --dir: build the .app only; the dmg is created below with hdiutil.
-    run("npx electron-builder --mac --x64 --dir")
+    # --universal: lipo-merge arm64 + x64 into one bundle (Apple-style fat binary).
+    run("npx electron-builder --mac --universal --dir")
 
-    app = Path("release/mac/Helm.app")
+    app = Path("release/mac-universal/Helm.app")
     if not app.exists():
         print(f"[ERROR] {app} not found after build")
         sys.exit(1)
