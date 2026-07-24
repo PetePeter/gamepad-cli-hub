@@ -46,7 +46,10 @@ describe('PlanAttachmentManager', () => {
     expect(readFileSync(result.tempPath, 'utf8')).toBe('{"ok":true}');
   });
 
-  it('sanitizes traversal-style filenames and keeps storage under the config directory', () => {
+  // Windows-only: path.basename splits on '\\' only on win32, so a backslash
+  // traversal prefix is stripped there but not on posix. Gated accordingly,
+  // with a posix counterpart below using forward-slash traversal.
+  it.runIf(process.platform === 'win32')('sanitizes traversal-style filenames and keeps storage under the config directory', () => {
     const attachment = manager.add('plan-1', {
       filename: '..\\..\\secret?.txt',
       content: Buffer.from('secret', 'utf8'),
@@ -54,6 +57,43 @@ describe('PlanAttachmentManager', () => {
 
     expect(attachment.filename).toBe('secret_.txt');
     expect(attachment.relativePath).not.toContain('..');
+
+    const result = manager.getToTempFile('plan-1', attachment.id);
+    expect(result.tempPath.startsWith(tempDir)).toBe(true);
+    expect(readFileSync(result.tempPath, 'utf8')).toBe('secret');
+  });
+
+  // Posix counterpart: forward-slash traversal is stripped by path.basename on
+  // all platforms; '?' and '*' are replaced with '_' by the sanitizer.
+  it.runIf(process.platform !== 'win32')('sanitizes posix traversal-style filenames and keeps storage under the config directory', () => {
+    const attachment = manager.add('plan-1', {
+      filename: '../../secret?.txt',
+      content: Buffer.from('secret', 'utf8'),
+    });
+
+    expect(attachment.filename).toBe('secret_.txt');
+    expect(attachment.relativePath).not.toContain('..');
+
+    const result = manager.getToTempFile('plan-1', attachment.id);
+    expect(result.tempPath.startsWith(tempDir)).toBe(true);
+    expect(readFileSync(result.tempPath, 'utf8')).toBe('secret');
+  });
+
+  // Posix safety check for the Windows-style payload: basename does not strip
+  // '..\\..\\' on posix, but the sanitizer replaces every '\\' with '_', so the
+  // result ('.._.._secret_.txt') is a single flat filename — the literal '..'
+  // substrings are not path segments and cannot traverse out of the config dir.
+  it.runIf(process.platform !== 'win32')('neutralizes backslash traversal filenames on posix without escaping the config directory', () => {
+    const attachment = manager.add('plan-1', {
+      filename: '..\\..\\secret?.txt',
+      content: Buffer.from('secret', 'utf8'),
+    });
+
+    expect(attachment.filename).toBe('.._.._secret_.txt');
+    // No '/' remains in the sanitized name, so relativePath has exactly one
+    // separator (planId/storedFile) and no '..' path segment.
+    expect(attachment.relativePath.split('/')).not.toContain('..');
+    expect(join(rootDir, attachment.relativePath).startsWith(rootDir)).toBe(true);
 
     const result = manager.getToTempFile('plan-1', attachment.id);
     expect(result.tempPath.startsWith(tempDir)).toBe(true);

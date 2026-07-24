@@ -450,7 +450,10 @@ describe('HelmControlService.spawnCli', () => {
     expect(result).toEqual({ ok: true });
   });
 
-  it('matches Windows session and plan directories case-insensitively when setting the working plan', () => {
+  // normalizeProjectPath lowercases paths only on win32, so case-insensitive
+  // directory matching is genuinely Windows-only behavior — gate it there and
+  // assert the case-sensitive Unix equivalent separately below.
+  it.runIf(process.platform === 'win32')('matches Windows session and plan directories case-insensitively when setting the working plan', () => {
     const { service, sessionManager } = makeService();
     const planManager = (service as any).planManager;
     (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -482,6 +485,40 @@ describe('HelmControlService.spawnCli', () => {
 
     expect(sessionManager.updateSession).toHaveBeenCalledWith('s1', { currentPlanId: 'plan-1' });
     expect(result).toEqual({ ok: true });
+  });
+
+  // Unix counterpart of the win32-gated test above: paths are case-sensitive on
+  // Unix, so an exact-case match succeeds while a case-variant directory is rejected.
+  it.runIf(process.platform !== 'win32')('matches Unix session and plan directories case-sensitively when setting the working plan', () => {
+    const { service, sessionManager } = makeService();
+    const planManager = (service as any).planManager;
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
+      id: 's1',
+      name: 'Claude',
+      cliType: 'claude-code',
+      workingDir: '/coding/gamepad-cli-hub',
+    });
+    const plan = {
+      id: 'plan-1',
+      dirPath: '/coding/gamepad-cli-hub',
+      title: 'Exact case',
+      description: 'Desc',
+      status: 'ready',
+    };
+    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({ status: 'found', item: plan });
+    (planManager.setState as ReturnType<typeof vi.fn>).mockReturnValue({ ...plan, status: 'coding', sessionId: 's1' });
+
+    const result = service.claimSessionPlan('s1', 'plan-1');
+
+    expect(sessionManager.updateSession).toHaveBeenCalledWith('s1', { currentPlanId: 'plan-1' });
+    expect(result).toEqual({ ok: true });
+
+    // A case-variant plan directory must NOT match on case-sensitive Unix paths.
+    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({
+      status: 'found',
+      item: { ...plan, dirPath: '/Coding/Gamepad-CLI-Hub' },
+    });
+    expect(() => service.claimSessionPlan('s1', 'plan-1')).toThrow('does not belong to session directory');
   });
 
   it('accepts P-id plan references when setting the explicit working plan', () => {

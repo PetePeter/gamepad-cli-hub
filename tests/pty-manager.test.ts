@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { PtyManager } from '../src/session/pty-manager';
+import { PtyManager, resolvePtyShell } from '../src/session/pty-manager';
 import type { PtyProcess, PtyFactory, PtySpawnOptions } from '../src/session/pty-manager';
+
+// Shell args the current platform's PTY is spawned with (Windows: none; Unix: -il login shell).
+const expectedShellArgs = process.platform === 'win32' ? [] : ['-il'];
 
 /** Create a mock PtyProcess with controllable callbacks. */
 function createMockPty(pid = 1234): {
@@ -74,7 +77,7 @@ describe('PtyManager', () => {
 
       expect(factory.spawn).toHaveBeenCalledWith(
         expect.any(String),
-        [],
+        expectedShellArgs,
         expect.objectContaining({ cols: 80, rows: 24 }),
       );
     });
@@ -88,11 +91,20 @@ describe('PtyManager', () => {
 
       expect(factory.spawn).toHaveBeenCalledWith(
         expect.any(String),
-        [],
+        expectedShellArgs,
         expect.objectContaining({
           env: expect.objectContaining({ COPILOT_MODEL: 'qwen/qwen3.6-35b-a3b' }),
         }),
       );
+    });
+
+    it('spawns cmd.exe on Windows and an interactive login $SHELL on Unix', () => {
+      expect(resolvePtyShell('win32', {})).toEqual({ file: 'cmd.exe', args: [] });
+      // Unix: prefers the user's own shell so profile PATH (~/.local/bin, /opt/homebrew/bin) is sourced.
+      expect(resolvePtyShell('darwin', { SHELL: '/bin/zsh' })).toEqual({ file: '/bin/zsh', args: ['-il'] });
+      expect(resolvePtyShell('linux', { SHELL: '/usr/bin/fish' })).toEqual({ file: '/usr/bin/fish', args: ['-il'] });
+      // Falls back to bash when $SHELL is unset.
+      expect(resolvePtyShell('darwin', {})).toEqual({ file: 'bash', args: ['-il'] });
     });
 
     it('returns the PtyProcess', () => {

@@ -1,7 +1,7 @@
 {
   "name": "helm",
   "productName": "Helm",
-  "version": "1.11.1",
+  "version": "2.0.0",
   "main": "dist-electron/main.js",
   "type": "module",
   "description": "Helm — steer your fleet of agents",
@@ -13,6 +13,7 @@
     "build:preload": "esbuild src/electron/preload.ts --bundle --platform=node --external:electron --outfile=dist-electron/preload.cjs --format=cjs --sourcemap",
     "build:renderer": "vite build --config vite.renderer.config.ts",
     "package": "npm run build && electron-builder --win --x64",
+    "package:mac": "npm run build && electron-builder --mac --x64",
     "test": "vitest",
     "test:ui": "vitest --ui"
   },
@@ -54,6 +55,19 @@
         ]
       }
     ],
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "x64ArchFiles": "**/{prebuilds,bin}/**",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ]
+    },
     "win": {
       "icon": "build/icon.ico",
       "target": [

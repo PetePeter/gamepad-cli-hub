@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import * as YAML from 'yaml';
 import { savePlanFile, savePlanSequences, loadProjectRecords, loadPlanFile, loadPlanSequences, loadSessions } from '../src/session/persistence.js';
 import { migrateProjects } from '../src/session/project-migration.js';
+import { normalizeProjectPath as norm } from '../src/session/project-identity.js';
 import type { PlanItem, PlanSequence } from '../src/types/plan.js';
 import type { SessionInfo } from '../src/types/session.js';
 
@@ -75,8 +76,8 @@ describe('migrateProjects', () => {
     expect(result.updatedSessions).toBe(1);
     expect(projects).toHaveLength(2);
 
-    const projectForA = projects.find(p => p.canonicalPath === 'x:\\coding\\repo-a');
-    const projectForB = projects.find(p => p.canonicalPath === 'x:\\coding\\repo-b');
+    const projectForA = projects.find(p => p.canonicalPath === norm(dirA));
+    const projectForB = projects.find(p => p.canonicalPath === norm(dirB));
     expect(projectForA).toBeDefined();
     expect(projectForB).toBeDefined();
     expect(planA?.projectId).toBe(projectForA!.id);
@@ -102,8 +103,8 @@ describe('migrateProjects', () => {
     const sessions = loadSessions(path.join(tmpDir, 'sessions.yaml'));
 
     // canonicalPath is normalized; workingDir is preserved as the original string
-    expect(projects[0]?.canonicalPath).toBe('x:\\coding\\repo-a');
-    expect(sessions[0]?.workingDir).toBe('x:\\coding\\repo-a'); // loadSessions normalizes to lowercase on Windows
+    expect(projects[0]?.canonicalPath).toBe(norm('X:\\coding\\repo-a'));
+    expect(sessions[0]?.workingDir).toBe(norm('X:\\coding\\repo-a')); // loadSessions normalizes (lowercase on Windows only)
     expect(sessions[0]?.projectId).toBe(projects[0]?.id);
 
   });

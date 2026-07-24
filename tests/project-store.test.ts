@@ -3,6 +3,14 @@ import * as os from 'node:os';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { ProjectStore } from '../src/session/project-store.js';
+import { normalizeProjectPath } from '../src/session/project-identity.js';
+
+// Case-folding of paths only happens on win32 (see normalizeProjectPath) — tests
+// asserting case-insensitive behavior are gated to Windows, with case-preserving
+// counterparts below them. Storage-logic assertions compare against
+// normalizeProjectPath(input) so they hold on every platform.
+const isWin = process.platform === 'win32';
+const norm = normalizeProjectPath;
 
 describe('ProjectStore', () => {
   let tmpDir: string;
@@ -32,7 +40,7 @@ describe('ProjectStore', () => {
     expect(store.list()).toHaveLength(2);
   });
 
-  it('normalizes path on lookup so case-variant paths resolve to the same project on Windows', () => {
+  it.runIf(isWin)('normalizes path on lookup so case-variant paths resolve to the same project on Windows', () => {
     const store = new ProjectStore(projectsFile);
     const lower = store.resolveForPath('x:\\coding\\repo');
     const upper = store.resolveForPath('X:\\Coding\\Repo');
@@ -40,10 +48,18 @@ describe('ProjectStore', () => {
     expect(store.list()).toHaveLength(1);
   });
 
+  it.runIf(!isWin)('keeps case-variant paths as distinct projects on Unix', () => {
+    const store = new ProjectStore(projectsFile);
+    const lower = store.resolveForPath('/coding/repo');
+    const upper = store.resolveForPath('/Coding/Repo');
+    expect(lower).not.toBe(upper);
+    expect(store.list()).toHaveLength(2);
+  });
+
   it('sets canonicalPath to the normalized input path', () => {
     const store = new ProjectStore(projectsFile);
     const record = store.resolveForPath('X:\\coding\\Repo\\');
-    expect(record.canonicalPath).toBe('x:\\coding\\repo');
+    expect(record.canonicalPath).toBe(norm('X:\\coding\\Repo\\'));
   });
 
   it('sets name to the trailing folder segment', () => {
@@ -69,7 +85,16 @@ describe('ProjectStore', () => {
       expect(store.list()).toHaveLength(1);
     });
 
-    it('resolves a case/slash-variant alternate path to the same project', () => {
+    it('resolves a trailing-slash-variant alternate path to the same project', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.addDirectory(record.id, 'X:\\coding\\folder-b');
+      const resolved = store.resolveForPath('X:\\coding\\folder-b\\');
+      expect(resolved.id).toBe(record.id);
+      expect(store.list()).toHaveLength(1);
+    });
+
+    it.runIf(isWin)('resolves a case-variant alternate path to the same project on Windows', () => {
       const store = new ProjectStore(projectsFile);
       const record = store.resolveForPath('X:\\coding\\repo');
       store.addDirectory(record.id, 'X:\\coding\\folder-b');
@@ -116,11 +141,19 @@ describe('ProjectStore', () => {
       expect(store.findByPath('X:\\coding\\worktree-b')?.id).toBe(record.id);
     });
 
-    it('is case-insensitive for alternate paths', () => {
+    it.runIf(isWin)('is case-insensitive for alternate paths on Windows', () => {
       const store = new ProjectStore(projectsFile);
       const record = store.resolveForPath('X:\\coding\\repo');
       store.addDirectory(record.id, 'X:\\coding\\Worktree-B');
       expect(store.findByPath('x:\\coding\\worktree-b')?.id).toBe(record.id);
+    });
+
+    it.runIf(!isWin)('is case-sensitive for alternate paths on Unix', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('/coding/repo');
+      store.addDirectory(record.id, '/coding/Worktree-B');
+      expect(store.findByPath('/coding/Worktree-B')?.id).toBe(record.id);
+      expect(store.findByPath('/coding/worktree-b')).toBeUndefined();
     });
   });
 
@@ -129,10 +162,17 @@ describe('ProjectStore', () => {
       const store = new ProjectStore(projectsFile);
       const record = store.resolveForPath('X:\\coding\\repo');
       store.addDirectory(record.id, 'X:\\coding\\worktree-b');
-      expect(record.alternatePaths).toContain('x:\\coding\\worktree-b');
+      expect(record.alternatePaths).toContain(norm('X:\\coding\\worktree-b'));
     });
 
-    it('normalizes the path before adding', () => {
+    it('normalizes the path before adding (trailing slash stripped)', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.addDirectory(record.id, 'X:\\coding\\worktree-b\\');
+      expect(record.alternatePaths).toContain(norm('X:\\coding\\worktree-b'));
+    });
+
+    it.runIf(isWin)('normalizes case before adding on Windows', () => {
       const store = new ProjectStore(projectsFile);
       const record = store.resolveForPath('X:\\coding\\repo');
       store.addDirectory(record.id, 'X:\\Coding\\Worktree-B\\');
@@ -144,7 +184,7 @@ describe('ProjectStore', () => {
       const record = store.resolveForPath('X:\\coding\\repo');
       store.addDirectory(record.id, 'X:\\coding\\worktree-b');
       store.addDirectory(record.id, 'X:\\coding\\worktree-b');
-      expect(record.alternatePaths?.filter(p => p === 'x:\\coding\\worktree-b')).toHaveLength(1);
+      expect(record.alternatePaths?.filter(p => p === norm('X:\\coding\\worktree-b'))).toHaveLength(1);
     });
 
     it('throws for unknown project id', () => {
@@ -167,7 +207,7 @@ describe('ProjectStore', () => {
       const record = store.resolveForPath('X:\\coding\\repo');
       store.addDirectory(record.id, 'X:\\coding\\worktree-b');
       store.removeDirectory(record.id, 'X:\\coding\\worktree-b');
-      expect(record.alternatePaths).not.toContain('x:\\coding\\worktree-b');
+      expect(record.alternatePaths).not.toContain(norm('X:\\coding\\worktree-b'));
     });
 
     it('is silent when path not present', () => {
@@ -197,7 +237,7 @@ describe('ProjectStore', () => {
       const record = store.resolveForPath('X:\\coding\\repo');
       store.addDirectory(record.id, 'X:\\coding\\worktree-b');
       store.setMainDirectory(record.id, 'X:\\coding\\worktree-b');
-      expect(record.canonicalPath).toBe('x:\\coding\\worktree-b');
+      expect(record.canonicalPath).toBe(norm('X:\\coding\\worktree-b'));
     });
 
     it('old canonical becomes an alternate after swap', () => {
@@ -205,7 +245,7 @@ describe('ProjectStore', () => {
       const record = store.resolveForPath('X:\\coding\\repo');
       store.addDirectory(record.id, 'X:\\coding\\worktree-b');
       store.setMainDirectory(record.id, 'X:\\coding\\worktree-b');
-      expect(record.alternatePaths).toContain('x:\\coding\\repo');
+      expect(record.alternatePaths).toContain(norm('X:\\coding\\repo'));
     });
 
     it('throws if path is not an alternate', () => {
@@ -278,7 +318,7 @@ describe('ProjectStore', () => {
     it('sets canonicalPath to the normalized input path', () => {
       const store = new ProjectStore(projectsFile);
       const record = store.createProject('X:\\coding\\Fresh\\');
-      expect(record.canonicalPath).toBe('x:\\coding\\fresh');
+      expect(record.canonicalPath).toBe(norm('X:\\coding\\Fresh\\'));
     });
 
     it('defaults name to the trailing folder segment', () => {
@@ -294,6 +334,12 @@ describe('ProjectStore', () => {
     });
 
     it('throws when the canonical path is already registered', () => {
+      const store = new ProjectStore(projectsFile);
+      store.createProject('X:\\coding\\fresh');
+      expect(() => store.createProject('X:\\coding\\fresh')).toThrow(/already registered/i);
+    });
+
+    it.runIf(isWin)('throws for a case-variant of a registered path on Windows', () => {
       const store = new ProjectStore(projectsFile);
       store.createProject('X:\\coding\\fresh');
       expect(() => store.createProject('x:\\coding\\Fresh')).toThrow(/already registered/i);
@@ -344,7 +390,7 @@ describe('ProjectStore', () => {
       store.save();
 
       const store2 = new ProjectStore(projectsFile);
-      expect(store2.getById(record.id)?.alternatePaths).toContain('x:\\coding\\worktree-b');
+      expect(store2.getById(record.id)?.alternatePaths).toContain(norm('X:\\coding\\worktree-b'));
     });
   });
 });
