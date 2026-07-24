@@ -20,3 +20,4 @@ export const SCHEDULED_TASK_HISTORY_FILE = join(configDir, 'scheduled-task-histo
 export const RECYCLE_BIN_FILE = join(configDir, 'recycle-bin.yaml');
 export const RUNTIME_GROUPS_FILE = join(configDir, 'runtime-groups.yaml');
 export const ARTIFACTS_FILE = join(configDir, 'artifacts.yaml');
+export const PEERS_FILE = join(configDir, 'peers.yaml');
