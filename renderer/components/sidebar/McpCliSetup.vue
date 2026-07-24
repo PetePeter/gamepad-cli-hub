@@ -2,10 +2,19 @@
 import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../../ipc/clients.js';
 /**
  * McpCliSetup.vue — Extracts Global CLI Setup section from McpTab.vue
- * with env var awareness, copy button, and run-in-cmd.exe button per snippet.
- * All instructions use cmd.exe syntax (the PTY default shell on Windows).
+ * with env var awareness, copy button, and a run-in-shell button per snippet.
+ * Snippets and the run button are OS-dependent: cmd.exe syntax on Windows,
+ * bash syntax on macOS/Linux (the PTY default shell there) — so the emitted
+ * command actually runs in whatever shell doSpawnShell() opens.
  */
 import { ref, computed, onMounted } from 'vue';
+
+// Matches the win32-primary convention used elsewhere in the renderer
+// (session-groups.ts / useAppBootstrap.ts): unknown platform → treat as Windows.
+const platform = typeof process !== 'undefined' ? process.platform : undefined;
+const isWindows = platform === 'win32' || platform === undefined;
+const shellName = isWindows ? 'cmd.exe' : 'bash';
+const runLabel = `Run in ${shellName}`;
 
 const props = defineProps<{
   endpoint: string;
@@ -40,7 +49,8 @@ function envForCli(...keys: string[]): Array<{ name: string; value: string }> {
 }
 
 function envSetupLines(entries: Array<{ name: string; value: string }>): string {
-  return entries.map((e) => `set ${e.name}=${e.value}`).join('\n');
+  const keyword = isWindows ? 'set ' : 'export ';
+  return entries.map((e) => `${keyword}${e.name}=${e.value}`).join('\n');
 }
 
 const codexEnv = computed(() => envForCli('codex'));
@@ -70,7 +80,6 @@ const copilotSetup = computed(() => {
 const opencodeEnv = computed(() => envForCli('opencode'));
 const opencodeSetup = computed(() => {
   const env = envSetupLines(opencodeEnv.value);
-  const configDir = '%USERPROFILE%\\.config\\opencode';
   const json = JSON.stringify({
     $schema: 'https://opencode.ai/config.json',
     mcp: {
@@ -82,10 +91,23 @@ const opencodeSetup = computed(() => {
       },
     },
   });
-  const cmd = [
-    `if not exist "${configDir}" mkdir "${configDir}"`,
-    `powershell -Command "Set-Content -Path '${configDir}\\opencode.json' -Value '${json.replace(/'/g, "''")}'"`,
-  ].join('\n');
+  let cmd: string;
+  if (isWindows) {
+    const configDir = '%USERPROFILE%\\.config\\opencode';
+    cmd = [
+      `if not exist "${configDir}" mkdir "${configDir}"`,
+      `powershell -Command "Set-Content -Path '${configDir}\\opencode.json' -Value '${json.replace(/'/g, "''")}'"`,
+    ].join('\n');
+  } else {
+    // Quoted heredoc delimiter → no shell expansion/escaping of the JSON body.
+    const configDir = '$HOME/.config/opencode';
+    cmd = [
+      `mkdir -p "${configDir}"`,
+      `cat > "${configDir}/opencode.json" <<'HELM_EOF'`,
+      json,
+      'HELM_EOF',
+    ].join('\n');
+  }
   return env ? `${env}\n${cmd}` : cmd;
 });
 
@@ -110,7 +132,7 @@ function onRunInCmd(command: string): void {
       />
     </div>
     <p class="settings-form__hint">
-      All commands use cmd.exe syntax. Run them in your terminal to register Helm as an MCP.
+      All commands use {{ shellName }} syntax. Run them in your terminal to register Helm as an MCP.
     </p>
 
     <div class="settings-list-item">
@@ -122,7 +144,7 @@ function onRunInCmd(command: string): void {
             Copy
           </button>
           <button class="btn btn--secondary btn--sm focusable" @click="onRunInCmd(codexSetup)">
-            Run in cmd.exe
+            {{ runLabel }}
           </button>
         </div>
       </div>
@@ -137,7 +159,7 @@ function onRunInCmd(command: string): void {
             Copy
           </button>
           <button class="btn btn--secondary btn--sm focusable" @click="onRunInCmd(claudeSetup)">
-            Run in cmd.exe
+            {{ runLabel }}
           </button>
         </div>
       </div>
@@ -152,7 +174,7 @@ function onRunInCmd(command: string): void {
             Copy
           </button>
           <button class="btn btn--secondary btn--sm focusable" @click="onRunInCmd(copilotSetup)">
-            Run in cmd.exe
+            {{ runLabel }}
           </button>
         </div>
       </div>
@@ -167,7 +189,7 @@ function onRunInCmd(command: string): void {
             Copy
           </button>
           <button class="btn btn--secondary btn--sm focusable" @click="onRunInCmd(opencodeSetup)">
-            Run in cmd.exe
+            {{ runLabel }}
           </button>
         </div>
       </div>
