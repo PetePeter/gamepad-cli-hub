@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { spawnConfiguredSession } from '../src/session/configured-session-spawn.js';
+import { normalizeProjectPath as norm } from '../src/session/project-identity.js';
 
 describe('spawnConfiguredSession', () => {
   it('updates an existing session when resuming with the same session id', () => {
@@ -32,7 +33,7 @@ describe('spawnConfiguredSession', () => {
       cliType: 'claude-code',
       cliSessionName: 'resume-123',
       processId: 1234,
-      workingDir: 'x:\\coding\\gamepad-cli-hub',
+      workingDir: norm('X:\\coding\\gamepad-cli-hub'),
     }));
     expect(addSession).not.toHaveBeenCalled();
   });
@@ -63,7 +64,7 @@ describe('spawnConfiguredSession', () => {
       id: 'sess-new',
       cliType: 'claude-code',
       processId: 4321,
-      workingDir: 'x:\\coding\\gamepad-cli-hub',
+      workingDir: norm('X:\\coding\\gamepad-cli-hub'),
     }));
     expect(updateSession).not.toHaveBeenCalled();
   });

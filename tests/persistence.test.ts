@@ -7,6 +7,7 @@ import { saveSessions, loadSessions, clearPersistedSessions, saveProjectRecords,
 import { SessionManager } from '../src/session/manager.js';
 import type { SessionInfo } from '../src/types/session.js';
 import type { ProjectRecord } from '../src/types/project.js';
+import { normalizeProjectPath as norm } from '../src/session/project-identity.js';
 import * as fs from 'node:fs';
 import * as YAML from 'yaml';
 
@@ -226,7 +227,7 @@ describe('persistence', () => {
       );
 
       const result = loadSessions();
-      expect(result[0].projectPath).toBe('x:\\coding\\repo-a');
+      expect(result[0].projectPath).toBe(norm('X:\\coding\\repo-a'));
     });
   });
 
@@ -411,7 +412,7 @@ describe('SessionManager persistence integration', () => {
     projectManager.addSession({ ...mockSession1, workingDir: 'X:\\coding\\repo-a' });
 
     expect(projectManager.getSession(mockSession1.id)?.projectId).toBe('project-1');
-    expect(projectManager.getSession(mockSession1.id)?.projectPath).toBe('x:\\coding\\repo-a');
+    expect(projectManager.getSession(mockSession1.id)?.projectPath).toBe(norm('X:\\coding\\repo-a'));
     expect(projectStore.findByPath).toHaveBeenCalledWith('X:\\coding\\repo-a');
   });
 

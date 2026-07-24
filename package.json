@@ -13,6 +13,7 @@
     "build:preload": "esbuild src/electron/preload.ts --bundle --platform=node --external:electron --outfile=dist-electron/preload.cjs --format=cjs --sourcemap",
     "build:renderer": "vite build --config vite.renderer.config.ts",
     "package": "npm run build && electron-builder --win --x64",
+    "package:mac": "npm run build && electron-builder --mac --x64",
     "test": "vitest",
     "test:ui": "vitest --ui"
   },
@@ -54,6 +55,18 @@
         ]
       }
     ],
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
     "win": {
       "icon": "build/icon.ico",
       "target": [

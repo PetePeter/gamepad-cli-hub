@@ -733,10 +733,18 @@ describe('plan screen bridge', () => {
 
   it('ignores stale planner reloads that resolve after a newer one', async () => {
     const mod = await getModule();
-    const firstList = Promise.withResolvers<any[]>();
-    const firstDeps = Promise.withResolvers<any[]>();
-    const secondList = Promise.withResolvers<any[]>();
-    const secondDeps = Promise.withResolvers<any[]>();
+    // Local stand-in for Promise.withResolvers, which requires Node 22+;
+    // keeps the test running on Node 20 (e.g. macOS CI/dev machines).
+    const deferred = <T>() => {
+      let resolve!: (value: T) => void;
+      let reject!: (reason?: unknown) => void;
+      const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+      return { promise, resolve, reject };
+    };
+    const firstList = deferred<any[]>();
+    const firstDeps = deferred<any[]>();
+    const secondList = deferred<any[]>();
+    const secondDeps = deferred<any[]>();
 
     mockPlanList.mockResolvedValueOnce([planItem('initial')]);
     mockPlanDeps.mockResolvedValueOnce([]);

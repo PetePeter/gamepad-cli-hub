@@ -2,9 +2,21 @@ import { describe, it, expect } from 'vitest';
 import { normalizeProjectPath, dirDisplayNameFromPath } from '../src/session/project-identity.js';
 
 describe('normalizeProjectPath', () => {
-  it('normalizes path case and trailing slashes on Windows-style paths', () => {
-    expect(normalizeProjectPath('X:\\Coding\\Repo\\')).toBe('x:\\coding\\repo');
-  });
+  // Lowercasing only happens on Windows — path.resolve is platform-bound, so the
+  // Windows-style fixture is only meaningful there.
+  it.runIf(process.platform === 'win32')(
+    'normalizes path case and trailing slashes on Windows-style paths',
+    () => {
+      expect(normalizeProjectPath('X:\\Coding\\Repo\\')).toBe('x:\\coding\\repo');
+    },
+  );
+
+  it.runIf(process.platform !== 'win32')(
+    'preserves case and strips trailing slashes on Unix paths',
+    () => {
+      expect(normalizeProjectPath('/Coding/Repo/')).toBe('/Coding/Repo');
+    },
+  );
 });
 
 describe('dirDisplayNameFromPath', () => {

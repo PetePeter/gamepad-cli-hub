@@ -195,9 +195,12 @@ describe('ConfigLoader', () => {
 
     it('deduplicates overlapping canonical/alternate paths (normalized)', () => {
       loader.load();
+      // Case-variant overlap only dedupes on win32 (paths are case-folded there);
+      // trailing-slash variants normalize identically on every platform.
+      const altVariant = process.platform === 'win32' ? 'x:\\coding\\HELM' : 'X:\\coding\\helm\\';
       loader.setProjectStore({
         list: () => [
-          { id: '1', name: 'Helm', canonicalPath: 'X:\\coding\\helm', alternatePaths: ['x:\\coding\\HELM'], createdAt: 0, updatedAt: 0 },
+          { id: '1', name: 'Helm', canonicalPath: 'X:\\coding\\helm', alternatePaths: [altVariant], createdAt: 0, updatedAt: 0 },
         ],
       } as any);
 
