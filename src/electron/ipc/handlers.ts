@@ -68,7 +68,8 @@ import { InboundCallGate } from '../../mcp/peer/inbound-call-gate.js';
 import { createDefaultPeerRateLimiter } from '../../mcp/peer/rate-limiter.js';
 import { PeerAuditLog } from '../../mcp/peer/peer-audit-log.js';
 import { PeerConfigManager } from '../../session/peer-config-manager.js';
-import { loadPeers } from '../../session/peer-config-persistence.js';
+import { loadPeers, savePeers } from '../../session/peer-config-persistence.js';
+import { setupPairingHandlers } from './pairing-handlers.js';
 import { asRecord } from '../../mcp/tools/validation.js';
 import { PromptTemplateManager } from '../../session/prompt-template-manager.js';
 import { loadPromptTemplates } from '../../session/prompt-template-persistence.js';
@@ -419,8 +420,19 @@ export function registerIPCHandlers(
   // then dispatch through the EXISTING callMcpTool under a synthetic PROXY
   // identity (never a real local session). We build it here because this scope
   // has the deps (LocalhostMcpServer.dispatchForPeer + the peer registry).
-  const peerConfigManager = new PeerConfigManager();
+  const peerConfigManager = new PeerConfigManager((peers) => savePeers(peers));
   peerConfigManager.importAll(loadPeers());
+
+  // SAS pairing (P-0649) — discovery + coordinator + IPC. No-op when federation
+  // is disabled (binds nothing, advertises nothing). UI lands in P-0650.
+  const federationCfg = configLoader.getFederationConfig();
+  const disposePairing = setupPairingHandlers({
+    enabled: federationCfg.enabled,
+    host: federationCfg.host,
+    port: federationCfg.port,
+    alias: 'Helm',
+    peerConfigManager,
+  });
   const inboundGate = new InboundCallGate({
     peerConfig: peerConfigManager,
     dispatch: (method, params, ctx) =>
@@ -457,6 +469,7 @@ export function registerIPCHandlers(
       scheduledTaskManager.stop();
       // Await the socket close so the next instance can bind the fixed port.
       await localhostMcpServer.close();
+      disposePairing();
       if (peerLinkManager) { await peerLinkManager.stop(); peerLinkManager = null; }
       logger.info('[IPC] Cleanup complete');
     },

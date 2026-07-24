@@ -30,4 +30,10 @@ export interface PeerConfig {
   direction: 'inbound' | 'outbound' | 'bidirectional';
   /** Epoch ms the peer was registered. */
   createdAt: number;
+  /**
+   * The peer's stable machine identity (set by the pairing flow). Optional for
+   * legacy/manually-added peers. Used to find-and-update an existing peer so a
+   * re-pair updates rather than duplicates.
+   */
+  machineId?: string;
 }

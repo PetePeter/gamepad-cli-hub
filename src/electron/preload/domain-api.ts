@@ -1173,6 +1173,61 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     return () => ipcRenderer.removeListener('app:close-request', listener);
   },
 
+  // ========================================================================
+  // Peers — SAS pairing (discovery + pairing lifecycle). UI in P-0650.
+  // The 6-digit SAS is surfaced ONLY for the user to compare on both screens.
+  // ========================================================================
+
+  /** LAN peers currently discovered via mDNS (presence only — no access) */
+  peerListDiscovered: (): Promise<Array<{ machineId: string; alias: string; address: string }>> =>
+    ipcRenderer.invoke('peer:listDiscovered'),
+
+  /** Start a SAS pairing session with a discovered peer (by machineId) */
+  peerStartPairing: (machineId: string): Promise<{ ok: boolean; sessionId?: string; reason?: string }> =>
+    ipcRenderer.invoke('peer:startPairing', machineId),
+
+  /** The user's ONE accept/reject decision (did the two codes match?) */
+  peerConfirmPairing: (sessionId: string, accepted: boolean): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke('peer:confirmPairing', sessionId, accepted),
+
+  /** Cancel the active pairing session */
+  peerCancelPairing: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('peer:cancelPairing'),
+
+  /** Subscribe to a peer appearing on the LAN */
+  onPeerDiscovered: (callback: (peer: { machineId: string; alias: string; address: string }) => void) => {
+    const listener = (_e: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('peer:discovered', listener);
+    return () => ipcRenderer.removeListener('peer:discovered', listener);
+  },
+
+  /** Subscribe to a peer leaving the LAN */
+  onPeerLost: (callback: (data: { machineId: string }) => void) => {
+    const listener = (_e: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('peer:lost', listener);
+    return () => ipcRenderer.removeListener('peer:lost', listener);
+  },
+
+  /** Subscribe to the SAS becoming available for the active session */
+  onPeerSas: (callback: (data: { sessionId: string; sas: string }) => void) => {
+    const listener = (_e: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('peer:sas', listener);
+    return () => ipcRenderer.removeListener('peer:sas', listener);
+  },
+
+  /** Subscribe to a completed pairing */
+  onPeerPaired: (callback: (data: { sessionId: string; peerId: string; machineId: string }) => void) => {
+    const listener = (_e: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('peer:paired', listener);
+    return () => ipcRenderer.removeListener('peer:paired', listener);
+  },
+
+  /** Subscribe to a failed/aborted pairing */
+  onPeerFailed: (callback: (data: { sessionId: string; reason: string }) => void) => {
+    const listener = (_e: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('peer:failed', listener);
+    return () => ipcRenderer.removeListener('peer:failed', listener);
+  },
+
 } as const;
 
 export type PreloadMethodImplementations = typeof PRELOAD_METHOD_IMPLEMENTATIONS;

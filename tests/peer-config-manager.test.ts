@@ -195,6 +195,62 @@ describe('PeerConfigManager', () => {
     ]);
     expect(mgr.list()[0].allow).toEqual([]);
   });
+
+  describe('machineId lookup + upsert (pairing idempotency)', () => {
+    it('M1 add carries machineId and getByMachineId finds it', () => {
+      const mgr = new PeerConfigManager();
+      const peer = mgr.add({ ...baseInput(), machineId: 'mac-123' });
+      expect(peer.machineId).toBe('mac-123');
+      expect(mgr.getByMachineId('mac-123')!.id).toBe(peer.id);
+      expect(mgr.getByMachineId('nope')).toBeUndefined();
+    });
+
+    it('M2 upsertByMachineId inserts when the machineId is new', () => {
+      const mgr = new PeerConfigManager();
+      const peer = mgr.upsertByMachineId({
+        machineId: 'mac-123', alias: 'a', address: 'h:1', pskRef: 'r', allow: ['session_*'],
+      });
+      expect(mgr.list()).toHaveLength(1);
+      expect(peer.machineId).toBe('mac-123');
+      expect(peer.allow).toEqual(['session_*']);
+    });
+
+    it('M3 upsertByMachineId UPDATES the existing peer (no duplicate)', () => {
+      const mgr = new PeerConfigManager();
+      const first = mgr.upsertByMachineId({
+        machineId: 'mac-123', alias: 'old', address: 'h:1', pskRef: 'r1', allow: [],
+      });
+      const second = mgr.upsertByMachineId({
+        machineId: 'mac-123', alias: 'new', address: 'h:2', pskRef: 'r2', allow: ['session_*'],
+      });
+
+      expect(mgr.list()).toHaveLength(1);        // no duplicate
+      expect(second.id).toBe(first.id);          // same identity preserved
+      expect(second.alias).toBe('new');
+      expect(second.address).toBe('h:2');
+      expect(second.pskRef).toBe('r2');
+      expect(second.allow).toEqual(['session_*']);
+    });
+
+    it('M4 upsertByMachineId preserves createdAt on update', () => {
+      let t = 100;
+      const mgr = new PeerConfigManager(undefined, () => t);
+      const first = mgr.upsertByMachineId({ machineId: 'm', alias: 'a', address: 'h:1', pskRef: 'r' });
+      t = 999;
+      const second = mgr.upsertByMachineId({ machineId: 'm', alias: 'b', address: 'h:1', pskRef: 'r' });
+      expect(second.createdAt).toBe(first.createdAt);
+      expect(second.createdAt).toBe(100);
+    });
+
+    it('M5 importAll preserves a machineId', () => {
+      const mgr = new PeerConfigManager();
+      mgr.importAll([{
+        id: 'p1', alias: 'a', address: 'h:1', pskRef: 'r',
+        allow: [], direction: 'bidirectional', createdAt: 1, machineId: 'mac-9',
+      }]);
+      expect(mgr.getByMachineId('mac-9')!.id).toBe('p1');
+    });
+  });
 });
 
 describe('peer-config-persistence (real temp-file round trip)', () => {

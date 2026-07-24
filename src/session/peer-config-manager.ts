@@ -26,6 +26,11 @@ interface AddPeerInput {
   pskRef: string;
   allow?: string[];
   direction?: PeerConfig['direction'];
+  machineId?: string;
+}
+
+interface UpsertByMachineIdInput extends AddPeerInput {
+  machineId: string;
 }
 
 export class PeerConfigManager extends EventEmitter {
@@ -48,11 +53,38 @@ export class PeerConfigManager extends EventEmitter {
       allow: [...(input.allow ?? [])],
       direction: input.direction ?? 'bidirectional',
       createdAt: this.now(),
+      ...(input.machineId !== undefined ? { machineId: input.machineId } : {}),
     };
     this.peers.push(peer);
     this.markChanged();
     logger.info(`[PeerConfigManager] Added peer "${peer.alias}" (${peer.id})`);
     return this.copy(peer);
+  }
+
+  /** Get a peer by its stable machineId (copy), or undefined. */
+  getByMachineId(machineId: string): PeerConfig | undefined {
+    const peer = this.peers.find(p => p.machineId === machineId);
+    return peer ? this.copy(peer) : undefined;
+  }
+
+  /**
+   * Upsert keyed by machineId: if a peer with this machineId already exists it is
+   * updated IN PLACE (same id + createdAt preserved) so re-pairing a known peer
+   * never creates a duplicate; otherwise a fresh peer is added. Returns a copy.
+   */
+  upsertByMachineId(input: UpsertByMachineIdInput): PeerConfig {
+    const existing = this.peers.find(p => p.machineId === input.machineId);
+    if (existing) {
+      existing.alias = input.alias;
+      existing.address = input.address;
+      existing.pskRef = input.pskRef;
+      if (input.allow !== undefined) existing.allow = [...input.allow];
+      if (input.direction !== undefined && DIRECTIONS.has(input.direction)) existing.direction = input.direction;
+      this.markChanged();
+      logger.info(`[PeerConfigManager] Updated peer by machineId "${existing.alias}" (${existing.id})`);
+      return this.copy(existing);
+    }
+    return this.add(input);
   }
 
   /** All peers as independent copies. */
@@ -134,6 +166,7 @@ export class PeerConfigManager extends EventEmitter {
         allow: Array.isArray(p.allow) ? p.allow.filter(a => typeof a === 'string') : [],
         direction: p.direction,
         createdAt: typeof p.createdAt === 'number' ? p.createdAt : this.now(),
+        ...(typeof p.machineId === 'string' && p.machineId.length > 0 ? { machineId: p.machineId } : {}),
       }));
     logger.info(`[PeerConfigManager] Imported ${this.peers.length} peer(s)`);
   }

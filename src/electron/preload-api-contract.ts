@@ -215,6 +215,12 @@ export const PRELOAD_API_DOMAINS = {
     'artifactReveal',
     'artifactExport',
   ],
+  peers: [
+    'peerListDiscovered',
+    'peerStartPairing',
+    'peerConfirmPairing',
+    'peerCancelPairing',
+  ],
   patterns: [
     'toolsGetPatterns',
     'toolsAddPattern',
@@ -296,6 +302,11 @@ export const PRELOAD_API_DOMAINS = {
     'onArtifactReveal',
     'onPromptTemplateChanged',
     'onAppCloseRequest',
+    'onPeerDiscovered',
+    'onPeerLost',
+    'onPeerSas',
+    'onPeerPaired',
+    'onPeerFailed',
   ],
 } as const;
 

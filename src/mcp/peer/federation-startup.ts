@@ -10,16 +10,13 @@
  * localhost 127.0.0.1 MCP server is entirely untouched either way.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
-import * as YAML from 'yaml';
 import { logger } from '../../utils/logger.js';
-import { atomicWriteFileSync, isRecord } from '../../session/persistence-utils.js';
-import { PEER_PINS_FILE, PEER_SECRETS_FILE } from '../../session/persistence-paths.js';
 import { loadPeers } from '../../session/peer-config-persistence.js';
 import { getOrCreateMachineIdentity, getOrCreateSelfSignedCert } from './peer-crypto.js';
-import { PinnedCertStore, type PinnedCert } from './pinned-cert-store.js';
+import { PinnedCertStore } from './pinned-cert-store.js';
 import { SecretStore } from './secret-store.js';
 import { PeerLinkManager } from './peer-link-manager.js';
+import { loadPeerPins, savePeerPins, loadPeerSecrets, savePeerSecrets } from './peer-secret-persistence.js';
 import type { OnCall } from './peer-link.js';
 
 export interface FederationConfigInput {
@@ -45,11 +42,11 @@ export async function startFederationIfEnabled(
   const identity = getOrCreateMachineIdentity();
   const cert = await getOrCreateSelfSignedCert();
 
-  const pinnedCertStore = new PinnedCertStore((pins) => savePins(pins));
-  pinnedCertStore.importAll(loadPins());
+  const pinnedCertStore = new PinnedCertStore((pins) => savePeerPins(pins));
+  pinnedCertStore.importAll(loadPeerPins());
 
-  const secretStore = new SecretStore((secrets) => saveSecrets(secrets));
-  secretStore.importAll(loadSecrets());
+  const secretStore = new SecretStore((secrets) => savePeerSecrets(secrets));
+  secretStore.importAll(loadPeerSecrets());
 
   const manager = new PeerLinkManager({
     machineId: identity.machineId,
@@ -74,48 +71,4 @@ function resolvePskForPeer(peerId: string | undefined, secretStore: SecretStore)
   const peer = loadPeers().find((p) => p.id === peerId);
   if (!peer || !peer.pskRef) return undefined;
   return secretStore.get(peer.pskRef);
-}
-
-// ---- pinned-cert persistence (YAML { pins: [...] }) -------------------------
-
-function savePins(pins: PinnedCert[]): void {
-  try {
-    atomicWriteFileSync(PEER_PINS_FILE, YAML.stringify({ pins }), { mode: 0o600 });
-  } catch (err) {
-    logger.error(`[federation] Failed to save peer pins: ${(err as Error).message}`);
-  }
-}
-
-function loadPins(): PinnedCert[] {
-  try {
-    if (!existsSync(PEER_PINS_FILE)) return [];
-    const parsed = YAML.parse(readFileSync(PEER_PINS_FILE, 'utf8')) as unknown;
-    if (!isRecord(parsed) || !Array.isArray(parsed.pins)) return [];
-    return parsed.pins as PinnedCert[];
-  } catch (err) {
-    logger.error(`[federation] Failed to load peer pins: ${(err as Error).message}`);
-    return [];
-  }
-}
-
-// ---- secret persistence ({ pskRef: base64 }) --------------------------------
-// Secret VALUES are stored base64 here and NOWHERE else. Never logged.
-
-function saveSecrets(secrets: Record<string, string>): void {
-  try {
-    atomicWriteFileSync(PEER_SECRETS_FILE, YAML.stringify(secrets), { mode: 0o600 });
-  } catch (err) {
-    logger.error(`[federation] Failed to save peer secrets: ${(err as Error).message}`);
-  }
-}
-
-function loadSecrets(): Record<string, string> {
-  try {
-    if (!existsSync(PEER_SECRETS_FILE)) return {};
-    const parsed = YAML.parse(readFileSync(PEER_SECRETS_FILE, 'utf8')) as unknown;
-    return isRecord(parsed) ? (parsed as Record<string, string>) : {};
-  } catch (err) {
-    logger.error(`[federation] Failed to load peer secrets: ${(err as Error).message}`);
-    return {};
-  }
 }

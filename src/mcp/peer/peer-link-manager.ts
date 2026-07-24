@@ -121,6 +121,39 @@ export class PeerLinkManager extends EventEmitter {
     }
   }
 
+  /**
+   * Dial a peer that was JUST paired at runtime (via PeerPairing), without a full
+   * restart. Mirrors the outbound-dial branch of start(): inbound-only peers are
+   * not dialled; a peer already being dialled is left alone (idempotent). The full
+   * TLS dial itself is exercised by the P-0646 remote-link tests, not here.
+   *
+   * Alternatively the orchestrator may simply re-run start() on 'peer-config:changed';
+   * this method exists so a single new pin does not force a global reconnect.
+   */
+  addPeer(peer: PeerConfig): void {
+    if (this.stopped || !this.server) return;             // not running yet
+    if (peer.direction === 'inbound') return;             // no outbound dial
+    if (this.clients.has(peer.id)) return;                // already dialling
+    const createClient = this.opts.createClient ?? ((o) => new RemoteLinkClient(o));
+    const [host, portStr] = splitAddress(peer.address);
+    const client = createClient({
+      peerId: peer.id,
+      host,
+      port: Number(portStr) || (this.opts.port ?? 47474),
+      machineId: this.opts.machineId,
+      getCertKey: this.opts.getCertKey,
+      resolvePsk: (id) => this.opts.resolvePsk(id),
+      pinnedCertStore: this.opts.pinnedCertStore,
+      onCall: (pid, method, params) => this.onCall(pid, method, params),
+      onLink: (link, peerId, peerMachineId) =>
+        this.acceptLink(link as unknown as ManagedLink, peerId, 'outbound', peerMachineId),
+      hasActiveLink: () => this.links.has(peer.id) && this.links.get(peer.id)!.link.isOnline(),
+    });
+    this.clients.set(peer.id, client);
+    client.connect();
+    logger.info(`[PeerLinkManager] Dialing newly-paired peer ${peer.id}`);
+  }
+
   /** Tear everything down. */
   async stop(): Promise<void> {
     this.stopped = true;
