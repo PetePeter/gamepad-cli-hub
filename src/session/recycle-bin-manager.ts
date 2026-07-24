@@ -98,6 +98,7 @@ export function recordRemovedSession(
   recycleBin: Pick<RecycleBinManager, 'append'>,
   bookmarkDir: (dir: string) => void,
   runtimeGroup?: { id: string; name: string },
+  project?: { id: string; name: string },
 ): RecycleBinEntry | null {
   const session = event.session;
   if (!session?.cliSessionName || !session.workingDir) return null;
@@ -110,6 +111,9 @@ export function recordRemovedSession(
     workingDir: session.workingDir,
     cliSessionName: session.cliSessionName,
     closedAt: event.timestamp,
+    // Capture the project (id + name) so the bin's Project tree level renders
+    // without re-resolving, and survives the project being renamed later.
+    ...(project ? { projectId: project.id, projectName: project.name } : {}),
     // Tag the bin entry with the session's runtime group so restore can re-add
     // it (recreating the group by id+name if it was closed meanwhile).
     ...(runtimeGroup ? { runtimeGroupId: runtimeGroup.id, runtimeGroupName: runtimeGroup.name } : {}),

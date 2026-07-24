@@ -320,11 +320,18 @@ export function registerIPCHandlers(
     // the bin entry with the session's runtime group (if any) so restore can
     // re-attach it, then evict the closed session from that group.
     const runtimeGroup = runtimeGroupManager.groupForSession(event.sessionId);
+    // Resolve the session's project for the bin's Project tree level. Use the
+    // snapshot's projectId when present, else look up by working dir — findByPath
+    // (never resolveForPath) so a close event can't spawn a phantom project.
+    const projectRecord =
+      (event.session?.projectId ? projectStore.getById(event.session.projectId) : undefined) ??
+      (event.session?.workingDir ? projectStore.findByPath(event.session.workingDir) : undefined);
     const binned = recordRemovedSession(
       event,
       recycleBinManager,
       dir => configLoader.addBookmarkedDir(dir),
       runtimeGroup ? { id: runtimeGroup.id, name: runtimeGroup.name } : undefined,
+      projectRecord ? { id: projectRecord.id, name: projectRecord.name } : undefined,
     );
     runtimeGroupManager.removeSessionEverywhere(event.sessionId);
 

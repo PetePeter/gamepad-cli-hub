@@ -92,3 +92,31 @@ describe('recordRemovedSession runtime-group tag', () => {
     expect(bin.append).not.toHaveBeenCalled();
   });
 });
+
+describe('recordRemovedSession project tag', () => {
+  it('P1 threads projectId + projectName into the appended entry', () => {
+    const bin = fakeBin();
+
+    recordRemovedSession(makeEvent(), bin, vi.fn(), undefined, { id: 'p-helm', name: 'Helm' });
+
+    expect(bin.appended[0].projectId).toBe('p-helm');
+    expect(bin.appended[0].projectName).toBe('Helm');
+  });
+
+  it('P2 omits project fields when no project is supplied', () => {
+    const bin = fakeBin();
+    recordRemovedSession(makeEvent(), bin, vi.fn());
+
+    expect(bin.appended[0].projectId).toBeUndefined();
+    expect(bin.appended[0].projectName).toBeUndefined();
+  });
+
+  it('P3 project and runtime group can both be threaded independently', () => {
+    const bin = fakeBin();
+    recordRemovedSession(makeEvent(), bin, vi.fn(), { id: 'g1', name: 'Alpha' }, { id: 'p1', name: 'Proj' });
+
+    expect(bin.appended[0].runtimeGroupId).toBe('g1');
+    expect(bin.appended[0].projectId).toBe('p1');
+    expect(bin.appended[0].projectName).toBe('Proj');
+  });
+});

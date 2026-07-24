@@ -19,6 +19,10 @@ export interface RecycleBinEntry {
   cliSessionName: string;
   /** Epoch ms the session was closed / added to the bin. */
   closedAt: number;
+  /** Project the session belonged to at close time — used for the bin's Project tree level. Absent for entries whose dir maps to no project (or pre-dating this field). */
+  projectId?: string;
+  /** The project's display name at close time (captured so the tree needn't re-resolve id→name). */
+  projectName?: string;
   /** If the closed session was in a runtime group, its group id — restore re-adds it (recreating the group if gone). */
   runtimeGroupId?: string;
   /** The runtime group's display name at close time, used to recreate the group on restore. */
