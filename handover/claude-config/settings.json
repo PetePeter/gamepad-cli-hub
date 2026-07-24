@@ -1,0 +1,46 @@
+{
+  "env": {
+    "DISABLE_AUTOUPDATER": "1",
+    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "0",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_CODE_ATTRIBUTION_HEADER": "0"
+  },
+  "permissions": {
+    "defaultMode": "bypassPermissions"
+  },
+  "model": "opus[1m]",
+  "enabledPlugins": {
+    "foundation@oscar-claude-tools": true,
+    "gopls-lsp@claude-plugins-official": true,
+    "feature-dev@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "pyright-lsp@claude-plugins-official": true,
+    "csharp-lsp@claude-plugins-official": true,
+    "kotlin-lsp@claude-plugins-official": true,
+    "glm-plan-usage@zai-coding-plugins": true,
+    "glm-plan-bug@zai-coding-plugins": true,
+    "frontend-design@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "zai-coding-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "zai-org/zai-coding-plugins"
+      }
+    },
+    "oscar-claude-tools": {
+      "source": {
+        "source": "directory",
+        "path": "/Users/oscar/Coding/OscarClaudeTools"
+      }
+    }
+  },
+  "effortLevel": "medium",
+  "promptSuggestionEnabled": false,
+  "awaySummaryEnabled": false,
+  "tui": "default",
+  "skipDangerousModePermissionPrompt": true,
+  "theme": "dark-ansi",
+  "teammateMode": "in-process"
+}

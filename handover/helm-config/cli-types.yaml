@@ -1,0 +1,18 @@
+mac-test-bash:
+  name: mac-test-bash
+  initialPrompt: []
+  initialPromptDelay: 0
+  spawnCommand: echo HELM-MAC-TERMINAL-OK && uname -a
+  helmPreambleForInterSession: true
+  pasteMode: pty
+claudec:
+  name: claude
+  initialPrompt:
+    - label: ""
+      sequence: Call session_info to get Helm MCP initial information.{Enter}
+  initialPromptDelay: 5000
+  spawnCommand: claude --session-id {cliSessionName} --model opus --effort medium
+  resumeCommand: claude --resume={cliSessionName} --model opus --effort medium
+  largeTextAsTempFile: true
+  pasteMode: pty
+  submitSuffix: \r
