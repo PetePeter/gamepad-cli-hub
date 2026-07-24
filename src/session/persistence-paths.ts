@@ -25,3 +25,4 @@ export const MACHINE_IDENTITY_FILE = join(configDir, 'machine-identity.yaml');
 export const SELF_SIGNED_CERT_FILE = join(configDir, 'self-signed-cert.yaml');
 export const PEER_PINS_FILE = join(configDir, 'peer-pins.yaml');
 export const PEER_SECRETS_FILE = join(configDir, 'peer-secrets.yaml');
+export const PEER_AUDIT_FILE = join(configDir, 'peer-audit.yaml');

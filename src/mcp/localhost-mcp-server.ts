@@ -287,6 +287,28 @@ export class LocalhostMcpServer {
   }
 
 
+  /**
+   * Dispatch a tool call through the EXACT same path as the localhost server —
+   * `callMcpTool` with the same deps — but under a caller-supplied AuthContext.
+   * This is the seam the cross-machine InboundCallGate (P-0647) dispatches
+   * through: the gate synthesizes a PROXY authContext and never touches the
+   * dispatcher directly, so the dispatcher stays untouched. Returns the raw tool
+   * result (no JSON-RPC framing — the peer link frames it).
+   */
+  async dispatchForPeer(name: string, args: Record<string, unknown>, authContext: AuthContext): Promise<unknown> {
+    const deps = {
+      service: this.service,
+      setPlanStateWithValidation: this.setPlanStateWithValidation.bind(this),
+      completePlanWithValidation: this.completePlanWithValidation.bind(this, authContext),
+      onPlanRead: (planId: string) => {
+        if (authContext.sessionId) {
+          this.planReadTracker.recordRead(planId, authContext.sessionId);
+        }
+      },
+    };
+    return callMcpTool(deps, name, args, authContext);
+  }
+
   private setPlanStateWithValidation(
     id: string,
     status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked',

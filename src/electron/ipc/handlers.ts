@@ -64,6 +64,12 @@ import { HelmControlService } from '../../mcp/helm-control-service.js';
 import { LocalhostMcpServer } from '../../mcp/localhost-mcp-server.js';
 import { startFederationIfEnabled } from '../../mcp/peer/federation-startup.js';
 import type { PeerLinkManager } from '../../mcp/peer/peer-link-manager.js';
+import { InboundCallGate } from '../../mcp/peer/inbound-call-gate.js';
+import { createDefaultPeerRateLimiter } from '../../mcp/peer/rate-limiter.js';
+import { PeerAuditLog } from '../../mcp/peer/peer-audit-log.js';
+import { PeerConfigManager } from '../../session/peer-config-manager.js';
+import { loadPeers } from '../../session/peer-config-persistence.js';
+import { asRecord } from '../../mcp/tools/validation.js';
 import { PromptTemplateManager } from '../../session/prompt-template-manager.js';
 import { loadPromptTemplates } from '../../session/prompt-template-persistence.js';
 import { getConfigDir } from '../../utils/app-paths.js';
@@ -409,11 +415,23 @@ export function registerIPCHandlers(
 
   // Cross-machine federation (P-0646) — SEPARATE listener from the 127.0.0.1 MCP
   // server, OFF by default. When disabled this binds nothing. The inbound-call
-  // sink is a placeholder here; the concrete tool dispatch lands in a later plan.
+  // sink is the InboundCallGate (P-0647): allow-list + hard-deny + rate-limit,
+  // then dispatch through the EXISTING callMcpTool under a synthetic PROXY
+  // identity (never a real local session). We build it here because this scope
+  // has the deps (LocalhostMcpServer.dispatchForPeer + the peer registry).
+  const peerConfigManager = new PeerConfigManager();
+  peerConfigManager.importAll(loadPeers());
+  const inboundGate = new InboundCallGate({
+    peerConfig: peerConfigManager,
+    dispatch: (method, params, ctx) =>
+      localhostMcpServer.dispatchForPeer(method, asRecord(params), ctx),
+    rateLimiter: createDefaultPeerRateLimiter(),
+    audit: new PeerAuditLog(),
+  });
   let peerLinkManager: PeerLinkManager | null = null;
   void startFederationIfEnabled(
     configLoader.getFederationConfig(),
-    async (_peerId, method) => { throw new Error(`Federation onCall not yet wired: ${method}`); },
+    (peerId, method, params) => inboundGate.handle(peerId, method, params),
   ).then((mgr) => { peerLinkManager = mgr; })
     .catch((err) => logger.error(`[federation] Failed to start peer transport: ${err}`));
 
