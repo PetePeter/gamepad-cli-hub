@@ -133,6 +133,21 @@ describe('PeerLinkManager', () => {
     await mgr.stop();
   });
 
+  it('list() combines the configured peers with their live online status', async () => {
+    const { mgr, created } = makeManager();
+    await mgr.start();
+    // No link yet → offline.
+    expect(mgr.list()).toEqual([
+      { id: 'peerA', alias: 'A', direction: 'bidirectional', online: false },
+    ]);
+    // Bring a link up → online flips true.
+    created.clients[0].emitLink(new FakeLink(), 'peerA');
+    expect(mgr.list()).toEqual([
+      { id: 'peerA', alias: 'A', direction: 'bidirectional', online: true },
+    ]);
+    await mgr.stop();
+  });
+
   describe('dedup by min(machineId) initiator', () => {
     it('local is the min → our OUTBOUND (we initiated) link wins over an inbound', async () => {
       // localMachineId 'AAA' < peerMachineId 'ZZZ' → the link where WE are

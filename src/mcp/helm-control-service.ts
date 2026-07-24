@@ -26,6 +26,7 @@ import { HelmTelegramService } from './services/helm-telegram-service.js';
 import { HelmSchedulerService } from './services/helm-scheduler-service.js';
 import { HelmProjectService } from './services/helm-project-service.js';
 import { HelmDirectoryService } from './services/helm-directory-service.js';
+import { HelmPeerService } from './services/helm-peer-service.js';
 import { logger } from '../utils/logger.js';
 import type { ScheduledTaskManager } from '../session/scheduled-task-manager.js';
 import type { CreateScheduledTaskParams, ScheduledTask, UpdateScheduledTaskParams } from '../types/scheduled-task.js';
@@ -135,6 +136,9 @@ export class HelmControlService extends EventEmitter {
   private readonly schedulerService: HelmSchedulerService | null;
   private readonly projectService: HelmProjectService | null;
   private readonly directoryService: HelmDirectoryService;
+  /** Federation is OFF by default → no manager until setPeerLinkManager wires one. */
+  private peerLinkManager?: import('./peer/peer-link-manager.js').PeerLinkManager;
+  private readonly peerService: HelmPeerService;
   private readonly skillManager: SkillManager;
   private readonly skillAnalyticsManager: SkillAnalyticsManager;
   private readonly capabilityDetector: CapabilityDetector;
@@ -226,6 +230,7 @@ export class HelmControlService extends EventEmitter {
     this.schedulerService = schedulerManager ? new HelmSchedulerService(schedulerManager, configLoader, projectStore) : null;
     this.projectService = projectStore ? new HelmProjectService(projectStore) : null;
     this.directoryService = new HelmDirectoryService(configLoader, sessionManager, planManager, projectStore);
+    this.peerService = new HelmPeerService(() => this.peerLinkManager);
   }
 
   // ---------------------------------------------------------------------------
@@ -249,6 +254,31 @@ export class HelmControlService extends EventEmitter {
   /** Wire the ArtifactManager so the artifact_* MCP tools can produce session reports. */
   setArtifactManager(manager: import('../session/artifact-manager.js').ArtifactManager): void {
     this.artifactManager = manager;
+  }
+
+  /**
+   * Wire the PeerLinkManager so the peer_* federation tools can reach remote
+   * peers. Called only when federation is enabled; left unset otherwise, so the
+   * peer_* tools cleanly report 'Federation is not enabled'.
+   */
+  setPeerLinkManager(manager: import('./peer/peer-link-manager.js').PeerLinkManager): void {
+    this.peerLinkManager = manager;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Federation — remote peer tool invocation (peer_list / peer_tools / peer_call)
+  // ---------------------------------------------------------------------------
+
+  peerList() {
+    return this.peerService.list();
+  }
+
+  peerTools(peer: string) {
+    return this.peerService.tools(peer);
+  }
+
+  peerCall(peer: string, tool: string, args: Record<string, unknown>) {
+    return this.peerService.call(peer, tool, args);
   }
 
   // ---------------------------------------------------------------------------

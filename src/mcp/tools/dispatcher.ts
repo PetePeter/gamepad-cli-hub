@@ -8,6 +8,7 @@ import {
   asPlanFilter,
   asPlanStatus,
   asPlanTypeOrNull,
+  asRecord,
   asString,
   asTerminalOutputMode,
   requireBooleanResult,
@@ -631,6 +632,16 @@ export async function callMcpTool(
           typeof args.version === 'number' ? args.version : undefined,
         );
       }
+      case 'peer_list':
+        return service.peerList();
+      case 'peer_tools':
+        return service.peerTools(asString(args.peer, 'peer is required'));
+      case 'peer_call':
+        return service.peerCall(
+          asString(args.peer, 'peer is required'),
+          asString(args.tool, 'tool is required'),
+          asRecord(args.args),
+        );
       default:
         throw new Error(`Unknown tool: ${name}`);
     }

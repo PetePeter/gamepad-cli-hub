@@ -19,6 +19,18 @@ import type { AuthContext } from '../tools/types.js';
 import { proxyAuthContext } from './proxy-identity.js';
 import type { PeerRateLimiter } from './rate-limiter.js';
 import type { PeerAuditLog, PeerAuditOutcome } from './peer-audit-log.js';
+import { MCP_TOOLS } from '../tools/definitions.js';
+
+/**
+ * A reserved, non-dispatchable meta-method a remote peer uses to discover the
+ * tool surface THIS host will actually let it invoke. It is answered in-gate by
+ * intersecting MCP_TOOLS with the caller's allow-list (minus hard-denied tools)
+ * — the allow-list authority lives on the REMOTE, so a peer learns exactly what
+ * it may call, and nothing about tools it may not. Never routed through the MCP
+ * dispatcher. Named with sentinel underscores so it can never collide with a
+ * real tool name.
+ */
+export const RESERVED_PEER_TOOLS_METHOD = '__peer_tools__';
 
 /**
  * Tools that must NEVER be invocable by a remote peer, regardless of that peer's
@@ -112,6 +124,22 @@ export class InboundCallGate {
   /** Gate + dispatch one inbound peer call. */
   async handle(peerId: string, method: string, params: unknown): Promise<unknown> {
     const argSummary = summarizeArgKeys(params);
+
+    // 0. Reserved tool-discovery meta-method. Answered IN-GATE (never dispatched)
+    // by intersecting the tool catalogue with this peer's allow-list, minus the
+    // hard-deny set. Still rate-limited + audited so a peer cannot probe it for
+    // free. This is how a remote returns the CALLER's permitted surface.
+    if (method === RESERVED_PEER_TOOLS_METHOD) {
+      if (!this.rateLimiter.tryConsume(peerId)) {
+        this.record(peerId, method, argSummary, 'rate-limited');
+        throw new GateError(JSONRPC_SERVER_ERROR, RATE_LIMIT_MESSAGE);
+      }
+      const tools = MCP_TOOLS
+        .filter((t) => !HARD_DENY_TOOLS.has(t.name) && this.peerConfig.isToolAllowed(peerId, t.name))
+        .map((t) => ({ name: t.name, title: t.title, description: t.description, inputSchema: t.inputSchema }));
+      this.record(peerId, method, argSummary, 'ok');
+      return { tools };
+    }
 
     // 1. Hard-deny — never proxyable, even under a wildcard allow-list.
     if (HARD_DENY_TOOLS.has(method)) {

@@ -142,6 +142,20 @@ export class PeerLinkManager extends EventEmitter {
     return entry && entry.link.isOnline() ? 'online' : 'offline';
   }
 
+  /**
+   * A snapshot of every configured peer with its current link status. Combines
+   * the injected config source (identity/direction) with the live per-peer
+   * `status()`. Latency is intentionally omitted — no link tracks pong RTT yet.
+   */
+  list(): Array<{ id: string; alias: string; direction: PeerConfig['direction']; online: boolean }> {
+    return this.opts.listPeers().map((peer) => ({
+      id: peer.id,
+      alias: peer.alias,
+      direction: peer.direction,
+      online: this.status(peer.id) === 'online',
+    }));
+  }
+
   /** Invoke `method` on `peerId` over its live link. Rejects if none. */
   call(peerId: string, method: string, params: unknown): Promise<unknown> {
     const entry = this.links.get(peerId);

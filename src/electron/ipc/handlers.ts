@@ -432,7 +432,11 @@ export function registerIPCHandlers(
   void startFederationIfEnabled(
     configLoader.getFederationConfig(),
     (peerId, method, params) => inboundGate.handle(peerId, method, params),
-  ).then((mgr) => { peerLinkManager = mgr; })
+  ).then((mgr) => {
+    peerLinkManager = mgr;
+    // Wire the peer_* federation tools only when a transport actually started.
+    if (mgr) helmControlService.setPeerLinkManager(mgr);
+  })
     .catch((err) => logger.error(`[federation] Failed to start peer transport: ${err}`));
 
   return {

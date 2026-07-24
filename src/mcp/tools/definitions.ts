@@ -1316,5 +1316,46 @@ export const MCP_TOOLS: McpTool[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'peer_list',
+    title: 'List Federation Peers',
+    description:
+      'List the remote Helm peers this instance can reach, with each peer\'s id, alias, direction, and current online status. Start here for any cross-machine work: call peer_list to find a peer, then peer_tools(peer) to see what it will let you run, then peer_call(peer, tool, args) to invoke one of its tools. Returns an empty list — and peer_* tools report "Federation is not enabled" — when federation is turned off.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'peer_tools',
+    title: 'List A Peer\'s Available Tools',
+    description:
+      'List the tools a specific remote peer will actually permit you to invoke (the peer\'s allow-list intersected with the tool catalogue). Call peer_list first to get a valid peer id/alias. The returned names + input schemas are that peer\'s NATIVE tool vocabulary — pass one verbatim to peer_call. An unknown or offline peer returns a clear error.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        peer: { type: 'string', description: 'The peer id (or alias) from peer_list.' },
+      },
+      required: ['peer'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'peer_call',
+    title: 'Invoke A Tool On A Peer',
+    description:
+      'Invoke ONE tool on a remote peer. `tool` and `args` are the peer\'s NATIVE tool name and argument object — exactly as returned by peer_tools(peer) — forwarded verbatim; do NOT namespace or rewrite them. Always call peer_list then peer_tools(peer) first to discover valid tools and their schemas. The remote enforces its own allow-list; an offline/unknown peer, a disallowed tool, or a timeout returns a clear error.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        peer: { type: 'string', description: 'The peer id (or alias) from peer_list.' },
+        tool: { type: 'string', description: 'The peer\'s native tool name from peer_tools(peer).' },
+        args: { type: 'object', description: 'The tool\'s argument object, forwarded to the peer verbatim.' },
+      },
+      required: ['peer', 'tool', 'args'],
+      additionalProperties: false,
+    },
+  },
 ];
 

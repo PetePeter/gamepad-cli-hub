@@ -11,8 +11,10 @@ import {
   InboundCallGate,
   HARD_DENY_TOOLS,
   GateError,
+  RESERVED_PEER_TOOLS_METHOD,
   stripCallerIdentityOverrides,
 } from '../src/mcp/peer/inbound-call-gate.js';
+import { MCP_TOOLS } from '../src/mcp/tools/definitions.js';
 import { PeerRateLimiter } from '../src/mcp/peer/rate-limiter.js';
 import { PeerAuditLog } from '../src/mcp/peer/peer-audit-log.js';
 import { isProxySessionId } from '../src/mcp/peer/proxy-identity.js';
@@ -243,6 +245,72 @@ describe('InboundCallGate', () => {
       .rejects.toMatchObject({ code: -32000, message: 'Tool not permitted' });
     expect(calls).toHaveLength(0);
     expect(HARD_DENY_TOOLS.has('session_group_close')).toBe(true);
+  });
+});
+
+describe('InboundCallGate — reserved __peer_tools__ meta-method', () => {
+  it('returns MCP_TOOLS filtered by allow-list ∩ not-hard-denied; never dispatches', async () => {
+    // Allow-list grants a set of session_* tools plus the hard-denied
+    // restart_helm/session_close: those two must STILL be excluded (hard-deny),
+    // a non-allowed tool (artifact_get) must be absent. (The fake matches exact
+    // names, mirroring the allow-list ∩ catalogue intersection.)
+    const { gate, calls } = build({
+      mac: ['session_list', 'session_create', 'restart_helm', 'session_close'],
+    });
+
+    const result = (await gate.handle('mac', RESERVED_PEER_TOOLS_METHOD, {})) as {
+      tools: Array<{ name: string; title: string; description: string; inputSchema: unknown }>;
+    };
+    const names = result.tools.map(t => t.name);
+
+    // allow-listed, catalogued, not hard-denied → present
+    expect(names).toContain('session_list');
+    expect(names).toContain('session_create');
+    // hard-denied tools EXCLUDED even though allow-listed
+    expect(names).not.toContain('restart_helm');
+    expect(names).not.toContain('session_close');
+    // non-allowed tool absent
+    expect(names).not.toContain('artifact_get');
+
+    // every returned tool carries the exposed shape
+    for (const t of result.tools) {
+      expect(typeof t.name).toBe('string');
+      expect(typeof t.title).toBe('string');
+      expect(typeof t.description).toBe('string');
+      expect(t.inputSchema).toBeDefined();
+    }
+
+    // NEVER dispatched through callMcpTool
+    expect(calls).toHaveLength(0);
+  });
+
+  it('is audited as ok and counts against the rate-limit bucket', async () => {
+    let t = 0;
+    const { gate, audit } = build({ mac: ['session_list'] }, { now: () => t, capacity: 1 });
+
+    const first = (await gate.handle('mac', RESERVED_PEER_TOOLS_METHOD, {})) as { tools: unknown[] };
+    expect(Array.isArray(first.tools)).toBe(true);
+
+    // audited as ok with the sentinel method name
+    const rec = audit.list()[0];
+    expect(rec.outcome).toBe('ok');
+    expect(rec.method).toBe(RESERVED_PEER_TOOLS_METHOD);
+
+    // it consumed the single token → next call is rate-limited
+    await expect(gate.handle('mac', RESERVED_PEER_TOOLS_METHOD, {}))
+      .rejects.toMatchObject({ code: -32000, message: 'Rate limit exceeded' });
+  });
+
+  it('exposes exactly the intersection with MCP_TOOLS (no invented tools)', async () => {
+    const { gate } = build({ mac: ['*'] });
+    const result = (await gate.handle('mac', RESERVED_PEER_TOOLS_METHOD, {})) as {
+      tools: Array<{ name: string }>;
+    };
+    const definedNames = new Set(MCP_TOOLS.map(t => t.name));
+    for (const t of result.tools) {
+      expect(definedNames.has(t.name)).toBe(true);
+      expect(HARD_DENY_TOOLS.has(t.name)).toBe(false);
+    }
   });
 });
 
