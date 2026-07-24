@@ -21,3 +21,7 @@ export const RECYCLE_BIN_FILE = join(configDir, 'recycle-bin.yaml');
 export const RUNTIME_GROUPS_FILE = join(configDir, 'runtime-groups.yaml');
 export const ARTIFACTS_FILE = join(configDir, 'artifacts.yaml');
 export const PEERS_FILE = join(configDir, 'peers.yaml');
+export const MACHINE_IDENTITY_FILE = join(configDir, 'machine-identity.yaml');
+export const SELF_SIGNED_CERT_FILE = join(configDir, 'self-signed-cert.yaml');
+export const PEER_PINS_FILE = join(configDir, 'peer-pins.yaml');
+export const PEER_SECRETS_FILE = join(configDir, 'peer-secrets.yaml');

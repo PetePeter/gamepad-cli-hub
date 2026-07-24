@@ -4,7 +4,7 @@
   "version": "1.11.1",
   "main": "dist-electron/main.js",
   "type": "module",
-  "description": "Helm \u2014 steer your fleet of agents",
+  "description": "Helm — steer your fleet of agents",
   "scripts": {
     "start": "npm run build && electron .",
     "dev": "npm run build && electron .",
@@ -88,6 +88,7 @@
     "node-pty": "^1.1.0",
     "node-telegram-bot-api": "^0.67.0",
     "pinia": "^3.0.4",
+    "selfsigned": "^5.5.0",
     "vue": "^3.5.32",
     "winston": "^3.19.0",
     "winston-daily-rotate-file": "^5.0.0",

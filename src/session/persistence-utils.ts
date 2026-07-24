@@ -2,11 +2,11 @@ import { existsSync, mkdirSync, renameSync, unlinkSync, writeFileSync } from 'no
 import { dirname } from 'node:path';
 import { logger } from '../utils/logger.js';
 
-export function atomicWriteFileSync(filePath: string, content: string): void {
+export function atomicWriteFileSync(filePath: string, content: string, opts?: { mode?: number }): void {
   mkdirSync(dirname(filePath), { recursive: true });
   const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
   try {
-    writeFileSync(tempPath, content, 'utf8');
+    writeFileSync(tempPath, content, { encoding: 'utf8', mode: opts?.mode });
     renameSync(tempPath, filePath);
   } catch (err) {
     try {
