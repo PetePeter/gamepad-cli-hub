@@ -53,6 +53,29 @@ function escapeShellArg(arg: string): string {
 }
 
 /**
+ * Resolve the shell (and args) that backs a PTY.
+ *
+ * Windows: cmd.exe with no args — the historical default shell.
+ *
+ * macOS/Linux: the user's own login shell ($SHELL, e.g. /bin/zsh) started as an
+ * interactive login shell (-il) so it sources the user's profile
+ * (.zprofile/.zshrc, .bash_profile/.profile) — exactly like a real terminal tab.
+ * This is critical for GUI-launched .app bundles: launchd hands the app only a
+ * stripped PATH (/usr/bin:/bin:/usr/sbin:/sbin), so without sourcing the profile
+ * the PTY can't find user-installed CLIs like `claude` (~/.local/bin) or Homebrew
+ * tools (/opt/homebrew/bin). $SHELL is preferred over bash because PATH additions
+ * typically live in the user's actual shell's rc files, not bash's. `npm start`
+ * from a terminal didn't show the bug because it already inherited the full PATH.
+ */
+export function resolvePtyShell(
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
+): { file: string; args: string[] } {
+  if (platform === 'win32') return { file: 'cmd.exe', args: [] };
+  return { file: env.SHELL || 'bash', args: ['-il'] };
+}
+
+/**
  * Manages PTY processes for embedded terminals.
  *
  * Accepts an optional PtyFactory for dependency injection so tests can
@@ -94,8 +117,8 @@ export class PtyManager extends EventEmitter {
       throw new Error(`PTY already exists for session: ${sessionId}`);
     }
 
-    const shell = process.platform === 'win32' ? 'cmd.exe' : 'bash';
-    const ptyProcess = this.factory.spawn(shell, [], {
+    const { file: shell, args: shellArgs } = resolvePtyShell();
+    const ptyProcess = this.factory.spawn(shell, shellArgs, {
       name: 'xterm-256color',
       cols,
       rows,
