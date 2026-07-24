@@ -100,18 +100,22 @@ describe('ArtifactViewer', () => {
     expect(w.find('.ap-doc').html()).toContain('Newest content');
   });
 
-  it('deletes an artifact via the rail per-item control after confirm', async () => {
+  function footBtn(w: ReturnType<typeof mount>, text: string) {
+    return w.findAll('.ap-btn').find((b) => b.text().includes(text));
+  }
+
+  it('deletes the selected artifact from the footer after confirm', async () => {
     const { w } = await mountWith([makeArtifact()]);
 
     // First click arms the inline confirm — nothing is deleted yet.
-    await w.find('.ap-it-del').trigger('click');
+    await footBtn(w, 'Delete')!.trigger('click');
     await flushPromises();
     expect(artifactDelete).not.toHaveBeenCalled();
-    expect(w.find('.ap-it-confirm').exists()).toBe(true);
+    expect(w.text()).toContain('Delete?');
 
     // Confirm actually deletes; the list is empty on reload.
     artifactList.mockResolvedValue([]);
-    await w.find('.ap-it-confirm-yes').trigger('click');
+    await footBtn(w, 'Yes')!.trigger('click');
     await flushPromises();
 
     expect(artifactDelete).toHaveBeenCalledWith('a1');
@@ -119,14 +123,15 @@ describe('ArtifactViewer', () => {
     expect(w.find('.ap-detail-empty').exists()).toBe(true);
   });
 
-  it('cancel on the rail confirm does not delete', async () => {
-    const { w } = await mountWith([makeArtifact()]);
-    await w.find('.ap-it-del').trigger('click');
+  it('copies a Helm reference for the selected artifact', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    const { w } = await mountWith([makeArtifact({ title: 'Auth Flow Audit' })]);
+
+    await footBtn(w, 'Copy reference')!.trigger('click');
     await flushPromises();
-    await w.find('.ap-it-confirm-no').trigger('click');
-    await flushPromises();
-    expect(artifactDelete).not.toHaveBeenCalled();
-    expect(w.find('.ap-it-confirm').exists()).toBe(false);
+
+    expect(writeText).toHaveBeenCalledWith('helm artifact: "Auth Flow Audit" id=a1');
   });
 
   it('filters the rail by search query', async () => {

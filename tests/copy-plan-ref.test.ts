@@ -19,12 +19,17 @@ describe('copyPlanRef', () => {
     [...toasts].forEach((t) => removeToast(t.id));
   });
 
-  it('writes the trimmed reference and shows a success toast', async () => {
-    await copyPlanRef('  P-3  ');
+  it('writes the unified Helm reference and shows a success toast', async () => {
+    await copyPlanRef('  P-3  ', 'Fix login');
 
-    expect(writeText).toHaveBeenCalledWith('P-3');
+    expect(writeText).toHaveBeenCalledWith('helm plan: "Fix login" id=P-3');
     const { toasts } = useToast();
     expect(toasts.at(-1)).toMatchObject({ message: 'Copied P-3', type: 'success' });
+  });
+
+  it('omits the label when no title is given', async () => {
+    await copyPlanRef('P-3');
+    expect(writeText).toHaveBeenCalledWith('helm plan: id=P-3');
   });
 
   it('does nothing but warns when there is no reference', async () => {

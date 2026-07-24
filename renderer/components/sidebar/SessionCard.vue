@@ -10,6 +10,7 @@ import { getActivityColor } from '../../state-colors.js';
 import NotificationCarousel from './NotificationCarousel.vue';
 import { useRuntimeGroups } from '../../composables/useRuntimeGroups.js';
 import { useSessionDrag } from '../../composables/useSessionDrag.js';
+import { formatHelmRef } from '../../lib/helm-ref.js';
 
 // --- Types ---
 
@@ -188,7 +189,7 @@ function colClass(col: number): string {
 
 const copied = ref(false);
 const sessionRef = computed(
-  () => `helm session: "${props.session.name}" (${props.session.cliType}) id=${props.session.id}`,
+  () => formatHelmRef('session', { label: props.session.name, meta: props.session.cliType, id: props.session.id }),
 );
 
 async function copyId(): Promise<void> {

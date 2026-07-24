@@ -13,7 +13,9 @@
  */
 import { computed, onMounted, watch, nextTick } from 'vue';
 import { useArtifactViewer } from '../../composables/useArtifactViewer.js';
+import { useToast } from '../../composables/useToast.js';
 import { renderArtifact } from '../../artifacts/render-artifact.js';
+import { formatHelmRef } from '../../lib/helm-ref.js';
 import { systemClient } from '../../ipc/clients.js';
 import type { Artifact } from '../../../src/types/artifact.js';
 
@@ -24,6 +26,7 @@ const emit = defineEmits<{
 }>();
 
 const viewer = useArtifactViewer();
+const { addToast } = useToast();
 
 // Local rail controls.
 import { ref } from 'vue';
@@ -170,13 +173,30 @@ const count = computed(() => artifacts.value.length);
 // ── Actions ────────────────────────────────────────────────────────────────
 
 function onSelect(id: string): void { viewer.select(id); }
-// Per-artifact delete is guarded by an inline confirm so it can't be a one-click
-// accident. onDeleteItem arms the confirm; confirmDelete actually removes.
-const confirmDeleteId = ref<string | null>(null);
-function onDeleteItem(id: string): void { confirmDeleteId.value = id; }
-function confirmDelete(id: string): void { confirmDeleteId.value = null; void viewer.remove(id); }
-function cancelDelete(): void { confirmDeleteId.value = null; }
 function onExport(): void { if (selectedId.value) void viewer.export(selectedId.value); }
+
+// Footer delete is guarded by an inline confirm so it can't be a one-click accident.
+const confirmDelete = ref(false);
+function onConfirmDelete(): void {
+  const id = selectedId.value;
+  confirmDelete.value = false;
+  if (id) void viewer.remove(id);
+}
+// Reset the confirm whenever the selection changes (stale "Delete?" would be dangerous).
+watch(selectedId, () => { confirmDelete.value = false; });
+
+// Copy a reference in the shared Helm format so it can be pasted into a session
+// and resolved by an AI (via artifact_get).
+async function onCopyRef(): Promise<void> {
+  const a = selected.value;
+  if (!a) return;
+  try {
+    await navigator.clipboard.writeText(formatHelmRef('artifact', { label: a.title, id: a.id }));
+    addToast({ message: 'Reference copied', type: 'success' });
+  } catch {
+    addToast({ message: 'Copy failed', type: 'error' });
+  }
+}
 
 /**
  * Intercept clicks on links inside the rendered artifact. The content is
@@ -256,12 +276,6 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
                     <span>{{ relativeTime(row.artifact!.updatedAt) }}</span>
                   </div>
                 </div>
-                <span v-if="confirmDeleteId === row.artifact!.id" class="ap-it-confirm" @click.stop>
-                  <span class="ap-it-confirm-label">Delete?</span>
-                  <button class="ap-it-confirm-yes" title="Confirm delete" @click.stop="confirmDelete(row.artifact!.id)">✓</button>
-                  <button class="ap-it-confirm-no" title="Cancel" @click.stop="cancelDelete()">✕</button>
-                </span>
-                <button v-else class="ap-it-del" title="Delete" @click.stop="onDeleteItem(row.artifact!.id)">🗑</button>
               </div>
             </template>
           </div>
@@ -306,7 +320,14 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
 
         <div class="ap-foot">
           <button class="ap-btn" title="Save to a location you pick" :disabled="!selected" @click="onExport">⭳ Export…</button>
+          <button class="ap-btn" title="Copy a reference an AI can resolve" :disabled="!selected" @click="onCopyRef">📋 Copy reference</button>
           <span class="ap-grow"></span>
+          <template v-if="confirmDelete">
+            <span class="ap-foot-confirm">Delete?</span>
+            <button class="ap-btn ap-btn--danger" title="Confirm delete" @click="onConfirmDelete">✓ Yes</button>
+            <button class="ap-btn" title="Cancel" @click="confirmDelete = false">✕</button>
+          </template>
+          <button v-else class="ap-btn ap-btn--danger" title="Delete this artifact" :disabled="!selected" @click="confirmDelete = true">🗑 Delete</button>
         </div>
       </div>
     </div>
@@ -356,7 +377,6 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
 .ap-grp-h { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); padding: 8px 6px 4px; position: sticky; top: 0; background: var(--bg-secondary); }
 .ap-item { display: flex; gap: 7px; align-items: flex-start; padding: 7px 8px; border-radius: 7px; border: 1px solid transparent; cursor: pointer; margin-bottom: 2px; }
 .ap-item:hover { background: var(--bg-tertiary); }
-.ap-item:hover .ap-it-del { opacity: 1; }
 .ap-item--active { background: rgba(79, 208, 139, 0.07); border-color: var(--accent); }
 .ap-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; background: transparent; }
 .ap-item--unread .ap-dot { background: var(--accent); }
@@ -367,13 +387,6 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
 .ap-kind--md { color: var(--accent); }
 .ap-kind--html { color: var(--blue, #6c8cff); }
 .ap-vcount { color: var(--text-dim); }
-.ap-it-del { opacity: 0.65; color: var(--text-primary); font-size: 0.85rem; margin-top: 2px; background: none; border: none; cursor: pointer; }
-.ap-it-del:hover { color: var(--red, #ff6666); }
-.ap-it-confirm { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; margin-top: 2px; }
-.ap-it-confirm-label { font-size: 0.68rem; color: var(--text-primary); }
-.ap-it-confirm-yes, .ap-it-confirm-no { background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary); font-size: 0.72rem; cursor: pointer; padding: 0 5px; line-height: 1.4; }
-.ap-it-confirm-yes:hover { border-color: var(--red, #ff6666); color: var(--red, #ff6666); }
-.ap-it-confirm-no:hover { border-color: var(--accent); color: var(--accent); }
 
 /* detail */
 .ap-detail { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg-primary); }
@@ -415,5 +428,7 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
 .ap-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .ap-btn:disabled { opacity: 0.4; cursor: default; }
 .ap-btn--danger:hover:not(:disabled) { border-color: var(--red-border, #c55); color: var(--red, #ff6666); }
+.ap-btn { cursor: pointer; font-family: inherit; }
+.ap-foot-confirm { font-size: 0.74rem; color: var(--text-primary); }
 .ap-grow { flex: 1; }
 </style>
