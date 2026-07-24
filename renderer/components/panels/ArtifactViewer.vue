@@ -11,7 +11,7 @@
  * useArtifactViewer composable is told which session is active so a snap-out
  * window can render its own instance without cross-talk.
  */
-import { computed, onMounted, watch } from 'vue';
+import { computed, onMounted, watch, nextTick } from 'vue';
 import { useArtifactViewer } from '../../composables/useArtifactViewer.js';
 import { renderArtifact } from '../../artifacts/render-artifact.js';
 import { systemClient } from '../../ipc/clients.js';
@@ -66,6 +66,34 @@ const renderedHtml = computed(() => {
   if (!a || !v) return '';
   return renderArtifact(a.kind, v.content);
 });
+
+// ── Mermaid diagrams ────────────────────────────────────────────────────────
+// render-artifact emits ```mermaid fences as <pre class="mermaid">source</pre>.
+// After the sanitized HTML lands in the DOM we run mermaid over those nodes; it
+// parses the diagram source (securityLevel:'strict') and swaps in the SVG.
+// mermaid is heavy, so it's lazy-imported only when a diagram is actually present.
+const docRef = ref<HTMLElement | null>(null);
+let mermaidReady = false;
+
+async function renderMermaid(): Promise<void> {
+  const root = docRef.value;
+  if (!root) return;
+  const nodes = Array.from(root.querySelectorAll<HTMLElement>('pre.mermaid:not([data-processed])'));
+  if (nodes.length === 0) return;
+  try {
+    const mermaid = (await import('mermaid')).default;
+    if (!mermaidReady) {
+      mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'strict' });
+      mermaidReady = true;
+    }
+    await mermaid.run({ nodes });
+  } catch (err) {
+    console.error('[ArtifactViewer] mermaid render failed', err);
+  }
+}
+
+// Re-run whenever the rendered content changes (artifact/version switch).
+watch(renderedHtml, () => { void nextTick(renderMermaid); });
 
 function stepVersion(delta: number): void {
   const a = selected.value;
@@ -167,6 +195,7 @@ function onDocClick(e: MouseEvent): void {
 onMounted(() => {
   viewer.ensureSubscribed();
   void viewer.setActiveSession(props.sessionId);
+  void nextTick(renderMermaid); // in case an artifact is already selected on mount
 });
 
 watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
@@ -259,7 +288,7 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
           <div class="ap-body">
             <!-- renderedHtml is always DOMPurify-sanitized in render-artifact.ts;
                  onDocClick keeps AI-authored links from navigating the app window. -->
-            <div class="ap-doc" v-html="renderedHtml" @click="onDocClick"></div>
+            <div class="ap-doc" ref="docRef" v-html="renderedHtml" @click="onDocClick"></div>
           </div>
         </template>
         <div v-else class="ap-detail-empty">
@@ -313,7 +342,8 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
 .ap-search input { flex: 1; min-width: 0; background: none; border: none; outline: none; color: var(--text-primary); font-size: 0.78rem; font-family: inherit; }
 .ap-mag { color: var(--text-dim); font-size: 0.78rem; }
 .ap-sort { display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--text-secondary); }
-.ap-sort select { flex: 1; background: var(--bg-primary); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 5px; padding: 3px 6px; font-size: 0.7rem; font-family: inherit; }
+.ap-sort select { flex: 1; background: var(--bg-primary); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 5px; padding: 3px 6px; font-size: 0.7rem; font-family: inherit; color-scheme: dark; }
+.ap-sort select option { background: var(--bg-secondary); color: var(--text-primary); }
 
 .ap-rail-list { flex: 1; overflow-y: auto; padding: 4px 6px 8px; }
 .ap-empty { font-size: 0.74rem; color: var(--text-dim); padding: 12px 8px; }
@@ -342,7 +372,8 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
 .ap-v-step { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 4px; border: 1px solid var(--border); color: var(--text-secondary); font-size: 0.8rem; }
 .ap-v-step:hover { border-color: var(--accent); color: var(--accent); }
 .ap-v-sel { display: flex; align-items: center; border-radius: 5px; border: 1px solid var(--border); background: var(--bg-primary); }
-.ap-v-sel select { background: none; border: none; outline: none; color: var(--text-primary); font-size: 0.74rem; padding: 4px 9px; font-family: inherit; }
+.ap-v-sel select { background: none; border: none; outline: none; color: var(--text-primary); font-size: 0.74rem; padding: 4px 9px; font-family: inherit; color-scheme: dark; }
+.ap-v-sel select option { background: var(--bg-secondary); color: var(--text-primary); }
 
 .ap-v-old { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: rgba(108, 140, 255, 0.09); border-bottom: 1px solid #24304f; font-size: 0.72rem; color: #aeb9ff; }
 .ap-restore { margin-left: auto; font-size: 0.68rem; color: var(--accent); border: 1px solid #1e3d2b; border-radius: 4px; padding: 3px 9px; background: none; }
@@ -360,6 +391,8 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
 .ap-doc :deep(code) { background: var(--bg-tertiary); padding: 1px 6px; border-radius: 3px; font-family: Consolas, monospace; font-size: 0.76rem; color: var(--accent); }
 .ap-doc :deep(pre) { background: var(--bg-tertiary); padding: 10px 12px; border-radius: 6px; overflow: auto; }
 .ap-doc :deep(pre code) { background: none; padding: 0; }
+.ap-doc :deep(pre.mermaid) { background: transparent; padding: 8px 0; text-align: center; overflow-x: auto; }
+.ap-doc :deep(pre.mermaid svg) { max-width: 100%; height: auto; }
 .ap-doc :deep(table) { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 0.76rem; }
 .ap-doc :deep(th), .ap-doc :deep(td) { border: 1px solid var(--border); padding: 5px 9px; text-align: left; }
 .ap-doc :deep(th) { background: var(--bg-tertiary); color: var(--text-secondary); }

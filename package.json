@@ -4,7 +4,7 @@
   "version": "1.11.0",
   "main": "dist-electron/main.js",
   "type": "module",
-  "description": "Helm \u2014 steer your fleet of agents",
+  "description": "Helm — steer your fleet of agents",
   "scripts": {
     "start": "npm run build && electron .",
     "dev": "npm run build && electron .",
@@ -84,6 +84,7 @@
     "cron-parser": "^5.5.0",
     "dompurify": "^3.4.12",
     "marked": "^18.0.7",
+    "mermaid": "^11.16.0",
     "node-pty": "^1.1.0",
     "node-telegram-bot-api": "^0.67.0",
     "pinia": "^3.0.4",

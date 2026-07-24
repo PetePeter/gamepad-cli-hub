@@ -8,7 +8,7 @@
  *   <div ref="splitterRef">...</div>
  */
 
-import { ref, onMounted, onUnmounted, type Ref } from 'vue';
+import { ref, onMounted, onUnmounted, watch, type Ref } from 'vue';
 
 const PANEL_WIDTH_KEY = 'gamepad-hub:panel-width';
 const MIN_WIDTH = 0;
@@ -97,11 +97,21 @@ export function usePanelResize(options: PanelResizeOptions = {}) {
   }
 
   onMounted(() => {
-    restoreWidth();
-    splitterRef.value?.addEventListener('mousedown', onMouseDown);
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   });
+
+  // Bind the drag handler to the splitter whenever it appears or changes. The
+  // element can be behind a v-if (e.g. the artifact panel only renders once a
+  // session is active), so a one-time onMounted bind would attach to nothing and
+  // never re-bind. Watching the ref covers late mounts and remounts.
+  watch(splitterRef, (el, prev) => {
+    prev?.removeEventListener('mousedown', onMouseDown);
+    el?.addEventListener('mousedown', onMouseDown);
+  }, { immediate: true });
+
+  // Restore the persisted width once the panel element is actually present.
+  watch(panelRef, (el) => { if (el) restoreWidth(); }, { immediate: true });
 
   onUnmounted(() => {
     splitterRef.value?.removeEventListener('mousedown', onMouseDown);

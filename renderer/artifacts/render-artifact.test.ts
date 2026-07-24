@@ -58,4 +58,17 @@ describe('renderArtifact', () => {
     const out = renderArtifact('html', '<a href="https://example.com" target="_blank">x</a>');
     expect(out.toLowerCase()).not.toContain('target=');
   });
+
+  it('emits a mermaid marker for ```mermaid fences (source escaped)', () => {
+    const out = renderArtifact('markdown', '```mermaid\ngraph TD; A-->B;\n```');
+    expect(out).toContain('<pre class="mermaid">');
+    expect(out).toContain('graph TD; A--&gt;B;');
+  });
+
+  it('keeps class only for the mermaid marker on <pre>, strips it elsewhere', () => {
+    const p = renderArtifact('html', '<p class="modal-overlay">x</p>');
+    expect(p.toLowerCase()).not.toContain('class=');
+    const div = renderArtifact('html', '<div class="mermaid">x</div>');
+    expect(div.toLowerCase()).not.toContain('class='); // mermaid class only allowed on <pre>
+  });
 });

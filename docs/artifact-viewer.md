@@ -72,6 +72,12 @@ terminal out; the `SnapOutWindow` mounts its own `ArtifactViewer` bound to that
 window's session, so artifacts travel with the terminal and never render in two
 windows at once.
 
+**Mermaid:** ```mermaid fenced blocks are emitted as `<pre class="mermaid">` (the
+only class the sanitizer keeps, and only on `<pre>`); after the HTML is in the DOM,
+`ArtifactViewer` lazy-loads mermaid and renders those nodes to SVG
+(`theme: dark`, `securityLevel: strict`). The heavy mermaid bundle loads only when
+a diagram is actually present.
+
 **Security:** artifact bodies are AI-authored (untrusted) and render via `v-html`
 inside the *privileged* Electron window, so defence is layered:
 - `renderArtifact()` compiles markdown with a synchronous `marked` instance, then runs **`DOMPurify.sanitize`** against a strict **document allowlist** — prose/lists/tables/code/links only. Forms, controls, media, inline `style` (no `position:fixed` overlay spoofing), `target`, and non-`http(s)`/`mailto` URLs are stripped.
@@ -122,7 +128,7 @@ graph TB
 | `src/mcp/tools/{definitions,dispatcher,validation}.ts` | 7 MCP tools, caller-session scoping, ownership check |
 | `src/mcp/helm-control-service.ts` | Service methods + `requireOwnedArtifact` guard |
 | `src/mcp/guides/session-info-guide.ts` | `artifact_viewer` advert in `session_info` |
-| `renderer/artifacts/render-artifact.ts` | marked + DOMPurify strict-allowlist sanitized render |
+| `renderer/artifacts/render-artifact.ts` | marked + DOMPurify strict-allowlist sanitized render; ```mermaid → `<pre class="mermaid">` marker |
 | `src/electron/navigation-policy.ts` | App-wide privileged-window navigation guard (deny remote nav / window opens) |
 | `renderer/composables/useArtifactViewer.ts` | Module-singleton reactive state + event subscription |
 | `renderer/components/panels/ArtifactViewer.vue` | Master/detail panel |
