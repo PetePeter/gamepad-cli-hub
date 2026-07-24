@@ -62,6 +62,8 @@ import { IncomingPlansWatcher } from '../../session/incoming-plans-watcher.js';
 import { WindowManager } from '../window-manager.js';
 import { HelmControlService } from '../../mcp/helm-control-service.js';
 import { LocalhostMcpServer } from '../../mcp/localhost-mcp-server.js';
+import { startFederationIfEnabled } from '../../mcp/peer/federation-startup.js';
+import type { PeerLinkManager } from '../../mcp/peer/peer-link-manager.js';
 import { PromptTemplateManager } from '../../session/prompt-template-manager.js';
 import { loadPromptTemplates } from '../../session/prompt-template-persistence.js';
 import { getConfigDir } from '../../utils/app-paths.js';
@@ -405,6 +407,16 @@ export function registerIPCHandlers(
     : null;
   if (!mcpStartTimer) startMcpServer();
 
+  // Cross-machine federation (P-0646) — SEPARATE listener from the 127.0.0.1 MCP
+  // server, OFF by default. When disabled this binds nothing. The inbound-call
+  // sink is a placeholder here; the concrete tool dispatch lands in a later plan.
+  let peerLinkManager: PeerLinkManager | null = null;
+  void startFederationIfEnabled(
+    configLoader.getFederationConfig(),
+    async (_peerId, method) => { throw new Error(`Federation onCall not yet wired: ${method}`); },
+  ).then((mgr) => { peerLinkManager = mgr; })
+    .catch((err) => logger.error(`[federation] Failed to start peer transport: ${err}`));
+
   return {
     cleanup: async () => {
       if (telegramAutoStartTimer) clearTimeout(telegramAutoStartTimer);
@@ -423,6 +435,7 @@ export function registerIPCHandlers(
       scheduledTaskManager.stop();
       // Await the socket close so the next instance can bind the fixed port.
       await localhostMcpServer.close();
+      if (peerLinkManager) { await peerLinkManager.stop(); peerLinkManager = null; }
       logger.info('[IPC] Cleanup complete');
     },
     sessionManager,

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import {
   isCliTypeOptions,
   normalizeMcpPort,
+  normalizeFederationPort,
   parseCommandTemplate,
   type CliTypeOptions,
   type EnvVarEntry,
@@ -17,7 +18,7 @@ import { InputConfigStore } from './input-config-store.js';
 import { migrateFromProfile } from './profile-migrator.js';
 import { normalizeProjectPath, dirDisplayNameFromPath } from '../session/project-identity.js';
 import type { ProjectStore } from '../session/project-store.js';
-import { DEFAULT_MCP_CONFIG, SettingsManager } from './settings-manager.js';
+import { DEFAULT_FEDERATION_CONFIG, DEFAULT_MCP_CONFIG, SettingsManager } from './settings-manager.js';
 import { TelegramConfigManager } from './telegram-config-manager.js';
 
 export { parseCliArgs, resolveEnvWithMode, slugify } from './loader-helpers.js';
@@ -246,6 +247,17 @@ export interface McpConfig {
   authToken: string;
 }
 
+/**
+ * Cross-machine federation transport config (P-0646). OFF by default — nothing
+ * binds the federation listener unless `enabled` is explicitly true. This is a
+ * SEPARATE listener from the 127.0.0.1 localhost MCP server.
+ */
+export interface FederationConfig {
+  enabled: boolean;
+  host: string;
+  port: number;
+}
+
 export interface EditorPrefs {
   draftEditorHeight?: number;
   contextEditorHeight?: number;
@@ -270,6 +282,7 @@ export interface SettingsConfig {
   editorPrefs?: EditorPrefs;
   telegram?: TelegramConfig;
   mcp?: McpConfig;
+  federation?: FederationConfig;
 }
 
 export interface SessionGroupPrefs {
@@ -824,6 +837,30 @@ export class ConfigLoader {
       enabled: next.enabled === true,
       port: normalizeMcpPort(next.port),
       authToken: typeof next.authToken === 'string' ? next.authToken : '',
+    };
+    this.saveSettings();
+  }
+
+  /** Get the cross-machine federation transport config (OFF by default). */
+  getFederationConfig(): FederationConfig {
+    const f = this.settings?.federation;
+    return {
+      ...DEFAULT_FEDERATION_CONFIG,
+      ...(f ?? {}),
+      enabled: f?.enabled === true,
+      host: typeof f?.host === 'string' && f.host.length > 0 ? f.host : DEFAULT_FEDERATION_CONFIG.host,
+      port: normalizeFederationPort(f?.port),
+    };
+  }
+
+  /** Update the federation transport config (partial merge). */
+  setFederationConfig(updates: Partial<FederationConfig>): void {
+    if (!this.settings) return;
+    const next = { ...this.getFederationConfig(), ...updates };
+    this.settings.federation = {
+      enabled: next.enabled === true,
+      host: typeof next.host === 'string' && next.host.length > 0 ? next.host : DEFAULT_FEDERATION_CONFIG.host,
+      port: normalizeFederationPort(next.port),
     };
     this.saveSettings();
   }

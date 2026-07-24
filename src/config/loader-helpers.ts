@@ -200,6 +200,15 @@ export function normalizeMcpPort(value: unknown, fallbackPort = 47373): number {
   return parsed;
 }
 
+/** Coerce a value to a valid TCP port, defaulting to the federation port. */
+export function normalizeFederationPort(value: unknown, fallbackPort = 47474): number {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
+    return fallbackPort;
+  }
+  return parsed;
+}
+
 /** Derive a URL-safe slug from a display name */
 export function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');

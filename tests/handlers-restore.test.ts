@@ -81,6 +81,11 @@ const mockConfigLoader = {
       port: 5555,
       authToken: '',
     }),
+    getFederationConfig: vi.fn().mockReturnValue({
+      enabled: false,
+      host: '0.0.0.0',
+      port: 47474,
+    }),
     getPatterns: vi.fn().mockReturnValue([]),
     addBookmarkedDir: vi.fn(),
     setProjectStore: vi.fn(),
