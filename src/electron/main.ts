@@ -5,7 +5,7 @@
  * Manages window creation, IPC communication, and application lifecycle.
  */
 
-import { app, BrowserWindow, Menu, crashReporter, ipcMain } from 'electron';
+import { app, BrowserWindow, Menu, crashReporter, ipcMain, protocol } from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { registerIPCHandlers } from './ipc/handlers.js';
@@ -22,6 +22,14 @@ import { configureElectronAppIdentity } from './app-identity.js';
 import { ConfigLoader } from '../config/loader.js';
 import { logger } from '../utils/logger.js';
 import { getRendererHtmlPath, isPackaged, seedConfigIfNeeded, getConfigDir } from '../utils/app-paths.js';
+import { registerHelmImgProtocol } from './helm-img-protocol.js';
+
+// Register helm-img:// as a privileged scheme BEFORE app is ready.
+// standard+secure makes it behave like https for CSP/CORS; supportFetchAPI
+// allows <img> and fetch() to load from it inside the renderer.
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'helm-img', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+]);
 
 // Enable Chromium gamepad extensions for Bluetooth controller support
 app.commandLine.appendSwitch('enable-gamepad-extensions');
@@ -360,6 +368,10 @@ app.whenReady().then(async () => {
 
   // Remove default application menu (no File/Edit/View/Window/Help needed)
   Menu.setApplicationMenu(null);
+
+  // Register helm-img:// handler so the renderer can load local image files
+  // without loosening webSecurity or file:// access.
+  registerHelmImgProtocol();
 
   // Create main window
   createWindow();
