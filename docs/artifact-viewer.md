@@ -78,9 +78,51 @@ only class the sanitizer keeps, and only on `<pre>`); after the HTML is in the D
 (`theme: dark`, `securityLevel: strict`). The heavy mermaid bundle loads only when
 a diagram is actually present.
 
+## Images
+
+The AI writes plain markdown or HTML image syntax with a local path; Helm rewrites it internally — the artifact body never needs a custom URL.
+
+- `![alt](C:\reports\chart.png)` or `<img src="/home/user/chart.png">` — any absolute local path works.
+- `resolveImageSrc()` (`renderer/artifacts/render-artifact.ts`, line 56) converts the raw `src`/`href` to `helm-img://f/?p=<encodeURIComponent(absPath)>` before the HTML reaches DOMPurify.
+- The `helm-img://` Electron protocol handler (`src/electron/helm-img-protocol.ts`, `registerHelmImgProtocol()` line 86) runs in the main process, reads the file bytes with `fs/promises.readFile`, and returns a typed `Response` — `webSecurity` stays ON throughout.
+- `file:` URIs are normalised and treated identically to bare absolute paths (the leading `/` before a Windows drive letter is stripped).
+- `data:image/<safe-type>` (png/jpeg/gif/webp/bmp/avif) pass through unchanged.
+
+**Dropped sources** (resolve to `null` → image removed, alt text kept for markdown; `<img>` node removed for HTML):
+
+| Source | Reason |
+|--------|--------|
+| `http://` / `https://` | Deliberate: remote images would leak session context to third-party servers. |
+| `data:image/svg+xml` | SVG can embed scripts; serving it via a privileged scheme with the preload attached is a security risk. |
+| `javascript:` / relative paths / anything else | Sanitised out. |
+
+The DOMPurify `uponSanitizeAttribute` hook (`render-artifact.ts`, line 131) confines `helm-img:` and `data:image/*` to `<img src>` only — those schemes are rejected on `<a href>` and all other attributes, so the `<a>` URI allowlist (https/mailto only) is not loosened.
+
+```mermaid
+graph LR
+    AI["AI writes<br/>![alt](C:/path/img.png)"] --> RA["resolveImageSrc()<br/>render-artifact.ts:56"]
+    RA -->|"helm-img://f/?p=..."| DP["DOMPurify.sanitize<br/>uponSanitizeAttribute hook"]
+    DP -->|"safe <img src>"| DOM["ArtifactViewer DOM<br/>(.ap-doc)"]
+    DOM -->|"browser requests helm-img://"| PH["helm-img:// protocol handler<br/>helm-img-protocol.ts:86"]
+    PH -->|"readFile(absPath)"| FS[("local filesystem")]
+    FS -->|"bytes + Content-Type"| DOM
+```
+
+## Selection & copy
+
+Artifact text is fully selectable. Ctrl+C or Ctrl+X with a text selection inside the `.ap-doc` container performs a **native browser copy** — the keyboard relay does not forward the event to the PTY as a SIGINT or escape code.
+
+The carve-out is the `shouldAllowNativeCopy()` predicate (`renderer/paste-handler.ts`, line 282). It returns `true` when all three conditions hold:
+
+1. `ctrlKey` is set.
+2. The key is `c` or `x`.
+3. The DOM selection is non-collapsed (`!sel.collapsed`) and its anchor lives inside an `.ap-doc` element (`sel.inArtifactDoc`).
+
+If no text is selected, the predicate returns `false` and the existing PTY behaviour applies (Ctrl+C → SIGINT escape sequence). This mirrors the analogous carve-out in `TerminalView` for xterm selections.
+
 **Security:** artifact bodies are AI-authored (untrusted) and render via `v-html`
 inside the *privileged* Electron window, so defence is layered:
-- `renderArtifact()` compiles markdown with a synchronous `marked` instance, then runs **`DOMPurify.sanitize`** against a strict **document allowlist** — prose/lists/tables/code/links only. Forms, controls, media, inline `style` (no `position:fixed` overlay spoofing), `target`, and non-`http(s)`/`mailto` URLs are stripped.
+- `renderArtifact()` compiles markdown with a synchronous `marked` instance, then runs **`DOMPurify.sanitize`** against a strict **document allowlist** — prose/lists/tables/code/links/images only. Forms, controls, inline `style` (no `position:fixed` overlay spoofing), `target`, and non-`http(s)`/`mailto` URLs are stripped. `<img src>` is rewritten by the `uponSanitizeAttribute` hook before DOMPurify evaluates it.
 - Link clicks inside the rendered doc are intercepted (`onDocClick`) and `http(s)` links open in the OS browser via `shell.openExternal`; they never navigate the app.
 - `system:openExternalUrl` re-validates the scheme (http/https/mailto only).
 - An app-wide navigation policy (`src/electron/navigation-policy.ts`) is applied to every privileged window (main, snap-out, planner pop-out): `will-navigate` to non-`file:` targets is denied (web URLs go to `shell.openExternal`) and `setWindowOpenHandler` blocks all in-app window opens.
@@ -128,7 +170,9 @@ graph TB
 | `src/mcp/tools/{definitions,dispatcher,validation}.ts` | 7 MCP tools, caller-session scoping, ownership check |
 | `src/mcp/helm-control-service.ts` | Service methods + `requireOwnedArtifact` guard |
 | `src/mcp/guides/session-info-guide.ts` | `artifact_viewer` advert in `session_info` |
-| `renderer/artifacts/render-artifact.ts` | marked + DOMPurify strict-allowlist sanitized render; ```mermaid → `<pre class="mermaid">` marker |
+| `renderer/artifacts/render-artifact.ts` | marked + DOMPurify strict-allowlist sanitized render; `resolveImageSrc()` rewrites local paths to `helm-img://`; ```mermaid → `<pre class="mermaid">` marker |
+| `src/electron/helm-img-protocol.ts` | `helm-img://` privileged protocol handler — serves local image bytes; `mimeForPath()` allowlist (png/jpeg/gif/webp/bmp/avif); SVG refused |
+| `renderer/paste-handler.ts` | `shouldAllowNativeCopy()` — Ctrl+C/X carve-out for `.ap-doc` text selections |
 | `src/electron/navigation-policy.ts` | App-wide privileged-window navigation guard (deny remote nav / window opens) |
 | `renderer/composables/useArtifactViewer.ts` | Module-singleton reactive state + event subscription |
 | `renderer/components/panels/ArtifactViewer.vue` | Master/detail panel |
