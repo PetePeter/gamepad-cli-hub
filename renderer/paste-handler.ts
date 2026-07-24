@@ -261,6 +261,47 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
   await writePtySubmitSuffix(sessionId, suffix, ptyWriteOptions);
 }
 
+// ── Artifact-doc copy carve-out ──────────────────────────────────────────────
+
+/** Info built from the live DOM selection, passed into the pure predicate. */
+export interface SelectionInfo {
+  /** True when no text is selected (Selection.isCollapsed). */
+  collapsed: boolean;
+  /** True when the selection anchor lives inside an `.ap-doc` element. */
+  inArtifactDoc: boolean;
+}
+
+/**
+ * Returns true when the event should be allowed to perform a native browser
+ * copy/cut instead of being forwarded to the PTY as an escape code.
+ *
+ * Only Ctrl+C and Ctrl+X qualify, and only when the user has a real text
+ * selection inside the artifact document container (`.ap-doc`).
+ * This mirrors the analogous carve-out in TerminalView for xterm selections.
+ */
+export function shouldAllowNativeCopy(evt: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey'>, sel: SelectionInfo): boolean {
+  if (!evt.ctrlKey) return false;
+  const k = evt.key.toLowerCase();
+  if (k !== 'c' && k !== 'x') return false;
+  return !sel.collapsed && sel.inArtifactDoc;
+}
+
+/** Reads the live DOM selection and builds a SelectionInfo. */
+function readSelectionInfo(): SelectionInfo {
+  const sel = window.getSelection();
+  if (!sel) return { collapsed: true, inArtifactDoc: false };
+  const anchor = sel.anchorNode;
+  if (!anchor) return { collapsed: sel.isCollapsed, inArtifactDoc: false };
+  // Text nodes don't have closest(); step up to the parent element.
+  const el = anchor.nodeType === Node.TEXT_NODE
+    ? (anchor as Text).parentElement
+    : anchor as Element;
+  const inArtifactDoc = !!el?.closest('.ap-doc');
+  return { collapsed: sel.isCollapsed, inArtifactDoc };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function isEditableOrModalFocused(): boolean {
   const el = document.activeElement;
   if (!el) return false;
@@ -424,6 +465,9 @@ export function setupKeyboardRelay(
     if (e.ctrlKey) {
       if (e.key.toLowerCase() === 'n') return;
       if (e.key.length === 1) {
+        // Allow native copy/cut when the user has selected text inside the
+        // artifact viewer — mirrors the xterm Ctrl+C-with-selection carve-out.
+        if (shouldAllowNativeCopy(e, readSelectionInfo())) return;
         e.preventDefault();
         terminalClient.ptyWrite(sessionId, comboToPtyEscape(['Ctrl', e.key]));
       }
