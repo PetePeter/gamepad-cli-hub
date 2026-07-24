@@ -179,6 +179,9 @@
   <a href="#plans">Plans</a>
   <a href="#settings-profiles">Settings &amp; Profiles</a>
   <a href="#pattern-matcher">Pattern Matcher</a>
+  <a href="#artifacts">Artifacts</a>
+  <a href="#recycle-bin">Recycle Bin</a>
+  <a href="#runtime-groups">Runtime Groups</a>
 </nav>
 
 <main>
@@ -423,6 +426,102 @@
   <li>Cancelling: use the &times; button on the chip or <code>pattern:cancelSchedule</code></li>
   <li>Per-rule cooldown prevents rapid re-triggering</li>
 </ul>
+
+<!-- ═══════════════════ 10. Artifacts ═══════════════════ -->
+<h2 id="artifacts">10. Artifact Viewer</h2>
+
+<p>Artifacts are readable <strong>reports</strong> an AI session produces for you &mdash; explanations, analyses, results &mdash; rendered inside Helm instead of leaving files for you to open. They are <strong>markdown or HTML</strong>, and the AI creates and updates them (via its MCP tools); you read, export, or delete them.</p>
+
+<h3>Opening the panel</h3>
+<table>
+  <thead>
+    <tr><th>How</th><th>What</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><kbd>&#128196; Artifacts</kbd> toolbar button</td><td>Toggle the panel; shows a live badge with the count</td></tr>
+    <tr><td><kbd>Ctrl+Shift+A</kbd></td><td>Toggle the panel (ignored while a modal/editor/plan screen is open)</td></tr>
+    <tr><td>Edge tab</td><td>When collapsed, a slim <strong>&#128196; Artifacts</strong> tab sits on the right edge; it pulses when a new artifact arrives &mdash; click to open</td></tr>
+    <tr><td><kbd>&times;</kbd></td><td>Close the panel</td></tr>
+  </tbody>
+</table>
+
+<h3>Layout</h3>
+<p>The panel docks on the right and is <strong>drag-to-resize</strong> (width persists). It is master&ndash;detail:</p>
+<ul>
+  <li><strong>Index rail</strong> &mdash; scrollable list with search, sort (newest / recently updated / A&ndash;Z), Today/Earlier groups, and an unread dot on artifacts you haven't opened. Collapses to a thin handle.</li>
+  <li><strong>Detail pane</strong> &mdash; the selected artifact, rendered.</li>
+</ul>
+
+<h3>Versions</h3>
+<ul>
+  <li>When the AI updates an artifact it adds a new <strong>version</strong>; you can look back at earlier ones.</li>
+  <li>Use the <kbd>&lsaquo;</kbd> <kbd>&rsaquo;</kbd> steppers or the version dropdown; an "older version" banner offers <em>Jump to latest</em>.</li>
+</ul>
+
+<h3>Diagrams</h3>
+<div class="callout">
+  Fenced <code>```mermaid</code> code blocks render as <strong>diagrams</strong> (dark theme). Mermaid loads on demand, only when an artifact actually contains one.
+</div>
+
+<h3>Export &amp; delete</h3>
+<ul>
+  <li><strong>Export&hellip;</strong> &mdash; save the current artifact to a location you pick (this is the only way its content leaves the session).</li>
+  <li><strong>Delete</strong> &mdash; remove the selected artifact. <strong>Clear all</strong> &mdash; empty the session's artifacts.</li>
+</ul>
+
+<h3>Snap-out</h3>
+<p>The panel is bound to its session, so when you snap a terminal out into its own window (the <kbd>&#8865;</kbd> pop-out), its artifacts travel with it &mdash; the panel appears in that window.</p>
+
+<h3>Lifecycle</h3>
+<ul>
+  <li>Artifacts are <strong>ephemeral to the session</strong>.</li>
+  <li>Closing a <strong>recoverable</strong> session (one that can be restored) keeps its artifacts &mdash; <strong>restoring</strong> the session from the Recycle Bin brings them back.</li>
+  <li>They are cleared only when you <strong>Forget/Empty</strong> the session in the Recycle Bin, when a bin entry expires (30 days), or when a non-recoverable session is closed.</li>
+</ul>
+
+<!-- ═══════════════════ 11. Recycle Bin ═══════════════════ -->
+<h2 id="recycle-bin">11. Recycle Bin</h2>
+
+<p>When a <strong>recoverable</strong> session (one that carried a resume id) is closed, it is kept for <strong>30 days</strong> so you can bring it back &mdash; along with its artifacts.</p>
+
+<ul>
+  <li>Open: the <strong>&#128465; Recycle Bin</strong> button (Project Planner area, bottom-left) with a live badge count.</li>
+  <li>Entries are grouped by working directory and show the relative close time and an expiry countdown (rows fade near the 30-day edge).</li>
+</ul>
+
+<table>
+  <thead>
+    <tr><th>Action</th><th>Effect</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Restore <kbd>&#8634;</kbd></td><td>Re-spawns the session (reuses its original id, so its artifacts return)</td></tr>
+    <tr><td>Forget <kbd>&#128465;</kbd></td><td>Permanently deletes that one entry (and its artifacts)</td></tr>
+    <tr><td>Empty bin</td><td>Clears every entry (and their artifacts)</td></tr>
+  </tbody>
+</table>
+
+<!-- ═══════════════════ 12. Runtime Session Groups ═══════════════════ -->
+<h2 id="runtime-groups">12. Runtime Session Groups</h2>
+
+<p>Runtime groups are <strong>custom groups that cut across working directories</strong>, sitting in the same sidebar list as the default folder groups. A session belongs to <strong>at most one</strong> runtime group.</p>
+
+<h3>Managing groups</h3>
+<table>
+  <thead>
+    <tr><th>Action</th><th>How</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>New group / Overview</td><td>The <strong>[ &#9638; Overview | &#65291; New Group ]</strong> split button at the top of the sidebar list</td></tr>
+    <tr><td>Move a session in</td><td><strong>Drag</strong> the session card onto a group, or context menu &rarr; <strong>Move to group &#9656;</strong></td></tr>
+    <tr><td>Remove from group</td><td>Drag it back onto its folder, or context menu &rarr; <strong>Remove from group</strong></td></tr>
+    <tr><td>Rename / Overview</td><td>Per-group header actions (&#9998; rename, &#9638; overview)</td></tr>
+    <tr><td>Close group</td><td>Header <kbd>&times;</kbd> &mdash; a 3-way dialog: keep sessions (move to folders), close all, or cancel</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  Empty groups stay visible so closed sessions have somewhere to return to &mdash; restoring a session from the Recycle Bin re-attaches it to its original group (recreating the group if it was closed).
+</div>
 
 </main>
 </body>
