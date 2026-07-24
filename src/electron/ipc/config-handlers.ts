@@ -7,13 +7,18 @@
 
 import { ipcMain, dialog, BrowserWindow } from 'electron';
 import { randomUUID } from 'node:crypto';
-import { type ConfigLoader, type PlanFilterConfig, type EditorPrefs } from '../../config/loader.js';
+import { type ConfigLoader, type PlanFilterConfig, type EditorPrefs, type FederationConfig } from '../../config/loader.js';
 import type { LocalhostMcpServer } from '../../mcp/localhost-mcp-server.js';
 import type { ProjectStore } from '../../session/project-store.js';
 import { normalizeProjectPath, dirDisplayNameFromPath } from '../../session/project-identity.js';
 import { logger } from '../../utils/logger.js';
 
-export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServer?: LocalhostMcpServer, projectStore?: ProjectStore): void {
+export function setupConfigHandlers(
+  configLoader: ConfigLoader,
+  localhostMcpServer?: LocalhostMcpServer,
+  projectStore?: ProjectStore,
+  applyFederationConfig?: (config: FederationConfig) => Promise<void>,
+): void {
   ipcMain.handle('config:getAll', () => {
     try {
       configLoader.load();
@@ -208,6 +213,37 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
       return { success: true };
     } catch (error) {
       logger.error(`[IPC] Failed to set MCP config: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('config:getFederationConfig', () => {
+    try {
+      return configLoader.getFederationConfig();
+    } catch (error) {
+      logger.error(`[IPC] Failed to get federation config: ${error}`);
+      return { enabled: false, host: '0.0.0.0', port: 47474 };
+    }
+  });
+
+  // Mirrors config:setMcpConfig exactly: persist first, then HOT-APPLY the live
+  // federation stack (start/stop/restart the transport + discovery) without an app
+  // restart. Apply errors are logged + swallowed — the config WAS persisted, so we
+  // still report success (identical to the MCP server contract).
+  ipcMain.handle('config:setFederationConfig', async (_event, updates: { enabled?: boolean; host?: string; port?: number }) => {
+    try {
+      configLoader.setFederationConfig(updates);
+      logger.info(`[IPC] Federation config updated: ${JSON.stringify(updates)}`);
+      if (applyFederationConfig) {
+        try {
+          await applyFederationConfig(configLoader.getFederationConfig());
+        } catch (applyErr) {
+          logger.warn(`[IPC] Federation hot-apply failed after config update: ${applyErr}`);
+        }
+      }
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to set federation config: ${error}`);
       return { success: false, error: String(error) };
     }
   });

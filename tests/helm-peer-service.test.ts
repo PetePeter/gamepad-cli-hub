@@ -176,4 +176,22 @@ describe('HelmPeerService', () => {
     await expect(svc.tools('mac')).rejects.toThrow(/Federation is not enabled/);
     await expect(svc.call('mac', 'session_list', {})).rejects.toThrow(/Federation is not enabled/);
   });
+
+  it('CLEARING the manager (live disable) reverts to "Federation is not enabled" (P-0658)', async () => {
+    // The getter mirrors HelmControlService.setPeerLinkManager(null) at runtime:
+    // a live manager, then cleared when federation is toggled OFF in-app.
+    let manager: FakePeerLinkManager | null = new FakePeerLinkManager([
+      { id: 'mac', alias: 'the Mac', direction: 'bidirectional', online: true },
+    ]);
+    const svc = new HelmPeerService(() => (manager ?? undefined) as never);
+
+    // While wired, the surface works.
+    expect(svc.list().peers).toHaveLength(1);
+
+    // Live disable clears the manager (null, as setPeerLinkManager(null) does).
+    manager = null;
+    expect(() => svc.list()).toThrow(/Federation is not enabled/);
+    await expect(svc.tools('mac')).rejects.toThrow(/Federation is not enabled/);
+    await expect(svc.call('mac', 'session_list', {})).rejects.toThrow(/Federation is not enabled/);
+  });
 });

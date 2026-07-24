@@ -136,6 +136,40 @@ describe('remote-link integration (real mTLS loopback)', () => {
     await expect(built.serverLinks[0].request('pong', {})).resolves.toBe('client-got:pong');
   });
 
+  it('rebinds a busy port once the previous listener releases it (EADDRINUSE retry)', async () => {
+    // Guards the live host/port toggle (P-0658): restarting the listener on the
+    // SAME port before the OS frees the old socket must retry, not hard-fail.
+    dir = mkdtempSync(join(tmpdir(), 'helm-rl-'));
+    const psk = Buffer.alloc(32, 7);
+    const cert = await makeCert('rebind');
+
+    // First server holds an ephemeral port.
+    const first = await startServer({ psk, machineId: 'S1', pins: new PinnedCertStore(), serverCert: cert });
+    const port = first.port;
+
+    // Second server wants the SAME port while it is still held → it must retry.
+    const second = new RemoteLinkServer({
+      host: '127.0.0.1', port, machineId: 'S2',
+      getCertKey: cert.getCertKey, resolvePsk: () => psk,
+      pinnedCertStore: new PinnedCertStore(), onCall: async () => 'x',
+      onLink: () => { /* no links in this test */ }, authTimeoutMs: 2000,
+    });
+    disposers.push(() => second.stop());
+
+    let bound = false;
+    const startPromise = second.start().then(() => { bound = true; });
+
+    // Give it time to hit EADDRINUSE and enter the retry loop.
+    await new Promise((r) => setTimeout(r, 150));
+    expect(bound).toBe(false); // still retrying — the port is busy
+
+    // Free the port; the retry now succeeds and binds the same port.
+    await first.server.stop();
+    await startPromise;
+    expect(bound).toBe(true);
+    expect(second.address()!.port).toBe(port);
+  });
+
   it('wrong PSK → link refused, no PeerLink emitted', async () => {
     dir = mkdtempSync(join(tmpdir(), 'helm-rl-'));
     const serverPins = new PinnedCertStore();

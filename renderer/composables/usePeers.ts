@@ -8,7 +8,13 @@
  * missed.
  */
 import { ref } from 'vue';
-import { peersClient, eventsClient } from '../ipc/clients.js';
+import { peersClient, configClient, eventsClient } from '../ipc/clients.js';
+
+export interface FederationConfig {
+  enabled: boolean;
+  host: string;
+  port: number;
+}
 
 export interface ConfiguredPeer {
   id: string;
@@ -46,7 +52,10 @@ export interface PairingState {
   peerAlias: string | null;
 }
 
+const DEFAULT_FEDERATION_CONFIG: FederationConfig = { enabled: false, host: '0.0.0.0', port: 47474 };
+
 const federationEnabled = ref(false);
+const federationConfig = ref<FederationConfig>({ ...DEFAULT_FEDERATION_CONFIG });
 const configuredPeers = ref<ConfiguredPeer[]>([]);
 const discoveredPeers = ref<DiscoveredPeer[]>([]);
 const audit = ref<PeerAuditEntry[]>([]);
@@ -58,12 +67,24 @@ function emptyPairing(): PairingState {
   return { active: false, sessionId: null, sas: null, status: 'idle', error: null, peerAlias: null };
 }
 
-async function refresh(): Promise<void> {
+async function loadFederationConfig(): Promise<void> {
   try {
-    federationEnabled.value = await peersClient.peerFederationEnabled();
+    const cfg = await configClient.configGetFederationConfig();
+    federationConfig.value = {
+      enabled: cfg?.enabled ?? false,
+      host: cfg?.host || DEFAULT_FEDERATION_CONFIG.host,
+      port: cfg?.port ?? DEFAULT_FEDERATION_CONFIG.port,
+    };
+    // federationEnabled derives from the persisted config (single source of truth).
+    federationEnabled.value = federationConfig.value.enabled;
   } catch {
+    federationConfig.value = { ...DEFAULT_FEDERATION_CONFIG };
     federationEnabled.value = false;
   }
+}
+
+async function refresh(): Promise<void> {
+  await loadFederationConfig();
   try {
     configuredPeers.value = (await peersClient.peerList()) ?? [];
   } catch {
@@ -158,6 +179,17 @@ function closePairing(): void {
   pairing.value = emptyPairing();
 }
 
+/**
+ * Persist + hot-apply a federation config change (enabled/host/port), then refetch
+ * the config and peer lists so the UI reflects the live state. Mirrors the MCP
+ * onMcpUpdate flow: set → get → refresh.
+ */
+async function setFederationConfig(updates: Partial<FederationConfig>): Promise<void> {
+  await configClient.configSetFederationConfig(updates);
+  await loadFederationConfig();
+  await refresh();
+}
+
 async function setAllowList(peerId: string, allow: string[]): Promise<void> {
   await peersClient.peerSetAllowList(peerId, allow);
   await refresh();
@@ -181,6 +213,7 @@ async function unpair(peerId: string): Promise<void> {
 export function resetPeersStateForTesting(): void {
   subscribed = false;
   federationEnabled.value = false;
+  federationConfig.value = { ...DEFAULT_FEDERATION_CONFIG };
   configuredPeers.value = [];
   discoveredPeers.value = [];
   audit.value = [];
@@ -190,6 +223,8 @@ export function resetPeersStateForTesting(): void {
 export function usePeers() {
   return {
     federationEnabled,
+    federationConfig,
+    setFederationConfig,
     configuredPeers,
     discoveredPeers,
     audit,

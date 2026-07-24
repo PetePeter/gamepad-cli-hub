@@ -150,6 +150,18 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     ipcRenderer.invoke('config:setMcpConfig', updates),
 
   /**
+   * Get cross-machine federation transport settings (enabled/host/port).
+   */
+  configGetFederationConfig: () => ipcRenderer.invoke('config:getFederationConfig'),
+
+  /**
+   * Update federation transport settings; the main process persists then hot-applies
+   * the live federation stack (start/stop/restart) without an app restart.
+   */
+  configSetFederationConfig: (updates: { enabled?: boolean; host?: string; port?: number }) =>
+    ipcRenderer.invoke('config:setFederationConfig', updates),
+
+  /**
    * Generate and persist a new localhost MCP auth token
    */
   configGenerateMcpToken: () => ipcRenderer.invoke('config:generateMcpToken'),

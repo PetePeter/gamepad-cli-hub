@@ -32,6 +32,9 @@ const EXPORTER_LABEL = 'EXPORTER-Helm-Peer-v1';
 const CHANNEL_BINDING_LEN = 32;
 const DEFAULT_PORT = 47474;
 const DEFAULT_HOST = '0.0.0.0';
+/** Bounded retry when rebinding a port the OS hasn't released yet (~2s budget). */
+const BIND_RETRY_ATTEMPTS = 40;
+const BIND_RETRY_DELAY_MS = 50;
 
 export interface RemoteLinkServerOptions {
   host?: string;
@@ -76,28 +79,65 @@ export class RemoteLinkServer extends EventEmitter {
     this.stopped = false;
     const { certPem, keyPem } = await this.opts.getCertKey();
     this.certMaterial = { certPem, keyPem, selfCertFp: certFingerprint(certPem) };
-    const https = createServer({
-      cert: certPem,
-      key: keyPem,
-      requestCert: true,
-      rejectUnauthorized: false,
-    });
-    const wss = new WebSocketServer({ server: https });
 
-    wss.on('connection', (ws, request) => {
-      const tls = request.socket as TLSSocket;
-      void this.acceptConnection(ws, tls);
-    });
+    const host = this.opts.host ?? DEFAULT_HOST;
+    const port = this.opts.port ?? DEFAULT_PORT;
 
-    this.https = https;
-    this.wss = wss;
+    // Bounded retry on EADDRINUSE: restarting the listener on the SAME port (a
+    // live host/port change or a quick disable→enable toggle, P-0658) can race
+    // the OS releasing the previous socket. Each attempt uses a FRESH server —
+    // a net.Server that has emitted 'error' cannot be re-listened reliably — and
+    // this.https/this.wss are assigned ONLY on success. A genuinely occupied
+    // port still throws once the budget is exhausted. Ephemeral port 0 never conflicts.
+    for (let i = 0; ; i++) {
+      try {
+        await this.bindOnce(certPem, keyPem, port, host);
+        logger.info(`[RemoteLinkServer] Listening on ${host}:${this.address()?.port}`);
+        return;
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code === 'EADDRINUSE' && i < BIND_RETRY_ATTEMPTS && !this.stopped) {
+          logger.warn(`[RemoteLinkServer] ${host}:${port} in use, retrying bind (${i + 1}/${BIND_RETRY_ATTEMPTS})`);
+          await new Promise((r) => setTimeout(r, BIND_RETRY_DELAY_MS));
+          continue;
+        }
+        throw err;
+      }
+    }
+  }
 
-    await new Promise<void>((resolve, reject) => {
-      const onError = (err: Error) => reject(err);
-      https.once('error', onError);
-      https.listen(this.opts.port ?? DEFAULT_PORT, this.opts.host ?? DEFAULT_HOST, () => {
-        https.off('error', onError);
-        logger.info(`[RemoteLinkServer] Listening on ${this.opts.host ?? DEFAULT_HOST}:${this.address()?.port}`);
+  /** One bind attempt with a fresh server; assigns this.https/this.wss on success only. */
+  private bindOnce(certPem: string, keyPem: string, port: number, host: string): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const https = createServer({ cert: certPem, key: keyPem, requestCert: true, rejectUnauthorized: false });
+      const wss = new WebSocketServer({ server: https });
+      wss.on('connection', (ws, request) => {
+        const tls = request.socket as TLSSocket;
+        void this.acceptConnection(ws, tls);
+      });
+      // Bind-phase error handling ONLY. A failed listen (e.g. EADDRINUSE) bound no
+      // socket, so there is nothing to close — do NOT call https.close() here (that
+      // would emit a second, unhandled ERR_SERVER_NOT_RUNNING error). Just reject;
+      // the throwaway server is GC'd. This handler is `once` and removed on success
+      // so it can NOT swallow post-bind runtime errors on the live listener.
+      let settled = false;
+      const onBindError = (err: Error) => {
+        if (settled) return;
+        settled = true;
+        reject(err);
+      };
+      https.once('error', onBindError);
+      wss.on('error', (err: Error) => { logger.warn(`[RemoteLinkServer] wss error: ${err.message}`); });
+      https.listen(port, host, () => {
+        if (settled) return;
+        settled = true;
+        // Success: detach the bind-phase rejecter and attach a PERSISTENT logging
+        // handler so live-server runtime errors SURFACE (are logged, not silently
+        // swallowed) instead of crashing the process as an unhandled 'error'.
+        https.removeListener('error', onBindError);
+        https.on('error', (err: Error) => logger.error(`[RemoteLinkServer] server error: ${err.message}`));
+        this.https = https;
+        this.wss = wss;
         resolve();
       });
     });

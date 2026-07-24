@@ -232,8 +232,9 @@ describe('Cross-Machine Federation E2E (A↔B over loopback TLS)', () => {
     b.config.update(bPeerForA.id, { address: `127.0.0.1:${A.port}` });
     B.manager.addPeer(b.config.get(bPeerForA.id)!);
 
-    // Wait for A's outbound link to B to authenticate.
-    await waitFor(() => A.manager.status(peerIdOnA()) === 'online');
+    // Wait for the bidirectional links to CONVERGE (both dial → dedup settles)
+    // so no test call races a link being dedup-replaced.
+    await waitForConverged();
   });
 
   /** Wire a PeerLinkManager for a stack, injecting real Remote* factories. */
@@ -291,6 +292,35 @@ describe('Cross-Machine Federation E2E (A↔B over loopback TLS)', () => {
   /** The config id under which B tracks A. */
   function peerIdOnB(): string {
     return B.config.getByMachineId(A.machineId)!.id;
+  }
+
+  /**
+   * Wait until the bidirectional links have CONVERGED: both managers report the
+   * peer online AND no link churn has occurred for a quiet window. Both peers
+   * dial each other, so two links briefly coexist until dedup keeps the
+   * min-machineId link and disposes the other ('dedup-replaced'). Issuing a call
+   * before convergence can land on the link being replaced. This is deterministic:
+   * after convergence there are ZERO peer-link events, so the quiet window always
+   * settles; during convergence each accept/dispose bumps the timer.
+   */
+  async function waitForConverged(timeoutMs = 10_000, quietMs = 250): Promise<void> {
+    const pa = peerIdOnA();
+    const pb = peerIdOnB();
+    let lastEvent = Date.now();
+    const bump = (): void => { lastEvent = Date.now(); };
+    const targets = [A.manager, B.manager];
+    for (const m of targets) { m.on('peer-link:online', bump); m.on('peer-link:offline', bump); }
+    try {
+      const deadline = Date.now() + timeoutMs;
+      for (;;) {
+        const bothOnline = A.manager.status(pa) === 'online' && B.manager.status(pb) === 'online';
+        if (bothOnline && Date.now() - lastEvent >= quietMs) return;
+        if (Date.now() > deadline) throw new Error('links did not converge');
+        await new Promise((r) => setTimeout(r, 20));
+      }
+    } finally {
+      for (const m of targets) { m.off('peer-link:online', bump); m.off('peer-link:offline', bump); }
+    }
   }
 
   afterEach(async () => {
@@ -366,7 +396,7 @@ describe('Cross-Machine Federation E2E (A↔B over loopback TLS)', () => {
 
     // Stop B entirely → A's link drops.
     await B.manager.stop();
-    await waitFor(() => A.manager.status(pid) === 'offline');
+    await waitFor(() => A.manager.status(pid) === 'offline', 10_000);
 
     // A call now fails with a clear, non-crashing error.
     await expect(A.peerService.call(pid, 'session_list', {}))
@@ -403,8 +433,13 @@ describe('Cross-Machine Federation E2E (A↔B over loopback TLS)', () => {
     await revived.start();
     B.manager = revived;
 
-    // A's client auto-reconnects (short backoff) → link recovers.
-    await waitFor(() => A.manager.status(pid) === 'online', 6000);
+    // A's client auto-reconnects (short backoff) → link recovers. Generous
+    // ceiling: the reconnect drives real RSA/X25519 TLS+PSK handshakes whose
+    // wall-clock varies under full-suite CPU contention; waitFor resolves the
+    // instant the link is online, so headroom never slows the happy path.
+    await waitFor(() => A.manager.status(pid) === 'online', 20_000);
+    // Let the re-established bidirectional links converge before calling.
+    await waitForConverged();
 
     // A subsequent call succeeds again.
     const result = (await A.peerService.call(pid, 'session_list', {})) as Array<{ id: string }>;

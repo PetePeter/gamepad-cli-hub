@@ -9,6 +9,14 @@ const DOCUMENTED_DYNAMIC_RENDERER_EVENT_SENDERS = new Set([
   'session:snapBack',
   // PipelineQueue sends this dynamically when auto-handoff occurs between sessions.
   'pty:handoff',
+  // FederationController broadcasts these pairing/discovery events through an
+  // injected broadcast(channel, payload) closure (P-0658), so the channel is a
+  // variable at the webContents.send call site rather than a literal.
+  'peer:discovered',
+  'peer:lost',
+  'peer:sas',
+  'peer:paired',
+  'peer:failed',
 ]);
 
 function readSources(relativeRoots: string[]): string {

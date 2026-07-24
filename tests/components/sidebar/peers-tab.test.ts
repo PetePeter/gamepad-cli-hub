@@ -16,6 +16,7 @@ const state = {
   peers: [] as any[],
   discovered: [] as any[],
   audit: [] as any[],
+  fed: { enabled: true, host: '0.0.0.0', port: 47474 },
 };
 
 const peerFederationEnabled = vi.fn(async () => state.federationEnabled);
@@ -28,6 +29,8 @@ const peerUnpair = vi.fn(async () => ({ ok: true }));
 const peerStartPairing = vi.fn(async () => ({ ok: true, sessionId: 's-1' }));
 const peerConfirmPairing = vi.fn(async () => ({ ok: true }));
 const peerCancelPairing = vi.fn(async () => ({ ok: true }));
+const configSetFederationConfig = vi.fn(async (updates: any) => { state.fed = { ...state.fed, ...updates }; return { success: true }; });
+const configGetFederationConfig = vi.fn(async () => ({ ...state.fed }));
 
 // Captured event callbacks so tests can drive events (composable subscribes once).
 const handlers: Record<string, ((data?: any) => void) | undefined> = {};
@@ -47,6 +50,10 @@ vi.mock('../../../renderer/ipc/clients.js', () => ({
     peerStartPairing: (...a: any[]) => peerStartPairing(...a),
     peerConfirmPairing: (...a: any[]) => peerConfirmPairing(...a),
     peerCancelPairing: (...a: any[]) => peerCancelPairing(...a),
+  },
+  configClient: {
+    configSetFederationConfig: (...a: any[]) => configSetFederationConfig(...a),
+    configGetFederationConfig: (...a: any[]) => configGetFederationConfig(...a),
   },
   eventsClient: {
     onPeerConfigChanged: capture('config'),
@@ -84,6 +91,7 @@ beforeEach(() => {
   state.peers = [];
   state.discovered = [];
   state.audit = [];
+  state.fed = { enabled: true, host: '0.0.0.0', port: 47474 };
 });
 
 afterEach(() => {
@@ -203,11 +211,21 @@ describe('PeersTab', () => {
     expect(peerUnpair).toHaveBeenCalledWith('p1');
   });
 
-  it('renders the federation-off hint when disabled', async () => {
+  it('renders the FederationConfigPanel at the top of the tab', async () => {
+    const w = mount(PeersTab);
+    await flushPromises();
+    expect(w.find('.federation-config-panel').exists()).toBe(true);
+  });
+
+  it('toggling the panel enabled checkbox calls setFederationConfig({ enabled })', async () => {
+    state.fed = { enabled: false, host: '0.0.0.0', port: 47474 };
     state.federationEnabled = false;
     const w = mount(PeersTab);
     await flushPromises();
-    expect(w.find('.peers-off-hint').exists()).toBe(true);
-    expect(w.text().toLowerCase()).toContain('federation is off');
+
+    const box = w.find('.federation-config-panel input[type="checkbox"]');
+    await box.setValue(true);
+    await flushPromises();
+    expect(configSetFederationConfig).toHaveBeenCalledWith({ enabled: true });
   });
 });

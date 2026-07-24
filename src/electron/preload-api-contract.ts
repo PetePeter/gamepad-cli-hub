@@ -57,6 +57,8 @@ export const PRELOAD_API_DOMAINS = {
     'configSetNotifications',
     'configGetMcpConfig',
     'configSetMcpConfig',
+    'configGetFederationConfig',
+    'configSetFederationConfig',
     'configGenerateMcpToken',
     'configGetEscProtectionEnabled',
     'configSetEscProtectionEnabled',

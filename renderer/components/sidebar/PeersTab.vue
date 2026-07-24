@@ -10,12 +10,15 @@
  * clear "federation is off" hint rather than a blank tab.
  */
 import { computed, onMounted, ref } from 'vue';
-import { usePeers, type ConfiguredPeer, type DiscoveredPeer } from '../../composables/usePeers.js';
+import { usePeers, type ConfiguredPeer, type DiscoveredPeer, type FederationConfig } from '../../composables/usePeers.js';
 import { getPeerStatusColor } from '../../state-colors.js';
 import PeerAuditModal from '../modals/PeerAuditModal.vue';
+import FederationConfigPanel from './FederationConfigPanel.vue';
 
 const {
   federationEnabled,
+  federationConfig,
+  setFederationConfig,
   configuredPeers,
   discoveredPeers,
   ensureSubscribed,
@@ -24,6 +27,10 @@ const {
   setEnabled,
   unpair,
 } = usePeers();
+
+function onFederationUpdate(updates: Partial<FederationConfig>): void {
+  void setFederationConfig(updates);
+}
 
 /** Allow-list presets: a friendly name → the glob patterns it applies. */
 const ALLOW_PRESETS: Array<{ label: string; globs: string[] }> = [
@@ -111,8 +118,10 @@ function applyPreset(peer: ConfiguredPeer, globs: string[]): void {
 
 <template>
   <div class="peers-tab">
+    <FederationConfigPanel :config="federationConfig" @update="onFederationUpdate" />
+
     <div v-if="!federationEnabled" class="peers-off-hint">
-      Federation is off — enable it in your Helm config to pair with other machines.
+      Federation is off — enable it above to pair with other machines.
     </div>
 
     <div class="peers-section">

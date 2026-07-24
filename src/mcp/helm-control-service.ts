@@ -137,7 +137,7 @@ export class HelmControlService extends EventEmitter {
   private readonly projectService: HelmProjectService | null;
   private readonly directoryService: HelmDirectoryService;
   /** Federation is OFF by default → no manager until setPeerLinkManager wires one. */
-  private peerLinkManager?: import('./peer/peer-link-manager.js').PeerLinkManager;
+  private peerLinkManager?: import('./peer/peer-link-manager.js').PeerLinkManager | null;
   private readonly peerService: HelmPeerService;
   private readonly skillManager: SkillManager;
   private readonly skillAnalyticsManager: SkillAnalyticsManager;
@@ -230,7 +230,7 @@ export class HelmControlService extends EventEmitter {
     this.schedulerService = schedulerManager ? new HelmSchedulerService(schedulerManager, configLoader, projectStore) : null;
     this.projectService = projectStore ? new HelmProjectService(projectStore) : null;
     this.directoryService = new HelmDirectoryService(configLoader, sessionManager, planManager, projectStore);
-    this.peerService = new HelmPeerService(() => this.peerLinkManager);
+    this.peerService = new HelmPeerService(() => this.peerLinkManager ?? undefined);
   }
 
   // ---------------------------------------------------------------------------
@@ -257,11 +257,11 @@ export class HelmControlService extends EventEmitter {
   }
 
   /**
-   * Wire the PeerLinkManager so the peer_* federation tools can reach remote
-   * peers. Called only when federation is enabled; left unset otherwise, so the
-   * peer_* tools cleanly report 'Federation is not enabled'.
+   * Wire (or CLEAR, with null) the PeerLinkManager so the peer_* federation tools
+   * can reach remote peers. Passing a manager enables the tools; passing null (on a
+   * live federation disable, P-0658) reverts them to 'Federation is not enabled'.
    */
-  setPeerLinkManager(manager: import('./peer/peer-link-manager.js').PeerLinkManager): void {
+  setPeerLinkManager(manager: import('./peer/peer-link-manager.js').PeerLinkManager | null): void {
     this.peerLinkManager = manager;
   }
 

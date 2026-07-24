@@ -62,8 +62,6 @@ import { IncomingPlansWatcher } from '../../session/incoming-plans-watcher.js';
 import { WindowManager } from '../window-manager.js';
 import { HelmControlService } from '../../mcp/helm-control-service.js';
 import { LocalhostMcpServer } from '../../mcp/localhost-mcp-server.js';
-import { startFederationIfEnabled } from '../../mcp/peer/federation-startup.js';
-import type { PeerLinkManager } from '../../mcp/peer/peer-link-manager.js';
 import { InboundCallGate } from '../../mcp/peer/inbound-call-gate.js';
 import { createDefaultPeerRateLimiter } from '../../mcp/peer/rate-limiter.js';
 import { PeerAuditLog } from '../../mcp/peer/peer-audit-log.js';
@@ -71,6 +69,8 @@ import { PeerConfigManager } from '../../session/peer-config-manager.js';
 import { loadPeers, savePeers } from '../../session/peer-config-persistence.js';
 import { setupPairingHandlers } from './pairing-handlers.js';
 import { setupPeerManagementHandlers } from './peer-management-handlers.js';
+import { FederationController } from '../../mcp/peer/federation-controller.js';
+import type { FederationConfig } from '../../config/loader.js';
 import { PinnedCertStore } from '../../mcp/peer/pinned-cert-store.js';
 import { SecretStore } from '../../mcp/peer/secret-store.js';
 import { loadPeerPins, savePeerPins, loadPeerSecrets, savePeerSecrets } from '../../mcp/peer/peer-secret-persistence.js';
@@ -229,7 +229,14 @@ export function registerIPCHandlers(
   );
 
   const cleanupSession = setupSessionHandlers(sessionManager, ptyManager, draftManager, windowManager, configLoader);
-  setupConfigHandlers(configLoader, localhostMcpServer, projectStore);
+  // Forward-declared so config:setFederationConfig can hot-apply the live federation
+  // stack (constructed below, ~line 460). The closure is only invoked at runtime on
+  // a user config change, long after the controller exists.
+  let federationController: FederationController | undefined;
+  const applyFederationConfig = async (_cfg: FederationConfig): Promise<void> => {
+    await federationController?.applyConfig();
+  };
+  setupConfigHandlers(configLoader, localhostMcpServer, projectStore, applyFederationConfig);
   setupEditorHandlers(configLoader);
   setupToolsHandlers(configLoader);
   setupKeyboardHandlers(keyboard);
@@ -434,18 +441,6 @@ export function registerIPCHandlers(
   const secretStore = new SecretStore((secrets) => savePeerSecrets(secrets));
   secretStore.importAll(loadPeerSecrets());
 
-  // SAS pairing (P-0649) — discovery + coordinator + IPC. No-op when federation
-  // is disabled (binds nothing, advertises nothing). UI lands in P-0650.
-  const federationCfg = configLoader.getFederationConfig();
-  const disposePairing = setupPairingHandlers({
-    enabled: federationCfg.enabled,
-    host: federationCfg.host,
-    port: federationCfg.port,
-    alias: 'Helm',
-    peerConfigManager,
-    pinnedCertStore,
-    secretStore,
-  });
   // Single audit log instance, reachable by both the inbound gate (appends) and
   // the peer-management handlers (reads for the Audit sub-view).
   const peerAuditLog = new PeerAuditLog();
@@ -456,24 +451,45 @@ export function registerIPCHandlers(
     rateLimiter: createDefaultPeerRateLimiter(),
     audit: peerAuditLog,
   });
-  let peerLinkManager: PeerLinkManager | null = null;
+
+  // In-app federation toggle (P-0658): ONE controller owns the LIVE transport +
+  // discovery and starts/stops them on config change — no app restart, mirroring
+  // LocalhostMcpServer.applyConfig. The shared trust stores are reused across every
+  // toggle so pins/secrets/peers persist. The IPC handlers below register EXACTLY
+  // ONCE (ipcMain.handle throws on a double-register) and read live state through
+  // closures; only the controller ever starts/stops the transport + discovery.
+  const broadcastToRenderers = (channel: string, payload: unknown): void => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) win.webContents.send(channel, payload);
+    }
+  };
+  federationController = new FederationController({
+    getConfig: () => configLoader.getFederationConfig(),
+    onCall: (peerId, method, params) => inboundGate.handle(peerId, method, params),
+    pinnedCertStore,
+    secretStore,
+    peerConfigManager,
+    setLinkManager: (mgr) => helmControlService.setPeerLinkManager(mgr),
+    alias: 'Helm',
+    broadcast: broadcastToRenderers,
+  });
+
+  // Pairing IPC (4 channels) — registered once, delegating to the controller's live
+  // pairing runtime; returns an inert result when federation is off.
+  const disposePairing = setupPairingHandlers({
+    getPairingRuntime: () => federationController!.currentPairingRuntime(),
+  });
+  // Peer-management IPC — registered once, reading live isEnabled()/getLinkManager().
   const disposePeerManagement = setupPeerManagementHandlers({
-    enabled: federationCfg.enabled,
+    isEnabled: () => configLoader.getFederationConfig().enabled,
     peerConfigManager,
     pinnedCertStore,
     secretStore,
     audit: peerAuditLog,
-    getLinkManager: () => peerLinkManager,
+    getLinkManager: () => federationController!.currentLinkManager(),
   });
-  void startFederationIfEnabled(
-    configLoader.getFederationConfig(),
-    (peerId, method, params) => inboundGate.handle(peerId, method, params),
-    { pinnedCertStore, secretStore },
-  ).then((mgr) => {
-    peerLinkManager = mgr;
-    // Wire the peer_* federation tools only when a transport actually started.
-    if (mgr) helmControlService.setPeerLinkManager(mgr);
-  })
+  // Apply the persisted config now (starts the stack iff enabled).
+  void federationController.start()
     .catch((err) => logger.error(`[federation] Failed to start peer transport: ${err}`));
 
   return {
@@ -496,7 +512,7 @@ export function registerIPCHandlers(
       await localhostMcpServer.close();
       disposePairing();
       disposePeerManagement();
-      if (peerLinkManager) { await peerLinkManager.stop(); peerLinkManager = null; }
+      await federationController?.stop();
       logger.info('[IPC] Cleanup complete');
     },
     sessionManager,

@@ -58,7 +58,7 @@ describe('peer-management handlers — setEnabled live-transport wiring', () => 
     audit = new PeerAuditLog(() => {}, () => 0);
     link = fakeLinkManager();
     setupPeerManagementHandlers({
-      enabled: true,
+      isEnabled: () => true,
       peerConfigManager: cfg,
       pinnedCertStore: { removePin: vi.fn() } as any,
       secretStore: { remove: vi.fn() } as any,
@@ -99,5 +99,45 @@ describe('peer-management handlers — setEnabled live-transport wiring', () => 
     const byId = Object.fromEntries(list.map((p: any) => [p.id, p.enabled]));
     expect(byId[a.id]).toBe(true);
     expect(byId[b.id]).toBe(false);
+  });
+});
+
+describe('peer-management handlers — live isEnabled() closure (P-0658)', () => {
+  it('peer:federationEnabled reflects the LIVE closure, re-evaluated per call', async () => {
+    handleCalls.clear();
+    let enabled = false;
+    setupPeerManagementHandlers({
+      isEnabled: () => enabled,
+      peerConfigManager: new PeerConfigManager(),
+      pinnedCertStore: { removePin: vi.fn() } as any,
+      secretStore: { remove: vi.fn() } as any,
+      audit: new PeerAuditLog(() => {}, () => 0),
+      getLinkManager: () => null,
+    });
+
+    expect(await getHandler('peer:federationEnabled')()).toBe(false);
+    enabled = true;
+    expect(await getHandler('peer:federationEnabled')()).toBe(true);
+    enabled = false;
+    expect(await getHandler('peer:federationEnabled')()).toBe(false);
+  });
+
+  it('peer:list returns [] while disabled and real peers once the closure flips on', async () => {
+    handleCalls.clear();
+    let enabled = false;
+    const cfg = new PeerConfigManager();
+    cfg.add({ alias: 'Mac', address: 'h:1', pskRef: 'r' });
+    setupPeerManagementHandlers({
+      isEnabled: () => enabled,
+      peerConfigManager: cfg,
+      pinnedCertStore: { removePin: vi.fn() } as any,
+      secretStore: { remove: vi.fn() } as any,
+      audit: new PeerAuditLog(() => {}, () => 0),
+      getLinkManager: () => null,
+    });
+
+    expect(await getHandler('peer:list')()).toEqual([]);
+    enabled = true;
+    expect((await getHandler('peer:list')()).length).toBe(1);
   });
 });

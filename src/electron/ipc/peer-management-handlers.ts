@@ -26,7 +26,8 @@ import type { PinnedCertStore } from '../../mcp/peer/pinned-cert-store.js';
 import type { SecretStore } from '../../mcp/peer/secret-store.js';
 
 export interface PeerManagementDeps {
-  enabled: boolean;
+  /** Live federation-enabled state, read per call (P-0658 in-app toggle). */
+  isEnabled: () => boolean;
   peerConfigManager: PeerConfigManager;
   pinnedCertStore: PinnedCertStore;
   secretStore: SecretStore;
@@ -51,10 +52,10 @@ export interface PeerListItem {
  * that removes the handlers and detaches the event listeners.
  */
 export function setupPeerManagementHandlers(deps: PeerManagementDeps): () => void {
-  ipcMain.handle('peer:federationEnabled', () => deps.enabled);
+  ipcMain.handle('peer:federationEnabled', () => deps.isEnabled());
 
   ipcMain.handle('peer:list', (): PeerListItem[] => {
-    if (!deps.enabled) return [];
+    if (!deps.isEnabled()) return [];
     const link = deps.getLinkManager();
     return deps.peerConfigManager.list().map((peer) => ({
       id: peer.id,
@@ -70,14 +71,14 @@ export function setupPeerManagementHandlers(deps: PeerManagementDeps): () => voi
   });
 
   ipcMain.handle('peer:setAllowList', (_e, peerId: string, allow: string[]) => {
-    if (!deps.enabled) return { ok: false };
+    if (!deps.isEnabled()) return { ok: false };
     const cleaned = Array.isArray(allow) ? allow.filter((a) => typeof a === 'string' && a.length > 0) : [];
     const updated = deps.peerConfigManager.update(peerId, { allow: cleaned });
     return { ok: Boolean(updated) };
   });
 
   ipcMain.handle('peer:setEnabled', (_e, peerId: string, enabled: boolean) => {
-    if (!deps.enabled) return { ok: false };
+    if (!deps.isEnabled()) return { ok: false };
     const on = enabled === true;
     const updated = deps.peerConfigManager.update(peerId, { enabled: on });
     if (!updated) return { ok: false };
@@ -92,7 +93,7 @@ export function setupPeerManagementHandlers(deps: PeerManagementDeps): () => voi
   });
 
   ipcMain.handle('peer:unpair', (_e, peerId: string) => {
-    if (!deps.enabled) return { ok: false };
+    if (!deps.isEnabled()) return { ok: false };
     const peer = deps.peerConfigManager.get(peerId);
     if (!peer) return { ok: false };
     // Clean removal: config → secret (by pskRef) → pin (by peerId). Order chosen so
@@ -107,7 +108,7 @@ export function setupPeerManagementHandlers(deps: PeerManagementDeps): () => voi
   });
 
   ipcMain.handle('peer:getAudit', () => {
-    if (!deps.enabled) return [];
+    if (!deps.isEnabled()) return [];
     return deps.audit.list();
   });
 
@@ -122,19 +123,24 @@ export function setupPeerManagementHandlers(deps: PeerManagementDeps): () => voi
   deps.peerConfigManager.on('peer-config:changed', onConfigChanged);
   deps.audit.on('peer-audit:changed', onAuditChanged);
 
-  // The link manager is created asynchronously; attach when it becomes available.
+  // The link manager appears/disappears as federation is toggled (P-0658), so keep
+  // polling: attach online/offline forwarding when a new manager appears, and
+  // detach cleanly when it goes away or is replaced. The timer runs for the app
+  // lifetime (cleared only by the disposer).
   let linkAttached: PeerLinkManager | null = null;
   const attachLinkTimer = setInterval(() => {
     const link = deps.getLinkManager();
-    if (link && link !== linkAttached) {
-      linkAttached = link;
-      link.on('peer-link:online', onOnline);
-      link.on('peer-link:offline', onOffline);
-      clearInterval(attachLinkTimer);
+    if (link === linkAttached) return;
+    if (linkAttached) {
+      linkAttached.off('peer-link:online', onOnline);
+      linkAttached.off('peer-link:offline', onOffline);
+    }
+    linkAttached = link ?? null;
+    if (linkAttached) {
+      linkAttached.on('peer-link:online', onOnline);
+      linkAttached.on('peer-link:offline', onOffline);
     }
   }, 500);
-  // If federation is off there is no link manager to await.
-  if (!deps.enabled) clearInterval(attachLinkTimer);
 
   logger.info('[peer-management] Registered peer-management IPC handlers');
 
