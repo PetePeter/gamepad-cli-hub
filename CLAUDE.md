@@ -184,6 +184,20 @@ Ctrl+G opens the in-app Prompt Editor (`EditorPopup.vue`, bridged via `renderer/
         BIN["Recycle bin"] -->|"forget/empty → clear<br/>restore → reuse id"| AM
     ```
 
+32. **Cross-Machine Helm Federation (MCP peer proxy)** — One Helm invokes another Helm's MCP tools over the same LAN, so a local AI can drive a remote machine's sessions/plans/etc. through the remote's *native* tool names — no catalogue explosion. A SEPARATE TLS-WebSocket `RemoteLink` (default `:47474`, wholly distinct from the localhost `127.0.0.1:47373` MCP server, which is never touched) carries JSON-RPC 2.0. Transport is owned by `PeerLinkManager` (`src/mcp/peer/peer-link-manager.ts`, 1 `RemoteLinkServer` + N `RemoteLinkClient`, per-pair dedup) over `PeerLink` (JSON-RPC mux). Auth = a mutual **PSK handshake** (`remote-link-handshake.ts`, HMAC channel-bound to the TLS session via RFC-5705 exporter, hard-fail if unavailable) + **TOFU cert pinning** (`PinnedCertStore`, record-on-first-pair, hard-reject on change). Peers **pair by comparing a 6-digit SAS code** (`PeerPairing`/`pairing-crypto`: X25519 ECDH, commit-then-reveal, the code is a KDF OUTPUT the user compares — no offline verifier; `PairingCoordinator` enforces one-at-a-time + rate caps) after mDNS `PeerDiscovery` (`_helm._tcp`). Every inbound call passes the `InboundCallGate` (`src/mcp/peer/inbound-call-gate.ts`): per-peer **allow-list** (`PeerConfigManager.isToolAllowed`, deny-by-default) → **hard-deny** set (`restart_helm`/`session_close`/`session_group_close`, never proxyable even under `*`) → per-peer **rate-limit** (token bucket) → dispatch under a synthetic **proxy identity** `peer:<id>` (`proxy-identity.ts`, no impersonation; caller-identity args stripped) → **7-day audit** (`PeerAuditLog`, arg KEY NAMES only, never values). The gate reuses the existing `callMcpTool` dispatcher **UNTOUCHED**. Local surface = 3 MCP tools (`peer_list`/`peer_tools`/`peer_call`) behind `HelmPeerService` (`src/mcp/services/helm-peer-service.ts`). Config in `%APPDATA%/Helm/config`: `peers.yaml` (registry+allow-list, no secrets), `peer-secrets.yaml` (PSK bytes), `peer-pins.yaml` (cert pins), `machine-identity.yaml`, `self-signed-cert.yaml`, `peer-audit.yaml`. UI: a **Peers** settings tab (`PeersTab.vue` + `PeerPairingDialog.vue` + `PeerAuditModal.vue`, `usePeers`). **OFF by default** — no `:47474` listener bound and no manager constructed until enabled (`federation-startup.ts`). Deny messages are uniform ("Tool not permitted") so a peer cannot probe which tools exist. See [docs/cross-machine-federation.md](docs/cross-machine-federation.md).
+
+    ```mermaid
+    graph LR
+        AI["Local AI"] -->|"peer_call(B, tool, args)"| HPS["HelmPeerService<br/>peer_list/tools/call"]
+        HPS --> PLM["PeerLinkManager<br/>server + clients · dedup"]
+        PLM -->|"mTLS-WS + PSK<br/>(TOFU pinned)"| ICG["InboundCallGate (B)<br/>allow-list · hard-deny<br/>rate-limit · proxy · audit"]
+        ICG -->|"proxy peer:&lt;id&gt;"| CMT["callMcpTool<br/>(UNCHANGED dispatcher)"]
+        CMT --> RES[(remote result)]
+        DISC["PeerDiscovery mDNS"] --> PAIR["PeerPairing (SAS)<br/>PairingCoordinator"]
+        PAIR -->|"pin + PSK + PeerConfig"| PLM
+        ICG -.->|"outcome, no arg values"| AUD[("peer-audit.yaml")]
+    ```
+
 ## Architecture Principles
 
 - DRY, YAGNI, KISS
@@ -248,3 +262,4 @@ Detailed reference docs are in `docs/`:
 | [docs/directory-plans.md](docs/directory-plans.md) | Directory Plans — DAG work items, lifecycle, canvas, layout, badges |
 | [docs/runtime-groups.md](docs/runtime-groups.md) | Runtime Session Groups — custom cross-directory groups, exclusive membership, restore-to-group, drag/close flows |
 | [docs/artifact-viewer.md](docs/artifact-viewer.md) | Artifact Manager + Viewer — ephemeral per-session versioned md/html/image reports, MCP tools, sanitized render, helm-img:// protocol, selectable text, master/detail panel |
+| [docs/cross-machine-federation.md](docs/cross-machine-federation.md) | Cross-Machine Federation — peer MCP proxy over same-LAN TLS-WS (:47474), PSK handshake + TOFU cert pinning, mDNS SAS pair-by-code, InboundCallGate (allow-list + proxy identity + rate-limit + 7-day audit + hard-deny), peer_list/peer_tools/peer_call, Peers settings tab, OFF by default |
