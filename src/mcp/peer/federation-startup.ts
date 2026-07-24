@@ -33,6 +33,7 @@ export interface FederationConfigInput {
 export async function startFederationIfEnabled(
   config: FederationConfigInput,
   onCall: OnCall,
+  stores?: { pinnedCertStore?: PinnedCertStore; secretStore?: SecretStore },
 ): Promise<PeerLinkManager | null> {
   if (!config.enabled) {
     logger.info('[federation] Disabled — binding no peer listener');
@@ -42,11 +43,19 @@ export async function startFederationIfEnabled(
   const identity = getOrCreateMachineIdentity();
   const cert = await getOrCreateSelfSignedCert();
 
-  const pinnedCertStore = new PinnedCertStore((pins) => savePeerPins(pins));
-  pinnedCertStore.importAll(loadPeerPins());
+  // Prefer the injected shared stores so unpair + pairing + transport all mutate
+  // the SAME in-memory pins/secrets. Fall back to fresh, disk-hydrated stores.
+  let pinnedCertStore = stores?.pinnedCertStore;
+  if (!pinnedCertStore) {
+    pinnedCertStore = new PinnedCertStore((pins) => savePeerPins(pins));
+    pinnedCertStore.importAll(loadPeerPins());
+  }
 
-  const secretStore = new SecretStore((secrets) => savePeerSecrets(secrets));
-  secretStore.importAll(loadPeerSecrets());
+  let secretStore = stores?.secretStore;
+  if (!secretStore) {
+    secretStore = new SecretStore((secrets) => savePeerSecrets(secrets));
+    secretStore.importAll(loadPeerSecrets());
+  }
 
   const manager = new PeerLinkManager({
     machineId: identity.machineId,

@@ -148,6 +148,39 @@ describe('PeerLinkManager', () => {
     await mgr.stop();
   });
 
+  describe('enabled gating (only enabled peers are dialled)', () => {
+    it('start() does NOT dial a peer with enabled:false', async () => {
+      const { mgr, created } = makeManager({
+        listPeers: () => [
+          { id: 'off', alias: 'Off', address: '10.0.0.9:47474', pskRef: 'r', allow: ['*'], direction: 'bidirectional', createdAt: 0, enabled: false },
+        ],
+      });
+      await mgr.start();
+      expect(created.clients).toHaveLength(0); // no outbound dial for disabled peer
+      await mgr.stop();
+    });
+
+    it('start() DOES dial a peer with enabled undefined (default-true)', async () => {
+      const { mgr, created } = makeManager({
+        listPeers: () => [
+          { id: 'dflt', alias: 'Dflt', address: '10.0.0.8:47474', pskRef: 'r', allow: ['*'], direction: 'bidirectional', createdAt: 0 },
+        ],
+      });
+      await mgr.start();
+      expect(created.clients).toHaveLength(1);
+      await mgr.stop();
+    });
+
+    it('addPeer() is a no-op for a disabled peer', async () => {
+      const { mgr, created } = makeManager({ listPeers: () => [] });
+      await mgr.start();
+      expect(created.clients).toHaveLength(0);
+      mgr.addPeer({ id: 'off', alias: 'Off', address: '10.0.0.7:47474', pskRef: 'r', allow: ['*'], direction: 'bidirectional', createdAt: 0, enabled: false });
+      expect(created.clients).toHaveLength(0);
+      await mgr.stop();
+    });
+  });
+
   describe('dedup by min(machineId) initiator', () => {
     it('local is the min → our OUTBOUND (we initiated) link wins over an inbound', async () => {
       // localMachineId 'AAA' < peerMachineId 'ZZZ' → the link where WE are
@@ -219,6 +252,57 @@ describe('PeerLinkManager', () => {
       created.servers[0].emitLink(loser, 'peerA', 'ZZZ'); // inbound, non-preferred
       expect(loser.disposed).toBe(true);
       expect(winner.disposed).toBe(false);
+      await mgr.stop();
+    });
+  });
+
+  describe('disposePeer (drop a single peer\'s live transport on disable)', () => {
+    it('disposes the live link and marks the peer offline without stopping others', async () => {
+      const { mgr, created } = makeManager();
+      await mgr.start();
+      const link = new FakeLink();
+      created.clients[0].emitLink(link, 'peerA');
+      expect(mgr.status('peerA')).toBe('online');
+
+      mgr.disposePeer('peerA');
+
+      expect(link.disposed).toBe(true);
+      expect(link.disposeReason).toBe('peer-disabled');
+      expect(mgr.status('peerA')).toBe('offline');
+      await mgr.stop();
+    });
+
+    it('disposes the outbound client so a later addPeer can re-dial', async () => {
+      const { mgr, created } = makeManager();
+      await mgr.start();
+      expect(created.clients).toHaveLength(1);
+
+      mgr.disposePeer('peerA');
+      expect(created.clients[0].disposed).toBe(true);
+
+      // Re-enable path: addPeer creates a fresh client (no-op guard cleared).
+      mgr.addPeer({ id: 'peerA', alias: 'A', address: '10.0.0.2:47474', pskRef: 'r', allow: ['*'], direction: 'bidirectional', createdAt: 0 });
+      expect(created.clients).toHaveLength(2);
+      expect(created.clients[1].connected).toBe(true);
+      await mgr.stop();
+    });
+
+    it('emits peer-link:offline when a live link is disposed', async () => {
+      const { mgr, created } = makeManager();
+      const offline: string[] = [];
+      mgr.on('peer-link:offline', (e: any) => offline.push(e.peerId));
+      await mgr.start();
+      created.clients[0].emitLink(new FakeLink(), 'peerA');
+
+      mgr.disposePeer('peerA');
+      expect(offline).toEqual(['peerA']);
+      await mgr.stop();
+    });
+
+    it('is a no-op (no throw) for an unknown peer', async () => {
+      const { mgr } = makeManager();
+      await mgr.start();
+      expect(() => mgr.disposePeer('ghost')).not.toThrow();
       await mgr.stop();
     });
   });

@@ -129,6 +129,8 @@ import ProjectsTab from './components/sidebar/ProjectsTab.vue';
 import ChipbarActionsTab from './components/sidebar/ChipbarActionsTab.vue';
 import McpTab from './components/sidebar/McpTab.vue';
 import BackupTab from './components/sidebar/BackupTab.vue';
+import PeersTab from './components/sidebar/PeersTab.vue';
+import PeerPairingDialog from './components/modals/PeerPairingDialog.vue';
 import SkillsTab from './components/sidebar/SkillsTab.vue';
 
 import { loadSessions } from './screens/sessions.js';
@@ -1162,6 +1164,9 @@ onUnmounted(() => {
             <BackupTab
               v-else-if="activeTab === 'backups'"
             />
+            <PeersTab
+              v-else-if="activeTab === 'peers'"
+            />
             <BindingsTab
               v-else
               :bindings="settingsBindings"
@@ -1195,6 +1200,7 @@ onUnmounted(() => {
         />
         <ScheduledTaskHistoryModal v-model:visible="historyModalVisible" @recreate="recreateFromHistory" />
         <RecycleBinModal v-model:visible="recycleBin.modalVisible.value" />
+        <PeerPairingDialog />
       </div>
 
       <div id="quickSpawnSection" v-show="!settingsVisible" class="spawn-section" :class="{ 'spawn-section--collapsed': spawnCollapsed }">

@@ -102,6 +102,7 @@ export class PeerLinkManager extends EventEmitter {
 
     for (const peer of this.opts.listPeers()) {
       if (peer.direction === 'inbound') continue; // no outbound dial
+      if (!isPeerEnabled(peer)) continue;         // disabled peers are never dialled
       const [host, portStr] = splitAddress(peer.address);
       const client = createClient({
         peerId: peer.id,
@@ -133,6 +134,7 @@ export class PeerLinkManager extends EventEmitter {
   addPeer(peer: PeerConfig): void {
     if (this.stopped || !this.server) return;             // not running yet
     if (peer.direction === 'inbound') return;             // no outbound dial
+    if (!isPeerEnabled(peer)) return;                     // disabled peers are never dialled
     if (this.clients.has(peer.id)) return;                // already dialling
     const createClient = this.opts.createClient ?? ((o) => new RemoteLinkClient(o));
     const [host, portStr] = splitAddress(peer.address);
@@ -162,6 +164,29 @@ export class PeerLinkManager extends EventEmitter {
     for (const entry of this.links.values()) entry.link.dispose('manager-stop');
     this.links.clear();
     if (this.server) { await this.server.stop(); this.server = null; }
+  }
+
+  /**
+   * Tear down a SINGLE peer's live transport without touching its config: dispose
+   * any authenticated link (inbound or outbound) and stop dialling it. Used when a
+   * peer is disabled at runtime so "Off" drops the live link immediately in both
+   * directions. Removing the outbound client also frees a later addPeer() to
+   * re-dial the same peer once it is re-enabled (addPeer is a no-op while a client
+   * already exists). Idempotent.
+   */
+  disposePeer(peerId: string): void {
+    const client = this.clients.get(peerId);
+    if (client) {
+      client.dispose('peer-disabled');
+      this.clients.delete(peerId);
+    }
+    const entry = this.links.get(peerId);
+    if (entry) {
+      // dispose → 'offline' → onLinkOffline deletes the map entry + emits offline.
+      entry.link.dispose('peer-disabled');
+      this.links.delete(peerId);
+    }
+    logger.info(`[PeerLinkManager] Disposed live transport for peer ${peerId}`);
   }
 
   /** Replace the inbound-call sink (used by links created AFTER this call). */
@@ -255,6 +280,11 @@ export class PeerLinkManager extends EventEmitter {
   private detach(peerId: string, entry: LinkEntry): void {
     if (this.links.get(peerId) === entry) this.links.delete(peerId);
   }
+}
+
+/** Default-true enabled check: `undefined` counts as enabled, only `false` disables. */
+function isPeerEnabled(peer: PeerConfig): boolean {
+  return peer.enabled !== false;
 }
 
 /** Split "host:port" (IPv4/hostname). Falls back to the whole string as host. */

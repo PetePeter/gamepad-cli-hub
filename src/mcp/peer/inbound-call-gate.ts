@@ -93,8 +93,16 @@ const RATE_LIMIT_MESSAGE = 'Rate limit exceeded';
 const ARG_SUMMARY_MAX = 200;
 
 export interface InboundCallGateDeps {
-  /** Per-peer allow-list matcher (PeerConfigManager). */
-  peerConfig: { isToolAllowed(peerId: string, toolName: string): boolean };
+  /**
+   * Per-peer allow-list matcher + enablement lookup (PeerConfigManager). `get`
+   * returns the peer's config (or undefined). Only an explicit `enabled === false`
+   * disables a peer; undefined/true = enabled (default-true), so legacy peers
+   * without the field stay active.
+   */
+  peerConfig: {
+    isToolAllowed(peerId: string, toolName: string): boolean;
+    get?(peerId: string): { enabled?: boolean } | undefined;
+  };
   /**
    * The dispatch closure. The real wiring passes a closure over the existing
    * callMcpTool; injecting it keeps the gate unit-testable with a fake and keeps
@@ -124,6 +132,16 @@ export class InboundCallGate {
   /** Gate + dispatch one inbound peer call. */
   async handle(peerId: string, method: string, params: unknown): Promise<unknown> {
     const argSummary = summarizeArgKeys(params);
+
+    // 0a. Disabled-peer gate — an explicitly disabled peer is off in BOTH
+    // directions. It cannot invoke tools NOR enumerate the reserved tool surface.
+    // Deny with the SAME uniform message as an allow-list-deny (no existence
+    // leak) so "Off" can't be probed apart from "not permitted". A peer with NO
+    // config (undefined) is NOT blocked here — it falls through to the existing
+    // allow-list deny, which already denies deny-by-default.
+    if (this.isPeerDisabled(peerId)) {
+      return this.denied(peerId, method, argSummary);
+    }
 
     // 0. Reserved tool-discovery meta-method. Answered IN-GATE (never dispatched)
     // by intersecting the tool catalogue with this peer's allow-list, minus the
@@ -174,6 +192,17 @@ export class InboundCallGate {
       this.record(peerId, method, argSummary, 'error', errorType);
       throw new GateError(JSONRPC_SERVER_ERROR, message);
     }
+  }
+
+  /**
+   * Whether `peerId` is an EXPLICITLY disabled configured peer. Default-true: a
+   * missing config or an undefined/true `enabled` field is treated as enabled, so
+   * only `enabled === false` disables. If the lookup surface is unavailable
+   * (`get` not provided) no peer is ever considered disabled here.
+   */
+  private isPeerDisabled(peerId: string): boolean {
+    const peer = this.peerConfig.get?.(peerId);
+    return peer?.enabled === false;
   }
 
   /** Audit a denial and throw the uniform deny error. Never returns. */

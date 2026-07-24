@@ -70,6 +70,10 @@ import { PeerAuditLog } from '../../mcp/peer/peer-audit-log.js';
 import { PeerConfigManager } from '../../session/peer-config-manager.js';
 import { loadPeers, savePeers } from '../../session/peer-config-persistence.js';
 import { setupPairingHandlers } from './pairing-handlers.js';
+import { setupPeerManagementHandlers } from './peer-management-handlers.js';
+import { PinnedCertStore } from '../../mcp/peer/pinned-cert-store.js';
+import { SecretStore } from '../../mcp/peer/secret-store.js';
+import { loadPeerPins, savePeerPins, loadPeerSecrets, savePeerSecrets } from '../../mcp/peer/peer-secret-persistence.js';
 import { asRecord } from '../../mcp/tools/validation.js';
 import { PromptTemplateManager } from '../../session/prompt-template-manager.js';
 import { loadPromptTemplates } from '../../session/prompt-template-persistence.js';
@@ -423,6 +427,13 @@ export function registerIPCHandlers(
   const peerConfigManager = new PeerConfigManager((peers) => savePeers(peers));
   peerConfigManager.importAll(loadPeers());
 
+  // Shared trust stores — one instance used by pairing (writes pins/secrets),
+  // the transport (reads them), and peer-management/unpair (removes them).
+  const pinnedCertStore = new PinnedCertStore((pins) => savePeerPins(pins));
+  pinnedCertStore.importAll(loadPeerPins());
+  const secretStore = new SecretStore((secrets) => savePeerSecrets(secrets));
+  secretStore.importAll(loadPeerSecrets());
+
   // SAS pairing (P-0649) — discovery + coordinator + IPC. No-op when federation
   // is disabled (binds nothing, advertises nothing). UI lands in P-0650.
   const federationCfg = configLoader.getFederationConfig();
@@ -432,18 +443,32 @@ export function registerIPCHandlers(
     port: federationCfg.port,
     alias: 'Helm',
     peerConfigManager,
+    pinnedCertStore,
+    secretStore,
   });
+  // Single audit log instance, reachable by both the inbound gate (appends) and
+  // the peer-management handlers (reads for the Audit sub-view).
+  const peerAuditLog = new PeerAuditLog();
   const inboundGate = new InboundCallGate({
     peerConfig: peerConfigManager,
     dispatch: (method, params, ctx) =>
       localhostMcpServer.dispatchForPeer(method, asRecord(params), ctx),
     rateLimiter: createDefaultPeerRateLimiter(),
-    audit: new PeerAuditLog(),
+    audit: peerAuditLog,
   });
   let peerLinkManager: PeerLinkManager | null = null;
+  const disposePeerManagement = setupPeerManagementHandlers({
+    enabled: federationCfg.enabled,
+    peerConfigManager,
+    pinnedCertStore,
+    secretStore,
+    audit: peerAuditLog,
+    getLinkManager: () => peerLinkManager,
+  });
   void startFederationIfEnabled(
     configLoader.getFederationConfig(),
     (peerId, method, params) => inboundGate.handle(peerId, method, params),
+    { pinnedCertStore, secretStore },
   ).then((mgr) => {
     peerLinkManager = mgr;
     // Wire the peer_* federation tools only when a transport actually started.
@@ -470,6 +495,7 @@ export function registerIPCHandlers(
       // Await the socket close so the next instance can bind the fixed port.
       await localhostMcpServer.close();
       disposePairing();
+      disposePeerManagement();
       if (peerLinkManager) { await peerLinkManager.stop(); peerLinkManager = null; }
       logger.info('[IPC] Cleanup complete');
     },

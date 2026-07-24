@@ -251,6 +251,54 @@ describe('PeerConfigManager', () => {
       expect(mgr.getByMachineId('mac-9')!.id).toBe('p1');
     });
   });
+
+  describe('enabled field (default-true toggle)', () => {
+    it('E1 add omits enabled by default (undefined = enabled)', () => {
+      const mgr = new PeerConfigManager();
+      const peer = mgr.add(baseInput());
+      expect(peer.enabled).toBeUndefined();
+    });
+
+    it('E2 add can set enabled:false and it round-trips', () => {
+      const mgr = new PeerConfigManager();
+      const peer = mgr.add({ ...baseInput(), enabled: false });
+      expect(peer.enabled).toBe(false);
+      expect(mgr.get(peer.id)!.enabled).toBe(false);
+    });
+
+    it('E3 update toggles enabled and re-persists', () => {
+      const persist = vi.fn();
+      const mgr = new PeerConfigManager(persist);
+      const peer = mgr.add(baseInput());
+      persist.mockClear();
+
+      const off = mgr.update(peer.id, { enabled: false });
+      expect(off!.enabled).toBe(false);
+      expect(persist).toHaveBeenCalledTimes(1);
+
+      const on = mgr.update(peer.id, { enabled: true });
+      expect(on!.enabled).toBe(true);
+    });
+
+    it('E4 importAll preserves an explicit enabled:false', () => {
+      const mgr = new PeerConfigManager();
+      mgr.importAll([{
+        id: 'p1', alias: 'a', address: 'h:1', pskRef: 'r',
+        allow: [], direction: 'bidirectional', createdAt: 1, enabled: false,
+      }]);
+      expect(mgr.get('p1')!.enabled).toBe(false);
+    });
+
+    it('E5 importAll drops a non-boolean enabled (stays undefined)', () => {
+      const mgr = new PeerConfigManager();
+      mgr.importAll([{
+        id: 'p1', alias: 'a', address: 'h:1', pskRef: 'r',
+        allow: [], direction: 'bidirectional', createdAt: 1,
+        enabled: 'yes' as unknown as boolean,
+      }]);
+      expect(mgr.get('p1')!.enabled).toBeUndefined();
+    });
+  });
 });
 
 describe('peer-config-persistence (real temp-file round trip)', () => {

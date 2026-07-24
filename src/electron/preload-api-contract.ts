@@ -220,6 +220,12 @@ export const PRELOAD_API_DOMAINS = {
     'peerStartPairing',
     'peerConfirmPairing',
     'peerCancelPairing',
+    'peerList',
+    'peerSetAllowList',
+    'peerSetEnabled',
+    'peerUnpair',
+    'peerGetAudit',
+    'peerFederationEnabled',
   ],
   patterns: [
     'toolsGetPatterns',
@@ -307,6 +313,9 @@ export const PRELOAD_API_DOMAINS = {
     'onPeerSas',
     'onPeerPaired',
     'onPeerFailed',
+    'onPeerConfigChanged',
+    'onPeerLinkStatus',
+    'onPeerAuditChanged',
   ],
 } as const;
 

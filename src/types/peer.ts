@@ -36,4 +36,11 @@ export interface PeerConfig {
    * re-pair updates rather than duplicates.
    */
   machineId?: string;
+  /**
+   * Whether this peer participates in the federation transport. Default-true
+   * semantics: `undefined` is treated as ENABLED (so legacy peers without the
+   * field stay active). When explicitly `false` the PeerLinkManager will NOT
+   * dial the peer (an inbound-only server still exists, but nothing is dialled).
+   */
+  enabled?: boolean;
 }

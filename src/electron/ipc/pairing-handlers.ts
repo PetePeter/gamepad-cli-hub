@@ -38,6 +38,13 @@ export interface PairingHandlerDeps {
   peerConfigManager: PeerConfigManager;
   /** How a pairing session's control frames reach the peer (real socket: P-0651). */
   createChannel?: (peer: PairingPeerInfo, sessionId: string) => PairingChannel;
+  /**
+   * Shared trust stores. Injected so the peer-management handlers (unpair) and the
+   * federation transport operate on the SAME in-memory store instances that
+   * pairing writes pins/secrets into. When omitted, internal stores are built.
+   */
+  pinnedCertStore?: PinnedCertStore;
+  secretStore?: SecretStore;
 }
 
 /**
@@ -65,11 +72,18 @@ export function setupPairingHandlers(deps: PairingHandlerDeps): () => void {
   discovery.start();
   discovery.advertise({ machineId: identity.machineId, alias: deps.alias, port: deps.port });
 
-  // Stores hydrated once; PeerPairing writes through them on finalize.
-  const pinnedCertStore = new PinnedCertStore((pins) => savePeerPins(pins));
-  pinnedCertStore.importAll(loadPeerPins());
-  const secretStore = new SecretStore((secrets) => savePeerSecrets(secrets));
-  secretStore.importAll(loadPeerSecrets());
+  // Stores hydrated once; PeerPairing writes through them on finalize. Prefer the
+  // injected shared instances so unpair + transport see the same pins/secrets.
+  let pinnedCertStore = deps.pinnedCertStore;
+  if (!pinnedCertStore) {
+    pinnedCertStore = new PinnedCertStore((pins) => savePeerPins(pins));
+    pinnedCertStore.importAll(loadPeerPins());
+  }
+  let secretStore = deps.secretStore;
+  if (!secretStore) {
+    secretStore = new SecretStore((secrets) => savePeerSecrets(secrets));
+    secretStore.importAll(loadPeerSecrets());
+  }
 
   const coordinator = new PairingCoordinator({
     createPairing: (sessionId, peer) => {

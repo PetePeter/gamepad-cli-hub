@@ -1193,6 +1193,44 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   /** Cancel the active pairing session */
   peerCancelPairing: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('peer:cancelPairing'),
 
+  /** Whether cross-machine federation is wired at all (tab renders a hint when off). */
+  peerFederationEnabled: (): Promise<boolean> => ipcRenderer.invoke('peer:federationEnabled'),
+
+  /** Configured peers with live online status + enable flag. Empty when federation is off. */
+  peerList: (): Promise<Array<{
+    id: string;
+    machineId?: string;
+    alias: string;
+    address: string;
+    direction: 'inbound' | 'outbound' | 'bidirectional';
+    allow: string[];
+    enabled: boolean;
+    online: boolean;
+  }>> => ipcRenderer.invoke('peer:list'),
+
+  /** Replace a peer's tool-name allow-list (glob patterns). Persists + re-authorizes. */
+  peerSetAllowList: (peerId: string, allow: string[]): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke('peer:setAllowList', peerId, allow),
+
+  /** Toggle whether a peer is dialled by the federation transport. */
+  peerSetEnabled: (peerId: string, enabled: boolean): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke('peer:setEnabled', peerId, enabled),
+
+  /** Remove a peer entirely — config + secret + pinned cert. */
+  peerUnpair: (peerId: string): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke('peer:unpair', peerId),
+
+  /** Recent proxied-call audit entries (last 7 days, newest first). */
+  peerGetAudit: (): Promise<Array<{
+    id: string;
+    peerId: string;
+    method: string;
+    argSummary: string;
+    outcome: 'ok' | 'denied' | 'rate-limited' | 'error';
+    ranAt: number;
+    error?: string;
+  }>> => ipcRenderer.invoke('peer:getAudit'),
+
   /** Subscribe to a peer appearing on the LAN */
   onPeerDiscovered: (callback: (peer: { machineId: string; alias: string; address: string }) => void) => {
     const listener = (_e: Electron.IpcRendererEvent, data: any) => callback(data);
@@ -1226,6 +1264,27 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     const listener = (_e: Electron.IpcRendererEvent, data: any) => callback(data);
     ipcRenderer.on('peer:failed', listener);
     return () => ipcRenderer.removeListener('peer:failed', listener);
+  },
+
+  /** Subscribe to the configured-peer registry changing (add/remove/allow/enable). */
+  onPeerConfigChanged: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('peer-config:changed', listener);
+    return () => ipcRenderer.removeListener('peer-config:changed', listener);
+  },
+
+  /** Subscribe to a peer link coming online / going offline. */
+  onPeerLinkStatus: (callback: (data: { peerId: string; online: boolean }) => void) => {
+    const listener = (_e: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('peer-link:status', listener);
+    return () => ipcRenderer.removeListener('peer-link:status', listener);
+  },
+
+  /** Subscribe to the audit log changing. */
+  onPeerAuditChanged: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('peer-audit:changed', listener);
+    return () => ipcRenderer.removeListener('peer-audit:changed', listener);
   },
 
 } as const;

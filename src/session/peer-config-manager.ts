@@ -27,6 +27,7 @@ interface AddPeerInput {
   allow?: string[];
   direction?: PeerConfig['direction'];
   machineId?: string;
+  enabled?: boolean;
 }
 
 interface UpsertByMachineIdInput extends AddPeerInput {
@@ -54,6 +55,7 @@ export class PeerConfigManager extends EventEmitter {
       direction: input.direction ?? 'bidirectional',
       createdAt: this.now(),
       ...(input.machineId !== undefined ? { machineId: input.machineId } : {}),
+      ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
     };
     this.peers.push(peer);
     this.markChanged();
@@ -80,6 +82,7 @@ export class PeerConfigManager extends EventEmitter {
       existing.pskRef = input.pskRef;
       if (input.allow !== undefined) existing.allow = [...input.allow];
       if (input.direction !== undefined && DIRECTIONS.has(input.direction)) existing.direction = input.direction;
+      if (input.enabled !== undefined) existing.enabled = input.enabled;
       this.markChanged();
       logger.info(`[PeerConfigManager] Updated peer by machineId "${existing.alias}" (${existing.id})`);
       return this.copy(existing);
@@ -116,6 +119,7 @@ export class PeerConfigManager extends EventEmitter {
     if (patch.pskRef !== undefined) peer.pskRef = patch.pskRef;
     if (patch.allow !== undefined) peer.allow = [...patch.allow];
     if (patch.direction !== undefined && DIRECTIONS.has(patch.direction)) peer.direction = patch.direction;
+    if (patch.enabled !== undefined) peer.enabled = patch.enabled;
     this.markChanged();
     return this.copy(peer);
   }
@@ -167,6 +171,7 @@ export class PeerConfigManager extends EventEmitter {
         direction: p.direction,
         createdAt: typeof p.createdAt === 'number' ? p.createdAt : this.now(),
         ...(typeof p.machineId === 'string' && p.machineId.length > 0 ? { machineId: p.machineId } : {}),
+        ...(typeof p.enabled === 'boolean' ? { enabled: p.enabled } : {}),
       }));
     logger.info(`[PeerConfigManager] Imported ${this.peers.length} peer(s)`);
   }

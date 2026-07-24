@@ -24,12 +24,21 @@ vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
 }));
 
-/** A peerConfig fake exposing only isToolAllowed (the surface the gate needs). */
-function fakePeerConfig(rules: Record<string, string[]>) {
+/**
+ * A peerConfig fake exposing isToolAllowed + get (the surface the gate needs).
+ * `enabledMap[peerId] === false` marks that peer explicitly disabled; a peerId
+ * absent from the map returns undefined from get() (unknown/legacy peer), and any
+ * other value is treated as enabled (default-true) by the gate.
+ */
+function fakePeerConfig(rules: Record<string, string[]>, enabledMap: Record<string, boolean> = {}) {
   return {
     isToolAllowed(peerId: string, tool: string): boolean {
       const allow = rules[peerId] ?? [];
       return allow.some(p => p === '*' || p === tool);
+    },
+    get(peerId: string): { enabled?: boolean } | undefined {
+      if (!(peerId in enabledMap)) return undefined;
+      return { enabled: enabledMap[peerId] };
     },
   };
 }
@@ -46,6 +55,7 @@ function build(
     now?: () => number;
     dispatchImpl?: (method: string, params: unknown, ctx: AuthContext) => Promise<unknown>;
     capacity?: number;
+    enabledMap?: Record<string, boolean>;
   } = {},
 ): Built {
   const now = opts.now ?? (() => 0);
@@ -62,7 +72,7 @@ function build(
     now,
   });
   const gate = new InboundCallGate({
-    peerConfig: fakePeerConfig(rules),
+    peerConfig: fakePeerConfig(rules, opts.enabledMap),
     dispatch,
     rateLimiter,
     audit,
@@ -119,6 +129,50 @@ describe('InboundCallGate', () => {
     await gate2.handle('mac', 'artifact_get', {}).catch(e => { allowMsg = e.message; });
     expect(hardMsg).toBe(allowMsg);
     expect(hardMsg).toBe('Tool not permitted');
+  });
+
+  describe('disabled-peer gate (Off means off in both directions)', () => {
+    it('denies a call from an explicitly-disabled peer: uniform message, no dispatch, audit denied', async () => {
+      const { gate, audit, calls } = build(
+        { mac: ['*'] },                       // allow-list would otherwise permit it
+        { enabledMap: { mac: false } },       // …but the peer is disabled
+      );
+      await expect(gate.handle('mac', 'artifact_get', { id: 'x' })).rejects.toMatchObject({
+        code: -32000,
+        message: 'Tool not permitted',        // identical to allow-list-deny (no leak)
+      });
+      expect(calls).toHaveLength(0);
+      expect(audit.list()[0].outcome).toBe('denied');
+    });
+
+    it('denies the reserved __peer_tools__ enumeration for a disabled peer', async () => {
+      const { gate, audit, calls } = build(
+        { mac: ['*'] },
+        { enabledMap: { mac: false } },
+      );
+      await expect(gate.handle('mac', RESERVED_PEER_TOOLS_METHOD, {})).rejects.toMatchObject({
+        code: -32000,
+        message: 'Tool not permitted',
+      });
+      expect(calls).toHaveLength(0);
+      expect(audit.list()[0].outcome).toBe('denied');
+    });
+
+    it('an enabled peer (enabled:true) still works normally', async () => {
+      const { gate, calls } = build(
+        { mac: ['artifact_get'] },
+        { enabledMap: { mac: true } },
+      );
+      expect(await gate.handle('mac', 'artifact_get', {})).toEqual({ ok: true });
+      expect(calls).toHaveLength(1);
+    });
+
+    it('a peer with no config-provided enabled flag (undefined) is treated as enabled', async () => {
+      // enabledMap omits 'mac' → get() returns undefined → default-true.
+      const { gate, calls } = build({ mac: ['artifact_get'] }, {});
+      expect(await gate.handle('mac', 'artifact_get', {})).toEqual({ ok: true });
+      expect(calls).toHaveLength(1);
+    });
   });
 
   it('rate-limits past capacity: burst passes, next rejected, refill re-allows', async () => {
