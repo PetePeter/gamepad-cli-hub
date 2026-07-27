@@ -11,6 +11,7 @@
 
 import { readFile } from 'fs/promises';
 import { extname } from 'path';
+import type { Protocol } from 'electron';
 
 // ---------------------------------------------------------------------------
 // URL encoding/decoding helpers
@@ -82,11 +83,11 @@ export function mimeForPath(filePath: string): string | null {
  *
  * Call protocol.registerSchemesAsPrivileged() BEFORE app is ready (in main.ts)
  * with { standard:true, secure:true, supportFetchAPI:true }.
+ *
+ * The protocol adapter is injected so this module's URL helpers remain safe to
+ * import from the renderer without a runtime Electron dependency.
  */
-export function registerHelmImgProtocol(): void {
-  // Import lazily so this module's pure helpers remain testable without Electron
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { protocol } = require('electron') as typeof import('electron');
+export function registerHelmImgProtocol(protocol: Pick<Protocol, 'handle'>): void {
   protocol.handle('helm-img', async (request) => {
     const absPath = decodeHelmImgUrl(request.url);
     if (absPath === '') {

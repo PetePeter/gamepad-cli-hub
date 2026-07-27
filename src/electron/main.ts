@@ -379,7 +379,7 @@ app.whenReady().then(async () => {
 
   // Register helm-img:// handler so the renderer can load local image files
   // without loosening webSecurity or file:// access.
-  registerHelmImgProtocol();
+  registerHelmImgProtocol(protocol);
 
   // Create main window
   createWindow();

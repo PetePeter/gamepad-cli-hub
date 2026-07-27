@@ -1,5 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { encodeHelmImgUrl, decodeHelmImgUrl, mimeForPath } from './helm-img-protocol.js';
+import { describe, it, expect, vi } from 'vitest';
+import {
+  encodeHelmImgUrl,
+  decodeHelmImgUrl,
+  mimeForPath,
+  registerHelmImgProtocol,
+} from './helm-img-protocol.js';
 
 describe('encodeHelmImgUrl / decodeHelmImgUrl', () => {
   const roundTrip = (p: string) => decodeHelmImgUrl(encodeHelmImgUrl(p));
@@ -99,5 +104,16 @@ describe('mimeForPath', () => {
   it('works with full paths, not just filenames', () => {
     expect(mimeForPath('C:\\Users\\user\\images\\photo.png')).toBe('image/png');
     expect(mimeForPath('/home/user/images/photo.webp')).toBe('image/webp');
+  });
+});
+
+describe('registerHelmImgProtocol', () => {
+  it('registers through the injected Electron protocol adapter', () => {
+    const handle = vi.fn();
+
+    registerHelmImgProtocol({ handle });
+
+    expect(handle).toHaveBeenCalledOnce();
+    expect(handle).toHaveBeenCalledWith('helm-img', expect.any(Function));
   });
 });
