@@ -21,7 +21,7 @@ import { migrateUserDataFolder } from './user-data-migration.js';
 import { configureElectronAppIdentity } from './app-identity.js';
 import { ConfigLoader } from '../config/loader.js';
 import { logger } from '../utils/logger.js';
-import { getRendererHtmlPath, isPackaged, seedConfigIfNeeded, getConfigDir } from '../utils/app-paths.js';
+import { getRendererHtmlPath, isPackaged, seedConfigIfNeeded, getConfigDir, migrateLegacyUserDataIfNeeded } from '../utils/app-paths.js';
 import { registerHelmImgProtocol } from './helm-img-protocol.js';
 
 // Register helm-img:// as a privileged scheme BEFORE app is ready.
@@ -38,6 +38,14 @@ app.commandLine.appendSwitch('enable-features', 'WebGamepad');
 app.commandLine.appendSwitch('disable-gpu-sandbox');
 // Don't kill app after repeated GPU process crashes
 app.commandLine.appendSwitch('disable-gpu-process-crash-limit');
+
+// Relocate data written by older builds that used the bare $HOME/Helm fallback
+// (pre platform-aware paths) into the correct per-platform userData dir. Must run
+// before configureElectronAppIdentity/seedConfigIfNeeded create the new dirs.
+const relocated = migrateLegacyUserDataIfNeeded(app.getPath('appData'));
+if (relocated.length > 0) {
+  logger.info(`[Migration] Relocated legacy $HOME/Helm data: ${relocated.join(', ')}`);
+}
 
 configureElectronAppIdentity(app, app.getPath('appData'));
 

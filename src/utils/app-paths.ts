@@ -3,7 +3,14 @@
  *
  * When packaged inside an Electron app.asar archive, relative paths
  * point into the read-only install directory (e.g. C:\Program Files\).
- * This module detects packaging and redirects to %APPDATA%/Helm/.
+ * This module detects packaging and redirects to the per-user app-data dir.
+ *
+ * The base dir mirrors Electron's own `app.getPath('appData')`:
+ *   - Windows: %APPDATA%              (…/AppData/Roaming)
+ *   - macOS:   ~/Library/Application Support
+ *   - Linux:   $XDG_CONFIG_HOME or ~/.config
+ * so that no-arg callers resolve to the same place Electron uses for the
+ * app's userData/sessionData, instead of a bare $HOME/Helm fallback.
  *
  * Note: fs.copyFileSync is NOT patched by Electron for asar reads.
  * We use readFileSync + writeFileSync instead, which ARE patched.
@@ -22,17 +29,66 @@ export function isPackaged(dirname: string): boolean {
 }
 
 /**
- * Resolve the user-data base directory.
- * Packaged: %APPDATA%/Helm (or $HOME fallback)
+ * Platform-appropriate per-user app-data base, matching Electron's
+ * `app.getPath('appData')`. Used when no explicit base is supplied.
+ */
+function defaultAppDataBase(): string {
+  const home = process.env.HOME || process.env.USERPROFILE || '.';
+  switch (process.platform) {
+    case 'win32':
+      return process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
+    case 'darwin':
+      return path.join(home, 'Library', 'Application Support');
+    default:
+      // Linux and other Unix-likes.
+      return process.env.XDG_CONFIG_HOME || path.join(home, '.config');
+  }
+}
+
+/**
+ * Resolve the user-data base directory: <appData>/Helm.
+ * `appData` overrides the platform default (used by Electron identity + tests).
  */
 export function getUserDataDir(appData?: string): string {
-  const base = appData || process.env.APPDATA || process.env.HOME || '.';
+  const base = appData || defaultAppDataBase();
   return path.join(base, APP_NAME);
 }
 
 /**
+ * One-time relocation of data written by older builds that used the legacy
+ * `$HOME/Helm` fallback base (pre platform-aware paths). Moves the
+ * config/logs/tmp subdirs into the correct per-platform userData dir when the
+ * destination subdir does not yet exist. Idempotent and non-destructive:
+ * never overwrites an existing destination, and leaves session-data alone
+ * (Electron already manages that at the correct location).
+ *
+ * Returns the list of subdirs that were migrated (empty when nothing to do).
+ */
+export function migrateLegacyUserDataIfNeeded(appData?: string): string[] {
+  const legacyBase = process.env.HOME || process.env.USERPROFILE;
+  if (!legacyBase) return [];
+
+  const legacyDir = path.join(legacyBase, APP_NAME);
+  const targetDir = getUserDataDir(appData);
+  if (path.resolve(legacyDir) === path.resolve(targetDir)) return [];
+  if (!fs.existsSync(legacyDir)) return [];
+
+  const migrated: string[] = [];
+  for (const sub of ['config', 'logs', 'tmp']) {
+    const from = path.join(legacyDir, sub);
+    const to = path.join(targetDir, sub);
+    if (fs.existsSync(from) && !fs.existsSync(to)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+      fs.renameSync(from, to);
+      migrated.push(sub);
+    }
+  }
+  return migrated;
+}
+
+/**
  * Return the writable log directory.
- * Always: %APPDATA%/Helm/logs
+ * Always: <appData>/Helm/logs
  */
 export function getLogDir(_dirname: string, appData?: string): string {
   return path.join(getUserDataDir(appData), 'logs');
@@ -40,7 +96,7 @@ export function getLogDir(_dirname: string, appData?: string): string {
 
 /**
  * Return the writable config directory.
- * Always: %APPDATA%/Helm/config
+ * Always: <appData>/Helm/config
  */
 export function getConfigDir(_dirname: string, appData?: string): string {
   return path.join(getUserDataDir(appData), 'config');
@@ -48,7 +104,7 @@ export function getConfigDir(_dirname: string, appData?: string): string {
 
 /**
  * Return the runtime browser/session-data directory used by Electron/Chromium.
- * Always: %APPDATA%/Helm/session-data
+ * Always: <appData>/Helm/session-data
  */
 export function getSessionDataDir(_dirname: string, appData?: string): string {
   return path.join(getUserDataDir(appData), 'session-data');
@@ -73,7 +129,7 @@ export function getAppRootDir(dirname: string): string {
 /**
  * Return a writable temp directory for app-specific scratch files
  * (e.g. Ctrl+G external editor prompts).
- * Always: %APPDATA%/Helm/tmp
+ * Always: <appData>/Helm/tmp
  */
 export function getTempDir(_dirname: string, appData?: string): string {
   return path.join(getUserDataDir(appData), 'tmp');
