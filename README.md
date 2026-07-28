@@ -358,6 +358,45 @@ Settings → MCP Server provides ready-to-use setup instructions for configuring
 | [helm-mcp-client-guide.md](docs/helm-mcp-client-guide.md) | Client implementation guide for parsing envelopes and replying |
 | [helm-session-info.md](docs/helm-session-info.md) | `session_info` tool reference, AIAGENT state registry, plan/attachment guides |
 
+## Fleet (Cross-Machine)
+
+Drive another machine's Helm from this one. Once two machines are paired, a local AI can call the remote Helm's MCP tools by their **native names** — create sessions, read terminals, manage plans — over the LAN. **Off by default**: nothing listens on the network until you enable it.
+
+### Setup
+
+1. On **both** machines: Settings → 🔗 **Fleet** → tick **Enable cross-machine fleet**.
+2. Allow **TCP 47474** through the firewall on both (plus **UDP 5353** for automatic discovery).
+3. The status line lists the addresses a peer can reach you on — click one to copy it.
+
+### Pairing
+
+```mermaid
+sequenceDiagram
+    participant A as Machine A
+    participant B as Machine B
+    A->>B: Pair (discovered peer, or typed-in address)
+    Note over A,B: same 6-digit code shown on both screens
+    A->>A: Confirm
+    B->>B: Confirm
+    Note over A,B: trust stored — peer is deny-all until you grant tools
+```
+
+Pick the machine under **Discover nearby** and press **Pair**, or use **Pair by address** (`10.98.1.140:47474`). Compare the 6-digit code on both screens, confirm on both, then open **Allow-list** and choose a preset — a freshly paired peer can do nothing until you do.
+
+Discovery uses mDNS, which does **not cross subnets** and does not survive Wi-Fi client isolation. On many real networks pair-by-address is the normal path, not a fallback. If the two codes differ, reject — that mismatch is the protection working.
+
+### Using it
+
+| Tool | Purpose |
+|------|---------|
+| `peer_list` | Paired peers and their online state |
+| `peer_tools` | What a given peer allows you to call |
+| `peer_call` | Invoke a tool on a peer, by its native name |
+
+Each peer has its own allow-list (deny-by-default), a rate limit, and a rolling 7-day **Audit** log of every inbound call. `restart_helm`, `session_close` and `session_group_close` are never remotely invocable, even for a peer allowed everything. Unpair forgets the key and the pinned certificate.
+
+See [fleet.md](docs/fleet.md) for the transport, pairing protocol and security model.
+
 ## Configuration
 
 ### Settings Tabs
@@ -375,6 +414,7 @@ Settings → MCP Server provides ready-to-use setup instructions for configuring
 | Backups | Plan backup configuration and restore |
 | Scheduled Tasks | One-time and recurring prompt schedules |
 | Telegram | Bot token, chat ID, and monitoring configuration |
+| Fleet | Cross-machine peers: enable, port, pairing, per-peer allow-lists, audit |
 
 ### Profiles
 
@@ -422,6 +462,7 @@ User-facing docs are in `docs/`:
 | [directory-plans.md](docs/directory-plans.md) | Planner canvas, plan lifecycle, persistence, and chips |
 | [config-system.md](docs/config-system.md) | Profile setup, bindings, tool configuration, and sequences |
 | [plan-backup-restore.md](docs/plan-backup-restore.md) | Plan backup snapshots, restore workflow, configuration |
+| [fleet.md](docs/fleet.md) | Cross-machine Fleet — pairing, peer allow-lists, transport and security model |
 | [terminal-architecture.md](docs/terminal-architecture.md) | PTY stack, input/output routing, activity dots |
 | [modules.md](docs/modules.md) | Module reference — all modules, stores, composables, and components |
 | [file-structure.md](docs/file-structure.md) | Complete directory tree with per-file descriptions |

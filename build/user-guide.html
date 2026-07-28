@@ -182,6 +182,7 @@
   <a href="#artifacts">Artifacts</a>
   <a href="#recycle-bin">Recycle Bin</a>
   <a href="#runtime-groups">Runtime Groups</a>
+  <a href="#fleet">Fleet</a>
 </nav>
 
 <main>
@@ -521,6 +522,56 @@
 
 <div class="callout">
   Empty groups stay visible so closed sessions have somewhere to return to &mdash; restoring a session from the Recycle Bin re-attaches it to its original group (recreating the group if it was closed).
+</div>
+
+<!-- ═══════════════════ 13. Fleet ═══════════════════ -->
+<h2 id="fleet">13. Fleet (Cross-Machine)</h2>
+
+<p><strong>Fleet</strong> lets one Helm drive another Helm on the same network. Once two machines are paired, an AI running here can create sessions, read terminals and manage plans <em>over there</em>. Fleet is <strong>off by default</strong> &mdash; nothing listens on the network until you enable it.</p>
+
+<h3>Turning it on</h3>
+<ul>
+  <li>On <strong>both</strong> machines: <strong>Settings &rarr; &#128279; Fleet</strong>, tick <strong>Enable cross-machine fleet</strong></li>
+  <li>The status line shows the addresses other machines can reach you on &mdash; click one to copy it</li>
+  <li>Both machines must allow <strong>TCP 47474</strong> (and <strong>UDP 5353</strong> for automatic discovery) through their firewall</li>
+</ul>
+
+<h3>Pairing</h3>
+<table>
+  <thead>
+    <tr><th>Step</th><th>What to do</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Find the other machine</td><td>It appears under <strong>Discover nearby</strong> &mdash; press <strong>Pair</strong>. If it never shows up, type its address into <strong>Pair by address</strong> (e.g. <code>10.98.1.140:47474</code>)</td></tr>
+    <tr><td>Compare the code</td><td>A <strong>6-digit code</strong> appears on <em>both</em> screens. Check they are identical</td></tr>
+    <tr><td>Accept</td><td>Press <strong>Confirm</strong> on both machines (<kbd>A</kbd> on the gamepad, <kbd>Enter</kbd> on the keyboard). The dialog confirms success and closes itself</td></tr>
+    <tr><td>Grant tools</td><td>Open <strong>Allow-list</strong> on the new peer and pick a preset &mdash; <strong>Read-only</strong>, <strong>Sessions</strong> or <strong>All</strong></td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  A newly paired peer can do <strong>nothing</strong> until you give it an allow-list &mdash; that is deliberate. If remote calls are refused straight after a successful pairing, this is why.
+</div>
+
+<div class="callout">
+  If the two codes <strong>differ</strong>, press <strong>Reject</strong>. Matching codes are what proves you are talking to the machine you think you are, so a mismatch is the check doing its job &mdash; not a glitch to retry past.
+</div>
+
+<h3>Managing peers</h3>
+<table>
+  <thead>
+    <tr><th>Action</th><th>How</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Pause a peer</td><td>The <strong>On/Off</strong> toggle on its row &mdash; drops the live link and refuses it inbound, without unpairing</td></tr>
+    <tr><td>Change what it may do</td><td><strong>Allow-list</strong> &mdash; presets, or add patterns like <code>session_*</code></td></tr>
+    <tr><td>See what it did</td><td><strong>Audit</strong> &mdash; a rolling 7-day log of every inbound call and its outcome</td></tr>
+    <tr><td>Remove it</td><td><strong>Unpair</strong> &mdash; forgets the key and the pinned certificate; pairing again starts from scratch</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  Closing a session, closing a group and restarting Helm can <strong>never</strong> be triggered remotely, even by a peer allowed everything.
 </div>
 
 </main>
