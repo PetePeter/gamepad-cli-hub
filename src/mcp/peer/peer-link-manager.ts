@@ -203,9 +203,33 @@ export class PeerLinkManager extends EventEmitter {
   }
 
   /** 'online' iff an authenticated link for `peerId` is currently up. */
-  status(peerId: string): 'online' | 'offline' {
-    const entry = this.links.get(peerId);
+  status(peerRef: string): 'online' | 'offline' {
+    const entry = this.links.get(this.resolvePeerRef(peerRef));
     return entry && entry.link.isOnline() ? 'online' : 'offline';
+  }
+
+  /**
+   * Map a peer reference to its config id. Callers legitimately hold either —
+   * `peer_list` surfaces both, and an alias is what a human or an AI reaches for.
+   * Live links are keyed by ID ONLY, so without this an alias produced a
+   * "No live link" error for a perfectly healthy peer.
+   *
+   * An exact id always wins, so one peer aliasing another's id can never hijack
+   * a call. An alias shared by several peers is NOT guessed at — the reference is
+   * returned unresolved and `call()` raises an explicit ambiguity error.
+   */
+  private resolvePeerRef(peerRef: string): string {
+    const peers = this.opts.listPeers();
+    if (peers.some((p) => p.id === peerRef)) return peerRef;
+    const needle = peerRef.trim().toLowerCase();
+    const matches = peers.filter((p) => (p.alias ?? '').trim().toLowerCase() === needle);
+    return matches.length === 1 ? matches[0].id : peerRef;
+  }
+
+  /** Peers sharing `peerRef` as an alias — used to reject an ambiguous call. */
+  private aliasMatches(peerRef: string): PeerConfig[] {
+    const needle = peerRef.trim().toLowerCase();
+    return this.opts.listPeers().filter((p) => (p.alias ?? '').trim().toLowerCase() === needle);
   }
 
   /**
@@ -222,11 +246,23 @@ export class PeerLinkManager extends EventEmitter {
     }));
   }
 
-  /** Invoke `method` on `peerId` over its live link. Rejects if none. */
-  call(peerId: string, method: string, params: unknown): Promise<unknown> {
+  /**
+   * Invoke `method` on a peer over its live link. `peerRef` is the peer's id or
+   * its alias. Rejects if the reference is ambiguous or no live link exists.
+   */
+  call(peerRef: string, method: string, params: unknown): Promise<unknown> {
+    const peerId = this.resolvePeerRef(peerRef);
     const entry = this.links.get(peerId);
     if (!entry || !entry.link.isOnline()) {
-      return Promise.reject(new Error(`No live link to peer ${peerId}`));
+      // Distinguish "you named several peers" from "the peer is down" — they need
+      // completely different responses from the caller.
+      const ambiguous = this.aliasMatches(peerRef);
+      if (ambiguous.length > 1 && !this.links.has(peerRef)) {
+        return Promise.reject(new Error(
+          `Ambiguous peer "${peerRef}" — ${ambiguous.length} peers share that alias; use an id: ${ambiguous.map((p) => p.id).join(', ')}`,
+        ));
+      }
+      return Promise.reject(new Error(`No live link to peer ${peerRef}`));
     }
     return entry.link.request(method, params);
   }

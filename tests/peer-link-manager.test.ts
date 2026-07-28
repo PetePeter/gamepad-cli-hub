@@ -390,3 +390,67 @@ describe('PeerLinkManager syncPeers', () => {
     await mgr.stop();
   });
 });
+
+describe('PeerLinkManager peer reference resolution (id or alias)', () => {
+  /**
+   * Reported from a live fleet: peer_list showed alias "box" online, yet
+   * peer_call("box", ...) failed with "No live link to peer box". The link was
+   * healthy — list() looks peers up by id, call() was handed the alias, and
+   * nothing mapped one to the other. An alias is what a human (or an AI reading
+   * peer_list) reaches for, so both must work.
+   */
+  const twoPeers = [
+    { id: 'id-box', alias: 'box', address: '10.0.0.2:47474', pskRef: 'r', allow: ['*'], direction: 'bidirectional' as const, createdAt: 0 },
+    { id: 'id-desk', alias: 'desk', address: '10.0.0.3:47474', pskRef: 'r', allow: ['*'], direction: 'bidirectional' as const, createdAt: 0 },
+  ];
+
+  it('routes a call addressed by alias to the same live link as the id', async () => {
+    const { mgr, created } = makeManager({ listPeers: () => twoPeers });
+    await mgr.start();
+    created.clients[0].emitLink(new FakeLink('box-link'), 'id-box');
+
+    expect(mgr.status('box')).toBe('online');
+    await expect(mgr.call('box', 'project_list', {})).resolves.toBe('project_list:box-link');
+    await expect(mgr.call('id-box', 'project_list', {})).resolves.toBe('project_list:box-link');
+    await mgr.stop();
+  });
+
+  it('matches an alias case-insensitively', async () => {
+    const { mgr, created } = makeManager({ listPeers: () => twoPeers });
+    await mgr.start();
+    created.clients[0].emitLink(new FakeLink('box-link'), 'id-box');
+    await expect(mgr.call('BOX', 'project_list', {})).resolves.toBe('project_list:box-link');
+    await mgr.stop();
+  });
+
+  it('refuses an ambiguous alias instead of silently picking one', async () => {
+    const dupes = [
+      twoPeers[0],
+      { ...twoPeers[1], id: 'id-box-2', alias: 'box' },
+    ];
+    const { mgr, created } = makeManager({ listPeers: () => dupes });
+    await mgr.start();
+    created.clients[0].emitLink(new FakeLink(), 'id-box');
+    await expect(mgr.call('box', 'project_list', {})).rejects.toThrow(/ambiguous/i);
+    await mgr.stop();
+  });
+
+  it('prefers an exact id when another peer uses it as an alias', async () => {
+    const collide = [
+      { ...twoPeers[0], id: 'box' },
+      { ...twoPeers[1], id: 'id-desk', alias: 'box' },
+    ];
+    const { mgr, created } = makeManager({ listPeers: () => collide });
+    await mgr.start();
+    created.clients[0].emitLink(new FakeLink('by-id'), 'box');
+    await expect(mgr.call('box', 'project_list', {})).resolves.toBe('project_list:by-id');
+    await mgr.stop();
+  });
+
+  it('still reports a genuine outage for a known peer with no link', async () => {
+    const { mgr } = makeManager({ listPeers: () => twoPeers });
+    await mgr.start();
+    await expect(mgr.call('box', 'project_list', {})).rejects.toThrow(/No live link/);
+    await mgr.stop();
+  });
+});
