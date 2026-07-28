@@ -268,7 +268,7 @@ const {
   onTelegramStopBot,
   onMcpUpdate,
   onMcpGenerateToken,
-  onMcpRunInCmd,
+  onMcpRunInShell,
   onSkillSelect,
   onSkillNew,
   onSkillSave,
@@ -1143,7 +1143,7 @@ onUnmounted(() => {
               :config="settingsMcpConfig"
               @update="onMcpUpdate"
               @generate-token="onMcpGenerateToken"
-              @run-in-cmd="onMcpRunInCmd"
+              @run-in-shell="onMcpRunInShell"
             />
             <SkillsTab
               v-else-if="activeTab === 'skills'"

@@ -5,6 +5,7 @@
 
 import type { Session } from './state.js';
 import type { RuntimeGroup } from '../src/types/runtime-group.js';
+import { hasCaseInsensitivePaths } from './utils/platform.js';
 
 // ============================================================================
 // Types
@@ -66,13 +67,13 @@ export function dirDisplayName(dirPath: string): string {
 }
 
 /**
- * Case-insensitive path equality check on Windows.
- * Lowercases both sides when running on win32 so that mixed-case paths
- * from different sources (project store vs session config) match reliably.
+ * Path equality that respects the platform's filesystem case sensitivity.
+ * Lowercases both sides on Windows and macOS (case-insensitive by default) so
+ * that mixed-case paths from different sources (project store vs session
+ * config) match reliably; exact match on Linux.
  */
 export function pathsMatch(a: string, b: string): boolean {
-  const platform = typeof process !== 'undefined' ? process.platform : undefined;
-  if (platform === 'win32' || platform === undefined) {
+  if (hasCaseInsensitivePaths()) {
     return a.toLowerCase() === b.toLowerCase();
   }
   return a === b;

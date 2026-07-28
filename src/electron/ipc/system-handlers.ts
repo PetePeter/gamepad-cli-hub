@@ -138,8 +138,8 @@ export function setupSystemHandlers(dirname: string): void {
  * Clean up stale temp files from previous sessions.
  * Called on startup to prevent accumulation. Best-effort — errors are logged but not fatal.
  */
-export function cleanupWorkTempFiles(dirname: string): void {
-  const tmpDir = getTempDir(dirname);
+export function cleanupWorkTempFiles(dirname: string, appData?: string): void {
+  const tmpDir = getTempDir(dirname, appData);
   try {
     if (!fs.existsSync(tmpDir)) return;
     const files = fs.readdirSync(tmpDir);

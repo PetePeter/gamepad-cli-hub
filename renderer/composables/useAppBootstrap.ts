@@ -56,6 +56,7 @@ import { refreshPlanBadges } from '../screens/sessions-plans.js';
 import { useChipBarStore } from '../stores/chip-bar.js';
 import { useNavigationStore } from '../stores/navigation.js';
 import { normalizeCmdInput } from '../utils/shell-command.js';
+import { hasCaseInsensitivePaths } from '../utils/platform.js';
 
 export { startTimerRefresh, stopTimerRefresh } from './useTimerRefresh.js';
 
@@ -99,8 +100,7 @@ function getSessionCwd(sessionId: string): string {
 }
 
 function pathsMatch(a: string, b: string): boolean {
-  const platform = typeof process !== 'undefined' ? process.platform : undefined;
-  if (platform === 'win32' || platform === undefined) {
+  if (hasCaseInsensitivePaths()) {
     return a.toLowerCase() === b.toLowerCase();
   }
   return a === b;
@@ -413,7 +413,12 @@ export async function doSpawnShell(command: string): Promise<void> {
     if (!tm) return;
 
     const sessionId = `pty-shell-${Date.now()}`;
-    const success = await tm.createTerminal(sessionId, 'shell', 'cmd.exe', [], undefined);
+    // No initial command: resolvePtyShell() in the main process already opens
+    // the platform's shell (cmd.exe on Windows, $SHELL -il on macOS/Linux).
+    // Passing 'cmd.exe' here typed it as a COMMAND into that shell, which the
+    // POSIX shell answered with "command not found". The real command is
+    // written below, once the shell is ready.
+    const success = await tm.createTerminal(sessionId, 'shell', '', [], undefined);
 
     if (success) {
       state.lastOutputTimes.set(sessionId, Date.now());

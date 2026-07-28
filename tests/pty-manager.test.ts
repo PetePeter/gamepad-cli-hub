@@ -72,6 +72,14 @@ describe('PtyManager', () => {
       expect(mock.pty.write).toHaveBeenCalledWith('whoami\r');
     });
 
+    it('writes nothing when the command is empty', () => {
+      // doSpawnShell() passes '' so the bare platform shell opens with no
+      // initial command. It used to pass 'cmd.exe', which POSIX shells
+      // answered with "command not found".
+      manager.spawn({ sessionId: 's1', command: '' });
+      expect(mock.pty.write).not.toHaveBeenCalled();
+    });
+
     it('passes cols/rows to factory', () => {
       manager.spawn({ sessionId: 's1', command: 'test', cols: 80, rows: 24 });
 

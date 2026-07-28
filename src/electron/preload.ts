@@ -20,6 +20,9 @@ const gamepadCliAPI = createGamepadCliCompatibilityApi(helmAPI);
  * Expose the API to the renderer via contextBridge
  */
 try {
+  // Plain constant rather than an IPC channel: Vue component setup() needs the
+  // platform synchronously, and `process` is not reachable from the renderer.
+  contextBridge.exposeInMainWorld('helmPlatform', process.platform);
   contextBridge.exposeInMainWorld('sessionStore', sessionStoreAPI);
   contextBridge.exposeInMainWorld('helm', helmAPI);
   contextBridge.exposeInMainWorld('gamepadCli', gamepadCliAPI);
@@ -33,6 +36,7 @@ try {
  */
 declare global {
   interface Window {
+    helmPlatform: NodeJS.Platform;
     sessionStore: typeof sessionStoreAPI;
     helm: typeof helmAPI;
     gamepadCli: typeof gamepadCliAPI;

@@ -796,7 +796,7 @@ export function useSettingsController(options: {
     }
   }
 
-  async function onMcpRunInCmd(command: string): Promise<void> {
+  async function onMcpRunInShell(command: string): Promise<void> {
     options.closeSettings?.();
     await options.doSpawnShell?.(command);
   }
@@ -1004,7 +1004,7 @@ export function useSettingsController(options: {
     onTelegramStopBot,
     onMcpUpdate,
     onMcpGenerateToken,
-    onMcpRunInCmd,
+    onMcpRunInShell,
     onSkillSelect,
     onSkillNew,
     onSkillSave,

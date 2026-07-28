@@ -17,14 +17,14 @@ import { getTempDir } from '../src/utils/app-paths.js';
 
 const TEST_APPDATA = path.join(process.cwd(), '.test-appdata-temp-' + Date.now());
 
-function withAppData<T>(fn: () => T): T {
-  const original = process.env.APPDATA;
-  try {
-    process.env.APPDATA = TEST_APPDATA;
-    return fn();
-  } finally {
-    process.env.APPDATA = original;
-  }
+/**
+ * Pass the app-data base explicitly rather than steering it via process.env.
+ * The old helper set APPDATA, which defaultAppDataBase() consults on win32
+ * only — so on macOS/Linux cleanup ran against the REAL user temp dir while
+ * the fixtures were written under TEST_APPDATA, and nothing was ever deleted.
+ */
+function withAppData<T>(fn: (appData: string) => T): T {
+  return fn(TEST_APPDATA);
 }
 
 beforeEach(() => {
@@ -54,7 +54,7 @@ describe('cleanupWorkTempFiles', () => {
 
     expect(fs.existsSync(workFile)).toBe(true);
 
-    withAppData(() => cleanupWorkTempFiles(fakeDirname));
+    withAppData(appData => cleanupWorkTempFiles(fakeDirname, appData));
 
     expect(fs.existsSync(workFile)).toBe(false);
   });
@@ -69,7 +69,7 @@ describe('cleanupWorkTempFiles', () => {
 
     expect(fs.existsSync(promptFile)).toBe(true);
 
-    withAppData(() => cleanupWorkTempFiles(fakeDirname));
+    withAppData(appData => cleanupWorkTempFiles(fakeDirname, appData));
 
     expect(fs.existsSync(promptFile)).toBe(false);
   });
@@ -86,7 +86,7 @@ describe('cleanupWorkTempFiles', () => {
     fs.writeFileSync(file2, 'content2');
     fs.writeFileSync(file3, 'content3');
 
-    withAppData(() => cleanupWorkTempFiles(fakeDirname));
+    withAppData(appData => cleanupWorkTempFiles(fakeDirname, appData));
 
     expect(fs.existsSync(file1)).toBe(false);
     expect(fs.existsSync(file2)).toBe(false);
@@ -103,7 +103,7 @@ describe('cleanupWorkTempFiles', () => {
     fs.writeFileSync(tempFile, 'temp');
     fs.writeFileSync(otherFile, 'preserve me');
 
-    withAppData(() => cleanupWorkTempFiles(fakeDirname));
+    withAppData(appData => cleanupWorkTempFiles(fakeDirname, appData));
 
     expect(fs.existsSync(tempFile)).toBe(false);
     expect(fs.existsSync(otherFile)).toBe(true);
@@ -111,7 +111,7 @@ describe('cleanupWorkTempFiles', () => {
 
   it('handles nonexistent temp directory gracefully', () => {
     const fakeDirname = path.join(TEST_APPDATA, 'nonexistent-' + Date.now(), 'dist-electron');
-    expect(() => withAppData(() => cleanupWorkTempFiles(fakeDirname))).not.toThrow();
+    expect(() => withAppData(appData => cleanupWorkTempFiles(fakeDirname, appData))).not.toThrow();
   });
 });
 

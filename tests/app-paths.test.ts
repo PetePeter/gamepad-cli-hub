@@ -2,8 +2,12 @@
  * App paths unit tests — packaged vs dev path resolution.
  *
  * When the app is installed (packaged inside app.asar), writable paths
- * (logs, config) must point to %APPDATA%/Helm/ instead of
- * relative paths inside the read-only install directory.
+ * (logs, config) must point to <appData>/Helm/ instead of relative paths
+ * inside the read-only install directory — where <appData> is the
+ * platform-appropriate base (see defaultAppDataBase).
+ *
+ * These tests must pass on Windows, macOS and Linux alike, so they either pass
+ * an explicit base or inject the platform, never relying on the host's OS.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -11,7 +15,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 // Import the module under test
-import { isPackaged, getLogDir, getConfigDir, getSessionDataDir, getTempDir, getRendererHtmlPath, getAppRootDir, seedConfigIfNeeded, getUserDataDir } from '../src/utils/app-paths.js';
+import { isPackaged, getLogDir, getConfigDir, getSessionDataDir, getTempDir, getRendererHtmlPath, getAppRootDir, seedConfigIfNeeded, getUserDataDir, defaultAppDataBase } from '../src/utils/app-paths.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -68,39 +72,11 @@ describe('getLogDir', () => {
     expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'logs'));
   });
 
-  it('uses process.env.APPDATA when appData param not provided (dev)', () => {
-    const originalAppData = process.env.APPDATA;
-    try {
-      process.env.APPDATA = FAKE_APPDATA;
-      const result = getLogDir(DEV_DIRNAME);
-      expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'logs'));
-    } finally {
-      process.env.APPDATA = originalAppData;
-    }
-  });
-
-  it('uses process.env.APPDATA when appData param not provided (packaged)', () => {
-    const originalAppData = process.env.APPDATA;
-    try {
-      process.env.APPDATA = FAKE_APPDATA;
-      const result = getLogDir(PACKAGED_DIRNAME);
-      expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'logs'));
-    } finally {
-      process.env.APPDATA = originalAppData;
-    }
-  });
-
-  it('falls back to current directory when no APPDATA', () => {
-    const originalAppData = process.env.APPDATA;
-    const originalHome = process.env.HOME;
-    try {
-      delete process.env.APPDATA;
-      delete process.env.HOME;
-      const result = getLogDir(PACKAGED_DIRNAME);
-      expect(result).toBe(path.join('.', 'Helm', 'logs'));
-    } finally {
-      process.env.APPDATA = originalAppData;
-      process.env.HOME = originalHome;
+  it('derives the base from the platform default when appData is omitted', () => {
+    // Host-independent: whatever this machine is, the no-arg form must agree
+    // with defaultAppDataBase() rather than with any one OS's convention.
+    for (const dirname of [DEV_DIRNAME, PACKAGED_DIRNAME]) {
+      expect(getLogDir(dirname)).toBe(path.join(defaultAppDataBase(), 'Helm', 'logs'));
     }
   });
 });
@@ -120,39 +96,9 @@ describe('getConfigDir', () => {
     expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'config'));
   });
 
-  it('uses process.env.APPDATA when appData param not provided (dev)', () => {
-    const originalAppData = process.env.APPDATA;
-    try {
-      process.env.APPDATA = FAKE_APPDATA;
-      const result = getConfigDir(DEV_DIRNAME);
-      expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'config'));
-    } finally {
-      process.env.APPDATA = originalAppData;
-    }
-  });
-
-  it('uses process.env.APPDATA when appData param not provided (packaged)', () => {
-    const originalAppData = process.env.APPDATA;
-    try {
-      process.env.APPDATA = FAKE_APPDATA;
-      const result = getConfigDir(PACKAGED_DIRNAME);
-      expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'config'));
-    } finally {
-      process.env.APPDATA = originalAppData;
-    }
-  });
-
-  it('falls back to current directory when no APPDATA', () => {
-    const originalAppData = process.env.APPDATA;
-    const originalHome = process.env.HOME;
-    try {
-      delete process.env.APPDATA;
-      delete process.env.HOME;
-      const result = getConfigDir(PACKAGED_DIRNAME);
-      expect(result).toBe(path.join('.', 'Helm', 'config'));
-    } finally {
-      process.env.APPDATA = originalAppData;
-      process.env.HOME = originalHome;
+  it('derives the base from the platform default when appData is omitted', () => {
+    for (const dirname of [DEV_DIRNAME, PACKAGED_DIRNAME]) {
+      expect(getConfigDir(dirname)).toBe(path.join(defaultAppDataBase(), 'Helm', 'config'));
     }
   });
 });
@@ -188,15 +134,60 @@ describe('getTempDir', () => {
     expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'tmp'));
   });
 
-  it('uses process.env.APPDATA when appData param not provided (dev)', () => {
-    const originalAppData = process.env.APPDATA;
-    try {
-      process.env.APPDATA = FAKE_APPDATA;
-      const result = getTempDir(DEV_DIRNAME);
-      expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'tmp'));
-    } finally {
-      process.env.APPDATA = originalAppData;
-    }
+  it('derives the base from the platform default when appData is omitted', () => {
+    expect(getTempDir(DEV_DIRNAME)).toBe(path.join(defaultAppDataBase(), 'Helm', 'tmp'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// defaultAppDataBase — the per-platform base, asserted on every platform.
+//
+// This must mirror Electron's app.getPath('appData'). Previously the macOS and
+// Linux branches had no coverage at all: the suite steered resolution by
+// setting process.env.APPDATA, which is only consulted on win32, so those
+// tests asserted Windows layout and failed on any other host.
+// ---------------------------------------------------------------------------
+
+describe('defaultAppDataBase', () => {
+  const HOME = path.join('/home', 'someone');
+
+  it('uses %APPDATA% on Windows', () => {
+    expect(defaultAppDataBase('win32', { APPDATA: 'D:\\Roaming', USERPROFILE: HOME }))
+      .toBe('D:\\Roaming');
+  });
+
+  it('falls back to <profile>/AppData/Roaming on Windows without APPDATA', () => {
+    expect(defaultAppDataBase('win32', { USERPROFILE: HOME }))
+      .toBe(path.join(HOME, 'AppData', 'Roaming'));
+  });
+
+  it('uses ~/Library/Application Support on macOS', () => {
+    expect(defaultAppDataBase('darwin', { HOME }))
+      .toBe(path.join(HOME, 'Library', 'Application Support'));
+  });
+
+  it('ignores APPDATA on macOS', () => {
+    // APPDATA is a Windows-only convention; honouring it elsewhere would put
+    // real user data in the wrong place.
+    expect(defaultAppDataBase('darwin', { HOME, APPDATA: 'D:\\Roaming' }))
+      .toBe(path.join(HOME, 'Library', 'Application Support'));
+  });
+
+  it('prefers $XDG_CONFIG_HOME on Linux', () => {
+    expect(defaultAppDataBase('linux', { HOME, XDG_CONFIG_HOME: '/xdg' })).toBe('/xdg');
+  });
+
+  it('falls back to ~/.config on Linux', () => {
+    expect(defaultAppDataBase('linux', { HOME })).toBe(path.join(HOME, '.config'));
+  });
+
+  it('falls back to the current directory when the home dir is unknown', () => {
+    expect(defaultAppDataBase('darwin', {})).toBe(path.join('.', 'Library', 'Application Support'));
+    expect(defaultAppDataBase('linux', {})).toBe(path.join('.', '.config'));
+  });
+
+  it('roots the user data dir at <platform base>/Helm', () => {
+    expect(getUserDataDir()).toBe(path.join(defaultAppDataBase(), 'Helm'));
   });
 });
 

@@ -18,7 +18,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   update: [updates: Partial<McpConfig>];
   generateToken: [];
-  'run-in-cmd': [command: string];
+  'run-in-shell': [command: string];
 }>();
 
 const localEnabled = ref(props.config.enabled);
@@ -181,7 +181,7 @@ const statusText = computed(() => {
     <McpCliSetup
       :endpoint="endpoint"
       :token-literal="tokenLiteral"
-      @run-in-cmd="emit('run-in-cmd', $event)"
+      @run-in-shell="emit('run-in-shell', $event)"
     />
   </div>
 </template>

@@ -4,17 +4,35 @@ import { appClient, attachmentsClient, backupsClient, configClient, contextsClie
  * McpCliSetup.vue — Extracts Global CLI Setup section from McpTab.vue
  * with env var awareness, copy button, and a run-in-shell button per snippet.
  * Snippets and the run button are OS-dependent: cmd.exe syntax on Windows,
- * bash syntax on macOS/Linux (the PTY default shell there) — so the emitted
+ * POSIX syntax on macOS/Linux (the PTY default shell there) — so the emitted
  * command actually runs in whatever shell doSpawnShell() opens.
+ *
+ * Every snippet must ALSO keep `${HELM_MCP_TOKEN}` unexpanded through
+ * registration; see quoteArg() below for why that differs per shell.
  */
 import { ref, computed, onMounted } from 'vue';
+import { isWindows as detectWindows, getPlatform } from '../../utils/platform.js';
 
-// Matches the win32-primary convention used elsewhere in the renderer
-// (session-groups.ts / useAppBootstrap.ts): unknown platform → treat as Windows.
-const platform = typeof process !== 'undefined' ? process.platform : undefined;
-const isWindows = platform === 'win32' || platform === undefined;
-const shellName = isWindows ? 'cmd.exe' : 'bash';
+const isWindows = detectWindows();
+const shellName = isWindows ? 'cmd.exe' : (getPlatform() === 'darwin' ? 'zsh' : 'bash');
 const runLabel = `Run in ${shellName}`;
+
+/**
+ * Quote a CLI argument so `${HELM_MCP_TOKEN}`-style placeholders survive
+ * REGISTRATION UNEXPANDED and land literally in the client's config file.
+ *
+ * This is the whole reason MCP setup worked on Windows but not macOS: cmd.exe
+ * has no `${...}` syntax, so double-quoted placeholders were stored verbatim
+ * and the client expanded them per-launch from the PTY env that
+ * resolveConfiguredSpawnEnv() injects — giving each session its own minted,
+ * session-scoped token. POSIX shells expand `${...}` at registration time, so
+ * the config froze one session's token forever and every later session got a
+ * 401. Single quotes on POSIX restore the Windows semantics exactly.
+ */
+function quoteArg(text: string): string {
+  if (isWindows) return `"${text}"`;
+  return `'${text.replace(/'/g, "'\\''")}'`;
+}
 
 const props = defineProps<{
   endpoint: string;
@@ -22,7 +40,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  'run-in-cmd': [command: string];
+  'run-in-shell': [command: string];
 }>();
 
 const useEnvVar = ref(true);
@@ -56,16 +74,24 @@ function envSetupLines(entries: Array<{ name: string; value: string }>): string 
 const codexEnv = computed(() => envForCli('codex'));
 const codexSetup = computed(() => {
   const env = envSetupLines(codexEnv.value);
+  // --bearer-token-env-var passes a variable NAME, so it is inherently
+  // shell-safe and resolves per-launch on every platform. The literal branch
+  // bakes in the base token, which the server treats as anonymous read-only.
   const cmd = useEnvVar.value
     ? `codex mcp add helm --url ${props.endpoint} --bearer-token-env-var HELM_MCP_TOKEN`
-    : `codex mcp add helm --url ${props.endpoint} --bearer-token ${props.tokenLiteral}`;
+    : `codex mcp add helm --url ${props.endpoint} --bearer-token ${quoteArg(props.tokenLiteral)}`;
   return env ? `${env}\n${cmd}` : cmd;
 });
 
 const claudeEnv = computed(() => envForCli('claude', 'claude-code'));
 const claudeSetup = computed(() => {
   const env = envSetupLines(claudeEnv.value);
-  const cmd = `claude mcp add --transport http --scope user helm ${props.endpoint} --header "Authorization: Bearer \${HELM_MCP_TOKEN}" --header "X-Helm-Session-Id: \${HELM_SESSION_ID}" --header "X-Helm-Session-Name: \${HELM_SESSION_NAME}"`;
+  const headers = [
+    'Authorization: Bearer ${HELM_MCP_TOKEN}',
+    'X-Helm-Session-Id: ${HELM_SESSION_ID}',
+    'X-Helm-Session-Name: ${HELM_SESSION_NAME}',
+  ].map(h => `--header ${quoteArg(h)}`).join(' ');
+  const cmd = `claude mcp add --transport http --scope user helm ${props.endpoint} ${headers}`;
   return env ? `${env}\n${cmd}` : cmd;
 });
 
@@ -73,7 +99,7 @@ const copilotEnv = computed(() => envForCli('copilot', 'copilot-cli'));
 const copilotSetup = computed(() => {
   const env = envSetupLines(copilotEnv.value);
   const bearer = useEnvVar.value ? '${HELM_MCP_TOKEN}' : props.tokenLiteral;
-  const cmd = `copilot mcp add --transport http helm ${props.endpoint} --header "Authorization: Bearer ${bearer}"`;
+  const cmd = `copilot mcp add --transport http helm ${props.endpoint} --header ${quoteArg(`Authorization: Bearer ${bearer}`)}`;
   return env ? `${env}\n${cmd}` : cmd;
 });
 
@@ -115,8 +141,8 @@ function copySnippet(text: string): void {
   navigator.clipboard.writeText(text);
 }
 
-function onRunInCmd(command: string): void {
-  emit('run-in-cmd', command);
+function onRunInShell(command: string): void {
+  emit('run-in-shell', command);
 }
 </script>
 
@@ -133,6 +159,7 @@ function onRunInCmd(command: string): void {
     </div>
     <p class="settings-form__hint">
       All commands use {{ shellName }} syntax. Run them in your terminal to register Helm as an MCP.
+      The <code>${{ '{' }}HELM_MCP_TOKEN{{ '}' }}</code> placeholder is stored as-is and resolved per session at launch — do not substitute it by hand.
     </p>
 
     <div class="settings-list-item">
@@ -143,7 +170,7 @@ function onRunInCmd(command: string): void {
           <button class="btn btn--secondary btn--sm focusable" @click="copySnippet(codexSetup)">
             Copy
           </button>
-          <button class="btn btn--secondary btn--sm focusable" @click="onRunInCmd(codexSetup)">
+          <button class="btn btn--secondary btn--sm focusable" @click="onRunInShell(codexSetup)">
             {{ runLabel }}
           </button>
         </div>
@@ -158,7 +185,7 @@ function onRunInCmd(command: string): void {
           <button class="btn btn--secondary btn--sm focusable" @click="copySnippet(claudeSetup)">
             Copy
           </button>
-          <button class="btn btn--secondary btn--sm focusable" @click="onRunInCmd(claudeSetup)">
+          <button class="btn btn--secondary btn--sm focusable" @click="onRunInShell(claudeSetup)">
             {{ runLabel }}
           </button>
         </div>
@@ -173,7 +200,7 @@ function onRunInCmd(command: string): void {
           <button class="btn btn--secondary btn--sm focusable" @click="copySnippet(copilotSetup)">
             Copy
           </button>
-          <button class="btn btn--secondary btn--sm focusable" @click="onRunInCmd(copilotSetup)">
+          <button class="btn btn--secondary btn--sm focusable" @click="onRunInShell(copilotSetup)">
             {{ runLabel }}
           </button>
         </div>
@@ -188,7 +215,7 @@ function onRunInCmd(command: string): void {
           <button class="btn btn--secondary btn--sm focusable" @click="copySnippet(opencodeSetup)">
             Copy
           </button>
-          <button class="btn btn--secondary btn--sm focusable" @click="onRunInCmd(opencodeSetup)">
+          <button class="btn btn--secondary btn--sm focusable" @click="onRunInShell(opencodeSetup)">
             {{ runLabel }}
           </button>
         </div>

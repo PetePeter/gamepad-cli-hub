@@ -31,17 +31,25 @@ export function isPackaged(dirname: string): boolean {
 /**
  * Platform-appropriate per-user app-data base, matching Electron's
  * `app.getPath('appData')`. Used when no explicit base is supplied.
+ *
+ * `platform`/`env` are injectable so tests can assert all three platforms
+ * deterministically on any host. Steering this through the real environment
+ * only works on Windows (APPDATA is read on win32 alone), which previously
+ * left the macOS and Linux branches untested.
  */
-function defaultAppDataBase(): string {
-  const home = process.env.HOME || process.env.USERPROFILE || '.';
-  switch (process.platform) {
+export function defaultAppDataBase(
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const home = env.HOME || env.USERPROFILE || '.';
+  switch (platform) {
     case 'win32':
-      return process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
+      return env.APPDATA || path.join(home, 'AppData', 'Roaming');
     case 'darwin':
       return path.join(home, 'Library', 'Application Support');
     default:
       // Linux and other Unix-likes.
-      return process.env.XDG_CONFIG_HOME || path.join(home, '.config');
+      return env.XDG_CONFIG_HOME || path.join(home, '.config');
   }
 }
 
