@@ -825,11 +825,14 @@ export class PlanManager extends EventEmitter {
     return this.resolveProjectId(dirPath);
   }
 
+  /**
+   * A project's directory is a property of the project record, NOT something inferred from
+   * whatever plans happen to exist. Deriving it by scanning plans/sequences meant a registered
+   * project with no plans yet resolved to null, which blocked context_create on every new
+   * project (chicken-and-egg: contexts needed a plan to exist first).
+   */
   getDirectoryForProject(projectId: string): string | null {
-    const sequence = [...this.sequences.values()].find((entry) => entry.projectId === projectId);
-    if (sequence) return sequence.dirPath;
-    const item = [...this.items.values()].find((entry) => entry.projectId === projectId);
-    return item?.dirPath ?? null;
+    return this.projectStore?.getById(projectId)?.canonicalPath ?? null;
   }
 
   private areInSameProject(

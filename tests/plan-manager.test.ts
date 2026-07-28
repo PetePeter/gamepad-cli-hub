@@ -582,6 +582,19 @@ describe('PlanManager', () => {
     });
   });
 
+  // ─── Project Directory Resolution ─────────────────────────────
+
+  describe('getDirectoryForProject', () => {
+    // Regression: the directory used to be inferred by scanning plans/sequences, so a registered
+    // project with no plans yet resolved to null and context_create could never succeed on it.
+    it('resolves a registered project with no plans to its canonical path', () => {
+      const projectStore = new ProjectStore();
+      const project = projectStore.resolveForPath('/projects/fresh');
+
+      expect(new PlanManager(projectStore).getDirectoryForProject(project.id)).toBe('/projects/fresh');
+    });
+  });
+
   // ─── Startable Computation ─────────────────────────────
 
   describe('startable computation', () => {
