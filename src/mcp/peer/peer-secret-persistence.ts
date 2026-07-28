@@ -2,7 +2,7 @@
  * peer-secret-persistence — the ONE place that reads/writes the peer PINNED-CERT
  * store (peer-pins.yaml) and the peer SECRET store (peer-secrets.yaml).
  *
- * Extracted so both federation-startup and the pairing handlers share a single
+ * Extracted so both fleet-startup and the pairing handlers share a single
  * persistence path (DRY) instead of duplicating YAML shapes. Secret VALUES live
  * base64 in peer-secrets.yaml and NOWHERE else — never logged, never echoed.
  */

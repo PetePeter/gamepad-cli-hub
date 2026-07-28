@@ -17,7 +17,7 @@ export function getActivityColor(activityLevel: string): string {
 }
 
 /**
- * Peer link status dot colors (federation Peers tab). Green = online,
+ * Peer link status dot colors (fleet Peers tab). Green = online,
  * amber = pairing in progress, grey = offline. Kept alongside the activity
  * colors so every status dot in the app shares one palette source.
  */

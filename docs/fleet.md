@@ -1,16 +1,16 @@
-# Cross-Machine Helm Federation
+# Cross-Machine Helm Fleet
 
 ## Overview
 
-Federation lets **one Helm instance invoke another Helm's MCP tools** over the same LAN. A local AI reaches into a remote peer's *native* tool vocabulary through three meta-tools — `peer_list`, `peer_tools`, `peer_call` — instead of mirroring every remote tool into the local catalogue. The remote's **full tool surface** is reachable, gated behind a **per-peer allow-list** (deny-by-default).
+Fleet lets **one Helm instance invoke another Helm's MCP tools** over the same LAN. A local AI reaches into a remote peer's *native* tool vocabulary through three meta-tools — `peer_list`, `peer_tools`, `peer_call` — instead of mirroring every remote tool into the local catalogue. The remote's **full tool surface** is reachable, gated behind a **per-peer allow-list** (deny-by-default).
 
 Key properties:
 
-- **Transport:** a SEPARATE TLS-WebSocket listener (default `:47474`) carrying JSON-RPC 2.0. The localhost MCP server (`127.0.0.1:47373`) is never touched — federation is a wholly separate port and code path.
+- **Transport:** a SEPARATE TLS-WebSocket listener (default `:47474`) carrying JSON-RPC 2.0. The localhost MCP server (`127.0.0.1:47373`) is never touched — fleet is a wholly separate port and code path.
 - **Discovery + pairing:** peers find each other via mDNS (`_helm._tcp`) and pair by comparing a **6-digit SAS code** on both screens (numeric-comparison, commit-then-reveal). Discovery grants NO access — access requires a completed pairing.
 - **Proxy identity / no impersonation:** a remote peer's calls run under a synthetic `peer:<id>` identity, never a real local session. Caller-identity-override args (e.g. `senderSessionId`) are stripped before dispatch.
-- **Reuses `callMcpTool` UNTOUCHED:** the inbound gate dispatches through the existing MCP dispatcher with no signature change — federation adds a boundary in front of it, nothing inside it.
-- **OFF by default:** federation binds no port and constructs no manager unless explicitly enabled in settings.
+- **Reuses `callMcpTool` UNTOUCHED:** the inbound gate dispatches through the existing MCP dispatcher with no signature change — fleet adds a boundary in front of it, nothing inside it.
+- **OFF by default:** fleet binds no port and constructs no manager unless explicitly enabled in settings.
 
 ## Components
 
@@ -139,6 +139,70 @@ sequenceDiagram
     HPS-->>AI: result
 ```
 
+## Pairing transport (`pairing-socket.ts`)
+
+Pairing runs over its own path on the **same** `:47474` listener — `wss://host:47474/pair` —
+so a fleet needs exactly ONE firewall rule on Windows and one local-network permission
+on macOS, not two.
+
+**Why a separate path at all:** the steady-state link authenticates with a PSK, but the
+PSK is precisely what pairing *derives*. It cannot exist yet, so the `/pair` path skips
+the PSK handshake. What replaces it:
+
+- Each side reads the peer's certificate fingerprint from **its own** TLS socket and folds
+  it into the SAS transcript. The code the users compare therefore commits to the exact
+  cert that will be pinned — a MITM terminating TLS presents a different one, so the two
+  codes diverge.
+- The `hello` frame (machineId, alias, listening port) is necessarily unauthenticated —
+  the responder does not know who is calling until told — but it too is in the transcript,
+  so tampering changes the SAS.
+- A `/pair` socket **never becomes a `PeerLink`** and can invoke no tool. Its only
+  capability is running the pairing state machine.
+- Nothing is persisted until BOTH users accept a matching code.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as Machine A (initiator)
+    participant B as Machine B (responder)
+    A->>B: TLS connect wss://B:47474/pair
+    Note over A,B: each reads the other's cert fp from its own socket
+    A->>B: hello {sessionId, machineId, alias, port}
+    B->>A: hello {machineId, alias, port}
+    Note over A: address-only peers learn B's identity here
+    A->>B: commit SHA256(pub, nonce)
+    B->>A: commit SHA256(pub, nonce)
+    A->>B: reveal {pub, nonce}
+    B->>A: reveal {pub, nonce}
+    Note over A,B: ECDH → transcript → 6-digit SAS on both screens
+    A->>B: confirm MAC (after local accept)
+    B->>A: confirm MAC (after local accept)
+    Note over A,B: pin + PSK + PeerConfig persisted atomically
+```
+
+**Finding the other machine.** mDNS (`_helm._tcp`) is the convenience path, but it does
+**not cross subnets** and dies under Wi-Fi client isolation. **Pair by address**
+(`peer:startPairingByAddress`) is the fallback and is often the primary path on real
+networks: the peer's `machineId` is unknown when pairing by address, so it is taken from
+the responder's own `hello` and folded into the SAS — a wrong address surfaces as a
+mismatched code, never a silent mispairing. A `machineId` already known from mDNS is
+**never** overwritten, so a responder cannot redirect a pairing aimed at a specific machine.
+
+## Status reporting
+
+`FleetController.status()` returns `{ enabled, running, error, addresses, allInterfaces }`,
+read by the UI over `config:getFleetStatus`. Two deliberate properties:
+
+- **A failed start is visible in the app.** The stack once died at startup (an ESM
+  `require()` of `bonjour-service` threw in the bundled main process) and the only trace
+  was a line in a log file while the Peers tab reported "No nearby peers found" — the same
+  thing it says for a healthy but empty LAN. The tab now distinguishes *off* / *not
+  running* / *scanning* / *N found*, and the panel shows the error text.
+- **Addresses are shown, not the bind host.** A `0.0.0.0` bind is expanded via
+  `reachableAddresses()` into the real IPv4 addresses of this machine, which is what the
+  user has to type on the other one. IPv6 is omitted deliberately: link-local addresses
+  need a scope suffix that does not survive being typed into a text box.
+
 ## Security model
 
 - **TLS + cert pinning (TOFU).** Each machine has a stable self-signed cert (RSA-2048/SHA-256). The link is mutual-TLS; certs are pinned on first pairing (`PinnedCertStore.recordIfAbsent`) and thereafter **hard-rejected on any change** — a differing fingerprint is a MITM reject, never an auto-rotate. The pin only ever changes via explicit user unpair.
@@ -148,12 +212,12 @@ sequenceDiagram
 - **Per-peer allow-list, default-deny.** `PeerConfigManager.isToolAllowed` — an empty/absent allow-list denies everything; only glob-matched tool names pass.
 - **Hard-deny list.** `restart_helm`, `session_close`, `session_group_close` are NEVER remotely invocable, even under a wildcard `*` allow-list (`HARD_DENY_TOOLS`). Deny messages are **uniform** ("Tool not permitted") so a peer cannot probe which tools exist.
 - **Rate-limit + 7-day audit.** A per-peer token bucket throttles inbound calls; every decision (`ok`/`denied`/`rate-limited`/`error`) is recorded to `PeerAuditLog` — a rolling 7-day trail storing **argument KEY NAMES only, never values or secrets**.
-- **Enable toggle blocks both directions.** An explicitly disabled peer drops its live link and is denied inbound with the same uniform message. Federation is **OFF by default**: no `:47474` listener is bound and no manager is constructed until enabled.
+- **Enable toggle blocks both directions.** An explicitly disabled peer drops its live link and is denied inbound with the same uniform message. Fleet is **OFF by default**: no `:47474` listener is bound and no manager is constructed until enabled.
 
 ## Known limitations / deferred
 
 - **Pairing rate-limit key is spoofable.** `PairingCoordinator`'s per-source rate cap keys on the peer mDNS `machineId` (MVP), which an attacker on the LAN can spoof. The **real backstop is the GLOBAL cap of 10 pairing starts per 10 minutes**, which no spoofing bypasses. (The per-source cap adds a 3-fail → 15-min cooldown on top for honest sources.)
-- **Real cross-machine pairing + two-machine run is verified manually.** The SAS pairing state machine is unit-tested in isolation (P-0649), and the transport/gate/dispatch round-trip is unit-tested end-to-end over loopback TLS with pre-established pairing (`tests/federation-e2e.test.ts`, P-0651). Running the full SAS pairing *over the wire between two physical machines* is deferred to manual validation (a separate QUESTION plan), not the automated suite.
+- **Two-machine physical run is still manual.** SAS pairing now runs over a real socket and is covered end-to-end against real mTLS loopback (`tests/pairing-socket-e2e.test.ts`): matching codes, mutual trust, identical derived PSKs, tampered-hello divergence, and reject-persists-nothing. What automation cannot cover is the physical network — firewalls, subnets, Wi-Fi isolation — so a run between two real machines (one Windows, one macOS) remains a manual check.
 
 ## Config files
 

@@ -19,7 +19,7 @@ function capture(name: string) {
 
 vi.mock('../../../renderer/ipc/clients.js', () => ({
   peersClient: {
-    peerFederationEnabled: vi.fn(async () => true),
+    peerFleetEnabled: vi.fn(async () => true),
     peerList: vi.fn(async () => []),
     peerListDiscovered: vi.fn(async () => []),
     peerGetAudit: vi.fn(async () => []),

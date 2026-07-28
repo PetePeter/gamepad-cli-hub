@@ -25,7 +25,7 @@ import type { TLSSocket } from 'node:tls';
 import { WebSocket } from 'ws';
 import type { ClientRequest } from 'node:http';
 import { logger } from '../../utils/logger.js';
-import { certFingerprint } from './peer-crypto.js';
+import { certFingerprint, peerCertFpFromSocket } from './peer-crypto.js';
 import type { PinnedCertStore } from './pinned-cert-store.js';
 import { runInitiatorHandshake } from './remote-link-handshake.js';
 import { PeerLink, type OnCall } from './peer-link.js';
@@ -175,7 +175,7 @@ export class RemoteLinkClient extends EventEmitter {
     if (!capturedTls) { ws.terminate(); throw new Error('no TLS socket captured'); }
 
     const channelBinding = deriveChannelBinding(capturedTls);
-    const peerCertFp = readPeerCertFp(capturedTls);
+    const peerCertFp = peerCertFpFromSocket(capturedTls);
     const psk = this.opts.resolvePsk(this.opts.peerId);
     if (!psk) { ws.terminate(); throw new Error(`no PSK for peer ${this.opts.peerId}`); }
 
@@ -224,7 +224,7 @@ export class RemoteLinkClient extends EventEmitter {
 
   private verifyServerPin(tls: TLSSocket): { ok: boolean } {
     try {
-      const fp = readPeerCertFp(tls);
+      const fp = peerCertFpFromSocket(tls);
       if (this.opts.pinnedCertStore.get(this.opts.peerId) !== undefined) {
         // Established peer — hard reject a mismatch, never auto-rotate.
         return { ok: this.opts.pinnedCertStore.verify(this.opts.peerId, fp) };
@@ -279,12 +279,3 @@ function deriveChannelBinding(tls: TLSSocket): Buffer {
   return cb;
 }
 
-function readPeerCertFp(tls: TLSSocket): string {
-  const peerCert = tls.getPeerCertificate(true);
-  if (!peerCert || !peerCert.raw || peerCert.raw.length === 0) {
-    throw new Error('peer presented no certificate');
-  }
-  const b64 = peerCert.raw.toString('base64').replace(/(.{64})/g, '$1\n');
-  const pem = `-----BEGIN CERTIFICATE-----\n${b64}\n-----END CERTIFICATE-----\n`;
-  return certFingerprint(pem);
-}

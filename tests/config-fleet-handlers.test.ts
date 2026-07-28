@@ -1,7 +1,7 @@
 /**
- * config:setFederationConfig / getFederationConfig IPC handler tests (P-0658).
+ * config:setFleetConfig / getFleetConfig IPC handler tests (P-0658).
  * Mirrors the MCP hot-apply pattern: persist via a fake ConfigLoader, then invoke
- * an injected applyFederationConfig closure with the freshly-read config. A
+ * an injected applyFleetConfig closure with the freshly-read config. A
  * throwing apply still returns {success:true} because the config WAS persisted.
  */
 
@@ -30,59 +30,59 @@ function getHandler(channel: string): Function {
   return handler;
 }
 
-/** Minimal fake ConfigLoader that records federation config get/set. */
+/** Minimal fake ConfigLoader that records fleet config get/set. */
 function fakeConfigLoader() {
   let fed = { enabled: false, host: '0.0.0.0', port: 47474 };
   return {
     load: vi.fn(),
     getCliTypes: () => [],
-    getFederationConfig: vi.fn(() => ({ ...fed })),
-    setFederationConfig: vi.fn((updates: Partial<typeof fed>) => { fed = { ...fed, ...updates }; }),
+    getFleetConfig: vi.fn(() => ({ ...fed })),
+    setFleetConfig: vi.fn((updates: Partial<typeof fed>) => { fed = { ...fed, ...updates }; }),
   } as any;
 }
 
-describe('config:setFederationConfig / getFederationConfig', () => {
+describe('config:setFleetConfig / getFleetConfig', () => {
   let loader: ReturnType<typeof fakeConfigLoader>;
   let applied: Array<{ enabled: boolean; host: string; port: number }>;
-  let applyFederationConfig: ReturnType<typeof vi.fn>;
+  let applyFleetConfig: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     handleCalls.clear();
     loader = fakeConfigLoader();
     applied = [];
-    applyFederationConfig = vi.fn(async (cfg: any) => { applied.push(cfg); });
-    setupConfigHandlers(loader, undefined, undefined, applyFederationConfig as never);
+    applyFleetConfig = vi.fn(async (cfg: any) => { applied.push(cfg); });
+    setupConfigHandlers(loader, undefined, undefined, applyFleetConfig as never);
   });
 
   it('persists the update then hot-applies the freshly-read config and returns success', async () => {
-    const res = await getHandler('config:setFederationConfig')({}, { enabled: true, port: 50000 });
+    const res = await getHandler('config:setFleetConfig')({}, { enabled: true, port: 50000 });
 
-    expect(loader.setFederationConfig).toHaveBeenCalledWith({ enabled: true, port: 50000 });
-    expect(applyFederationConfig).toHaveBeenCalledTimes(1);
+    expect(loader.setFleetConfig).toHaveBeenCalledWith({ enabled: true, port: 50000 });
+    expect(applyFleetConfig).toHaveBeenCalledTimes(1);
     // The applied config is the loader's POST-merge config, not the raw updates.
     expect(applied[0]).toEqual({ enabled: true, host: '0.0.0.0', port: 50000 });
     expect(res).toEqual({ success: true });
   });
 
   it('still returns success when hot-apply throws (config was persisted)', async () => {
-    applyFederationConfig.mockRejectedValueOnce(new Error('bind failed'));
-    const res = await getHandler('config:setFederationConfig')({}, { enabled: true });
+    applyFleetConfig.mockRejectedValueOnce(new Error('bind failed'));
+    const res = await getHandler('config:setFleetConfig')({}, { enabled: true });
 
-    expect(loader.setFederationConfig).toHaveBeenCalled();
+    expect(loader.setFleetConfig).toHaveBeenCalled();
     expect(res).toEqual({ success: true });
   });
 
-  it('config:getFederationConfig round-trips the loader value', async () => {
-    await getHandler('config:setFederationConfig')({}, { enabled: true, host: '127.0.0.1', port: 40000 });
-    const got = await getHandler('config:getFederationConfig')();
+  it('config:getFleetConfig round-trips the loader value', async () => {
+    await getHandler('config:setFleetConfig')({}, { enabled: true, host: '127.0.0.1', port: 40000 });
+    const got = await getHandler('config:getFleetConfig')();
     expect(got).toEqual({ enabled: true, host: '127.0.0.1', port: 40000 });
   });
 
-  it('works without an applyFederationConfig closure (optional dep)', async () => {
+  it('works without an applyFleetConfig closure (optional dep)', async () => {
     handleCalls.clear();
     setupConfigHandlers(loader, undefined, undefined);
-    const res = await getHandler('config:setFederationConfig')({}, { enabled: true });
-    expect(loader.setFederationConfig).toHaveBeenCalled();
+    const res = await getHandler('config:setFleetConfig')({}, { enabled: true });
+    expect(loader.setFleetConfig).toHaveBeenCalled();
     expect(res).toEqual({ success: true });
   });
 });

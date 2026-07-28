@@ -1318,9 +1318,9 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: 'peer_list',
-    title: 'List Federation Peers',
+    title: 'List Fleet Peers',
     description:
-      'List the remote Helm peers this instance can reach, with each peer\'s id, alias, direction, and current online status. Start here for any cross-machine work: call peer_list to find a peer, then peer_tools(peer) to see what it will let you run, then peer_call(peer, tool, args) to invoke one of its tools. Returns an empty list — and peer_* tools report "Federation is not enabled" — when federation is turned off.',
+      'List the remote Helm peers this instance can reach, with each peer\'s id, alias, direction, and current online status. Start here for any cross-machine work: call peer_list to find a peer, then peer_tools(peer) to see what it will let you run, then peer_call(peer, tool, args) to invoke one of its tools. Returns an empty list — and peer_* tools report "Fleet is not enabled" — when fleet is turned off.',
     inputSchema: {
       type: 'object',
       properties: {},

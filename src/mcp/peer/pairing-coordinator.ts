@@ -120,6 +120,37 @@ export class PairingCoordinator {
   }
 
   /**
+   * Adopt an INBOUND pairing a peer initiated. Identical guards to start() — one
+   * session at a time, per-source cooldown, global cap — so a hostile peer cannot
+   * use the inbound path to bypass the rate limits the outbound path enforces.
+   *
+   * The sessionId comes FROM THE WIRE (PeerPairing filters frames on it, so both
+   * ends must agree). It is untrusted: it is only ever used as a correlation key,
+   * never as key material — the SAS transcript binds it, so a forged one changes
+   * the code the users compare.
+   */
+  startInbound(peer: PairingPeerInfo, sessionId: string, pairing: CoordinatedPairing): StartResult {
+    this.reapExpired();
+
+    if (this.active) return { ok: false, reason: 'a pairing session is already active' };
+    if (this.inCooldown(peer.machineId)) return { ok: false, reason: 'source in cooldown after repeated failures (rate)' };
+    if (this.globalCapReached()) return { ok: false, reason: 'global pairing rate cap reached (rate)' };
+
+    const session: ActiveSession = {
+      sessionId, peer, pairing, startedAt: this.now(), decided: false, settled: false,
+    };
+    this.active = session;
+    this.globalStarts.push(session.startedAt);
+
+    pairing.on('paired', () => this.onSettled(session, 'paired'));
+    pairing.on('failed', () => this.onSettled(session, 'failed'));
+
+    // No begin() — the responder answers the initiator's commit, it never leads.
+    logger.info(`[PairingCoordinator] Adopted inbound pairing ${sessionId} from ${peer.machineId}`);
+    return { ok: true, sessionId };
+  }
+
+  /**
    * Apply the user's ONE accept/reject decision for `sessionId`. A second decision
    * (or an unknown session) is ignored.
    */

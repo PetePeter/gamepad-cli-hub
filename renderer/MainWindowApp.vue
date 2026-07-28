@@ -131,6 +131,7 @@ import McpTab from './components/sidebar/McpTab.vue';
 import BackupTab from './components/sidebar/BackupTab.vue';
 import PeersTab from './components/sidebar/PeersTab.vue';
 import PeerPairingDialog from './components/modals/PeerPairingDialog.vue';
+import { usePeers } from './composables/usePeers.js';
 import SkillsTab from './components/sidebar/SkillsTab.vue';
 
 import { loadSessions } from './screens/sessions.js';
@@ -166,6 +167,7 @@ const recycleBin = useRecycleBin();
 const runtimeGroups = useRuntimeGroups();
 const runtimeGroupActions = useRuntimeGroupActions();
 const artifactViewer = useArtifactViewer();
+const peers = usePeers();
 
 // Bringing the window forward while viewing the active session means the user has
 // seen it — clear its flash. (The activeSessionId watcher handles session switches.)
@@ -854,6 +856,9 @@ onMounted(async () => {
   recycleBin.ensureSubscribed();
   runtimeGroups.ensureSubscribed();
   artifactViewer.ensureSubscribed();
+  // Subscribe app-wide, NOT from the Peers tab: an inbound pairing request must
+  // raise its dialog even when Settings has never been opened this session.
+  peers.ensureSubscribed();
   void artifactViewer.setActiveSession(state.activeSessionId ?? null);
   window.addEventListener('keydown', onArtifactShortcut, true);
 

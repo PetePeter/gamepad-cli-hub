@@ -1,5 +1,5 @@
 /**
- * PeerLinkManager — orchestrates the federation transport for every configured
+ * PeerLinkManager — orchestrates the fleet transport for every configured
  * peer. It owns ONE RemoteLinkServer (accepts inbound from all peers) plus ONE
  * RemoteLinkClient per outbound/bidirectional peer (dials that peer), and keeps
  * exactly ONE authenticated full-duplex link per peer.
@@ -54,6 +54,11 @@ export interface PeerLinkManagerOptions {
   getCertKey: () => Promise<{ certPem: string; keyPem: string }>;
   pinnedCertStore: PinnedCertStore;
   onCall: OnCall;
+  /**
+   * Inbound SAS pairing on the server's PAIRING_PATH. Passed straight through —
+   * the manager never touches pairing sockets, they become no link and no client.
+   */
+  onPairingConnection?: RemoteLinkServerOptions['onPairingConnection'];
   host?: string;
   port?: number;
   /** Factories (injected in tests; default to the real Remote* classes). */
@@ -95,6 +100,7 @@ export class PeerLinkManager extends EventEmitter {
       resolvePsk: this.opts.resolvePsk,
       pinnedCertStore: this.opts.pinnedCertStore,
       onCall: (peerId, method, params) => this.onCall(peerId, method, params),
+      onPairingConnection: this.opts.onPairingConnection,
       onLink: (link, peerId, peerMachineId) =>
         this.acceptLink(link as unknown as ManagedLink, peerId, 'inbound', peerMachineId),
     });

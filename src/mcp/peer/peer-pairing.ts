@@ -33,6 +33,7 @@
  */
 
 import { EventEmitter } from 'node:events';
+import { randomBytes } from 'node:crypto';
 import { logger } from '../../utils/logger.js';
 import type { PinnedCertStore } from './pinned-cert-store.js';
 import type { SecretStore } from './secret-store.js';
@@ -409,7 +410,5 @@ export class PeerPairing extends EventEmitter {
 
 /** 32 cryptographically-random nonce bytes. */
 function randomNonce(): Buffer {
-  // Local import to keep the crypto surface in one file for the pure helpers.
-  const { randomBytes } = require('node:crypto');
-  return randomBytes(32) as Buffer;
+  return randomBytes(32);
 }

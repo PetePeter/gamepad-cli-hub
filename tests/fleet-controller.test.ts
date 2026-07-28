@@ -1,6 +1,6 @@
 /**
- * FederationController tests — the LIVE transport + discovery lifecycle behind
- * the in-app federation toggle (P-0658). Real controller class, fakes for the
+ * FleetController tests — the LIVE transport + discovery lifecycle behind
+ * the in-app fleet toggle (P-0658). Real controller class, fakes for the
  * transport starter, discovery, and the setLinkManager sink. We assert:
  *  - enabled → true starts the transport (setLinkManager(mgr)) + discovery.start()
  *  - enabled → false tears down (prior mgr.stop(), setLinkManager(null), discovery.stop())
@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { FederationController } from '../src/mcp/peer/federation-controller.js';
+import { FleetController } from '../src/mcp/peer/fleet-controller.js';
 
 interface FakeManager {
   id: number;
@@ -55,14 +55,14 @@ function baseConfig(over: Partial<{ enabled: boolean; host: string; port: number
   return { enabled: false, host: '0.0.0.0', port: 47474, ...over };
 }
 
-describe('FederationController', () => {
+describe('FleetController', () => {
   let config: { enabled: boolean; host: string; port: number };
   let managers: FakeManager[];
   let discoveries: FakeDiscovery[];
   let linkSink: Array<FakeManager | null>;
   let startTransport: ReturnType<typeof vi.fn>;
   let makeDiscovery: ReturnType<typeof vi.fn>;
-  let controller: FederationController;
+  let controller: FleetController;
 
   beforeEach(() => {
     config = baseConfig();
@@ -81,7 +81,7 @@ describe('FederationController', () => {
       discoveries.push(d);
       return d;
     });
-    controller = new FederationController({
+    controller = new FleetController({
       getConfig: () => config,
       onCall: async () => ({ ok: true }),
       pinnedCertStore: {} as never,
@@ -207,7 +207,7 @@ describe('FederationController', () => {
     // A slow stop() lets us observe the ordering: at the moment stop() begins,
     // currentLinkManager() must ALREADY be null and setLinkManager(null) must have
     // already fired — so a peer_list/peer_call during the async close reports
-    // "Federation is not enabled" rather than hitting a closing socket.
+    // "Fleet is not enabled" rather than hitting a closing socket.
     const observations: Array<{ linkNullAtStop: boolean; sinkNullAtStop: boolean }> = [];
     let releaseStop: () => void = () => {};
     startTransport.mockImplementationOnce(async () => {

@@ -1,5 +1,5 @@
 /**
- * usePeers — reactive state for the cross-machine federation (Peers) tab.
+ * usePeers — reactive state for the cross-machine fleet (Peers) tab.
  *
  * Module-singleton refs shared by the PeersTab, the pairing dialog and the audit
  * modal. Mirrors useRecycleBin/useRuntimeGroups: ensureSubscribed() wires every
@@ -10,7 +10,7 @@
 import { ref } from 'vue';
 import { peersClient, configClient, eventsClient } from '../ipc/clients.js';
 
-export interface FederationConfig {
+export interface FleetConfig {
   enabled: boolean;
   host: string;
   port: number;
@@ -50,41 +50,64 @@ export interface PairingState {
   status: 'idle' | 'starting' | 'awaiting-sas' | 'confirmed' | 'paired' | 'failed';
   error: string | null;
   peerAlias: string | null;
+  /** True when the OTHER machine started this pairing (we are the responder). */
+  incoming: boolean;
 }
 
-const DEFAULT_FEDERATION_CONFIG: FederationConfig = { enabled: false, host: '0.0.0.0', port: 47474 };
+/** Live health of the fleet stack — distinct from the persisted config. */
+export interface FleetStatus {
+  enabled: boolean;
+  running: boolean;
+  error: string | null;
+  addresses: string[];
+  allInterfaces: boolean;
+}
 
-const federationEnabled = ref(false);
-const federationConfig = ref<FederationConfig>({ ...DEFAULT_FEDERATION_CONFIG });
+const DEFAULT_FLEET_CONFIG: FleetConfig = { enabled: false, host: '0.0.0.0', port: 47474 };
+
+const fleetEnabled = ref(false);
+const fleetConfig = ref<FleetConfig>({ ...DEFAULT_FLEET_CONFIG });
 const configuredPeers = ref<ConfiguredPeer[]>([]);
 const discoveredPeers = ref<DiscoveredPeer[]>([]);
 const audit = ref<PeerAuditEntry[]>([]);
 const pairing = ref<PairingState>(emptyPairing());
+const fleetStatus = ref<FleetStatus>({ enabled: false, running: false, error: null, addresses: [], allInterfaces: false });
 
 let subscribed = false;
 
 function emptyPairing(): PairingState {
-  return { active: false, sessionId: null, sas: null, status: 'idle', error: null, peerAlias: null };
+  return { active: false, sessionId: null, sas: null, status: 'idle', error: null, peerAlias: null, incoming: false };
 }
 
-async function loadFederationConfig(): Promise<void> {
+/** Pull live status so the UI can say WHY nothing is happening. */
+async function loadFleetStatus(): Promise<void> {
   try {
-    const cfg = await configClient.configGetFederationConfig();
-    federationConfig.value = {
-      enabled: cfg?.enabled ?? false,
-      host: cfg?.host || DEFAULT_FEDERATION_CONFIG.host,
-      port: cfg?.port ?? DEFAULT_FEDERATION_CONFIG.port,
-    };
-    // federationEnabled derives from the persisted config (single source of truth).
-    federationEnabled.value = federationConfig.value.enabled;
+    const status = await configClient.configGetFleetStatus();
+    if (status) fleetStatus.value = status;
   } catch {
-    federationConfig.value = { ...DEFAULT_FEDERATION_CONFIG };
-    federationEnabled.value = false;
+    /* leave the last known status rather than flapping the UI */
+  }
+}
+
+async function loadFleetConfig(): Promise<void> {
+  try {
+    const cfg = await configClient.configGetFleetConfig();
+    fleetConfig.value = {
+      enabled: cfg?.enabled ?? false,
+      host: cfg?.host || DEFAULT_FLEET_CONFIG.host,
+      port: cfg?.port ?? DEFAULT_FLEET_CONFIG.port,
+    };
+    // fleetEnabled derives from the persisted config (single source of truth).
+    fleetEnabled.value = fleetConfig.value.enabled;
+  } catch {
+    fleetConfig.value = { ...DEFAULT_FLEET_CONFIG };
+    fleetEnabled.value = false;
   }
 }
 
 async function refresh(): Promise<void> {
-  await loadFederationConfig();
+  await loadFleetConfig();
+  await loadFleetStatus();
   try {
     configuredPeers.value = (await peersClient.peerList()) ?? [];
   } catch {
@@ -127,6 +150,20 @@ function ensureSubscribed(): void {
     discoveredPeers.value = discoveredPeers.value.filter((p) => p.machineId !== machineId);
   });
 
+  // A peer dialled US. Without this the remote user's screen shows a code and
+  // ours shows nothing, so the pairing can never be accepted and simply expires.
+  eventsClient.onPeerIncoming?.(({ sessionId, alias, machineId }) => {
+    pairing.value = {
+      active: true,
+      sessionId,
+      sas: null,
+      status: 'awaiting-sas',
+      error: null,
+      peerAlias: alias || machineId,
+      incoming: true,
+    };
+  });
+
   eventsClient.onPeerSas?.(({ sessionId, sas }) => {
     if (pairing.value.sessionId && pairing.value.sessionId !== sessionId) return;
     pairing.value = { ...pairing.value, sessionId, sas, status: 'awaiting-sas' };
@@ -145,9 +182,24 @@ function ensureSubscribed(): void {
 }
 
 async function startPairing(peer: DiscoveredPeer): Promise<void> {
-  pairing.value = { active: true, sessionId: null, sas: null, status: 'starting', error: null, peerAlias: peer.alias };
+  await beginPairing(peer.alias, () => peersClient.peerStartPairing(peer.machineId));
+}
+
+/**
+ * Pair with a typed-in address. The fallback that matters when mDNS is blocked,
+ * or when the two machines are on different subnets (mDNS does not route).
+ */
+async function startPairingByAddress(address: string): Promise<void> {
+  await beginPairing(address, () => peersClient.peerStartPairingByAddress(address));
+}
+
+async function beginPairing(
+  label: string,
+  start: () => Promise<{ ok: boolean; sessionId?: string; reason?: string } | undefined>,
+): Promise<void> {
+  pairing.value = { active: true, sessionId: null, sas: null, status: 'starting', error: null, peerAlias: label, incoming: false };
   try {
-    const result = await peersClient.peerStartPairing(peer.machineId);
+    const result = await start();
     if (result?.ok && result.sessionId) {
       pairing.value = { ...pairing.value, sessionId: result.sessionId, status: 'awaiting-sas' };
     } else {
@@ -180,13 +232,13 @@ function closePairing(): void {
 }
 
 /**
- * Persist + hot-apply a federation config change (enabled/host/port), then refetch
+ * Persist + hot-apply a fleet config change (enabled/host/port), then refetch
  * the config and peer lists so the UI reflects the live state. Mirrors the MCP
  * onMcpUpdate flow: set → get → refresh.
  */
-async function setFederationConfig(updates: Partial<FederationConfig>): Promise<void> {
-  await configClient.configSetFederationConfig(updates);
-  await loadFederationConfig();
+async function setFleetConfig(updates: Partial<FleetConfig>): Promise<void> {
+  await configClient.configSetFleetConfig(updates);
+  await loadFleetConfig();
   await refresh();
 }
 
@@ -212,8 +264,9 @@ async function unpair(peerId: string): Promise<void> {
  */
 export function resetPeersStateForTesting(): void {
   subscribed = false;
-  federationEnabled.value = false;
-  federationConfig.value = { ...DEFAULT_FEDERATION_CONFIG };
+  fleetStatus.value = { enabled: false, running: false, error: null, addresses: [], allInterfaces: false };
+  fleetEnabled.value = false;
+  fleetConfig.value = { ...DEFAULT_FLEET_CONFIG };
   configuredPeers.value = [];
   discoveredPeers.value = [];
   audit.value = [];
@@ -222,9 +275,10 @@ export function resetPeersStateForTesting(): void {
 
 export function usePeers() {
   return {
-    federationEnabled,
-    federationConfig,
-    setFederationConfig,
+    fleetEnabled,
+    fleetConfig,
+    fleetStatus,
+    setFleetConfig,
     configuredPeers,
     discoveredPeers,
     audit,
@@ -233,6 +287,7 @@ export function usePeers() {
     refresh,
     refreshAudit,
     startPairing,
+    startPairingByAddress,
     confirmPairing,
     cancelPairing,
     closePairing,

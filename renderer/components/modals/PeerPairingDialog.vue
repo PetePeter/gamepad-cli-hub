@@ -25,6 +25,10 @@ const sas = computed(() => pairing.value.sas);
 const status = computed(() => pairing.value.status);
 const peerAlias = computed(() => pairing.value.peerAlias ?? 'peer');
 const errorMessage = computed(() => pairing.value.error);
+/** An inbound request needs different framing: the user did not start this. */
+const incoming = computed(() => pairing.value.incoming);
+const title = computed(() =>
+  incoming.value ? `${peerAlias.value} wants to pair` : `Pair with ${peerAlias.value}`);
 
 /** Six SAS digits split into cells, or placeholders while we wait for the code. */
 const sasCells = computed<string[]>(() => {
@@ -90,12 +94,15 @@ defineExpose({ handleButton });
     >
       <div class="modal peer-pairing-modal">
         <div class="pp-head">
-          <h3 class="pp-title">Pair with {{ peerAlias }}</h3>
+          <h3 class="pp-title">{{ title }}</h3>
         </div>
 
         <div class="pp-body">
           <p class="pp-instruction">
             Do these codes match on <strong>both</strong> machines?
+          </p>
+          <p v-if="incoming" class="pp-instruction pp-instruction--incoming">
+            This request came from another machine. Only confirm if you started it there.
           </p>
 
           <div v-if="canConfirm || sas" class="pp-sas" aria-label="Short authentication string">
@@ -124,6 +131,7 @@ defineExpose({ handleButton });
 </template>
 
 <style scoped>
+.pp-instruction--incoming { color: var(--text-secondary); font-size: 0.8rem; }
 .peer-pairing-modal {
   border: 2px solid var(--accent-primary);
   border-radius: 10px;

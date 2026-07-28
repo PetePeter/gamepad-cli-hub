@@ -48,7 +48,7 @@ export const HARD_DENY_TOOLS: ReadonlySet<string> = new Set<string>([
   // wildcard `*` allow-list could otherwise terminate ANY local session —
   // including the orchestrator's own — or batch-kill a whole group. These must
   // never be remotely invocable even under `*`. (session_create / project_* are
-  // intentionally NOT here: those are legitimate opt-in federation gated by the
+  // intentionally NOT here: those are legitimate opt-in fleet gated by the
   // per-peer allow-list.)
   'session_close',
   'session_group_close',

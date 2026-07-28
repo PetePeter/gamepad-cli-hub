@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as YAML from 'yaml';
 import logger from '../utils/logger.js';
 import { normalizeMcpPort } from './loader-helpers.js';
-import type { FederationConfig, McpConfig, SettingsConfig, TelegramConfig } from './loader.js';
+import type { FleetConfig, McpConfig, SettingsConfig, TelegramConfig } from './loader.js';
 
 export const DEFAULT_TELEGRAM_CONFIG: TelegramConfig = {
   enabled: false,
@@ -30,8 +30,8 @@ export const DEFAULT_MCP_CONFIG: McpConfig = {
   authToken: '',
 };
 
-/** Federation transport defaults — OFF; binds nothing unless explicitly enabled. */
-export const DEFAULT_FEDERATION_CONFIG: FederationConfig = {
+/** Fleet transport defaults — OFF; binds nothing unless explicitly enabled. */
+export const DEFAULT_FLEET_CONFIG: FleetConfig = {
   enabled: false,
   host: '0.0.0.0',
   port: 47474,

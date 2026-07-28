@@ -1,7 +1,7 @@
 /**
- * Cross-Machine Federation — end-to-end A↔B integration test (P-0651).
+ * Cross-Machine Fleet — end-to-end A↔B integration test (P-0651).
  *
- * Spins up TWO full federation stacks on loopback TLS (127.0.0.1, ephemeral
+ * Spins up TWO full fleet stacks on loopback TLS (127.0.0.1, ephemeral
  * ports): machine A (caller) and machine B (callee). Everything below the
  * SessionManager + mDNS boundary is REAL:
  *
@@ -93,7 +93,7 @@ function realDispatch(fake: FakeControlService) {
     );
 }
 
-/** A full per-machine federation stack. */
+/** A full per-machine fleet stack. */
 interface Stack {
   machineId: string;
   identity: MachineIdentity;
@@ -126,7 +126,7 @@ async function waitFor(cond: () => boolean, timeoutMs = 4000, stepMs = 15): Prom
   }
 }
 
-describe('Cross-Machine Federation E2E (A↔B over loopback TLS)', () => {
+describe('Cross-Machine Fleet E2E (A↔B over loopback TLS)', () => {
   let tmp: string;
   let A: Stack;
   let B: Stack;

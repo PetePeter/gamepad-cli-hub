@@ -81,7 +81,7 @@ const mockConfigLoader = {
       port: 5555,
       authToken: '',
     }),
-    getFederationConfig: vi.fn().mockReturnValue({
+    getFleetConfig: vi.fn().mockReturnValue({
       enabled: false,
       host: '0.0.0.0',
       port: 47474,

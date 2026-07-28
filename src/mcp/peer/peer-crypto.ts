@@ -26,6 +26,7 @@ import {
   timingSafeEqual,
   X509Certificate,
 } from 'node:crypto';
+import type { TLSSocket } from 'node:tls';
 import { existsSync, readFileSync } from 'node:fs';
 import * as YAML from 'yaml';
 import { generate as generateSelfSigned } from 'selfsigned';
@@ -164,6 +165,25 @@ function loadSelfSignedCert(configPath: string): SelfSignedCert | null {
  */
 export function certFingerprint(certPem: string): string {
   return new X509Certificate(certPem).fingerprint256;
+}
+
+/**
+ * Fingerprint of the leaf certificate the OTHER end presented on a live TLS socket.
+ * Shared by the link server, the link client and the pairing socket so all three
+ * derive the identity they pin/compare from the exact same bytes.
+ */
+export function peerCertFpFromSocket(tls: TLSSocket): string {
+  const peerCert = tls.getPeerCertificate(true);
+  if (!peerCert || !peerCert.raw || peerCert.raw.length === 0) {
+    throw new Error('peer presented no certificate');
+  }
+  return certFingerprint(derToPem(peerCert.raw));
+}
+
+/** Wrap raw DER cert bytes as PEM so X509Certificate can parse them. */
+function derToPem(der: Buffer): string {
+  const b64 = der.toString('base64').replace(/(.{64})/g, '$1\n');
+  return `-----BEGIN CERTIFICATE-----\n${b64}\n-----END CERTIFICATE-----\n`;
 }
 
 /**

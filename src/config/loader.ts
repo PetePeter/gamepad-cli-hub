@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import {
   isCliTypeOptions,
   normalizeMcpPort,
-  normalizeFederationPort,
+  normalizeFleetPort,
   parseCommandTemplate,
   type CliTypeOptions,
   type EnvVarEntry,
@@ -18,7 +18,7 @@ import { InputConfigStore } from './input-config-store.js';
 import { migrateFromProfile } from './profile-migrator.js';
 import { normalizeProjectPath, dirDisplayNameFromPath } from '../session/project-identity.js';
 import type { ProjectStore } from '../session/project-store.js';
-import { DEFAULT_FEDERATION_CONFIG, DEFAULT_MCP_CONFIG, SettingsManager } from './settings-manager.js';
+import { DEFAULT_FLEET_CONFIG, DEFAULT_MCP_CONFIG, SettingsManager } from './settings-manager.js';
 import { TelegramConfigManager } from './telegram-config-manager.js';
 
 export { parseCliArgs, resolveEnvWithMode, slugify } from './loader-helpers.js';
@@ -248,11 +248,11 @@ export interface McpConfig {
 }
 
 /**
- * Cross-machine federation transport config (P-0646). OFF by default — nothing
- * binds the federation listener unless `enabled` is explicitly true. This is a
+ * Cross-machine fleet transport config (P-0646). OFF by default — nothing
+ * binds the fleet listener unless `enabled` is explicitly true. This is a
  * SEPARATE listener from the 127.0.0.1 localhost MCP server.
  */
-export interface FederationConfig {
+export interface FleetConfig {
   enabled: boolean;
   host: string;
   port: number;
@@ -282,7 +282,9 @@ export interface SettingsConfig {
   editorPrefs?: EditorPrefs;
   telegram?: TelegramConfig;
   mcp?: McpConfig;
-  federation?: FederationConfig;
+  fleet?: FleetConfig;
+  /** Pre-rename key, read-only migration input for `fleet`. Never written. */
+  federation?: FleetConfig;
 }
 
 export interface SessionGroupPrefs {
@@ -841,26 +843,29 @@ export class ConfigLoader {
     this.saveSettings();
   }
 
-  /** Get the cross-machine federation transport config (OFF by default). */
-  getFederationConfig(): FederationConfig {
-    const f = this.settings?.federation;
+  /** Get the cross-machine fleet transport config (OFF by default). */
+  getFleetConfig(): FleetConfig {
+    // `federation` is the pre-rename key. Read it as a fallback so upgrading does
+    // not silently disable a working setup; the next setFleetConfig() writes the
+    // new key and the old one simply stops being consulted.
+    const f = this.settings?.fleet ?? this.settings?.federation;
     return {
-      ...DEFAULT_FEDERATION_CONFIG,
+      ...DEFAULT_FLEET_CONFIG,
       ...(f ?? {}),
       enabled: f?.enabled === true,
-      host: typeof f?.host === 'string' && f.host.length > 0 ? f.host : DEFAULT_FEDERATION_CONFIG.host,
-      port: normalizeFederationPort(f?.port),
+      host: typeof f?.host === 'string' && f.host.length > 0 ? f.host : DEFAULT_FLEET_CONFIG.host,
+      port: normalizeFleetPort(f?.port),
     };
   }
 
-  /** Update the federation transport config (partial merge). */
-  setFederationConfig(updates: Partial<FederationConfig>): void {
+  /** Update the fleet transport config (partial merge). */
+  setFleetConfig(updates: Partial<FleetConfig>): void {
     if (!this.settings) return;
-    const next = { ...this.getFederationConfig(), ...updates };
-    this.settings.federation = {
+    const next = { ...this.getFleetConfig(), ...updates };
+    this.settings.fleet = {
       enabled: next.enabled === true,
-      host: typeof next.host === 'string' && next.host.length > 0 ? next.host : DEFAULT_FEDERATION_CONFIG.host,
-      port: normalizeFederationPort(next.port),
+      host: typeof next.host === 'string' && next.host.length > 0 ? next.host : DEFAULT_FLEET_CONFIG.host,
+      port: normalizeFleetPort(next.port),
     };
     this.saveSettings();
   }

@@ -7,9 +7,9 @@
  * live link status, editing a peer's allow-list, enabling/disabling a peer,
  * unpairing (clean removal of config + secret + pin), and reading the audit log.
  *
- * Everything is guarded by `enabled` (federation wired). When federation is OFF
+ * Everything is guarded by `enabled` (fleet wired). When fleet is OFF
  * the channels still register but return empty/inert results, so the tab renders
- * its "federation is off" hint gracefully without a manager.
+ * its "fleet is off" hint gracefully without a manager.
  *
  * Events forwarded to every renderer:
  *   peer-config:changed  (from PeerConfigManager)
@@ -26,7 +26,7 @@ import type { PinnedCertStore } from '../../mcp/peer/pinned-cert-store.js';
 import type { SecretStore } from '../../mcp/peer/secret-store.js';
 
 export interface PeerManagementDeps {
-  /** Live federation-enabled state, read per call (P-0658 in-app toggle). */
+  /** Live fleet-enabled state, read per call (P-0658 in-app toggle). */
   isEnabled: () => boolean;
   peerConfigManager: PeerConfigManager;
   pinnedCertStore: PinnedCertStore;
@@ -52,7 +52,7 @@ export interface PeerListItem {
  * that removes the handlers and detaches the event listeners.
  */
 export function setupPeerManagementHandlers(deps: PeerManagementDeps): () => void {
-  ipcMain.handle('peer:federationEnabled', () => deps.isEnabled());
+  ipcMain.handle('peer:fleetEnabled', () => deps.isEnabled());
 
   ipcMain.handle('peer:list', (): PeerListItem[] => {
     if (!deps.isEnabled()) return [];
@@ -123,7 +123,7 @@ export function setupPeerManagementHandlers(deps: PeerManagementDeps): () => voi
   deps.peerConfigManager.on('peer-config:changed', onConfigChanged);
   deps.audit.on('peer-audit:changed', onAuditChanged);
 
-  // The link manager appears/disappears as federation is toggled (P-0658), so keep
+  // The link manager appears/disappears as fleet is toggled (P-0658), so keep
   // polling: attach online/offline forwarding when a new manager appears, and
   // detach cleanly when it goes away or is replaced. The timer runs for the app
   // lifetime (cleared only by the disposer).
@@ -145,7 +145,7 @@ export function setupPeerManagementHandlers(deps: PeerManagementDeps): () => voi
   logger.info('[peer-management] Registered peer-management IPC handlers');
 
   return () => {
-    ipcMain.removeHandler('peer:federationEnabled');
+    ipcMain.removeHandler('peer:fleetEnabled');
     ipcMain.removeHandler('peer:list');
     ipcMain.removeHandler('peer:setAllowList');
     ipcMain.removeHandler('peer:setEnabled');

@@ -150,16 +150,22 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     ipcRenderer.invoke('config:setMcpConfig', updates),
 
   /**
-   * Get cross-machine federation transport settings (enabled/host/port).
+   * Get cross-machine fleet transport settings (enabled/host/port).
    */
-  configGetFederationConfig: () => ipcRenderer.invoke('config:getFederationConfig'),
+  configGetFleetConfig: () => ipcRenderer.invoke('config:getFleetConfig'),
 
   /**
-   * Update federation transport settings; the main process persists then hot-applies
-   * the live federation stack (start/stop/restart) without an app restart.
+   * Live fleet status: whether the stack is actually running, why not if it
+   * failed, and the addresses another machine can pair against.
    */
-  configSetFederationConfig: (updates: { enabled?: boolean; host?: string; port?: number }) =>
-    ipcRenderer.invoke('config:setFederationConfig', updates),
+  configGetFleetStatus: () => ipcRenderer.invoke('config:getFleetStatus'),
+
+  /**
+   * Update fleet transport settings; the main process persists then hot-applies
+   * the live fleet stack (start/stop/restart) without an app restart.
+   */
+  configSetFleetConfig: (updates: { enabled?: boolean; host?: string; port?: number }) =>
+    ipcRenderer.invoke('config:setFleetConfig', updates),
 
   /**
    * Generate and persist a new localhost MCP auth token
@@ -1198,6 +1204,10 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   peerStartPairing: (machineId: string): Promise<{ ok: boolean; sessionId?: string; reason?: string }> =>
     ipcRenderer.invoke('peer:startPairing', machineId),
 
+  /** Start a SAS pairing session with a typed-in host:port (no mDNS needed) */
+  peerStartPairingByAddress: (address: string): Promise<{ ok: boolean; sessionId?: string; reason?: string }> =>
+    ipcRenderer.invoke('peer:startPairingByAddress', address),
+
   /** The user's ONE accept/reject decision (did the two codes match?) */
   peerConfirmPairing: (sessionId: string, accepted: boolean): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke('peer:confirmPairing', sessionId, accepted),
@@ -1205,10 +1215,10 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   /** Cancel the active pairing session */
   peerCancelPairing: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('peer:cancelPairing'),
 
-  /** Whether cross-machine federation is wired at all (tab renders a hint when off). */
-  peerFederationEnabled: (): Promise<boolean> => ipcRenderer.invoke('peer:federationEnabled'),
+  /** Whether cross-machine fleet is wired at all (tab renders a hint when off). */
+  peerFleetEnabled: (): Promise<boolean> => ipcRenderer.invoke('peer:fleetEnabled'),
 
-  /** Configured peers with live online status + enable flag. Empty when federation is off. */
+  /** Configured peers with live online status + enable flag. Empty when fleet is off. */
   peerList: (): Promise<Array<{
     id: string;
     machineId?: string;
@@ -1224,7 +1234,7 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   peerSetAllowList: (peerId: string, allow: string[]): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke('peer:setAllowList', peerId, allow),
 
-  /** Toggle whether a peer is dialled by the federation transport. */
+  /** Toggle whether a peer is dialled by the fleet transport. */
   peerSetEnabled: (peerId: string, enabled: boolean): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke('peer:setEnabled', peerId, enabled),
 
@@ -1255,6 +1265,13 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     const listener = (_e: Electron.IpcRendererEvent, data: any) => callback(data);
     ipcRenderer.on('peer:lost', listener);
     return () => ipcRenderer.removeListener('peer:lost', listener);
+  },
+
+  /** Subscribe to a peer initiating a pairing WITH US (we are the responder) */
+  onPeerIncoming: (callback: (data: { sessionId: string; machineId: string; alias: string; address: string }) => void) => {
+    const listener = (_e: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('peer:incoming', listener);
+    return () => ipcRenderer.removeListener('peer:incoming', listener);
   },
 
   /** Subscribe to the SAS becoming available for the active session */

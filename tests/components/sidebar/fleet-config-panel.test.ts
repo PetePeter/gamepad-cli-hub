@@ -1,5 +1,5 @@
 /**
- * FederationConfigPanel component tests (P-0658) — mirrors McpTab's panel: an
+ * FleetConfigPanel component tests (P-0658) — mirrors McpTab's panel: an
  * enabled checkbox, host + port inputs, and a status line. Emits `update` with a
  * partial on each change; port is normalised; status reflects off vs running.
  *
@@ -7,15 +7,29 @@
  */
 import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
-import FederationConfigPanel from '../../../renderer/components/sidebar/FederationConfigPanel.vue';
+import FleetConfigPanel from '../../../renderer/components/sidebar/FleetConfigPanel.vue';
 
-function mountPanel(over: Partial<{ enabled: boolean; host: string; port: number }> = {}) {
-  return mount(FederationConfigPanel, {
-    props: { config: { enabled: false, host: '0.0.0.0', port: 47474, ...over } },
+type Status = { enabled: boolean; running: boolean; error: string | null; addresses: string[]; allInterfaces: boolean };
+
+function mountPanel(
+  over: Partial<{ enabled: boolean; host: string; port: number }> = {},
+  status?: Status,
+) {
+  const config = { enabled: false, host: '0.0.0.0', port: 47474, ...over };
+  return mount(FleetConfigPanel, {
+    props: {
+      config,
+      // Default to a healthy running stack so tests that only care about config
+      // do not have to describe status.
+      status: status ?? {
+        enabled: config.enabled, running: config.enabled, error: null,
+        addresses: [], allInterfaces: true,
+      },
+    },
   });
 }
 
-describe('FederationConfigPanel.vue', () => {
+describe('FleetConfigPanel.vue', () => {
   it('renders the enabled checkbox, host and port inputs from props', () => {
     const w = mountPanel({ enabled: true, host: '127.0.0.1', port: 50000 });
     expect((w.find('input[type="checkbox"]').element as HTMLInputElement).checked).toBe(true);
@@ -59,9 +73,26 @@ describe('FederationConfigPanel.vue', () => {
     expect(w.find('.fcp-status-value').text()).toMatch(/off/i);
   });
 
-  it('status text shows the running host:port when enabled', () => {
-    const w = mountPanel({ enabled: true, host: '0.0.0.0', port: 47474 });
-    expect(w.find('.fcp-status-value').text()).toContain('0.0.0.0:47474');
+  it('shows the addresses a peer can actually reach, not the wildcard bind', () => {
+    // "0.0.0.0:47474" is true and useless — nobody can type it into the other Helm.
+    const w = mountPanel(
+      { enabled: true, host: '0.0.0.0', port: 47474 },
+      { enabled: true, running: true, error: null, addresses: ['10.98.1.140:47474'], allInterfaces: true },
+    );
+    expect(w.find('.fcp-status-value').text()).toMatch(/running/i);
+    expect(w.text()).toContain('10.98.1.140:47474');
+    expect(w.text()).not.toContain('0.0.0.0:47474');
+  });
+
+  it('surfaces a start failure instead of claiming to be running', () => {
+    // The real bug: mDNS threw at startup, the UI said nothing, and the user had
+    // no way to tell a dead stack from a quiet network.
+    const w = mountPanel(
+      { enabled: true, host: '0.0.0.0', port: 47474 },
+      { enabled: true, running: false, error: 'Dynamic require of "bonjour-service" is not supported', addresses: [], allInterfaces: true },
+    );
+    expect(w.find('.fcp-status-value').text()).toMatch(/failed/i);
+    expect(w.text()).toContain('bonjour-service');
   });
 
   it('status follows props.config (server-confirmed), NOT the local form — ticking the box does not flip status until props update', async () => {
@@ -76,8 +107,11 @@ describe('FederationConfigPanel.vue', () => {
 
     // Once the parent persists + re-fetches and passes the confirmed config down,
     // the status flips to Running.
-    await w.setProps({ config: { enabled: true, host: '0.0.0.0', port: 47474 } });
-    expect(w.find('.fcp-status-value').text()).toContain('0.0.0.0:47474');
+    await w.setProps({
+      config: { enabled: true, host: '0.0.0.0', port: 47474 },
+      status: { enabled: true, running: true, error: null, addresses: [], allInterfaces: true },
+    });
+    expect(w.find('.fcp-status-value').text()).toMatch(/running/i);
   });
 
   it('status reverts to Off if props.config stays disabled even when local host/port edited', async () => {

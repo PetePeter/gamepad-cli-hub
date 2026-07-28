@@ -12,14 +12,14 @@ import { mount, flushPromises } from '@vue/test-utils';
 
 // --- Fake IPC surface --------------------------------------------------------
 const state = {
-  federationEnabled: true,
+  fleetEnabled: true,
   peers: [] as any[],
   discovered: [] as any[],
   audit: [] as any[],
   fed: { enabled: true, host: '0.0.0.0', port: 47474 },
 };
 
-const peerFederationEnabled = vi.fn(async () => state.federationEnabled);
+const peerFleetEnabled = vi.fn(async () => state.fleetEnabled);
 const peerList = vi.fn(async () => state.peers);
 const peerListDiscovered = vi.fn(async () => state.discovered);
 const peerGetAudit = vi.fn(async () => state.audit);
@@ -29,8 +29,8 @@ const peerUnpair = vi.fn(async () => ({ ok: true }));
 const peerStartPairing = vi.fn(async () => ({ ok: true, sessionId: 's-1' }));
 const peerConfirmPairing = vi.fn(async () => ({ ok: true }));
 const peerCancelPairing = vi.fn(async () => ({ ok: true }));
-const configSetFederationConfig = vi.fn(async (updates: any) => { state.fed = { ...state.fed, ...updates }; return { success: true }; });
-const configGetFederationConfig = vi.fn(async () => ({ ...state.fed }));
+const configSetFleetConfig = vi.fn(async (updates: any) => { state.fed = { ...state.fed, ...updates }; return { success: true }; });
+const configGetFleetConfig = vi.fn(async () => ({ ...state.fed }));
 
 // Captured event callbacks so tests can drive events (composable subscribes once).
 const handlers: Record<string, ((data?: any) => void) | undefined> = {};
@@ -40,7 +40,7 @@ function capture(name: string) {
 
 vi.mock('../../../renderer/ipc/clients.js', () => ({
   peersClient: {
-    peerFederationEnabled: (...a: any[]) => peerFederationEnabled(...a),
+    peerFleetEnabled: (...a: any[]) => peerFleetEnabled(...a),
     peerList: (...a: any[]) => peerList(...a),
     peerListDiscovered: (...a: any[]) => peerListDiscovered(...a),
     peerGetAudit: (...a: any[]) => peerGetAudit(...a),
@@ -52,8 +52,8 @@ vi.mock('../../../renderer/ipc/clients.js', () => ({
     peerCancelPairing: (...a: any[]) => peerCancelPairing(...a),
   },
   configClient: {
-    configSetFederationConfig: (...a: any[]) => configSetFederationConfig(...a),
-    configGetFederationConfig: (...a: any[]) => configGetFederationConfig(...a),
+    configSetFleetConfig: (...a: any[]) => configSetFleetConfig(...a),
+    configGetFleetConfig: (...a: any[]) => configGetFleetConfig(...a),
   },
   eventsClient: {
     onPeerConfigChanged: capture('config'),
@@ -87,7 +87,7 @@ function onlinePeer(over: Partial<any> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   resetPeersStateForTesting();
-  state.federationEnabled = true;
+  state.fleetEnabled = true;
   state.peers = [];
   state.discovered = [];
   state.audit = [];
@@ -211,21 +211,21 @@ describe('PeersTab', () => {
     expect(peerUnpair).toHaveBeenCalledWith('p1');
   });
 
-  it('renders the FederationConfigPanel at the top of the tab', async () => {
+  it('renders the FleetConfigPanel at the top of the tab', async () => {
     const w = mount(PeersTab);
     await flushPromises();
-    expect(w.find('.federation-config-panel').exists()).toBe(true);
+    expect(w.find('.fleet-config-panel').exists()).toBe(true);
   });
 
-  it('toggling the panel enabled checkbox calls setFederationConfig({ enabled })', async () => {
+  it('toggling the panel enabled checkbox calls setFleetConfig({ enabled })', async () => {
     state.fed = { enabled: false, host: '0.0.0.0', port: 47474 };
-    state.federationEnabled = false;
+    state.fleetEnabled = false;
     const w = mount(PeersTab);
     await flushPromises();
 
-    const box = w.find('.federation-config-panel input[type="checkbox"]');
+    const box = w.find('.fleet-config-panel input[type="checkbox"]');
     await box.setValue(true);
     await flushPromises();
-    expect(configSetFederationConfig).toHaveBeenCalledWith({ enabled: true });
+    expect(configSetFleetConfig).toHaveBeenCalledWith({ enabled: true });
   });
 });

@@ -1,5 +1,5 @@
 /**
- * HelmPeerService — the LOCAL-side surface behind the three federation meta-tools
+ * HelmPeerService — the LOCAL-side surface behind the three fleet meta-tools
  * (peer_list / peer_tools / peer_call). It lets a local AI reach into a remote
  * peer's NATIVE tool vocabulary without exploding the tool catalogue: instead of
  * mirroring every remote tool as a namespaced local tool, the AI discovers peers
@@ -7,8 +7,8 @@
  * tool by its own name (`call`) with a verbatim-forwarded argument object.
  *
  * All three delegate to the PeerLinkManager (P-0646) which owns the authenticated
- * transport. The manager may be absent when federation is OFF (the default); in
- * that case every method surfaces a single clear "Federation is not enabled"
+ * transport. The manager may be absent when fleet is OFF (the default); in
+ * that case every method surfaces a single clear "Fleet is not enabled"
  * error rather than crashing.
  *
  * SECURITY — the authoritative gate is the REMOTE peer's InboundCallGate (it owns
@@ -43,8 +43,8 @@ export interface PeerSummary {
 export class HelmPeerService {
   /**
    * @param getManager Lazily resolves the live PeerLinkManager, or undefined when
-   *   federation is disabled. A getter (not a stored reference) so the manager can
-   *   be wired AFTER this service is constructed, once federation actually starts.
+   *   fleet is disabled. A getter (not a stored reference) so the manager can
+   *   be wired AFTER this service is constructed, once fleet actually starts.
    */
   constructor(private readonly getManager: () => PeerLinkManagerLike | undefined) {}
 
@@ -97,7 +97,7 @@ export class HelmPeerService {
   private requireManager(): PeerLinkManagerLike {
     const manager = this.getManager();
     if (!manager) {
-      throw new Error('Federation is not enabled');
+      throw new Error('Fleet is not enabled');
     }
     return manager;
   }

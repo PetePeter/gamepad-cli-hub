@@ -170,16 +170,16 @@ describe('HelmPeerService', () => {
     expect(mgr.calls).toHaveLength(0);
   });
 
-  it('federation OFF (no manager): list/tools/call all throw "Federation is not enabled"', async () => {
+  it('fleet OFF (no manager): list/tools/call all throw "Fleet is not enabled"', async () => {
     const svc = serviceWith(undefined);
-    expect(() => svc.list()).toThrow(/Federation is not enabled/);
-    await expect(svc.tools('mac')).rejects.toThrow(/Federation is not enabled/);
-    await expect(svc.call('mac', 'session_list', {})).rejects.toThrow(/Federation is not enabled/);
+    expect(() => svc.list()).toThrow(/Fleet is not enabled/);
+    await expect(svc.tools('mac')).rejects.toThrow(/Fleet is not enabled/);
+    await expect(svc.call('mac', 'session_list', {})).rejects.toThrow(/Fleet is not enabled/);
   });
 
-  it('CLEARING the manager (live disable) reverts to "Federation is not enabled" (P-0658)', async () => {
+  it('CLEARING the manager (live disable) reverts to "Fleet is not enabled" (P-0658)', async () => {
     // The getter mirrors HelmControlService.setPeerLinkManager(null) at runtime:
-    // a live manager, then cleared when federation is toggled OFF in-app.
+    // a live manager, then cleared when fleet is toggled OFF in-app.
     let manager: FakePeerLinkManager | null = new FakePeerLinkManager([
       { id: 'mac', alias: 'the Mac', direction: 'bidirectional', online: true },
     ]);
@@ -190,8 +190,8 @@ describe('HelmPeerService', () => {
 
     // Live disable clears the manager (null, as setPeerLinkManager(null) does).
     manager = null;
-    expect(() => svc.list()).toThrow(/Federation is not enabled/);
-    await expect(svc.tools('mac')).rejects.toThrow(/Federation is not enabled/);
-    await expect(svc.call('mac', 'session_list', {})).rejects.toThrow(/Federation is not enabled/);
+    expect(() => svc.list()).toThrow(/Fleet is not enabled/);
+    await expect(svc.tools('mac')).rejects.toThrow(/Fleet is not enabled/);
+    await expect(svc.call('mac', 'session_list', {})).rejects.toThrow(/Fleet is not enabled/);
   });
 });

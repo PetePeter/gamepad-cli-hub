@@ -7,9 +7,10 @@
 
 import { ipcMain, dialog, BrowserWindow } from 'electron';
 import { randomUUID } from 'node:crypto';
-import { type ConfigLoader, type PlanFilterConfig, type EditorPrefs, type FederationConfig } from '../../config/loader.js';
+import { type ConfigLoader, type PlanFilterConfig, type EditorPrefs, type FleetConfig } from '../../config/loader.js';
 import type { LocalhostMcpServer } from '../../mcp/localhost-mcp-server.js';
 import type { ProjectStore } from '../../session/project-store.js';
+import type { FleetStatus } from '../../mcp/peer/fleet-controller.js';
 import { normalizeProjectPath, dirDisplayNameFromPath } from '../../session/project-identity.js';
 import { logger } from '../../utils/logger.js';
 
@@ -17,7 +18,8 @@ export function setupConfigHandlers(
   configLoader: ConfigLoader,
   localhostMcpServer?: LocalhostMcpServer,
   projectStore?: ProjectStore,
-  applyFederationConfig?: (config: FederationConfig) => Promise<void>,
+  applyFleetConfig?: (config: FleetConfig) => Promise<void>,
+  getFleetStatus?: () => FleetStatus,
 ): void {
   ipcMain.handle('config:getAll', () => {
     try {
@@ -217,33 +219,51 @@ export function setupConfigHandlers(
     }
   });
 
-  ipcMain.handle('config:getFederationConfig', () => {
+  /**
+   * Live status, not just persisted config. The UI must be able to distinguish
+   * "running, nobody out there" from "the stack failed to start" — conflating
+   * those is what made the mDNS startup crash invisible for so long.
+   */
+  ipcMain.handle('config:getFleetStatus', () => {
+    const cfg = configLoader.getFleetConfig();
+    const fallback: FleetStatus = {
+      enabled: cfg.enabled, running: false, error: null, addresses: [], allInterfaces: false,
+    };
     try {
-      return configLoader.getFederationConfig();
+      return getFleetStatus ? getFleetStatus() : fallback;
     } catch (error) {
-      logger.error(`[IPC] Failed to get federation config: ${error}`);
+      logger.error(`[IPC] Failed to get fleet status: ${error}`);
+      return { ...fallback, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('config:getFleetConfig', () => {
+    try {
+      return configLoader.getFleetConfig();
+    } catch (error) {
+      logger.error(`[IPC] Failed to get fleet config: ${error}`);
       return { enabled: false, host: '0.0.0.0', port: 47474 };
     }
   });
 
   // Mirrors config:setMcpConfig exactly: persist first, then HOT-APPLY the live
-  // federation stack (start/stop/restart the transport + discovery) without an app
+  // fleet stack (start/stop/restart the transport + discovery) without an app
   // restart. Apply errors are logged + swallowed — the config WAS persisted, so we
   // still report success (identical to the MCP server contract).
-  ipcMain.handle('config:setFederationConfig', async (_event, updates: { enabled?: boolean; host?: string; port?: number }) => {
+  ipcMain.handle('config:setFleetConfig', async (_event, updates: { enabled?: boolean; host?: string; port?: number }) => {
     try {
-      configLoader.setFederationConfig(updates);
-      logger.info(`[IPC] Federation config updated: ${JSON.stringify(updates)}`);
-      if (applyFederationConfig) {
+      configLoader.setFleetConfig(updates);
+      logger.info(`[IPC] Fleet config updated: ${JSON.stringify(updates)}`);
+      if (applyFleetConfig) {
         try {
-          await applyFederationConfig(configLoader.getFederationConfig());
+          await applyFleetConfig(configLoader.getFleetConfig());
         } catch (applyErr) {
-          logger.warn(`[IPC] Federation hot-apply failed after config update: ${applyErr}`);
+          logger.warn(`[IPC] Fleet hot-apply failed after config update: ${applyErr}`);
         }
       }
       return { success: true };
     } catch (error) {
-      logger.error(`[IPC] Failed to set federation config: ${error}`);
+      logger.error(`[IPC] Failed to set fleet config: ${error}`);
       return { success: false, error: String(error) };
     }
   });

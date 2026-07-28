@@ -103,7 +103,7 @@ describe('peer-management handlers — setEnabled live-transport wiring', () => 
 });
 
 describe('peer-management handlers — live isEnabled() closure (P-0658)', () => {
-  it('peer:federationEnabled reflects the LIVE closure, re-evaluated per call', async () => {
+  it('peer:fleetEnabled reflects the LIVE closure, re-evaluated per call', async () => {
     handleCalls.clear();
     let enabled = false;
     setupPeerManagementHandlers({
@@ -115,11 +115,11 @@ describe('peer-management handlers — live isEnabled() closure (P-0658)', () =>
       getLinkManager: () => null,
     });
 
-    expect(await getHandler('peer:federationEnabled')()).toBe(false);
+    expect(await getHandler('peer:fleetEnabled')()).toBe(false);
     enabled = true;
-    expect(await getHandler('peer:federationEnabled')()).toBe(true);
+    expect(await getHandler('peer:fleetEnabled')()).toBe(true);
     enabled = false;
-    expect(await getHandler('peer:federationEnabled')()).toBe(false);
+    expect(await getHandler('peer:fleetEnabled')()).toBe(false);
   });
 
   it('peer:list returns [] while disabled and real peers once the closure flips on', async () => {

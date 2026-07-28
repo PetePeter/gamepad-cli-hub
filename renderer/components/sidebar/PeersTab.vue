@@ -1,35 +1,37 @@
 <script setup lang="ts">
 /**
- * PeersTab.vue — Settings → 🔗 Peers. The steady-state federation surface:
+ * PeersTab.vue — Settings → 🔗 Peers. The steady-state fleet surface:
  * paired peers (online dot, direction, enable toggle, allow-list editor, unpair),
  * a "Discover nearby" mDNS section with Pair buttons, and an Audit button that
  * opens the read-only PeerAuditModal. The SAS confirm dialog is mounted by the
  * app host and driven by the usePeers pairing state.
  *
- * Federation is OFF by default — when it is, we still render the structure with a
- * clear "federation is off" hint rather than a blank tab.
+ * Fleet is OFF by default — when it is, we still render the structure with a
+ * clear "fleet is off" hint rather than a blank tab.
  */
 import { computed, onMounted, ref } from 'vue';
-import { usePeers, type ConfiguredPeer, type DiscoveredPeer, type FederationConfig } from '../../composables/usePeers.js';
+import { usePeers, type ConfiguredPeer, type DiscoveredPeer, type FleetConfig } from '../../composables/usePeers.js';
 import { getPeerStatusColor } from '../../state-colors.js';
 import PeerAuditModal from '../modals/PeerAuditModal.vue';
-import FederationConfigPanel from './FederationConfigPanel.vue';
+import FleetConfigPanel from './FleetConfigPanel.vue';
 
 const {
-  federationEnabled,
-  federationConfig,
-  setFederationConfig,
+  fleetEnabled,
+  fleetConfig,
+  fleetStatus,
+  setFleetConfig,
   configuredPeers,
   discoveredPeers,
   ensureSubscribed,
   startPairing,
+  startPairingByAddress,
   setAllowList,
   setEnabled,
   unpair,
 } = usePeers();
 
-function onFederationUpdate(updates: Partial<FederationConfig>): void {
-  void setFederationConfig(updates);
+function onFleetUpdate(updates: Partial<FleetConfig>): void {
+  void setFleetConfig(updates);
 }
 
 /** Allow-list presets: a friendly name → the glob patterns it applies. */
@@ -41,6 +43,26 @@ const ALLOW_PRESETS: Array<{ label: string; globs: string[] }> = [
 
 const expandedPeerId = ref<string | null>(null);
 const auditVisible = ref(false);
+const manualAddress = ref('');
+
+/**
+ * What the discovery section is actually doing. An empty list is ambiguous —
+ * it can mean "scanning", "nothing out there", or "the stack is dead" — and
+ * showing the same "No nearby peers found" for all three is what hid a startup
+ * crash from view.
+ */
+const discoveryState = computed<'off' | 'error' | 'scanning' | 'found'>(() => {
+  if (!fleetEnabled.value) return 'off';
+  if (fleetStatus.value.error || !fleetStatus.value.running) return 'error';
+  return pairableDiscovered.value.length > 0 ? 'found' : 'scanning';
+});
+
+function onPairManual(): void {
+  const address = manualAddress.value.trim();
+  if (!address) return;
+  void startPairingByAddress(address);
+  manualAddress.value = '';
+}
 
 // Per-peer pending allow-list edits (draft glob being typed) + debounce timers.
 const newPattern = ref<Record<string, string>>({});
@@ -118,10 +140,10 @@ function applyPreset(peer: ConfiguredPeer, globs: string[]): void {
 
 <template>
   <div class="peers-tab">
-    <FederationConfigPanel :config="federationConfig" @update="onFederationUpdate" />
+    <FleetConfigPanel :config="fleetConfig" :status="fleetStatus" @update="onFleetUpdate" />
 
-    <div v-if="!federationEnabled" class="peers-off-hint">
-      Federation is off — enable it above to pair with other machines.
+    <div v-if="!fleetEnabled" class="peers-off-hint">
+      Fleet is off — enable it above to pair with other machines.
     </div>
 
     <div class="peers-section">
@@ -197,13 +219,43 @@ function applyPreset(peer: ConfiguredPeer, globs: string[]): void {
     </div>
 
     <div class="peers-section">
-      <h4 class="peers-section-title">Discover nearby</h4>
-      <div v-if="pairableDiscovered.length === 0" class="peers-empty">No nearby peers found.</div>
+      <div class="peers-section-head">
+        <h4 class="peers-section-title">Discover nearby</h4>
+        <span class="peers-discovery-state" :class="`peers-discovery-state--${discoveryState}`">
+          <template v-if="discoveryState === 'off'">not running</template>
+          <template v-else-if="discoveryState === 'error'">discovery not running</template>
+          <template v-else-if="discoveryState === 'scanning'">scanning…</template>
+          <template v-else>{{ pairableDiscovered.length }} found</template>
+        </span>
+      </div>
+
       <div v-for="peer in pairableDiscovered" :key="peer.machineId" class="peer-discovered-row">
         <span class="peer-alias">{{ peer.alias }}</span>
         <span class="peer-address">{{ peer.address }}</span>
         <span class="peer-spacer"></span>
         <button class="btn btn--primary btn--sm peer-pair-btn" type="button" @click="onPair(peer)">Pair</button>
+      </div>
+
+      <p v-if="discoveryState === 'scanning'" class="peers-empty">
+        Nothing found yet. Discovery does not cross subnets or Wi-Fi client isolation —
+        add the address directly below.
+      </p>
+
+      <div class="peer-manual">
+        <input
+          v-model="manualAddress"
+          type="text"
+          class="peer-add-input focusable"
+          placeholder="10.98.1.140:47474"
+          :disabled="!fleetEnabled"
+          @keydown.enter.prevent="onPairManual"
+        />
+        <button
+          class="btn btn--secondary btn--sm"
+          type="button"
+          :disabled="!fleetEnabled || !manualAddress.trim()"
+          @click="onPairManual"
+        >Pair by address</button>
       </div>
     </div>
 
@@ -213,10 +265,10 @@ function applyPreset(peer: ConfiguredPeer, globs: string[]): void {
 
 <style scoped>
 .peers-tab {
-  padding: 16px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
 }
 .peers-off-hint {
   padding: 10px 12px;
@@ -226,7 +278,7 @@ function applyPreset(peer: ConfiguredPeer, globs: string[]): void {
   color: var(--text-primary);
   font-size: 0.85rem;
 }
-.peers-section { display: flex; flex-direction: column; gap: 10px; }
+.peers-section { display: flex; flex-direction: column; gap: 8px; }
 .peers-section-head { display: flex; align-items: center; gap: 10px; }
 .peers-section-title { margin: 0; font-size: 0.95rem; color: var(--text-primary); }
 .peers-audit-btn { margin-left: auto; }
@@ -236,10 +288,10 @@ function applyPreset(peer: ConfiguredPeer, globs: string[]): void {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   background: var(--bg-primary);
-  padding: 10px 12px;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 .peer-row-main { display: flex; align-items: center; gap: 10px; }
 .peer-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
@@ -284,8 +336,16 @@ function applyPreset(peer: ConfiguredPeer, globs: string[]): void {
 .peer-discovered-row {
   display: flex; align-items: center; gap: 10px;
   border: 1px solid var(--border-color); border-radius: 8px;
-  background: var(--bg-primary); padding: 8px 12px;
+  background: var(--bg-primary); padding: 6px 10px;
 }
+.peers-discovery-state {
+  margin-left: auto;
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+}
+.peers-discovery-state--error { color: #ff6666; }
+.peers-discovery-state--found { color: #44cc44; }
+.peer-manual { display: flex; gap: 8px; align-items: center; }
 
 .btn {
   padding: 6px 12px; border-radius: 4px; border: 1px solid var(--border-color);

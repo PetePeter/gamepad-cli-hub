@@ -23,10 +23,11 @@ import type { AddressInfo } from 'node:net';
 import type { TLSSocket } from 'node:tls';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { logger } from '../../utils/logger.js';
-import { certFingerprint } from './peer-crypto.js';
+import { certFingerprint, peerCertFpFromSocket } from './peer-crypto.js';
 import type { PinnedCertStore } from './pinned-cert-store.js';
 import { runResponderHandshake } from './remote-link-handshake.js';
 import { PeerLink, type OnCall } from './peer-link.js';
+import { PairingSocket, PAIRING_PATH } from './pairing-socket.js';
 
 const EXPORTER_LABEL = 'EXPORTER-Helm-Peer-v1';
 const CHANNEL_BINDING_LEN = 32;
@@ -52,6 +53,12 @@ export interface RemoteLinkServerOptions {
    */
   onLink: (link: PeerLink, peerId: string, peerMachineId: string) => void;
   onCall: OnCall;
+  /**
+   * Called for an inbound connection on PAIRING_PATH. Such a socket carries ONLY
+   * the SAS pairing state machine — it never becomes a PeerLink and can invoke no
+   * tool. When unset, pairing connections are refused.
+   */
+  onPairingConnection?: (socket: PairingSocket) => void;
   authTimeoutMs?: number;
   peerLinkOptions?: { requestTimeoutMs?: number; heartbeatIntervalMs?: number; pongTimeoutMs?: number };
 }
@@ -113,7 +120,8 @@ export class RemoteLinkServer extends EventEmitter {
       const wss = new WebSocketServer({ server: https });
       wss.on('connection', (ws, request) => {
         const tls = request.socket as TLSSocket;
-        void this.acceptConnection(ws, tls);
+        if (isPairingRequest(request.url)) this.acceptPairing(ws, tls);
+        else void this.acceptConnection(ws, tls);
       });
       // Bind-phase error handling ONLY. A failed listen (e.g. EADDRINUSE) bound no
       // socket, so there is nothing to close — do NOT call https.close() here (that
@@ -175,10 +183,31 @@ export class RemoteLinkServer extends EventEmitter {
     });
   }
 
+  /**
+   * Inbound pairing connection: NO PSK handshake, because the PSK is what pairing
+   * is about to derive. Authenticity comes from the SAS the two users compare —
+   * the cert fingerprint read here is bound into that transcript.
+   */
+  private acceptPairing(ws: WebSocket, tls: TLSSocket): void {
+    if (!this.opts.onPairingConnection) {
+      try { ws.terminate(); } catch { /* */ }
+      logger.warn('[RemoteLinkServer] Pairing connection refused (no handler registered)');
+      return;
+    }
+    try {
+      const socket = new PairingSocket(ws, peerCertFpFromSocket(tls), tls.remoteAddress);
+      this.opts.onPairingConnection(socket);
+      logger.info('[RemoteLinkServer] Accepted inbound pairing connection');
+    } catch (err) {
+      try { ws.terminate(); } catch { /* */ }
+      logger.warn(`[RemoteLinkServer] Rejected pairing connection: ${(err as Error).message}`);
+    }
+  }
+
   private async acceptConnection(ws: WebSocket, tls: TLSSocket): Promise<void> {
     try {
       const channelBinding = deriveChannelBinding(tls);
-      const peerCertFp = readPeerCertFp(tls);
+      const peerCertFp = peerCertFpFromSocket(tls);
 
       const expectedPeerId = this.opts.resolveExpectedPeer?.(peerCertFp);
       const psk = this.opts.resolvePsk(expectedPeerId);
@@ -246,18 +275,9 @@ function deriveChannelBinding(tls: TLSSocket): Buffer {
   return cb;
 }
 
-/** SHA-256 fingerprint of the peer's leaf cert DER, in certFingerprint format. */
-function readPeerCertFp(tls: TLSSocket): string {
-  const peerCert = tls.getPeerCertificate(true);
-  if (!peerCert || !peerCert.raw || peerCert.raw.length === 0) {
-    throw new Error('peer presented no certificate');
-  }
-  const pem = derToPem(peerCert.raw);
-  return certFingerprint(pem);
-}
-
-/** Wrap raw DER cert bytes as a PEM so certFingerprint (X509Certificate) parses it. */
-function derToPem(der: Buffer): string {
-  const b64 = der.toString('base64').replace(/(.{64})/g, '$1\n');
-  return `-----BEGIN CERTIFICATE-----\n${b64}\n-----END CERTIFICATE-----\n`;
+/** True when the upgrade request targets the pairing endpoint. */
+function isPairingRequest(url: string | undefined): boolean {
+  if (!url) return false;
+  const path = url.split('?')[0];
+  return path === PAIRING_PATH || path === `${PAIRING_PATH}/`;
 }

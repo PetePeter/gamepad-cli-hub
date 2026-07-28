@@ -1,11 +1,11 @@
 /**
- * federation-startup — the THIN wiring that stands up the cross-machine peer
- * transport (P-0646) when, and only when, federation is enabled in settings.
+ * fleet-startup — the THIN wiring that stands up the cross-machine peer
+ * transport (P-0646) when, and only when, fleet is enabled in settings.
  *
  * This is deliberately covered by the deferred manual app-run plan rather than
  * unit tests: it is pure glue. It constructs the machine identity + self-signed
  * cert (P-0645 primitives), hydrates the pinned-cert + secret stores from disk,
- * and hands a PeerLinkManager the callbacks it needs. When federation is
+ * and hands a PeerLinkManager the callbacks it needs. When fleet is
  * disabled (the default) this function returns null and binds NO port — the
  * localhost 127.0.0.1 MCP server is entirely untouched either way.
  */
@@ -18,8 +18,9 @@ import { SecretStore } from './secret-store.js';
 import { PeerLinkManager } from './peer-link-manager.js';
 import { loadPeerPins, savePeerPins, loadPeerSecrets, savePeerSecrets } from './peer-secret-persistence.js';
 import type { OnCall } from './peer-link.js';
+import type { PairingSocket } from './pairing-socket.js';
 
-export interface FederationConfigInput {
+export interface FleetConfigInput {
   enabled: boolean;
   host: string;
   port: number;
@@ -30,13 +31,14 @@ export interface FederationConfigInput {
  * later stop()) or null when disabled. `onCall` is the inbound-call sink (the
  * abstract dispatcher; the concrete tool-invocation wiring lands in P-0647/8).
  */
-export async function startFederationIfEnabled(
-  config: FederationConfigInput,
+export async function startFleetIfEnabled(
+  config: FleetConfigInput,
   onCall: OnCall,
   stores?: { pinnedCertStore?: PinnedCertStore; secretStore?: SecretStore },
+  onPairingConnection?: (socket: PairingSocket) => void,
 ): Promise<PeerLinkManager | null> {
   if (!config.enabled) {
-    logger.info('[federation] Disabled — binding no peer listener');
+    logger.info('[fleet] Disabled — binding no peer listener');
     return null;
   }
 
@@ -68,9 +70,10 @@ export async function startFederationIfEnabled(
     getCertKey: async () => ({ certPem: cert.certPem, keyPem: cert.privateKeyPem }),
     pinnedCertStore,
     onCall,
+    onPairingConnection,
   });
   await manager.start();
-  logger.info(`[federation] Peer transport listening on ${config.host}:${config.port}`);
+  logger.info(`[fleet] Peer transport listening on ${config.host}:${config.port}`);
   return manager;
 }
 

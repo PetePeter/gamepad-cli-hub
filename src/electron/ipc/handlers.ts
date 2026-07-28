@@ -69,8 +69,8 @@ import { PeerConfigManager } from '../../session/peer-config-manager.js';
 import { loadPeers, savePeers } from '../../session/peer-config-persistence.js';
 import { setupPairingHandlers } from './pairing-handlers.js';
 import { setupPeerManagementHandlers } from './peer-management-handlers.js';
-import { FederationController } from '../../mcp/peer/federation-controller.js';
-import type { FederationConfig } from '../../config/loader.js';
+import { FleetController } from '../../mcp/peer/fleet-controller.js';
+import type { FleetConfig } from '../../config/loader.js';
 import { PinnedCertStore } from '../../mcp/peer/pinned-cert-store.js';
 import { SecretStore } from '../../mcp/peer/secret-store.js';
 import { loadPeerPins, savePeerPins, loadPeerSecrets, savePeerSecrets } from '../../mcp/peer/peer-secret-persistence.js';
@@ -79,6 +79,7 @@ import { PromptTemplateManager } from '../../session/prompt-template-manager.js'
 import { loadPromptTemplates } from '../../session/prompt-template-persistence.js';
 import { getConfigDir } from '../../utils/app-paths.js';
 import { join } from 'node:path';
+import { hostname } from 'node:os';
 
 const TELEGRAM_AUTOSTART_DELAY_MS = 60_000;
 // On restart the previous instance may still be releasing the fixed MCP port.
@@ -229,14 +230,20 @@ export function registerIPCHandlers(
   );
 
   const cleanupSession = setupSessionHandlers(sessionManager, ptyManager, draftManager, windowManager, configLoader);
-  // Forward-declared so config:setFederationConfig can hot-apply the live federation
+  // Forward-declared so config:setFleetConfig can hot-apply the live fleet
   // stack (constructed below, ~line 460). The closure is only invoked at runtime on
   // a user config change, long after the controller exists.
-  let federationController: FederationController | undefined;
-  const applyFederationConfig = async (_cfg: FederationConfig): Promise<void> => {
-    await federationController?.applyConfig();
+  let fleetController: FleetController | undefined;
+  const applyFleetConfig = async (_cfg: FleetConfig): Promise<void> => {
+    await fleetController?.applyConfig();
   };
-  setupConfigHandlers(configLoader, localhostMcpServer, projectStore, applyFederationConfig);
+  setupConfigHandlers(
+    configLoader,
+    localhostMcpServer,
+    projectStore,
+    applyFleetConfig,
+    () => fleetController!.status(),
+  );
   setupEditorHandlers(configLoader);
   setupToolsHandlers(configLoader);
   setupKeyboardHandlers(keyboard);
@@ -425,7 +432,7 @@ export function registerIPCHandlers(
     : null;
   if (!mcpStartTimer) startMcpServer();
 
-  // Cross-machine federation (P-0646) — SEPARATE listener from the 127.0.0.1 MCP
+  // Cross-machine fleet (P-0646) — SEPARATE listener from the 127.0.0.1 MCP
   // server, OFF by default. When disabled this binds nothing. The inbound-call
   // sink is the InboundCallGate (P-0647): allow-list + hard-deny + rate-limit,
   // then dispatch through the EXISTING callMcpTool under a synthetic PROXY
@@ -452,7 +459,7 @@ export function registerIPCHandlers(
     audit: peerAuditLog,
   });
 
-  // In-app federation toggle (P-0658): ONE controller owns the LIVE transport +
+  // In-app fleet toggle (P-0658): ONE controller owns the LIVE transport +
   // discovery and starts/stops them on config change — no app restart, mirroring
   // LocalhostMcpServer.applyConfig. The shared trust stores are reused across every
   // toggle so pins/secrets/peers persist. The IPC handlers below register EXACTLY
@@ -463,34 +470,36 @@ export function registerIPCHandlers(
       if (!win.isDestroyed()) win.webContents.send(channel, payload);
     }
   };
-  federationController = new FederationController({
-    getConfig: () => configLoader.getFederationConfig(),
+  fleetController = new FleetController({
+    getConfig: () => configLoader.getFleetConfig(),
     onCall: (peerId, method, params) => inboundGate.handle(peerId, method, params),
     pinnedCertStore,
     secretStore,
     peerConfigManager,
     setLinkManager: (mgr) => helmControlService.setPeerLinkManager(mgr),
-    alias: 'Helm',
+    // The machine's own hostname — two Helms both advertising "Helm" is useless
+    // in a pick-your-peer list.
+    alias: hostname(),
     broadcast: broadcastToRenderers,
   });
 
   // Pairing IPC (4 channels) — registered once, delegating to the controller's live
-  // pairing runtime; returns an inert result when federation is off.
+  // pairing runtime; returns an inert result when fleet is off.
   const disposePairing = setupPairingHandlers({
-    getPairingRuntime: () => federationController!.currentPairingRuntime(),
+    getPairingRuntime: () => fleetController!.currentPairingRuntime(),
   });
   // Peer-management IPC — registered once, reading live isEnabled()/getLinkManager().
   const disposePeerManagement = setupPeerManagementHandlers({
-    isEnabled: () => configLoader.getFederationConfig().enabled,
+    isEnabled: () => configLoader.getFleetConfig().enabled,
     peerConfigManager,
     pinnedCertStore,
     secretStore,
     audit: peerAuditLog,
-    getLinkManager: () => federationController!.currentLinkManager(),
+    getLinkManager: () => fleetController!.currentLinkManager(),
   });
   // Apply the persisted config now (starts the stack iff enabled).
-  void federationController.start()
-    .catch((err) => logger.error(`[federation] Failed to start peer transport: ${err}`));
+  void fleetController.start()
+    .catch((err) => logger.error(`[fleet] Failed to start peer transport: ${err}`));
 
   return {
     cleanup: async () => {
@@ -512,7 +521,7 @@ export function registerIPCHandlers(
       await localhostMcpServer.close();
       disposePairing();
       disposePeerManagement();
-      await federationController?.stop();
+      await fleetController?.stop();
       logger.info('[IPC] Cleanup complete');
     },
     sessionManager,

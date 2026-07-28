@@ -13,6 +13,7 @@
  */
 
 import { EventEmitter } from 'node:events';
+import { Bonjour } from 'bonjour-service';
 import { logger } from '../../utils/logger.js';
 
 /** The mDNS service type Helm advertises/browses. */
@@ -152,10 +153,12 @@ function readTxtMachineId(service: unknown): string {
   return txt && typeof txt.machineId === 'string' ? txt.machineId : '';
 }
 
-/** Lazily construct the real bonjour-service backend (kept out of tests). */
+/**
+ * Construct the real bonjour-service backend (tests inject a fake instead).
+ * Imported STATICALLY: the main process is bundled as ESM, where esbuild rewrites
+ * a bare CommonJS import into a shim that throws at runtime. bonjour-service is pure JS
+ * (no native build), so a static import is safe on Windows, macOS and Linux alike.
+ */
 function defaultBackendFactory(): BonjourBackend {
-  // Deferred require so the native-free pure-JS module isn't loaded in unit tests
-  // that inject a fake, and so import cost is paid only when discovery is used.
-  const { Bonjour } = require('bonjour-service');
   return new Bonjour() as unknown as BonjourBackend;
 }
