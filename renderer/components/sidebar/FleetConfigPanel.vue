@@ -1,9 +1,14 @@
 <script setup lang="ts">
 /**
  * FleetConfigPanel.vue — in-app cross-machine fleet config (P-0658).
- * Mirrors McpTab's connection panel: an enabled checkbox, host + port inputs, and
- * a status line. Emits `update` with a partial on each change; the parent persists
- * + hot-applies (no app restart). Port is normalised to the default when invalid.
+ * An enabled checkbox, a port, and live status. Emits `update` with a partial on
+ * each change; the parent persists + hot-applies (no app restart). Port is
+ * normalised to the default when invalid.
+ *
+ * There is deliberately NO host input: the bind host is a wildcard in every real
+ * deployment, and the status line already shows the concrete addresses a peer
+ * must dial — which is the only thing a user can act on. The value is still
+ * honoured from settings.yaml for anyone who needs to pin one interface.
  */
 import { ref, watch, computed } from 'vue';
 
@@ -13,7 +18,6 @@ export interface FleetConfig {
   port: number;
 }
 
-const DEFAULT_HOST = '0.0.0.0';
 const DEFAULT_PORT = 47474;
 
 export interface FleetStatus {
@@ -28,23 +32,15 @@ const props = defineProps<{ config: FleetConfig; status?: FleetStatus }>();
 const emit = defineEmits<{ update: [updates: Partial<FleetConfig>] }>();
 
 const localEnabled = ref(props.config.enabled);
-const localHost = ref(props.config.host);
 const localPort = ref(props.config.port);
 
 watch(() => props.config, (c) => {
   localEnabled.value = c.enabled;
-  localHost.value = c.host;
   localPort.value = c.port;
 });
 
 function onToggleEnabled(): void {
   emit('update', { enabled: localEnabled.value });
-}
-
-function commitHost(): void {
-  const host = (localHost.value ?? '').trim() || DEFAULT_HOST;
-  localHost.value = host;
-  emit('update', { host });
 }
 
 function commitPort(): void {
@@ -106,17 +102,6 @@ async function copyAddress(address: string): Promise<void> {
         />
       </div>
       <div class="tg-form-row">
-        <label class="tg-label">Host</label>
-        <input
-          v-model="localHost"
-          type="text"
-          class="fcp-input focusable"
-          placeholder="0.0.0.0"
-          @change="commitHost"
-          @blur="commitHost"
-        />
-      </div>
-      <div class="tg-form-row">
         <label class="tg-label">Port</label>
         <input
           v-model.number="localPort"
@@ -166,20 +151,20 @@ async function copyAddress(address: string): Promise<void> {
 .fleet-config-panel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 .tg-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px;
+  gap: 6px;
+  padding: 8px 10px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   background: var(--bg-primary);
 }
 .tg-section-title {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   color: var(--text-primary);
 }
 .tg-form-row {
@@ -205,7 +190,6 @@ async function copyAddress(address: string): Promise<void> {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-top: 4px;
 }
 .fcp-status-label {
   font-size: 0.8rem;

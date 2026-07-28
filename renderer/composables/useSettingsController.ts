@@ -236,7 +236,7 @@ export function useSettingsController(options: {
       { id: 'telegram', label: '📨 Telegram' },
       { id: 'backups', label: '💾 Backups' },
       { id: 'mcp', label: '🧩 MCP' },
-      { id: 'peers', label: '🔗 Peers' },
+      { id: 'peers', label: '🔗 Fleet' },
     ];
   }
 

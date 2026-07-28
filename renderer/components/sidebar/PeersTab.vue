@@ -265,35 +265,35 @@ function applyPreset(peer: ConfiguredPeer, globs: string[]): void {
 
 <style scoped>
 .peers-tab {
-  padding: 10px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 .peers-off-hint {
-  padding: 10px 12px;
+  padding: 6px 8px;
   background: rgba(255,159,26,0.12);
   border: 1px solid rgba(255,159,26,0.4);
   border-radius: 6px;
   color: var(--text-primary);
   font-size: 0.85rem;
 }
-.peers-section { display: flex; flex-direction: column; gap: 8px; }
-.peers-section-head { display: flex; align-items: center; gap: 10px; }
-.peers-section-title { margin: 0; font-size: 0.95rem; color: var(--text-primary); }
+.peers-section { display: flex; flex-direction: column; gap: 6px; }
+.peers-section-head { display: flex; align-items: center; gap: 8px; }
+.peers-section-title { margin: 0; font-size: 0.88rem; color: var(--text-primary); }
 .peers-audit-btn { margin-left: auto; }
-.peers-empty { color: var(--text-secondary); font-size: 0.85rem; }
+.peers-empty { margin: 0; color: var(--text-secondary); font-size: 0.78rem; line-height: 1.35; }
 
 .peer-row {
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--bg-primary);
-  padding: 8px 10px;
+  padding: 6px 8px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
-.peer-row-main { display: flex; align-items: center; gap: 10px; }
+.peer-row-main { display: flex; align-items: center; gap: 8px; }
 .peer-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .peer-alias { font-weight: 600; font-size: 0.9rem; color: var(--text-primary); }
 .peer-direction { font-size: 0.76rem; color: var(--text-secondary); }
@@ -306,10 +306,10 @@ function applyPreset(peer: ConfiguredPeer, globs: string[]): void {
 
 .peer-allow-editor {
   border-top: 1px solid var(--border-color);
-  padding-top: 10px;
+  padding-top: 8px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 .peer-presets { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .peer-presets-label { font-size: 0.78rem; color: var(--text-secondary); }
@@ -334,9 +334,9 @@ function applyPreset(peer: ConfiguredPeer, globs: string[]): void {
 }
 
 .peer-discovered-row {
-  display: flex; align-items: center; gap: 10px;
-  border: 1px solid var(--border-color); border-radius: 8px;
-  background: var(--bg-primary); padding: 6px 10px;
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--border-color); border-radius: 6px;
+  background: var(--bg-primary); padding: 5px 8px;
 }
 .peers-discovery-state {
   margin-left: auto;

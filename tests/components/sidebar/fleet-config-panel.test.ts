@@ -30,11 +30,18 @@ function mountPanel(
 }
 
 describe('FleetConfigPanel.vue', () => {
-  it('renders the enabled checkbox, host and port inputs from props', () => {
+  it('renders the enabled checkbox and port from props', () => {
     const w = mountPanel({ enabled: true, host: '127.0.0.1', port: 50000 });
     expect((w.find('input[type="checkbox"]').element as HTMLInputElement).checked).toBe(true);
-    expect((w.find('input[type="text"]').element as HTMLInputElement).value).toBe('127.0.0.1');
     expect((w.find('input[type="number"]').element as HTMLInputElement).value).toBe('50000');
+  });
+
+  it('offers no host input — the status line already shows the usable addresses', () => {
+    // A wildcard bind is right in every real deployment, and the address a peer
+    // must dial is the only actionable fact; a host box just adds a way to get
+    // it wrong. settings.yaml still honours the value for pinning an interface.
+    const w = mountPanel({ enabled: true, host: '0.0.0.0', port: 47474 });
+    expect(w.find('input[type="text"]').exists()).toBe(false);
   });
 
   it('emits { enabled } when the checkbox is toggled', async () => {
@@ -42,14 +49,6 @@ describe('FleetConfigPanel.vue', () => {
     const box = w.find('input[type="checkbox"]');
     await box.setValue(true);
     expect(w.emitted('update')).toContainEqual([{ enabled: true }]);
-  });
-
-  it('emits { host } on host change (trimmed)', async () => {
-    const w = mountPanel();
-    const host = w.find('input[type="text"]');
-    await host.setValue('  192.168.1.5 ');
-    await host.trigger('change');
-    expect(w.emitted('update')).toContainEqual([{ host: '192.168.1.5' }]);
   });
 
   it('emits { port } on port change, normalising an out-of-range value to the default', async () => {
@@ -114,12 +113,12 @@ describe('FleetConfigPanel.vue', () => {
     expect(w.find('.fcp-status-value').text()).toMatch(/running/i);
   });
 
-  it('status reverts to Off if props.config stays disabled even when local host/port edited', async () => {
+  it('status reverts to Off if props.config stays disabled even when the port is edited', async () => {
     const w = mountPanel({ enabled: false, host: '0.0.0.0', port: 47474 });
-    const host = w.find('input[type="text"]');
-    await host.setValue('192.168.1.9');
-    await host.trigger('change');
-    // Local host changed, but props.config.enabled is false → status stays Off.
+    const port = w.find('input[type="number"]');
+    await port.setValue('50001');
+    await port.trigger('change');
+    // Local port changed, but props.config.enabled is false → status stays Off.
     expect(w.find('.fcp-status-value').text()).toMatch(/off/i);
   });
 });

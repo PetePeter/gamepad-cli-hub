@@ -65,6 +65,13 @@ export interface FleetStatus {
 
 const DEFAULT_FLEET_CONFIG: FleetConfig = { enabled: false, host: '0.0.0.0', port: 47474 };
 
+/**
+ * How long the "Paired successfully" confirmation stays up before the dialog
+ * closes itself. Long enough to register that it worked, short enough that the
+ * user never has to dismiss a dialog whose decision has already been made.
+ */
+export const PAIRED_DISMISS_MS = 1500;
+
 const fleetEnabled = ref(false);
 const fleetConfig = ref<FleetConfig>({ ...DEFAULT_FLEET_CONFIG });
 const configuredPeers = ref<ConfiguredPeer[]>([]);
@@ -74,6 +81,27 @@ const pairing = ref<PairingState>(emptyPairing());
 const fleetStatus = ref<FleetStatus>({ enabled: false, running: false, error: null, addresses: [], allInterfaces: false });
 
 let subscribed = false;
+/** Pending auto-dismiss for a completed pairing (see PAIRED_DISMISS_MS). */
+let dismissTimer: ReturnType<typeof setTimeout> | null = null;
+
+function cancelDismiss(): void {
+  if (dismissTimer !== null) {
+    clearTimeout(dismissTimer);
+    dismissTimer = null;
+  }
+}
+
+/**
+ * Close the dialog shortly after a successful pairing. Guarded on sessionId so a
+ * pairing started during the delay is never closed by the previous one's timer.
+ */
+function scheduleDismiss(sessionId: string | null): void {
+  cancelDismiss();
+  dismissTimer = setTimeout(() => {
+    dismissTimer = null;
+    if (pairing.value.sessionId === sessionId) closePairing();
+  }, PAIRED_DISMISS_MS);
+}
 
 function emptyPairing(): PairingState {
   return { active: false, sessionId: null, sas: null, status: 'idle', error: null, peerAlias: null, incoming: false };
@@ -170,7 +198,10 @@ function ensureSubscribed(): void {
   });
   eventsClient.onPeerPaired?.(({ sessionId }) => {
     if (pairing.value.sessionId && pairing.value.sessionId !== sessionId) return;
-    pairing.value = { ...pairing.value, status: 'paired' };
+    // Drop the SAS: the decision is made, and leaving the digits up invites the
+    // user to keep comparing a code that no longer means anything.
+    pairing.value = { ...pairing.value, sessionId, sas: null, status: 'paired' };
+    scheduleDismiss(sessionId);
     void refresh();
   });
   eventsClient.onPeerFailed?.(({ sessionId, reason }) => {
@@ -197,6 +228,7 @@ async function beginPairing(
   label: string,
   start: () => Promise<{ ok: boolean; sessionId?: string; reason?: string } | undefined>,
 ): Promise<void> {
+  cancelDismiss();
   pairing.value = { active: true, sessionId: null, sas: null, status: 'starting', error: null, peerAlias: label, incoming: false };
   try {
     const result = await start();
@@ -228,6 +260,7 @@ async function cancelPairing(): Promise<void> {
 }
 
 function closePairing(): void {
+  cancelDismiss();
   pairing.value = emptyPairing();
 }
 
@@ -263,6 +296,7 @@ async function unpair(peerId: string): Promise<void> {
  * to persist for the app's lifetime.
  */
 export function resetPeersStateForTesting(): void {
+  cancelDismiss();
   subscribed = false;
   fleetStatus.value = { enabled: false, running: false, error: null, addresses: [], allInterfaces: false };
   fleetEnabled.value = false;

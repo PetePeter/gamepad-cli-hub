@@ -98,25 +98,27 @@ defineExpose({ handleButton });
         </div>
 
         <div class="pp-body">
-          <p class="pp-instruction">
+          <p v-if="status !== 'paired'" class="pp-instruction">
             Do these codes match on <strong>both</strong> machines?
           </p>
           <p v-if="incoming" class="pp-instruction pp-instruction--incoming">
             This request came from another machine. Only confirm if you started it there.
           </p>
 
-          <div v-if="canConfirm || sas" class="pp-sas" aria-label="Short authentication string">
-            <span v-for="(cell, i) in sasCells" :key="i" class="pp-sas-cell">{{ cell }}</span>
-          </div>
-          <div v-else class="pp-waiting">Waiting for the pairing code…</div>
+          <template v-if="status !== 'paired'">
+            <div v-if="canConfirm || sas" class="pp-sas" aria-label="Short authentication string">
+              <span v-for="(cell, i) in sasCells" :key="i" class="pp-sas-cell">{{ cell }}</span>
+            </div>
+            <div v-else class="pp-waiting">Waiting for the pairing code…</div>
 
-          <p class="pp-timebox">This request expires after about 3 minutes.</p>
+            <p class="pp-timebox">This request expires after about 3 minutes.</p>
+          </template>
 
           <p v-if="status === 'failed' && errorMessage" class="pp-error">{{ errorMessage }}</p>
           <p v-else-if="status === 'paired'" class="pp-success">Paired successfully.</p>
         </div>
 
-        <div class="pp-footer">
+        <div v-if="status !== 'paired'" class="pp-footer">
           <button
             class="btn btn--primary pp-confirm"
             type="button"
