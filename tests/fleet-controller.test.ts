@@ -14,6 +14,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { FleetController } from '../src/mcp/peer/fleet-controller.js';
+import { PeerConfigManager } from '../src/session/peer-config-manager.js';
 
 interface FakeManager {
   id: number;
@@ -86,7 +87,7 @@ describe('FleetController', () => {
       onCall: async () => ({ ok: true }),
       pinnedCertStore: {} as never,
       secretStore: {} as never,
-      peerConfigManager: {} as never,
+      peerConfigManager: new PeerConfigManager(),
       setLinkManager: (mgr) => { linkSink.push(mgr as FakeManager | null); },
       startTransport: startTransport as never,
       makeDiscovery: makeDiscovery as never,
@@ -259,5 +260,55 @@ describe('FleetController', () => {
     expect(controller.currentLinkManager()).toBeNull();
     expect(controller.isRunning()).toBe(false);
     expect(linkSink.at(-1)).toBeNull();
+  });
+});
+
+/**
+ * Runtime peer reconciliation. A successful SAS pairing writes the new peer into
+ * the PeerConfigManager — but nothing dialled it, so a freshly-paired fleet stayed
+ * "offline" until the app was restarted. The controller now reconciles the live
+ * transport against the registry on every 'peer-config:changed', which covers
+ * pairing, a manual edit, and a discovered address change through ONE path.
+ */
+describe('FleetController peer reconciliation', () => {
+  function setup() {
+    const cfg = { enabled: true, host: '0.0.0.0', port: 47474 };
+    const syncPeers = vi.fn();
+    const peerConfigManager = new PeerConfigManager();
+    const controller = new FleetController({
+      getConfig: () => cfg,
+      onCall: async () => ({ ok: true }),
+      pinnedCertStore: {} as never,
+      secretStore: {} as never,
+      peerConfigManager,
+      setLinkManager: () => { /* not under test */ },
+      startTransport: (async () => ({ stop: async () => { /* */ }, syncPeers })) as never,
+      makeDiscovery: (() => null) as never,
+    });
+    return { controller, peerConfigManager, syncPeers };
+  }
+
+  it('re-syncs the live transport when a pairing writes a peer into the registry', async () => {
+    const { controller, peerConfigManager, syncPeers } = setup();
+    await controller.applyConfig();
+    expect(syncPeers).not.toHaveBeenCalled();
+
+    // What PeerPairing.tryFinalize() does on a successful SAS.
+    peerConfigManager.upsertByMachineId({
+      machineId: 'MID-REMOTE', alias: 'the Mac', address: '10.0.0.2:47474',
+      pskRef: 'peer-MID-REMOTE', allow: [], direction: 'bidirectional',
+    });
+
+    expect(syncPeers).toHaveBeenCalledTimes(1);
+    await controller.stop();
+  });
+
+  it('stops re-syncing once torn down, so a stopped transport is never touched', async () => {
+    const { controller, peerConfigManager, syncPeers } = setup();
+    await controller.applyConfig();
+    await controller.stop();
+
+    expect(() => peerConfigManager.add({ alias: 'x', address: 'h:1', pskRef: 'r' })).not.toThrow();
+    expect(syncPeers).not.toHaveBeenCalled();
   });
 });

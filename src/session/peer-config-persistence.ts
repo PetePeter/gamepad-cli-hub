@@ -12,9 +12,8 @@ import * as YAML from 'yaml';
 import { logger } from '../utils/logger.js';
 import type { PeerConfig } from '../types/peer.js';
 import { PEERS_FILE } from './persistence-paths.js';
-import { atomicWriteFileSync, isRecord, isAnyString } from './persistence-utils.js';
-
-const DIRECTIONS = new Set(['inbound', 'outbound', 'bidirectional']);
+import { atomicWriteFileSync, isRecord } from './persistence-utils.js';
+import { sanitizePeers } from './peer-sanitize.js';
 
 export function savePeers(peers: PeerConfig[]): void {
   try {
@@ -28,24 +27,8 @@ export function loadPeers(): PeerConfig[] {
   try {
     if (!existsSync(PEERS_FILE)) return [];
     const parsed = YAML.parse(readFileSync(PEERS_FILE, 'utf8')) as unknown;
-    if (!isRecord(parsed) || !Array.isArray(parsed.peers)) return [];
-
-    return parsed.peers
-      .filter((p): p is Record<string, unknown> =>
-        isRecord(p) &&
-        isAnyString(p.id) && (p.id as string).length > 0 &&
-        isAnyString(p.alias) &&
-        isAnyString(p.address) &&
-        typeof p.direction === 'string' && DIRECTIONS.has(p.direction))
-      .map((p): PeerConfig => ({
-        id: p.id as string,
-        alias: p.alias as string,
-        address: p.address as string,
-        pskRef: isAnyString(p.pskRef) ? p.pskRef : '',
-        allow: Array.isArray(p.allow) ? p.allow.filter(isAnyString) : [],
-        direction: p.direction as PeerConfig['direction'],
-        createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
-      }));
+    if (!isRecord(parsed)) return [];
+    return sanitizePeers(parsed.peers);
   } catch (err) {
     logger.error(`Failed to load peers: ${err}`);
     return [];

@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as YAML from 'yaml';
 import { PeerConfigManager } from '../src/session/peer-config-manager.js';
+import { sanitizePeers } from '../src/session/peer-sanitize.js';
 import type { PeerConfig } from '../src/types/peer.js';
 
 vi.mock('../src/utils/logger.js', () => ({
@@ -302,20 +303,23 @@ describe('PeerConfigManager', () => {
 });
 
 describe('peer-config-persistence (real temp-file round trip)', () => {
-  it('save then load returns equal peers', async () => {
+  it('save then load preserves machineId and enabled through the real loader guards', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'helm-peers-'));
     const file = join(dir, 'peers.yaml');
     try {
       const peers: PeerConfig[] = [{
         id: 'p1', alias: 'the Mac', address: 'h:1', pskRef: 'ref',
         allow: ['session_*'], direction: 'bidirectional', createdAt: 100,
+        machineId: 'MID-REMOTE', enabled: false,
       }];
-      // Write via the same YAML shape savePeers uses, then parse back through
-      // the same guards. We validate the shape contract here without redirecting
-      // the module constant.
+      // Write the exact YAML shape savePeers uses, then read it back through the
+      // loader's OWN sanitizer. Asserting only the YAML round-trip (as this test
+      // once did) cannot see the loader silently dropping a field: it dropped
+      // machineId, so after a restart a paired peer could no longer be found by
+      // machineId and re-pairing forked a duplicate entry with orphaned secrets.
       writeFileSync(file, YAML.stringify({ peers }), 'utf8');
-      const parsed = YAML.parse(readFileSync(file, 'utf8')) as { peers: PeerConfig[] };
-      expect(parsed.peers).toEqual(peers);
+      const parsed = YAML.parse(readFileSync(file, 'utf8')) as unknown;
+      expect(sanitizePeers((parsed as { peers: unknown[] }).peers)).toEqual(peers);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

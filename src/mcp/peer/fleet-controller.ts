@@ -30,6 +30,7 @@ import {
 } from './pairing-socket.js';
 import { startFleetIfEnabled } from './fleet-startup.js';
 import { reachableAddresses } from './reachable-addresses.js';
+import { normalizePeerAddress, planAddressRefresh } from './peer-address.js';
 import type { PinnedCertStore } from './pinned-cert-store.js';
 import type { SecretStore } from './secret-store.js';
 import type { PeerConfigManager } from '../../session/peer-config-manager.js';
@@ -168,12 +169,21 @@ export class FleetController {
     );
     this.deps.setLinkManager(this.currentManager);
 
+    // A successful SAS pairing writes the new peer into the registry — but nothing
+    // dialled it, so a freshly-paired fleet sat at "offline" until the app was
+    // restarted. Reconciling on 'peer-config:changed' covers pairing, a manual
+    // edit, and a discovered address change through ONE path.
+    this.deps.peerConfigManager.on('peer-config:changed', this.onPeerConfigChanged);
+
     this.currentDiscovery?.start();
     logger.info(`[fleet] Started transport + discovery on ${cfg.host}:${cfg.port}`);
   }
 
   /** Stop the live transport + discovery and clear the link wiring. */
   private async teardown(): Promise<void> {
+    // Unsubscribe FIRST: a registry write during teardown must not reach a
+    // transport that is already closing.
+    this.deps.peerConfigManager.off('peer-config:changed', this.onPeerConfigChanged);
     if (this.currentDiscovery) {
       try { this.currentDiscovery.stop(); } catch (err) { logger.warn(`[fleet] discovery stop failed: ${err}`); }
       this.currentDiscovery = null;
@@ -189,6 +199,27 @@ export class FleetController {
       try { await closing.stop(); } catch (err) { logger.warn(`[fleet] transport stop failed: ${err}`); }
     }
   }
+
+  /**
+   * Bound so the SAME reference can be removed in teardown — an arrow property,
+   * not a method, because `off` matches listeners by identity.
+   */
+  /**
+   * A peer on DHCP comes back at a new IP: mDNS sees it, but the registry keeps
+   * the stale address and the client dials into the void. Rewrite the address when
+   * (and only when) a KNOWN machine has actually moved — the write emits
+   * 'peer-config:changed', which re-dials it through the normal reconcile path.
+   */
+  private refreshPeerAddress(peer: DiscoveredPeer): void {
+    const plan = planAddressRefresh(this.deps.peerConfigManager.list(), peer);
+    if (!plan) return;
+    this.deps.peerConfigManager.update(plan.peerId, { address: plan.address });
+    logger.info(`[fleet] Peer ${plan.peerId} moved to ${plan.address}`);
+  }
+
+  private readonly onPeerConfigChanged = (): void => {
+    this.currentManager?.syncPeers();
+  };
 
   /** The live transport, or null when fleet is off (for getLinkManager closures). */
   currentLinkManager(): PeerLinkManager | null {
@@ -252,6 +283,7 @@ export class FleetController {
     discovery.on('peer-discovered', (peer: DiscoveredPeer) => {
       discovered.set(peer.machineId, peer);
       broadcast('peer:discovered', peer);
+      this.refreshPeerAddress(peer);
     });
     discovery.on('peer-lost', ({ machineId }: { machineId: string }) => {
       discovered.delete(machineId);
@@ -313,7 +345,9 @@ export class FleetController {
           machineId: hello.machineId,
           alias: hello.alias,
           certFp: socket.peerCertFp,
-          address: socket.peerHost ? `${socket.peerHost}:${hello.port}` : '',
+          // tls.remoteAddress is IPv4-MAPPED on a dual-stack listener
+          // (`::ffff:10.0.0.2`); stored raw it produces an undialable host.
+          address: socket.peerHost ? normalizePeerAddress(`${socket.peerHost}:${hello.port}`) : '',
         };
         const pairing = new PeerPairing({
           role: 'responder',

@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { PeerLinkManager } from '../src/mcp/peer/peer-link-manager.js';
+import { PinnedCertStore } from '../src/mcp/peer/pinned-cert-store.js';
 
 vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
@@ -305,5 +306,87 @@ describe('PeerLinkManager', () => {
       expect(() => mgr.disposePeer('ghost')).not.toThrow();
       await mgr.stop();
     });
+  });
+});
+
+/**
+ * Inbound authentication + runtime peer reconciliation.
+ *
+ * These two describes cover the bug that made a successfully-PAIRED fleet sit at
+ * "offline" forever: the manager built a RemoteLinkServer WITHOUT a
+ * `resolveExpectedPeer`, so every inbound connection resolved an undefined peerId,
+ * got an undefined PSK, and was rejected before the handshake. The end-to-end test
+ * missed it because it injected its OWN createServer that supplied the resolver.
+ */
+describe('PeerLinkManager inbound peer resolution', () => {
+  it('gives the server a resolver mapping a PINNED cert fingerprint to its peerId', async () => {
+    const pins = new PinnedCertStore();
+    pins.recordIfAbsent('peerA', 'AA:BB');
+    const { mgr, created } = makeManager({ pinnedCertStore: pins });
+    await mgr.start();
+
+    const resolve = created.servers[0].opts.resolveExpectedPeer;
+    expect(resolve).toBeTypeOf('function');
+    // Without this the server calls resolvePsk(undefined) and rejects every peer.
+    expect(resolve('AA:BB')).toBe('peerA');
+    // An unpinned cert must stay unresolved — resolving it would hand a PSK to
+    // a machine we never paired with.
+    expect(resolve('DE:AD')).toBeUndefined();
+    await mgr.stop();
+  });
+});
+
+describe('PeerLinkManager syncPeers', () => {
+  /** A mutable registry so the test can mimic a pairing/edit landing at runtime. */
+  function makeSyncManager(peers: any[]) {
+    const created = { servers: [] as any[], clients: [] as any[] };
+    const mgr = new PeerLinkManager({
+      machineId: 'MID-LOCAL',
+      listPeers: () => peers,
+      resolvePsk: () => Buffer.alloc(32, 1),
+      getCertKey: async () => ({ certPem: 'c', keyPem: 'k' }),
+      pinnedCertStore: {} as any,
+      onCall: async () => 'ok',
+      createServer: (opts) => { const s = new FakeServer(opts); created.servers.push(s); return s as any; },
+      createClient: (opts) => { const c = new FakeClient(opts); created.clients.push(c); return c as any; },
+    });
+    return { mgr, created };
+  }
+
+  const peerA = { id: 'peerA', alias: 'A', address: '10.0.0.2:47474', pskRef: 'r', allow: ['*'], direction: 'bidirectional' as const, createdAt: 0 };
+
+  it('dials a peer that appeared in the registry after start (the just-paired case)', async () => {
+    const peers: any[] = [];
+    const { mgr, created } = makeSyncManager(peers);
+    await mgr.start();
+    expect(created.clients).toHaveLength(0);
+
+    peers.push({ ...peerA });
+    mgr.syncPeers();
+
+    expect(created.clients).toHaveLength(1);
+    expect(created.clients[0].opts.peerId).toBe('peerA');
+    expect(created.clients[0].connected).toBe(true);
+    await mgr.stop();
+  });
+
+  it('re-dials at the new address when a peer moves, and leaves an unchanged peer alone', async () => {
+    const peers: any[] = [{ ...peerA }];
+    const { mgr, created } = makeSyncManager(peers);
+    await mgr.start();
+    const first = created.clients[0];
+
+    // Unchanged registry (mDNS re-announces constantly) must NOT churn the link.
+    mgr.syncPeers();
+    expect(created.clients).toHaveLength(1);
+    expect(first.disposed).toBe(false);
+
+    peers[0].address = '10.0.0.99:47474';
+    mgr.syncPeers();
+
+    expect(first.disposed).toBe(true);
+    expect(created.clients).toHaveLength(2);
+    expect(created.clients[1].opts.host).toBe('10.0.0.99');
+    await mgr.stop();
   });
 });

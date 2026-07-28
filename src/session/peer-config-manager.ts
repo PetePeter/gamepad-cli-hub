@@ -17,6 +17,7 @@ import { randomUUID } from 'node:crypto';
 import { logger } from '../utils/logger.js';
 import type { PeerConfig } from '../types/peer.js';
 import { toolGlobMatch } from '../utils/glob-matcher.js';
+import { sanitizePeers } from './peer-sanitize.js';
 
 const DIRECTIONS = new Set(['inbound', 'outbound', 'bidirectional']);
 
@@ -155,24 +156,7 @@ export class PeerConfigManager extends EventEmitter {
    * `allow` coerces to a string array (defaulting to []).
    */
   importAll(peers: PeerConfig[]): void {
-    this.peers = (Array.isArray(peers) ? peers : [])
-      .filter((p): p is PeerConfig =>
-        !!p &&
-        typeof p.id === 'string' && p.id.length > 0 &&
-        typeof p.alias === 'string' &&
-        typeof p.address === 'string' &&
-        typeof p.direction === 'string' && DIRECTIONS.has(p.direction))
-      .map(p => ({
-        id: p.id,
-        alias: p.alias,
-        address: p.address,
-        pskRef: typeof p.pskRef === 'string' ? p.pskRef : '',
-        allow: Array.isArray(p.allow) ? p.allow.filter(a => typeof a === 'string') : [],
-        direction: p.direction,
-        createdAt: typeof p.createdAt === 'number' ? p.createdAt : this.now(),
-        ...(typeof p.machineId === 'string' && p.machineId.length > 0 ? { machineId: p.machineId } : {}),
-        ...(typeof p.enabled === 'boolean' ? { enabled: p.enabled } : {}),
-      }));
+    this.peers = sanitizePeers(peers, this.now);
     logger.info(`[PeerConfigManager] Imported ${this.peers.length} peer(s)`);
   }
 

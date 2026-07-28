@@ -26,6 +26,7 @@ import type { PinnedCertStore } from './pinned-cert-store.js';
 import type { OnCall, PeerLink } from './peer-link.js';
 import { RemoteLinkServer, type RemoteLinkServerOptions } from './remote-link-server.js';
 import { RemoteLinkClient, type RemoteLinkClientOptions } from './remote-link-client.js';
+import { normalizePeerAddress, splitHostPort } from './peer-address.js';
 
 /** The minimal PeerLink surface the manager depends on (real PeerLink satisfies). */
 export interface ManagedLink {
@@ -76,6 +77,8 @@ interface LinkEntry {
 export class PeerLinkManager extends EventEmitter {
   private server: ManagedServer | null = null;
   private readonly clients = new Map<string, ManagedClient>();
+  /** The address each client was dialled at, so syncPeers can spot a move. */
+  private readonly dialledAddresses = new Map<string, string>();
   /** The single authenticated link per peerId (post-dedup). */
   private readonly links = new Map<string, LinkEntry>();
   private onCall: OnCall;
@@ -101,65 +104,67 @@ export class PeerLinkManager extends EventEmitter {
       pinnedCertStore: this.opts.pinnedCertStore,
       onCall: (peerId, method, params) => this.onCall(peerId, method, params),
       onPairingConnection: this.opts.onPairingConnection,
+      // An inbound connection presents a cert before claiming any identity, so its
+      // PIN is the only thing that can name the peer — and therefore the only way
+      // to pick the PSK its handshake must run with. Omitting this resolver made
+      // the server resolve `undefined`, find no PSK, and reject EVERY inbound
+      // peer: a fully-paired fleet that permanently displayed "offline".
+      resolveExpectedPeer: (certFp) => this.opts.pinnedCertStore.findPeerIdByFingerprint(certFp),
       onLink: (link, peerId, peerMachineId) =>
         this.acceptLink(link as unknown as ManagedLink, peerId, 'inbound', peerMachineId),
     });
     await this.server.start();
 
-    for (const peer of this.opts.listPeers()) {
+    this.syncPeers();
+  }
+
+  /**
+   * Reconcile the dialled clients against the CURRENT registry. This is the single
+   * entry point for every runtime change — a fresh pairing, a manual edit, a
+   * discovered address change — so the transport converges without an app restart:
+   *
+   *   - a peer with no client is dialled (the just-paired case)
+   *   - a peer whose address moved is re-dialled at the new one
+   *   - a peer that is gone, disabled, or inbound-only is dropped
+   *   - anything unchanged is left strictly alone, because mDNS re-announces
+   *     constantly and churning a healthy link on every announcement is worse
+   *     than a stale address
+   */
+  syncPeers(): void {
+    if (this.stopped || !this.server) return; // not running yet
+    const peers = this.opts.listPeers();
+    const wanted = new Map<string, PeerConfig>();
+    for (const peer of peers) {
       if (peer.direction === 'inbound') continue; // no outbound dial
       if (!isPeerEnabled(peer)) continue;         // disabled peers are never dialled
-      const [host, portStr] = splitAddress(peer.address);
-      const client = createClient({
-        peerId: peer.id,
-        host,
-        port: Number(portStr) || (this.opts.port ?? 47474),
-        machineId: this.opts.machineId,
-        getCertKey: this.opts.getCertKey,
-        resolvePsk: (id) => this.opts.resolvePsk(id),
-        pinnedCertStore: this.opts.pinnedCertStore,
-        onCall: (pid, method, params) => this.onCall(pid, method, params),
-        onLink: (link, peerId, peerMachineId) =>
-          this.acceptLink(link as unknown as ManagedLink, peerId, 'outbound', peerMachineId),
-        hasActiveLink: () => this.links.has(peer.id) && this.links.get(peer.id)!.link.isOnline(),
-      });
-      this.clients.set(peer.id, client);
-      client.connect();
+      wanted.set(peer.id, peer);
+    }
+
+    for (const peerId of [...this.clients.keys()]) {
+      const peer = wanted.get(peerId);
+      if (!peer) { this.dropClient(peerId, 'peer-removed'); continue; }
+      if (this.dialledAddresses.get(peerId) !== normalizePeerAddress(peer.address)) {
+        this.dropClient(peerId, 'peer-address-changed');
+      }
+    }
+
+    for (const peer of wanted.values()) {
+      if (this.clients.has(peer.id)) continue; // already dialling at this address
+      this.dial(peer);
     }
   }
 
   /**
-   * Dial a peer that was JUST paired at runtime (via PeerPairing), without a full
-   * restart. Mirrors the outbound-dial branch of start(): inbound-only peers are
-   * not dialled; a peer already being dialled is left alone (idempotent). The full
-   * TLS dial itself is exercised by the P-0646 remote-link tests, not here.
-   *
-   * Alternatively the orchestrator may simply re-run start() on 'peer-config:changed';
-   * this method exists so a single new pin does not force a global reconnect.
+   * Dial a peer that was JUST paired at runtime, without a full restart. Thin
+   * wrapper over syncPeers so a single new pin does not force a global reconnect
+   * to be reasoned about separately.
    */
   addPeer(peer: PeerConfig): void {
-    if (this.stopped || !this.server) return;             // not running yet
-    if (peer.direction === 'inbound') return;             // no outbound dial
-    if (!isPeerEnabled(peer)) return;                     // disabled peers are never dialled
-    if (this.clients.has(peer.id)) return;                // already dialling
-    const createClient = this.opts.createClient ?? ((o) => new RemoteLinkClient(o));
-    const [host, portStr] = splitAddress(peer.address);
-    const client = createClient({
-      peerId: peer.id,
-      host,
-      port: Number(portStr) || (this.opts.port ?? 47474),
-      machineId: this.opts.machineId,
-      getCertKey: this.opts.getCertKey,
-      resolvePsk: (id) => this.opts.resolvePsk(id),
-      pinnedCertStore: this.opts.pinnedCertStore,
-      onCall: (pid, method, params) => this.onCall(pid, method, params),
-      onLink: (link, peerId, peerMachineId) =>
-        this.acceptLink(link as unknown as ManagedLink, peerId, 'outbound', peerMachineId),
-      hasActiveLink: () => this.links.has(peer.id) && this.links.get(peer.id)!.link.isOnline(),
-    });
-    this.clients.set(peer.id, client);
-    client.connect();
-    logger.info(`[PeerLinkManager] Dialing newly-paired peer ${peer.id}`);
+    if (this.stopped || !this.server) return; // not running yet
+    if (peer.direction === 'inbound') return; // no outbound dial
+    if (!isPeerEnabled(peer)) return;         // disabled peers are never dialled
+    if (this.clients.has(peer.id)) return;    // already dialling
+    this.dial(peer);
   }
 
   /** Tear everything down. */
@@ -167,6 +172,7 @@ export class PeerLinkManager extends EventEmitter {
     this.stopped = true;
     for (const client of this.clients.values()) client.dispose('manager-stop');
     this.clients.clear();
+    this.dialledAddresses.clear();
     for (const entry of this.links.values()) entry.link.dispose('manager-stop');
     this.links.clear();
     if (this.server) { await this.server.stop(); this.server = null; }
@@ -181,11 +187,7 @@ export class PeerLinkManager extends EventEmitter {
    * already exists). Idempotent.
    */
   disposePeer(peerId: string): void {
-    const client = this.clients.get(peerId);
-    if (client) {
-      client.dispose('peer-disabled');
-      this.clients.delete(peerId);
-    }
+    this.dropClient(peerId, 'peer-disabled');
     const entry = this.links.get(peerId);
     if (entry) {
       // dispose → 'offline' → onLinkOffline deletes the map entry + emits offline.
@@ -230,6 +232,37 @@ export class PeerLinkManager extends EventEmitter {
   }
 
   // ---------------------------------------------------------------- internals
+
+  /** Create + connect the outbound client for `peer`, recording its address. */
+  private dial(peer: PeerConfig): void {
+    const createClient = this.opts.createClient ?? ((o) => new RemoteLinkClient(o));
+    const address = normalizePeerAddress(peer.address);
+    const [host, portStr] = splitHostPort(address);
+    const client = createClient({
+      peerId: peer.id,
+      host,
+      port: Number(portStr) || (this.opts.port ?? 47474),
+      machineId: this.opts.machineId,
+      getCertKey: this.opts.getCertKey,
+      resolvePsk: (id) => this.opts.resolvePsk(id),
+      pinnedCertStore: this.opts.pinnedCertStore,
+      onCall: (pid, method, params) => this.onCall(pid, method, params),
+      onLink: (link, peerId, peerMachineId) =>
+        this.acceptLink(link as unknown as ManagedLink, peerId, 'outbound', peerMachineId),
+      hasActiveLink: () => this.links.has(peer.id) && this.links.get(peer.id)!.link.isOnline(),
+    });
+    this.clients.set(peer.id, client);
+    this.dialledAddresses.set(peer.id, address);
+    client.connect();
+    logger.info(`[PeerLinkManager] Dialing peer ${peer.id} at ${address}`);
+  }
+
+  /** Stop dialling a peer and forget the address we were dialling it at. */
+  private dropClient(peerId: string, reason: string): void {
+    this.clients.get(peerId)?.dispose(reason);
+    this.clients.delete(peerId);
+    this.dialledAddresses.delete(peerId);
+  }
 
   /**
    * Register a newly-authenticated link, resolving the dedup contest against any
@@ -291,11 +324,4 @@ export class PeerLinkManager extends EventEmitter {
 /** Default-true enabled check: `undefined` counts as enabled, only `false` disables. */
 function isPeerEnabled(peer: PeerConfig): boolean {
   return peer.enabled !== false;
-}
-
-/** Split "host:port" (IPv4/hostname). Falls back to the whole string as host. */
-function splitAddress(address: string): [string, string] {
-  const idx = address.lastIndexOf(':');
-  if (idx <= 0) return [address, ''];
-  return [address.slice(0, idx), address.slice(idx + 1)];
 }

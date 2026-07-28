@@ -74,6 +74,22 @@ export class PinnedCertStore extends EventEmitter {
     return this.pins.get(peerId);
   }
 
+  /**
+   * The peer whose pin equals `fingerprint`, or undefined. This is the REVERSE of
+   * `get`: an inbound connection presents a cert before it has claimed any
+   * identity, so its pin is the only thing that can tell us which peer it is (and
+   * therefore which PSK to run the handshake with). An unpinned fingerprint stays
+   * unresolved — resolving it would hand a PSK to a machine we never paired with.
+   */
+  findPeerIdByFingerprint(fingerprint: string): string | undefined {
+    const target = normalize(fingerprint);
+    if (!target) return undefined;
+    for (const [peerId, pinned] of this.pins) {
+      if (pinned === target) return peerId;
+    }
+    return undefined;
+  }
+
   /** All pins as independent copies. */
   list(): PinnedCert[] {
     return [...this.pins.entries()].map(([peerId, fingerprint]) => ({ peerId, fingerprint }));

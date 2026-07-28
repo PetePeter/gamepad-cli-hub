@@ -203,6 +203,46 @@ read by the UI over `config:getFleetStatus`. Two deliberate properties:
   user has to type on the other one. IPv6 is omitted deliberately: link-local addresses
   need a scope suffix that does not survive being typed into a text box.
 
+## Peer reconciliation (why a paired peer actually comes online)
+
+Pairing writes a peer into the registry; it does **not** itself open a link. The
+transport converges on the registry through a single reconcile path, so pairing, a
+manual edit, and a discovered address change are all the same event:
+
+```mermaid
+graph LR
+    PAIR["SAS pairing<br/>upsertByMachineId"] --> CH
+    EDIT["Manual peer edit /<br/>enable toggle"] --> CH
+    MDNS["mDNS sighting →<br/>planAddressRefresh"] -->|"address moved"| UPD["peerConfigManager.update"] --> CH
+    CH["peer-config:changed"] --> SYNC["PeerLinkManager.syncPeers()"]
+    SYNC --> D1["dial new peer"]
+    SYNC --> D2["re-dial moved peer"]
+    SYNC --> D3["drop removed / disabled"]
+    SYNC --> D4["leave unchanged alone"]
+```
+
+Three properties this exists to guarantee:
+
+- **Inbound connections can be identified.** A peer presents its cert before claiming
+  any identity, so the server maps the observed fingerprint back to a peer via
+  `PinnedCertStore.findPeerIdByFingerprint` (`resolveExpectedPeer`) — that is what
+  selects the PSK its handshake runs with. Without it the server resolves `undefined`,
+  finds no PSK, and rejects **every** inbound peer: a fully-paired fleet that displays
+  "offline" forever. An unpinned fingerprint stays unresolved by design.
+- **An unchanged registry never churns a link.** mDNS re-announces continuously;
+  `planAddressRefresh` returns `null` unless a **known** machine's address actually
+  changed, and discovery never invents a peer.
+- **Addresses are normalized at the boundary.** A responder learns its peer's address
+  from `tls.remoteAddress`, which on a dual-stack listener is IPv4-mapped
+  (`::ffff:10.0.0.2`). `normalizePeerAddress` unwraps it before storage, since the raw
+  form splits into an undialable host. Real (bracketed) IPv6 is left intact.
+
+Peer entries are sanitized on load and import by the single shared `sanitizePeers`
+(`src/session/peer-sanitize.ts`). The loader and `PeerConfigManager.importAll` once
+implemented this twice and drifted — the loader dropped `machineId`, so after a restart a
+paired peer could no longer be found by machineId and re-pairing forked a duplicate entry
+with an orphaned pin and PSK.
+
 ## Security model
 
 - **TLS + cert pinning (TOFU).** Each machine has a stable self-signed cert (RSA-2048/SHA-256). The link is mutual-TLS; certs are pinned on first pairing (`PinnedCertStore.recordIfAbsent`) and thereafter **hard-rejected on any change** — a differing fingerprint is a MITM reject, never an auto-rotate. The pin only ever changes via explicit user unpair.
