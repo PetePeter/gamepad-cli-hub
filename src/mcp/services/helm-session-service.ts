@@ -253,6 +253,8 @@ export class HelmSessionService {
       ...(lastActiveMs != null
         ? { lastActiveAtEpochMs: lastActiveMs, lastActiveAtIso: new Date(lastActiveMs).toISOString() }
         : {}),
+      ...(session.createdByPeerId ? { createdByPeerId: session.createdByPeerId } : {}),
+      ...(session.aiagentState ? { aiagentState: session.aiagentState } : {}),
     };
   }
 

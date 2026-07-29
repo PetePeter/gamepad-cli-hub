@@ -20,6 +20,10 @@ export interface Session {
   windowId?: number;
   state?: string;
   aiagentState?: 'planning' | 'implementing' | 'completed' | 'idle';
+  /** Wall-clock epoch ms when this hub session was first spawned. */
+  createdAt?: number;
+  /** Wall-clock epoch ms of when the activity dot last left green. */
+  lastActiveAt?: number;
   /** Remote Fleet peer that created this session, when spawned over the peer proxy. */
   createdByPeerId?: string;
 }

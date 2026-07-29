@@ -182,6 +182,9 @@ export async function refreshSessions(): Promise<void> {
       aiagentState: managed.aiagentState,
       currentPlanId: managed.currentPlanId,
       lastOutputAt: managed.lastOutputAt,
+      createdAt: managed.createdAt,
+      lastActiveAt: managed.lastActiveAt,
+      createdByPeerId: managed.createdByPeerId,
     } as Session);
 
     const displayState = managed.aiagentState ?? managed.state;

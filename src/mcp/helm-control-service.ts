@@ -67,6 +67,10 @@ export interface SessionSummary {
   lastActiveAtEpochMs?: number;
   /** ISO-8601 rendering of lastActiveAtEpochMs (convenience). */
   lastActiveAtIso?: string;
+  /** AIAGENT phase state (planning, implementing, completed, idle). */
+  aiagentState?: 'planning' | 'implementing' | 'completed' | 'idle';
+  /** Remote Fleet peer that created this session, when spawned over the peer proxy. */
+  createdByPeerId?: string;
 }
 
 export interface CliSummary {
