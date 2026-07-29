@@ -23,7 +23,7 @@
     "controller",
     "terminal"
   ],
-  "author": "",
+  "author": "Oscar",
   "license": "MIT",
   "build": {
     "appId": "com.helm.desktop",
