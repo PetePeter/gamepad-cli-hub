@@ -1,6 +1,7 @@
 import { logger } from '../../utils/logger.js';
 import type { HelmControlService } from '../helm-control-service.js';
 import type { AuthContext } from './types.js';
+import { isFleetSessionId, parseFleetSessionId } from '../peer/fleet-session-id.js';
 import {
   asAiagentState,
   asArtifactKind,
@@ -29,6 +30,48 @@ function requireCallerSession(authContext: AuthContext, tool: string): string {
     );
   }
   return authContext.sessionId;
+}
+
+/**
+ * Resolve who a session_send_* call is FROM, for the delivery envelope.
+ *
+ * Three cases, in order:
+ *  • FLEET sender — a `fleet:<peerId>:<id>` id names a session on the peer that
+ *    called us (the InboundCallGate wrapped it). It is deliberately not a local
+ *    session, so the known-session check does not apply; the gate already
+ *    vouched for the caller.
+ *  • IMPLICIT sender — no explicit id, so the server-derived authContext is
+ *    trusted as-is (session-scoped token).
+ *  • EXPLICIT LOCAL sender — must match a live local session, else the caller
+ *    guessed or constructed the id and the message is refused.
+ */
+function resolveSenderIdentity(
+  listSessions: () => Array<{ id: string; name: string }>,
+  args: Record<string, unknown>,
+  authContext: AuthContext,
+): { senderSessionId: string; senderSessionName: string } {
+  const explicitSenderId = typeof args.senderSessionId === 'string' ? args.senderSessionId : undefined;
+  const senderSessionId = explicitSenderId ?? authContext.sessionId;
+  if (!senderSessionId) {
+    throw new Error(
+      'senderSessionId is required — use the HELM_SESSION_ID environment variable injected by Helm at startup.',
+    );
+  }
+  if (isFleetSessionId(explicitSenderId)) {
+    return { senderSessionId, senderSessionName: authContext.sessionName ?? senderSessionId };
+  }
+  if (!explicitSenderId && authContext.sessionName) {
+    return { senderSessionId, senderSessionName: authContext.sessionName };
+  }
+  const senderSession = listSessions().find((s) => s.id === senderSessionId);
+  if (!senderSession) {
+    throw new Error(
+      `Unknown sender session: senderSessionId "${senderSessionId}" does not match any active Helm session. ` +
+        'senderSessionId must be the exact value of the HELM_SESSION_ID environment variable ' +
+        'that Helm injected into your session at startup — do not guess or construct this value.',
+    );
+  }
+  return { senderSessionId, senderSessionName: senderSession.name };
 }
 
 export interface McpToolDispatcherDeps {
@@ -394,28 +437,29 @@ export async function callMcpTool(
           `Session not found: ${asString(args.sessionId ?? args.name, 'sessionId or name is required')}`,
         );
       case 'session_send_text': {
-        const explicitSenderId = typeof args.senderSessionId === 'string' ? args.senderSessionId : undefined;
-        const senderSessionId = explicitSenderId ?? authContext.sessionId;
-        if (!senderSessionId) {
-          throw new Error(
-            'senderSessionId is required — use the HELM_SESSION_ID environment variable injected by Helm at startup.',
-          );
-        }
-        // Session-scoped tokens are trusted; global-token callers must verify against known sessions.
-        let senderSessionName: string;
-        if (!explicitSenderId && authContext.sessionName) {
-          senderSessionName = authContext.sessionName;
-        } else {
-          const knownSessions = service.listSessions();
-          const senderSession = knownSessions.find((s) => s.id === senderSessionId);
-          if (!senderSession) {
+        // A fleet-addressed TARGET names a session on another machine — typically
+        // the reply address this host handed a remote peer. Forward the call over
+        // the fleet verbatim, with the id unwrapped to what that peer calls it;
+        // the peer then delivers it locally. Checked BEFORE any local lookup,
+        // since a remote id resolves to nothing here.
+        const { senderSessionId, senderSessionName } = resolveSenderIdentity(
+          () => service.listSessions(),
+          args,
+          authContext,
+        );
+        if (isFleetSessionId(args.sessionId as string | undefined)) {
+          const fleetTarget = parseFleetSessionId(args.sessionId as string);
+          if (!fleetTarget) {
             throw new Error(
-              `Unknown sender session: senderSessionId "${senderSessionId}" does not match any active Helm session. ` +
-                'senderSessionId must be the exact value of the HELM_SESSION_ID environment variable ' +
-                'that Helm injected into your session at startup — do not guess or construct this value.',
+              `Malformed fleet session id: "${args.sessionId}". Expected fleet:<peerId>:<sessionId>.`,
             );
           }
-          senderSessionName = senderSession.name;
+          return service.peerCall(fleetTarget.peerId, 'session_send_text', {
+            sessionId: fleetTarget.realSessionId,
+            text: asString(args.text, 'text is required'),
+            senderSessionId,
+            ...(typeof args.expectsResponse === 'boolean' ? { expectsResponse: args.expectsResponse } : {}),
+          });
         }
         return service.sendTextToSession(
           asString(args.sessionId, 'sessionId is required'),
@@ -428,28 +472,11 @@ export async function callMcpTool(
         );
       }
       case 'session_send_input': {
-        const explicitSenderId = typeof args.senderSessionId === 'string' ? args.senderSessionId : undefined;
-        const senderSessionId = explicitSenderId ?? authContext.sessionId;
-        if (!senderSessionId) {
-          throw new Error(
-            'senderSessionId is required — use the HELM_SESSION_ID environment variable injected by Helm at startup.',
-          );
-        }
-        let senderSessionName: string;
-        if (!explicitSenderId && authContext.sessionName) {
-          senderSessionName = authContext.sessionName;
-        } else {
-          const knownSessions = service.listSessions();
-          const senderSession = knownSessions.find((s) => s.id === senderSessionId);
-          if (!senderSession) {
-            throw new Error(
-              `Unknown sender session: senderSessionId "${senderSessionId}" does not match any active Helm session. ` +
-                'senderSessionId must be the exact value of the HELM_SESSION_ID environment variable ' +
-                'that Helm injected into your session at startup — do not guess or construct this value.',
-            );
-          }
-          senderSessionName = senderSession.name;
-        }
+        const { senderSessionId, senderSessionName } = resolveSenderIdentity(
+          () => service.listSessions(),
+          args,
+          authContext,
+        );
         return service.sendInputToSession(
           asString(args.sessionId, 'sessionId is required'),
           asString(args.sequence, 'sequence is required'),

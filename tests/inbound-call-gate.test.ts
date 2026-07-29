@@ -12,7 +12,7 @@ import {
   HARD_DENY_TOOLS,
   GateError,
   RESERVED_PEER_TOOLS_METHOD,
-  stripCallerIdentityOverrides,
+  wrapCallerIdentityOverrides,
 } from '../src/mcp/peer/inbound-call-gate.js';
 import { MCP_TOOLS } from '../src/mcp/tools/definitions.js';
 import { PeerRateLimiter } from '../src/mcp/peer/rate-limiter.js';
@@ -66,6 +66,7 @@ function build(
     return { ok: true };
   };
   const audit = new PeerAuditLog(() => {}, now);
+  audit.importAll([]); // start clean — the constructor otherwise hydrates from the real on-disk log
   const rateLimiter = new PeerRateLimiter({
     capacity: opts.capacity ?? 100,
     refillPerMs: 100 / 60000,
@@ -260,7 +261,7 @@ describe('InboundCallGate', () => {
     expect(err.message).toBe('Tool not permitted');
   });
 
-  it('C-1: strips senderSessionId so a peer cannot impersonate a real session', async () => {
+  it('C-1: wraps senderSessionId as a fleet address so a peer cannot impersonate a real session', async () => {
     let received: Record<string, unknown> | undefined;
     let ctxSeen: AuthContext | undefined;
     const { gate } = build(
@@ -279,7 +280,8 @@ describe('InboundCallGate', () => {
       senderSessionId: '11111111-1111-1111-1111-111111111111',
     });
     expect(received).toBeDefined();
-    expect('senderSessionId' in received!).toBe(false); // stripped
+    // Wrapped, never raw — the real UUID can no longer name a local session.
+    expect(received!.senderSessionId).toBe('fleet:peer1:11111111-1111-1111-1111-111111111111');
     expect(received!.sessionId).toBe('dest');            // destination preserved
     expect(received!.text).toBe('hi');                   // non-identity arg preserved
     expect(ctxSeen!.sessionId).toBe('peer:peer1');       // proxy is the only identity
@@ -368,26 +370,71 @@ describe('InboundCallGate — reserved __peer_tools__ meta-method', () => {
   });
 });
 
-describe('stripCallerIdentityOverrides', () => {
-  it('removes senderSessionId, preserves everything else', () => {
-    const out = stripCallerIdentityOverrides({
+describe('wrapCallerIdentityOverrides', () => {
+  it('WRAPS senderSessionId under the calling peer, preserving everything else', () => {
+    const out = wrapCallerIdentityOverrides('mac', {
       sessionId: 'dest',
       text: 'hi',
       senderSessionId: 'real-uuid',
     }) as Record<string, unknown>;
+    expect(out).toEqual({ sessionId: 'dest', text: 'hi', senderSessionId: 'fleet:mac:real-uuid' });
+  });
+
+  it('never passes a caller-supplied session id through RAW — impersonation stays impossible', () => {
+    const localSessionUuid = randomUUID();
+    const out = wrapCallerIdentityOverrides('mac', {
+      senderSessionId: localSessionUuid,
+    }) as Record<string, unknown>;
+    expect(out.senderSessionId).not.toBe(localSessionUuid);
+    expect(out.senderSessionId).toBe(`fleet:mac:${localSessionUuid}`);
+  });
+
+  it('leaves params without senderSessionId untouched — the key is never invented', () => {
+    const out = wrapCallerIdentityOverrides('mac', { sessionId: 'dest', text: 'hi' }) as Record<string, unknown>;
     expect(out).toEqual({ sessionId: 'dest', text: 'hi' });
+    expect('senderSessionId' in out).toBe(false);
+  });
+
+  it('ignores a non-string senderSessionId rather than wrapping it', () => {
+    const out = wrapCallerIdentityOverrides('mac', { senderSessionId: 42 }) as Record<string, unknown>;
+    expect('senderSessionId' in out).toBe(false);
   });
 
   it('is a shallow COPY — does not mutate the input', () => {
     const input = { senderSessionId: 'x', a: 1 };
-    const out = stripCallerIdentityOverrides(input);
+    const out = wrapCallerIdentityOverrides('mac', input);
     expect(input.senderSessionId).toBe('x'); // original untouched
     expect(out).not.toBe(input);
   });
 
   it('passes non-object params through unchanged', () => {
-    expect(stripCallerIdentityOverrides(undefined)).toBeUndefined();
-    expect(stripCallerIdentityOverrides('str')).toBe('str');
-    expect(stripCallerIdentityOverrides([1, 2])).toEqual([1, 2]);
+    expect(wrapCallerIdentityOverrides('mac', undefined)).toBeUndefined();
+    expect(wrapCallerIdentityOverrides('mac', 'str')).toBe('str');
+    expect(wrapCallerIdentityOverrides('mac', [1, 2])).toEqual([1, 2]);
+  });
+});
+
+describe('InboundCallGate — fleet sender wrapping', () => {
+  it('hands the dispatcher a WRAPPED senderSessionId, not a stripped one', async () => {
+    const { gate, calls } = build({ mac: ['session_send_text'] });
+    await gate.handle('mac', 'session_send_text', {
+      sessionId: 'dest',
+      text: 'hi',
+      senderSessionId: 'sender-uuid',
+    });
+
+    expect(calls[0].params).toEqual({
+      sessionId: 'dest',
+      text: 'hi',
+      senderSessionId: 'fleet:mac:sender-uuid',
+    });
+  });
+
+  it('keeps the PROXY authContext — the security model is unchanged by wrapping', async () => {
+    const { gate, calls } = build({ mac: ['session_send_text'] });
+    await gate.handle('mac', 'session_send_text', { senderSessionId: 'sender-uuid' });
+
+    expect(calls[0].ctx.sessionId).toBe('peer:mac');
+    expect(isProxySessionId(calls[0].ctx.sessionId)).toBe(true);
   });
 });

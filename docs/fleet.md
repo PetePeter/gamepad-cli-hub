@@ -248,11 +248,59 @@ with an orphaned pin and PSK.
 - **TLS + cert pinning (TOFU).** Each machine has a stable self-signed cert (RSA-2048/SHA-256). The link is mutual-TLS; certs are pinned on first pairing (`PinnedCertStore.recordIfAbsent`) and thereafter **hard-rejected on any change** — a differing fingerprint is a MITM reject, never an auto-rotate. The pin only ever changes via explicit user unpair.
 - **PSK handshake, channel-bound.** After TLS, a PSK-keyed HMAC handshake runs, bound to the TLS session via RFC-5705 `exportKeyingMaterial` (hard-fail if unavailable — no insecure fallback). Distinct per-role MAC labels stop either side replaying the other's proof; the responder nonce defeats replay.
 - **SAS numeric-comparison pairing.** The 6-digit code is a **KDF output** derived from the ECDH shared secret that the user compares on both screens — never an input to any MAC/KDF, so there is no offline verifier to grind. **Commit-then-reveal** (each side commits `SHA256(pub, nonce)` before revealing) blocks an active MITM from grinding a matching SAS. On accept, a confirm-MAC keyed from the ECDH secret (not the SAS) is exchanged; only then are pin + PSK + `PeerConfig` persisted atomically (all-or-nothing rollback).
-- **Proxy identity — no impersonation.** Every inbound call dispatches under `peer:<peerId>` (`proxy-identity.ts`); session-scoped tools only ever see the proxy's own data. Caller-identity-override keys (`senderSessionId`) are stripped before dispatch.
+- **Proxy identity — no impersonation.** Every inbound call dispatches under `peer:<peerId>` (`proxy-identity.ts`); session-scoped tools only ever see the proxy's own data. Caller-identity-override keys are neutralized before dispatch: all are stripped except `senderSessionId`, which is **wrapped** as a fleet address (below) — a wrapped id can never equal a local UUID, so impersonation stays impossible either way.
 - **Per-peer allow-list, default-deny.** `PeerConfigManager.isToolAllowed` — an empty/absent allow-list denies everything; only glob-matched tool names pass.
 - **Hard-deny list.** `restart_helm`, `session_close`, `session_group_close` are NEVER remotely invocable, even under a wildcard `*` allow-list (`HARD_DENY_TOOLS`). Deny messages are **uniform** ("Tool not permitted") so a peer cannot probe which tools exist.
 - **Rate-limit + 7-day audit.** A per-peer token bucket throttles inbound calls; every decision (`ok`/`denied`/`rate-limited`/`error`) is recorded to `PeerAuditLog` — a rolling 7-day trail storing **argument KEY NAMES only, never values or secrets**.
 - **Enable toggle blocks both directions.** An explicitly disabled peer drops its live link and is denied inbound with the same uniform message. Fleet is **OFF by default**: no `:47474` listener is bound and no manager is constructed until enabled.
+
+## Cross-machine replies (`fleet:` session addresses)
+
+Replies are **LLM-driven**, not server-side: when text arrives with
+`expectsResponse=true`, the HELM_MSG preamble tells the recipient LLM which
+`sessionId` to call `session_send_text` back on. For that to work across machines
+the reply address must name a session on the *other* host — so `senderSessionId`
+is wrapped into a fleet address on the way in and unwrapped on the way out.
+
+`fleet:<peerId>:<realSessionId>` — `src/mcp/peer/fleet-session-id.ts`. The prefix
+cannot collide with a UUID v4 session id nor with the `peer:` proxy identity, and
+the full session id stays readable (never hashed) so a human can see who is being
+answered. This is the **only** inter-fleet reply mechanism; there is no parallel
+path.
+
+```mermaid
+sequenceDiagram
+    participant MacLLM as Mac LLM
+    participant Mac as Mac Helm
+    participant Box as Box Helm
+    participant BoxLLM as Box LLM
+
+    MacLLM->>Mac: peer_call(box, session_send_text, senderSessionId=S, expectsResponse)
+    Mac->>Box: over the link
+    Box->>Box: InboundCallGate WRAPS → fleet:<macPeerId>:S
+    Box->>BoxLLM: HELM_MSG "reply to fleet:<macPeerId>:S"
+    BoxLLM->>Box: session_send_text(sessionId=fleet:<macPeerId>:S)
+    Box->>Box: dispatcher UNWRAPS → peerCall(macPeerId, …, sessionId=S)
+    Box->>Mac: over the link
+    Mac->>MacLLM: delivered to the real session S
+```
+
+Two halves, both in `session_send_text` (`src/mcp/tools/dispatcher.ts`):
+
+| Half | Where | Behaviour |
+|------|-------|-----------|
+| Wrap (inbound) | `InboundCallGate.wrapCallerIdentityOverrides` | A peer's `senderSessionId` becomes `fleet:<peerId>:<id>`. Non-string values are dropped; all other override keys are still stripped outright. |
+| Unwrap (outbound) | dispatcher, before any local lookup | A `fleet:` **target** is forwarded via `service.peerCall` with the real id; a malformed one is rejected, never treated as local. |
+
+A `fleet:` **sender** skips the local known-session check (`resolveSenderIdentity`)
+— it names a session on the calling peer, so it is deliberately absent from this
+host's list, and the gate has already vouched for the caller. The same resolution
+serves `session_send_input` (the raw, no-preamble path), so remote input keeps
+working too.
+
+Unaffected by design: the Telegram integration (separate PTY path, and its tools
+key on `authContext.sessionId`, never `senderSessionId`), and the peer-created
+session tint (`session_create` reads only the proxy identity).
 
 ## Known limitations / deferred
 

@@ -66,7 +66,18 @@ import { join } from 'node:path';
  */
 class FakeControlService {
   readonly writes: Array<{ sessionId: string; text: string; senderSessionId?: string }> = [];
+  /**
+   * The machine's OWN outbound fleet surface, injected once its PeerLinkManager
+   * exists. This is the real HelmPeerService — so a fleet-addressed send leaves
+   * this machine over the real link, exactly as in production.
+   */
+  private outbound?: { call(peer: string, tool: string, args: Record<string, unknown>): Promise<unknown> };
+
   constructor(private readonly sessions: Array<{ id: string; name: string }>) {}
+
+  setOutbound(peerService: FakeControlService['outbound']): void {
+    this.outbound = peerService;
+  }
 
   listSessions() {
     return this.sessions.map((s) => ({ id: s.id, name: s.name }));
@@ -75,6 +86,11 @@ class FakeControlService {
   sendTextToSession(sessionRef: string, text: string, options: { senderSessionId?: string }) {
     this.writes.push({ sessionId: sessionRef, text, senderSessionId: options?.senderSessionId });
     return { delivered: true, sessionId: sessionRef };
+  }
+
+  peerCall(peer: string, tool: string, args: Record<string, unknown>) {
+    if (!this.outbound) throw new Error('Fleet is not enabled');
+    return this.outbound.call(peer, tool, args);
   }
 }
 
@@ -112,6 +128,10 @@ interface Stack {
 const FAST_LINK = { requestTimeoutMs: 2000, heartbeatIntervalMs: 60_000, pongTimeoutMs: 30_000 };
 
 const PSK_REF = 'psk-shared';
+/** A's own local session — the origin, and the destination of any fleet reply. */
+const A_SESSIONS = [
+  { id: '33333333-3333-4333-8333-333333333333', name: 'origin-1' },
+];
 const B_SESSIONS = [
   { id: '11111111-1111-4111-8111-111111111111', name: 'worker-1' },
   { id: '22222222-2222-4222-8222-222222222222', name: 'worker-2' },
@@ -163,7 +183,7 @@ describe('Cross-Machine Fleet E2E (A↔B over loopback TLS)', () => {
   beforeEach(async () => {
     tmp = mkdtempSync(join(tmpdir(), 'fed-e2e-'));
 
-    const a = buildStack('A', []);
+    const a = buildStack('A', A_SESSIONS);
     const b = buildStack('B', B_SESSIONS);
 
     a.partial.cert = await getOrCreateSelfSignedCert(join(tmp, 'A-cert.yaml'));
@@ -276,6 +296,9 @@ describe('Cross-Machine Fleet E2E (A↔B over loopback TLS)', () => {
       }),
     });
     const peerService = new HelmPeerService(() => manager);
+    // Give the machine its own outbound fleet surface, so a fleet-addressed
+    // session_send_text can leave it over the real link.
+    p.fake.setOutbound(peerService);
     return {
       ...p,
       config: built.config,
@@ -352,6 +375,43 @@ describe('Cross-Machine Fleet E2E (A↔B over loopback TLS)', () => {
     expect(B.fake.writes[0].text).toBe('hello from A');
     // The proxy identity — never a real session, always peer:<peerId>.
     expect(B.fake.writes[0].senderSessionId).toBe(`peer:${peerIdOnB()}`);
+  });
+
+  it('ROUND TRIP: the reply address B is handed routes a reply back to A\'s real session', async () => {
+    const originSessionId = A_SESSIONS[0].id;
+    const target = B_SESSIONS[0].id;
+
+    // 1. A asks B for a response, identifying its own local origin session.
+    await A.peerService.call(peerIdOnA(), 'session_send_text', {
+      sessionId: target,
+      text: 'question from A',
+      senderSessionId: originSessionId,
+      expectsResponse: true,
+    });
+
+    // 2. B's gate wrapped A's session id under the peer id B knows A by. This is
+    //    the EXACT string the HELM_MSG preamble hands B's LLM to reply to.
+    const replyAddress = B.fake.writes[0].senderSessionId!;
+    expect(replyAddress).toBe(`fleet:${peerIdOnB()}:${originSessionId}`);
+
+    // 3. B's LLM replies to that address — a plain local session_send_text on B.
+    await callMcpTool(
+      {
+        service: B.fake as unknown as HelmControlService,
+        setPlanStateWithValidation: () => ({}),
+        completePlanWithValidation: () => ({}),
+      },
+      'session_send_text',
+      { sessionId: replyAddress, text: 'answer from B', senderSessionId: target },
+      {},
+    );
+
+    // 4. The reply crossed the fleet and landed on A's REAL local session.
+    await waitFor(() => A.fake.writes.length > 0);
+    expect(A.fake.writes[0].sessionId).toBe(originSessionId);
+    expect(A.fake.writes[0].text).toBe('answer from B');
+    // A's gate wrapped B's sender in turn — the path is symmetric.
+    expect(A.fake.writes[0].senderSessionId).toBe(`fleet:${peerIdOnA()}:${target}`);
   });
 
   it('DENY: a tool NOT in B\'s allow-list is rejected uniformly; B never dispatches it', async () => {

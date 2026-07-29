@@ -17,6 +17,7 @@
 import { logger } from '../../utils/logger.js';
 import type { AuthContext } from '../tools/types.js';
 import { proxyAuthContext } from './proxy-identity.js';
+import { wrapFleetSessionId } from './fleet-session-id.js';
 import type { PeerRateLimiter } from './rate-limiter.js';
 import type { PeerAuditLog, PeerAuditOutcome } from './peer-audit-log.js';
 import { MCP_TOOLS } from '../tools/definitions.js';
@@ -55,10 +56,9 @@ export const HARD_DENY_TOOLS: ReadonlySet<string> = new Set<string>([
 ]);
 
 /**
- * Argument keys a caller must NEVER be able to set — they would override the
+ * Argument keys a caller must NEVER be able to set RAW — they would override the
  * caller's identity and let a remote peer impersonate a real local session,
- * bypassing the synthetic proxy identity entirely. The proxy authContext is the
- * ONLY sender identity a peer may act under. For now this is just
+ * bypassing the synthetic proxy identity entirely. For now this is just
  * `senderSessionId` (read FIRST, ahead of authContext.sessionId, by
  * session_send_text/session_send_input/session_create); extend this list if new
  * tools add other caller-identity-override params.
@@ -66,14 +66,29 @@ export const HARD_DENY_TOOLS: ReadonlySet<string> = new Set<string>([
 const CALLER_IDENTITY_OVERRIDE_KEYS: readonly string[] = ['senderSessionId'];
 
 /**
- * Return a shallow copy of `params` with all caller-identity-override keys
- * removed, so a peer cannot smuggle a real session id past the proxy identity.
- * Non-object params pass through unchanged.
+ * Return a shallow copy of `params` with caller-identity-override keys made
+ * safe, so a peer cannot smuggle a real local session id past the proxy identity.
+ *
+ * `senderSessionId` is WRAPPED as `fleet:<peerId>:<value>` rather than dropped:
+ * the value names a session on the CALLING machine, and the recipient needs it
+ * to address a reply back across the fleet (see [[fleet-session-id]]). Wrapping
+ * preserves the impersonation defence in full — the wrapped form can never equal
+ * a local UUID, so the worst a hostile peer achieves by forging it is routing a
+ * reply back to its own machine. Every other override key is still stripped
+ * outright. Non-object params pass through unchanged.
  */
-export function stripCallerIdentityOverrides(params: unknown): unknown {
+export function wrapCallerIdentityOverrides(peerId: string, params: unknown): unknown {
   if (!params || typeof params !== 'object' || Array.isArray(params)) return params;
   const copy = { ...(params as Record<string, unknown>) };
-  for (const key of CALLER_IDENTITY_OVERRIDE_KEYS) delete copy[key];
+  for (const key of CALLER_IDENTITY_OVERRIDE_KEYS) {
+    const value = copy[key];
+    // A non-string value can't name a session; drop it rather than wrap it.
+    if (key === 'senderSessionId' && typeof value === 'string') {
+      copy[key] = wrapFleetSessionId(peerId, value);
+    } else {
+      delete copy[key];
+    }
+  }
   return copy;
 }
 
@@ -175,10 +190,11 @@ export class InboundCallGate {
       throw new GateError(JSONRPC_SERVER_ERROR, RATE_LIMIT_MESSAGE);
     }
 
-    // 4. Dispatch under a synthetic proxy identity (never a real session). Strip
-    // any caller-identity-override args FIRST so the proxy authContext is the
-    // ONLY sender identity a peer can act under (impersonation defence).
-    const safeParams = stripCallerIdentityOverrides(params);
+    // 4. Dispatch under a synthetic proxy identity (never a real session). Make
+    // any caller-identity-override args safe FIRST — senderSessionId is wrapped
+    // as a fleet address, the rest stripped — so a peer can never act under a
+    // real local session identity (impersonation defence).
+    const safeParams = wrapCallerIdentityOverrides(peerId, params);
     try {
       const result = await this.dispatch(method, safeParams, proxyAuthContext(peerId));
       this.record(peerId, method, argSummary, 'ok');

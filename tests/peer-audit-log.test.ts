@@ -18,6 +18,17 @@ vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
 }));
 
+/**
+ * A log guaranteed EMPTY. The constructor hydrates from the real on-disk audit
+ * file, so a machine with live fleet history would otherwise leak entries into
+ * these assertions; importAll([]) resets it to a known state.
+ */
+const freshLog = (...args: ConstructorParameters<typeof PeerAuditLog>): PeerAuditLog => {
+  const log = new PeerAuditLog(...args);
+  log.importAll([]);
+  return log;
+};
+
 const entry = (over: Partial<Parameters<PeerAuditLog['append']>[0]> = {}) => ({
   peerId: 'mac',
   method: 'artifact_get',
@@ -29,7 +40,7 @@ const entry = (over: Partial<Parameters<PeerAuditLog['append']>[0]> = {}) => ({
 
 describe('PeerAuditLog', () => {
   it('appends newest-first and assigns an id', () => {
-    const log = new PeerAuditLog(() => {}, () => 5000);
+    const log = freshLog(() => {}, () => 5000);
     const a = log.append(entry({ ranAt: 1000 }));
     const b = log.append(entry({ ranAt: 2000 }));
     expect(a.id).toMatch(/^[0-9a-f-]{36}$/);
@@ -40,7 +51,7 @@ describe('PeerAuditLog', () => {
 
   it('persists on every append', () => {
     const persist = vi.fn();
-    const log = new PeerAuditLog(persist, () => 5000);
+    const log = freshLog(persist, () => 5000);
     log.append(entry());
     expect(persist).toHaveBeenCalledTimes(1);
     expect(persist).toHaveBeenCalledWith(expect.arrayContaining([
@@ -50,7 +61,7 @@ describe('PeerAuditLog', () => {
 
   it('prunes entries older than the 7-day window', () => {
     let now = 10_000;
-    const log = new PeerAuditLog(() => {}, () => now);
+    const log = freshLog(() => {}, () => now);
     log.append(entry({ ranAt: now })); // fresh
     // advance well past the window then append — the stale one is pruned
     now += AUDIT_WINDOW_MS + 1;
@@ -62,7 +73,7 @@ describe('PeerAuditLog', () => {
 
   it('stores only argument KEY NAMES — never values/secrets', () => {
     const persist = vi.fn();
-    const log = new PeerAuditLog(persist, () => 5000);
+    const log = freshLog(persist, () => 5000);
     // argSummary is built by the caller (gate); here we assert the log stores
     // whatever summary string it's given verbatim and nothing else leaks.
     const rec = log.append(entry({ argSummary: 'keys: name,workingDir' }));
@@ -74,12 +85,12 @@ describe('PeerAuditLog', () => {
   });
 
   it('exportAll/importAll round-trip', () => {
-    const log = new PeerAuditLog(() => {}, () => 5000);
+    const log = freshLog(() => {}, () => 5000);
     log.append(entry({ ranAt: 1000 }));
     log.append(entry({ ranAt: 2000 }));
     const snapshot = log.exportAll();
 
-    const log2 = new PeerAuditLog(() => {}, () => 5000);
+    const log2 = freshLog(() => {}, () => 5000);
     log2.importAll(snapshot);
     expect(log2.list()).toHaveLength(2);
   });
