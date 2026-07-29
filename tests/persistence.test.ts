@@ -147,6 +147,22 @@ describe('persistence', () => {
       expect(parsed.sessions[0].lastActiveAt).toBe(1700000123456);
     });
 
+    it('persists createdByPeerId so a fleet-created session stays marked across restarts', () => {
+      saveSessions([{ ...mockSession1, createdByPeerId: 'desktop-b' }]);
+
+      const [, content] = (fs.writeFileSync as any).mock.calls[0];
+      const parsed = YAML.parse(content);
+      expect(parsed.sessions[0].createdByPeerId).toBe('desktop-b');
+    });
+
+    it('omits createdByPeerId for locally created sessions', () => {
+      saveSessions([mockSession1]);
+
+      const [, content] = (fs.writeFileSync as any).mock.calls[0];
+      const parsed = YAML.parse(content);
+      expect(parsed.sessions[0]).not.toHaveProperty('createdByPeerId');
+    });
+
     it('does not persist ephemeral activityLevel', () => {
       saveSessions([{ ...mockSession1, activityLevel: 'active' } as any]);
 

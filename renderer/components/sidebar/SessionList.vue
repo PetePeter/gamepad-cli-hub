@@ -207,7 +207,7 @@ function onNewGroupDrop(e: DragEvent): void {
             <SessionCard
               v-for="session in group.sessions"
               :key="session.id"
-              :session="{ id: session.id, name: session.name, cliType: session.cliType, title: session.title, cliSessionName: session.cliSessionName, createdAt: session.createdAt, lastActiveAt: session.lastActiveAt }"
+              :session="{ id: session.id, name: session.name, cliType: session.cliType, title: session.title, cliSessionName: session.cliSessionName, createdAt: session.createdAt, lastActiveAt: session.lastActiveAt, createdByPeerId: session.createdByPeerId }"
               :nav-index="navIndexMap.get(session.id) ?? -1"
               :session-state="sessionStates.get(session.id) || 'idle'"
               :activity-level="sessionActivityLevels.get(session.id) || 'idle'"

@@ -21,6 +21,7 @@ function serializeSession(s: SessionInfo): Record<string, unknown> {
     ...(s.aiagentState ? { aiagentState: s.aiagentState } : {}),
     ...(s.createdAt != null ? { createdAt: s.createdAt } : {}),
     ...(s.lastActiveAt != null ? { lastActiveAt: s.lastActiveAt } : {}),
+    ...(s.createdByPeerId ? { createdByPeerId: s.createdByPeerId } : {}),
   };
 }
 

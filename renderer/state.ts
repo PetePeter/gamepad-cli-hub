@@ -20,6 +20,8 @@ export interface Session {
   windowId?: number;
   state?: string;
   aiagentState?: 'planning' | 'implementing' | 'completed' | 'idle';
+  /** Remote Fleet peer that created this session, when spawned over the peer proxy. */
+  createdByPeerId?: string;
 }
 
 export interface ProjectSummary {

@@ -760,6 +760,21 @@ button {
   background: var(--bg-tertiary);
 }
 
+/* Sessions opened on this machine by a remote Fleet peer. The tint holds through
+   hover/focus/active so the remote origin is never ambiguous — active keeps its
+   accent BORDER as the selection cue. Declared before the flash-attention block
+   so a flash (a deliberate grab-the-user signal) still wins while it runs. */
+.session-card.peer-created,
+.session-card.peer-created:hover,
+.session-card.peer-created.focused,
+.session-card.peer-created.active {
+  background: var(--peer-session-bg, #1b2b3f) !important;
+}
+.session-card.peer-created:hover,
+.session-card.peer-created.focused {
+  background: var(--peer-session-bg-hover, #22374f) !important;
+}
+
 .snap-indicator {
   font-size: 10px;
   margin-left: 2px;

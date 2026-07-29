@@ -27,3 +27,8 @@ export function proxyAuthContext(peerId: string): AuthContext {
 export function isProxySessionId(id: string | undefined): boolean {
   return typeof id === 'string' && id.startsWith(PROXY_SESSION_PREFIX);
 }
+
+/** The originating peer id behind a proxy identity, or undefined for a local caller. */
+export function peerIdFromProxySessionId(id: string | undefined): string | undefined {
+  return isProxySessionId(id) ? id!.slice(PROXY_SESSION_PREFIX.length) : undefined;
+}

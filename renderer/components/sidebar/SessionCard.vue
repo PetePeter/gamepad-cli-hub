@@ -24,6 +24,8 @@ export interface SessionCardSession {
   createdAt?: number;
   /** Epoch ms when the activity dot last left green. */
   lastActiveAt?: number;
+  /** Remote Fleet peer that created this session, when spawned over the peer proxy. */
+  createdByPeerId?: string;
 }
 
 export type SessionCardFocusColumn = 0 | 1 | 2 | 3 | 4;
@@ -142,6 +144,12 @@ const flashStyle = computed<Record<string, string>>(() => {
     '--flash-text': entry.textColor ?? 'var(--accent-contrast)',
   };
 });
+// Sessions opened here by a remote Helm peer are tinted so their origin is
+// obvious on the machine actually running them.
+const isPeerCreated = computed(() => !!props.session.createdByPeerId);
+const peerTitle = computed(() =>
+  props.session.createdByPeerId ? `Opened by peer: ${props.session.createdByPeerId}` : undefined,
+);
 const stateLabel = computed(() => STATE_LABELS[props.sessionState] || '💤 Idle');
 const eyeIcon = computed(() => props.isHiddenFromOverview ? '👁‍🗨' : '👁');
 const eyeTitle = computed(() => props.isHiddenFromOverview ? 'Show in overview' : 'Hide from overview');
@@ -234,8 +242,9 @@ function onCardClick(e: MouseEvent): void {
   <div
     ref="cardEl"
     class="session-card"
-    :class="[{ active: isActive, focused: isFocused, 'snapped-out': isSnappedOut, dragging: isDragging, grouped: !!runtimeGroup }, flashClass]"
+    :class="[{ active: isActive, focused: isFocused, 'snapped-out': isSnappedOut, dragging: isDragging, grouped: !!runtimeGroup, 'peer-created': isPeerCreated }, flashClass]"
     :style="flashStyle"
+    :title="peerTitle"
     :data-session-id="session.id"
     :data-nav-index="navIndex"
     :draggable="!isEditing"

@@ -57,6 +57,10 @@ export interface SessionInfo {
   aiagentState?: 'planning' | 'implementing' | 'completed' | 'idle';
   /** Which channel the user last interacted through. Ephemeral — not persisted. */
   interactionChannel?: 'telegram' | 'desktop';
+  /** Id of the remote Fleet peer that created this session, when it was spawned
+   *  by an inbound peer proxy call rather than locally. Drives the sidebar's
+   *  peer-created card tint. Persists across restarts. */
+  createdByPeerId?: string;
 }
 
 /**

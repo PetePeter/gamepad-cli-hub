@@ -28,6 +28,8 @@ export interface ConfiguredSessionSpawnParams {
   onPromptCancel?: (cancel: () => void) => void;
   fallbackCompleteDelayMs?: number;
   markRestored?: (sessionId: string) => void;
+  /** Remote Fleet peer that requested this spawn, when it came in over the peer proxy. */
+  createdByPeerId?: string;
 }
 
 export interface ConfiguredSessionSpawnResult {
@@ -79,6 +81,7 @@ export function spawnConfiguredSession(params: ConfiguredSessionSpawnParams): Co
     ...(normalizedCwd ? { workingDir: normalizedCwd } : {}),
     cliSessionName,
     lastOutputAt: now,
+    ...(params.createdByPeerId ? { createdByPeerId: params.createdByPeerId } : {}),
   };
 
   if (isResume && params.sessionManager.hasSession(sessionId)) {
