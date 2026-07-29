@@ -14,6 +14,8 @@ This is a session manager for people who run multiple AI-assisted terminals at o
 
 Helm is an Electron desktop app that lets you control multiple AI coding CLI sessions from a game controller. Each CLI runs as an embedded terminal (via node-pty + xterm.js) — no external windows to manage.
 
+It ships for **Windows** (installer `.exe`) and **macOS** (universal `.dmg` — native arm64 and x64, no Rosetta).
+
 **Why use it?**
 
 - **Multi-CLI workflows** — Run Claude Code, Copilot CLI, Codex CLI, and other AI tools side-by-side in embedded terminals
@@ -36,6 +38,11 @@ Helm is an Electron desktop app that lets you control multiple AI coding CLI ses
 - **Session jump keys** — Ctrl+1 through Ctrl+9 jump directly to the Nth session
 - **Toast notifications** — In-app transient notifications for events like plan imports
 - **Incoming plan import** — CLI sessions can write plan files that Helm auto-imports with validation
+- **Artifact viewer** — Sessions publish readable markdown/HTML reports into an in-app panel, with versions, mermaid diagrams, and inline local images
+- **Recycle bin** — Closed recoverable sessions are kept 30 days in a searchable Project › Group › Folder tree, restorable with their resume id and artifacts
+- **Runtime session groups** — Custom cross-directory groups alongside the folder groups, with drag-to-move and restore-to-group
+- **Fleet** — Pair two machines and drive sessions, terminals, and plans on the other one from here
+- **Cross-platform** — Windows and macOS, from one codebase
 
 ---
 
@@ -147,6 +154,45 @@ Any session can be detached into its own Electron window — click the snap-out 
 The planner canvas can also be popped out into a separate window for side-by-side plan work.
 
 Use Ctrl+Shift+S to switch back to the last selected session, including snapped-out windows.
+
+### Runtime Session Groups
+
+Runtime groups are custom groups that cut **across** working directories, listed alongside the default folder groups. A session belongs to at most one runtime group — drag a card onto a group, or use the context menu. Closing a group asks whether to keep the sessions (moved back to their folders) or close them all. Empty groups stay visible so restored sessions have somewhere to return to.
+
+See [docs/runtime-groups.md](docs/runtime-groups.md).
+
+---
+
+## Artifact Viewer
+
+Sessions publish readable **reports** — markdown or HTML — into a dockable right-hand panel instead of leaving files for you to open. Toggle with the 📄 toolbar button or `Ctrl+Shift+A`; when collapsed, an edge tab pulses as new artifacts arrive.
+
+- Master–detail layout: searchable/sortable index rail plus a rendered detail pane, drag-to-resize
+- Each update appends a **version**; step back through them or jump to latest
+- ` ```mermaid ` blocks render as diagrams (loaded on demand)
+- Text is selectable and copyable — `Ctrl+C`/`Ctrl+X` copy the selection rather than interrupting the terminal
+- Images render from local file paths and `data:image/*` via the privileged `helm-img://` protocol; remote URLs and SVG are refused by design
+- Artifacts are ephemeral to a session and travel with it into a snapped-out window
+
+See [docs/artifact-viewer.md](docs/artifact-viewer.md).
+
+---
+
+## Recycle Bin
+
+Closing a **recoverable** session (one carrying a resume id) parks it for 30 days instead of discarding it. Restoring re-spawns it under its original id, so its resume history, runtime group, and artifacts all come back.
+
+```mermaid
+graph LR
+    S[Session closed] -->|has resume id| B[Recycle Bin<br/>30 days]
+    S -->|no resume id| X[Discarded]
+    B -->|Restore| R[Re-spawned<br/>same id + artifacts]
+    B -->|Forget / Empty / expiry| X
+```
+
+Entries are shown as a collapsible, searchable tree — **Project › Runtime Group › Folder › sessions** — with bottom-up counts, newest-closed first, full paths, exact `yyyy/mm/dd HH:mm` close times, and per-folder *Restore all* / *Forget all*.
+
+See [docs/recycle-bin.md](docs/recycle-bin.md).
 
 ---
 
@@ -393,6 +439,12 @@ Discovery uses mDNS, which does **not cross subnets** and does not survive Wi-Fi
 | `peer_tools` | What a given peer allows you to call |
 | `peer_call` | Invoke a tool on a peer, by its native name |
 
+`peer_list` and `peer_tools` accept either the peer id or its alias, so you can call a machine by name.
+
+Sessions a peer opens on this machine are **tinted light blue** in the sidebar, so remote-driven terminals are obvious at a glance; the marking is persisted and survives a restart.
+
+Messages sent with `expectsResponse` round-trip across machines: the sender's identity is carried as a `fleet:<peerId>:<sessionId>` address and the reply is routed back over the same link into the asking session. The proxy identity is still what authorises the call, so a forged sender can at worst route a reply back to its own machine.
+
 Each peer has its own allow-list (deny-by-default), a rate limit, and a rolling 7-day **Audit** log of every inbound call. `restart_helm`, `session_close` and `session_group_close` are never remotely invocable, even for a peer allowed everything. Unpair forgets the key and the pinned certificate.
 
 See [fleet.md](docs/fleet.md) for the transport, pairing protocol and security model.
@@ -463,6 +515,9 @@ User-facing docs are in `docs/`:
 | [config-system.md](docs/config-system.md) | Profile setup, bindings, tool configuration, and sequences |
 | [plan-backup-restore.md](docs/plan-backup-restore.md) | Plan backup snapshots, restore workflow, configuration |
 | [fleet.md](docs/fleet.md) | Cross-machine Fleet — pairing, peer allow-lists, transport and security model |
+| [artifact-viewer.md](docs/artifact-viewer.md) | Artifact panel — versions, sanitized render, images via `helm-img://` |
+| [recycle-bin.md](docs/recycle-bin.md) | Closed recoverable sessions — 30-day bin, restore-with-resume |
+| [runtime-groups.md](docs/runtime-groups.md) | Cross-directory runtime groups — membership, drag/close flows |
 | [terminal-architecture.md](docs/terminal-architecture.md) | PTY stack, input/output routing, activity dots |
 | [modules.md](docs/modules.md) | Module reference — all modules, stores, composables, and components |
 | [file-structure.md](docs/file-structure.md) | Complete directory tree with per-file descriptions |

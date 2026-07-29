@@ -195,6 +195,8 @@
 
 <p>Helm is a desktop app that lets you control multiple AI coding CLIs (Claude Code, Copilot CLI, etc.) from a single gamepad. Terminals are embedded &mdash; no external windows.</p>
 
+<p>It runs on <strong>Windows</strong> (installer <code>.exe</code>) and <strong>macOS</strong> (universal <code>.dmg</code> &mdash; native on both Apple Silicon and Intel, no Rosetta).</p>
+
 <h3>First launch</h3>
 <ul>
   <li>Connect your Xbox controller (USB or Bluetooth)</li>
@@ -464,6 +466,19 @@
   Fenced <code>```mermaid</code> code blocks render as <strong>diagrams</strong> (dark theme). Mermaid loads on demand, only when an artifact actually contains one.
 </div>
 
+<h3>Images</h3>
+<p>Artifacts can show pictures &mdash; a screenshot the AI captured, a chart it generated, a diagram it exported. Two sources work:</p>
+<ul>
+  <li><strong>Local files</strong> &mdash; a normal path (<code>C:\reports\chart.png</code>, <code>./out/graph.jpg</code>) is served straight off your disk and appears inline.</li>
+  <li><strong>Embedded images</strong> &mdash; <code>data:image/&hellip;</code> content baked into the artifact itself.</li>
+</ul>
+<div class="callout">
+  Remote images (<code>http</code> / <code>https</code>) and <code>.svg</code> are <strong>not</strong> rendered, deliberately: an artifact must never phone home to a server, and SVG can carry script. A blocked image shows as a plain broken-image placeholder.
+</div>
+
+<h3>Selecting text</h3>
+<p>Artifact text is <strong>selectable and copyable</strong> &mdash; drag to select, then <kbd>Ctrl+C</kbd>. While a selection is live inside the panel, <kbd>Ctrl+C</kbd> and <kbd>Ctrl+X</kbd> copy it instead of being forwarded to the terminal as an interrupt.</p>
+
 <h3>Export &amp; delete</h3>
 <ul>
   <li><strong>Export&hellip;</strong> &mdash; save the current artifact to a location you pick (this is the only way its content leaves the session).</li>
@@ -487,7 +502,10 @@
 
 <ul>
   <li>Open: the <strong>&#128465; Recycle Bin</strong> button (Project Planner area, bottom-left) with a live badge count.</li>
-  <li>Entries are grouped by working directory and show the relative close time and an expiry countdown (rows fade near the 30-day edge).</li>
+  <li>Entries sit in a <strong>collapsible tree</strong> &mdash; <em>Project &rsaquo; Runtime Group &rsaquo; Folder &rsaquo; sessions</em>. Runtime groups come first under a project, with a group chip on the row; folders that belong to no group sit directly under the project. Sessions Helm can't match to a project land under a catch-all node.</li>
+  <li>Each node carries a count of everything beneath it, and sessions are listed <strong>newest-closed first</strong>.</li>
+  <li>Rows show the session name, its CLI, the <strong>full working directory path</strong>, and the exact close time as <code>yyyy/mm/dd HH:mm</code>.</li>
+  <li><strong>Search</strong> (name, CLI or path) filters the tree, keeping the branches that still contain a match.</li>
 </ul>
 
 <table>
@@ -497,6 +515,7 @@
   <tbody>
     <tr><td>Restore <kbd>&#8634;</kbd></td><td>Re-spawns the session (reuses its original id, so its artifacts return)</td></tr>
     <tr><td>Forget <kbd>&#128465;</kbd></td><td>Permanently deletes that one entry (and its artifacts)</td></tr>
+    <tr><td><kbd>&#8634; Restore all</kbd> / <kbd>&#128465; Forget all</kbd></td><td>Per-folder bulk actions on the folder header</td></tr>
     <tr><td>Empty bin</td><td>Clears every entry (and their artifacts)</td></tr>
   </tbody>
 </table>
@@ -556,6 +575,12 @@
 <div class="callout">
   If the two codes <strong>differ</strong>, press <strong>Reject</strong>. Matching codes are what proves you are talking to the machine you think you are, so a mismatch is the check doing its job &mdash; not a glitch to retry past.
 </div>
+
+<h3>Spotting remote-driven sessions</h3>
+<p>A session that a <strong>peer</strong> opened on this machine is tinted <strong>light blue</strong> in the sidebar, so you can tell at a glance which terminals are being driven from somewhere else. The tint survives hover, focus and restarts; a selected session still shows its usual accent border, and a <em>flash for attention</em> still overrides the tint while it runs.</p>
+
+<h3>Two-way conversations</h3>
+<p>An AI here can ask a question <em>of</em> an AI over there and get the answer back &mdash; the reply is delivered into the asking session as a normal inbound message, exactly as it would be between two local sessions. Nothing to configure; it follows from pairing.</p>
 
 <h3>Managing peers</h3>
 <table>
