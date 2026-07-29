@@ -71,6 +71,43 @@ INSTRUCTION: Summarize the architecture in 1 sentence and reply via Helm MCP.
 - JSON fields: `type`, `fromSessionId`, `fromSessionName`, `expectsResponse`, `timestamp`
 - Everything after the first newline is the plain-text instruction for Claude Code
 - `fromSessionName` is the session to reply to
+- A trailing `[HELM_MSG_RULES]` block follows the instruction — see below
+
+### The `[HELM_MSG_RULES]` Directive
+
+Every enveloped message ends with a `[HELM_MSG_RULES]` block telling the recipient
+**not to block on an interactive prompt**. The recipient is being driven by another
+LLM, so an `AskUserQuestion` modal on its terminal is one nobody will ever see or
+answer — the session hangs silently. Questions must travel back over the same wire
+the work arrived on. This mirrors the guarantee Telegram mode already provides.
+
+```mermaid
+graph LR
+    A[Local caller] --> D[sendTextToSession]
+    B["Fleet peer<br/>fleet:peerId:sessionId"] --> D
+    D --> T["[HELM_MSG] envelope<br/>+ payload<br/>+ [HELM_MSG_RULES]"]
+    T --> P[Recipient PTY]
+    P -->|needs a decision| R["session_send_text back to caller<br/>expectsResponse=true, then stand by"]
+    P -.->|never| Q["AskUserQuestion<br/>blocks unobserved"]
+```
+
+The directive instructs the recipient to:
+
+1. Never use `AskUserQuestion` or any other blocking prompt.
+2. Send the question back via `session_send_text` to the envelope's `fromSessionId`, with `expectsResponse=true`.
+3. **Stand by** for the reply — not guess, not proceed on assumptions.
+4. Call `session_set_aiagent_state(state="planning")` while waiting, so the standby is visible on the session row rather than looking like a stalled session.
+
+It is appended to **every** enveloped message, not only `expectsResponse=true` ones —
+a fire-and-forget task is the most likely to sit blocked unobserved. The sender id it
+quotes is whatever the envelope carries, so a cross-machine `fleet:<peerId>:<sessionId>`
+address routes questions home the same way a local session id does.
+
+Recipients configured with `helmPreambleForInterSession: false` receive plain text
+with no envelope and therefore no directive — that opt-out is unchanged.
+
+The directive is delivered as its own chunk after the payload, so the `[HELM_MSG]{json}`
+first line and the instruction text remain byte-exact for existing parsers.
 
 ### When Envelope Is Added
 

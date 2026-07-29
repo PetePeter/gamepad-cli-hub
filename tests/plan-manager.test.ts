@@ -591,7 +591,9 @@ describe('PlanManager', () => {
       const projectStore = new ProjectStore();
       const project = projectStore.resolveForPath('/projects/fresh');
 
-      expect(new PlanManager(projectStore).getDirectoryForProject(project.id)).toBe('/projects/fresh');
+      // Assert against the store's canonical path — normalizeProjectPath is
+      // platform-dependent (Windows resolves this to a drive-rooted path).
+      expect(new PlanManager(projectStore).getDirectoryForProject(project.id)).toBe(project.canonicalPath);
     });
   });
 

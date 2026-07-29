@@ -9,6 +9,15 @@ When a Claude Code session receives a `[HELM_MSG]` message, it should:
 4. **Process** the instruction after the first newline
 5. **Reply** via Helm MCP to `envelope.fromSessionName`
 
+> **Never block on a prompt.** A `[HELM_MSG]` comes from another LLM, not from a
+> human at your terminal — an `AskUserQuestion` modal there is one nobody can see
+> or answer, and your session hangs silently. If you need a decision, send the
+> question back to `envelope.fromSessionId` with `session_send_text`
+> (`expectsResponse=true`), set `session_set_aiagent_state(state="planning")`, and
+> stand by for the reply. Do not guess. Helm restates this in the
+> `[HELM_MSG_RULES]` block appended to every enveloped message — see
+> [helm-mcp-protocol.md](helm-mcp-protocol.md).
+
 ## Detecting and Parsing the Envelope
 
 Your Claude Code session receives text in chunks via PTY. Watch for the `[HELM_MSG]` prefix:

@@ -19,6 +19,30 @@ const DEFAULT_CLEAR_COMMAND = '/clear';
 const ACTION_WAIT_NOTE =
   'Command delivered. The CLI may take up to ~1 minute to finish — wait before reading its output.';
 
+/**
+ * Directive appended to every enveloped inter-session message.
+ *
+ * Why: the recipient is driven by another LLM — local or across the fleet — and
+ * nobody is watching its terminal. An AskUserQuestion modal there blocks
+ * forever, unseen. Questions must travel back over the same wire the work came
+ * in on. Mirrors the guarantee Telegram mode already gives (relay-service.ts).
+ *
+ * Contains no brace tokens: the sequence parser would rewrite them.
+ */
+function buildNonBlockingDirective(senderSessionId: string): string {
+  return (
+    '[HELM_MSG_RULES]\n' +
+    'This message came from another Helm session, not from a human at this terminal. ' +
+    'Nobody can see or answer an interactive prompt here.\n' +
+    'Do NOT use AskUserQuestion or any other blocking prompt.\n' +
+    'If you need a decision, send the question back to your caller with session_send_text ' +
+    `sessionId="${senderSessionId}", senderSessionId=<your HELM_SESSION_ID>, expectsResponse=true — ` +
+    'then stand by for the reply. Do not guess and do not proceed on assumptions.\n' +
+    'While standing by, call session_set_aiagent_state with state="planning" so the wait is visible on your session row.\n' +
+    '[/HELM_MSG_RULES]'
+  );
+}
+
 /** Replace $-prefixed placeholders (e.g. $instruction, $path) in an action template. */
 function substituteActionParams(template: string, params: Record<string, string>): string {
   let result = template;
@@ -105,7 +129,12 @@ export class HelmSessionDeliveryService {
       // Envelope JSON braces will be smart-escaped by escapeUnrecognizedBraces
       // (unrecognized brace groups get {{/}}), while user text tokens like {Send}
       // are preserved since they are recognized tokens.
-      const message = `${tag}${envelope}{Wait 80}${deliveryText}`;
+      //
+      // The directive trails the payload as its own chunk so the documented
+      // "[HELM_MSG]{json}" first line and the user text both stay byte-exact for
+      // existing envelope parsers.
+      const directive = buildNonBlockingDirective(options.senderSessionId);
+      const message = `${tag}${envelope}{Wait 80}${deliveryText}{Wait 80}${directive}`;
 
       deliveryVerification = await deliverPromptSequenceToSession({
         sessionId: session.id,

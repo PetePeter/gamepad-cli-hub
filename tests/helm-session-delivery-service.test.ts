@@ -112,6 +112,89 @@ describe('HelmSessionDeliveryService', () => {
     });
   });
 
+  describe('non-blocking recipient directive', () => {
+    function allDeliveredText(ptyManager: ReturnType<typeof makeDeps>['ptyManager']): string {
+      return ptyManager.deliverText.mock.calls.map((c: any[]) => c[1] ?? '').join('\n');
+    }
+
+    it('tells fire-and-forget recipients not to use AskUserQuestion', async () => {
+      const { service, ptyManager, receiver, sender } = makeDeps();
+
+      await service.sendTextToSession(receiver.id, 'do the thing', {
+        senderSessionId: sender.id,
+        senderSessionName: sender.name,
+        expectsResponse: false,
+      });
+
+      expect(allDeliveredText(ptyManager)).toContain('AskUserQuestion');
+    });
+
+    it('keeps the reply-routing instruction alongside the directive when expectsResponse=true', async () => {
+      const { service, ptyManager, receiver, sender } = makeDeps();
+
+      await service.sendTextToSession(receiver.id, 'what branch?', {
+        senderSessionId: sender.id,
+        senderSessionName: sender.name,
+        expectsResponse: true,
+      });
+
+      const all = allDeliveredText(ptyManager);
+      expect(all).toContain('expectsResponse=true');
+      expect(all).toContain('AskUserQuestion');
+    });
+
+    it('names session_send_text and the sender id as the question channel', async () => {
+      const { service, ptyManager, receiver, sender } = makeDeps();
+
+      await service.sendTextToSession(receiver.id, 'ambiguous task', {
+        senderSessionId: sender.id,
+        senderSessionName: sender.name,
+      });
+
+      const all = allDeliveredText(ptyManager);
+      expect(all).toContain('session_send_text');
+      expect(all).toContain(sender.id);
+    });
+
+    it('instructs the recipient to stand by rather than assume', async () => {
+      const { service, ptyManager, receiver, sender } = makeDeps();
+
+      await service.sendTextToSession(receiver.id, 'ambiguous task', {
+        senderSessionId: sender.id,
+        senderSessionName: sender.name,
+      });
+
+      const all = allDeliveredText(ptyManager);
+      expect(all).toContain('stand by');
+      expect(all).toContain('session_set_aiagent_state');
+    });
+
+    it('carries the same directive for a cross-machine fleet sender address', async () => {
+      const { service, ptyManager, receiver } = makeDeps();
+      const fleetSender = 'fleet:peer-abc:remote-session-1';
+
+      await service.sendTextToSession(receiver.id, 'remote task', {
+        senderSessionId: fleetSender,
+        senderSessionName: 'RemoteMac',
+      });
+
+      const all = allDeliveredText(ptyManager);
+      expect(all).toContain('AskUserQuestion');
+      expect(all).toContain(fleetSender);
+    });
+
+    it('omits the directive for recipients that opted out of the preamble', async () => {
+      const { service, ptyManager, receiver, sender } = makeDeps({ helmPreambleForInterSession: false });
+
+      await service.sendTextToSession(receiver.id, 'plain message', {
+        senderSessionId: sender.id,
+        senderSessionName: sender.name,
+      });
+
+      expect(allDeliveredText(ptyManager)).not.toContain('AskUserQuestion');
+    });
+  });
+
   describe('plain delivery (preamble=false)', () => {
     it('sends user text without any [HELM_MSG] wrapper', async () => {
       const { service, ptyManager, receiver, sender } = makeDeps({ helmPreambleForInterSession: false });
