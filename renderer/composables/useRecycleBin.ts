@@ -7,8 +7,9 @@
  * identical to how startup resume works.
  */
 import { ref } from 'vue';
-import { recycleBinClient, runtimeGroupClient, eventsClient } from '../ipc/clients.js';
+import { recycleBinClient, runtimeGroupClient, eventsClient, sessionsClient } from '../ipc/clients.js';
 import { doSpawn } from '../screens/sessions-spawn.js';
+import { getTerminalManager } from '../runtime/terminal-provider.js';
 import type { RecycleBinEntry } from '../../src/types/recycle-bin.js';
 
 const entries = ref<RecycleBinEntry[]>([]);
@@ -54,6 +55,11 @@ async function restore(id: string): Promise<void> {
 
     // Commit: remove the bin entry now that the session is back (artifacts stay put).
     await recycleBinClient.recycleBinCommitRestore(id);
+    // A restored session keeps the name it was closed under — pty:spawn names new
+    // sessions after their cliType, so without this the user's name is lost. Same
+    // shape as startup auto-resume (useAppBootstrap). Never fatal: the session is
+    // already back, so a failed rename must not skip the group re-attach below.
+    await restoreName(spawnedId, entry);
     // Re-attach to the original runtime group (recreated by id/name if it's gone).
     if (entry.runtimeGroupId) {
       await runtimeGroupClient.runtimeGroupReattach(
@@ -64,6 +70,18 @@ async function restore(id: string): Promise<void> {
     await refresh();
   } finally {
     restoring.delete(id);
+  }
+}
+
+/** Re-apply the closed session's display name. No-op when it was never renamed. */
+async function restoreName(sessionId: string, entry: RecycleBinEntry): Promise<void> {
+  const name = entry.name?.trim();
+  if (!name || name === entry.cliType) return;
+  try {
+    await sessionsClient.sessionRename?.(sessionId, name);
+    getTerminalManager()?.renameSession(sessionId, name);
+  } catch (err) {
+    console.error('[RecycleBin] Failed to restore session name:', err);
   }
 }
 

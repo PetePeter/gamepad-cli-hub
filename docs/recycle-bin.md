@@ -48,7 +48,7 @@ graph TB
     end
     RBH -. "recycle-bin:changed" .-> URB
     URB -->|"recycleBin:*"| RBH
-    SPAWN -->|"success → commitRestore<br/>+ runtimeGroupReattach"| RBH
+    SPAWN -->|"success → commitRestore<br/>+ sessionRename + runtimeGroupReattach"| RBH
 ```
 
 ## What gets recorded
@@ -93,10 +93,21 @@ Restore does **not** remove the entry up front:
    — the identical path used by startup auto-resume.
 3. Spawn failed (`!spawnedId`) → **return early, entry stays in the bin**, retryable.
 4. Spawn succeeded → `recycleBin:commitRestore(id)` removes the entry.
-5. If tagged, `runtimeGroupReattach({ runtimeGroupId, runtimeGroupName }, spawnedId)`
+5. `session:rename(spawnedId, entry.name)` re-applies the **display name the session
+   was closed under** (see below).
+6. If tagged, `runtimeGroupReattach({ runtimeGroupId, runtimeGroupName }, spawnedId)`
    re-adds it to its runtime group, recreating the group if it is gone.
 
 A `restoring` set guards against double-clicks.
+
+### Name reuse
+
+`pty:spawn` names every new session after its `cliType`, so a restored session would
+otherwise come back as "claude-code" and lose whatever the user called it. Step 5
+re-applies `entry.name` — skipped when the name is blank or is just the `cliType`
+(nothing was ever customised). The rename is non-fatal: the session is already back,
+so a failure logs and lets the group re-attach proceed. This mirrors startup
+auto-resume, which renames the same way after `doSpawn`.
 
 > **Note vs. CLAUDE.md decision 28**, which describes 4 IPC channels and a restore
 > that "returns the entry and removes it". The code has **5** channels: restore was
