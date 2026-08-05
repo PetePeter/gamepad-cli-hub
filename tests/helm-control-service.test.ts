@@ -371,6 +371,21 @@ describe('HelmControlService.spawnCli', () => {
     });
   });
 
+  // MCP clients put HELM_SESSION_NAME straight into a request header, and an em
+  // dash in the name made `claude mcp add` reject the entire Helm server.
+  it('exports a header-safe HELM_SESSION_NAME', () => {
+    const { service, ptyManager, configLoader } = makeService();
+    (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
+      name: 'Claude Code',
+      command: 'claude',
+    });
+
+    service.spawnCli('claude-code', '/work', 'Windows verify — artifacts');
+
+    const env = (ptyManager.spawn as ReturnType<typeof vi.fn>).mock.calls[0][0].env;
+    expect(env.HELM_SESSION_NAME).toBe('Windows verify - artifacts');
+  });
+
   describe('initialPrompt scheduling', () => {
     beforeEach(() => { vi.useFakeTimers(); });
     afterEach(() => { vi.useRealTimers(); });

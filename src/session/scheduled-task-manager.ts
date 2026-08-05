@@ -19,6 +19,7 @@ import type { ConfigLoader } from '../config/loader.js';
 import { scheduleInitialPrompt } from './initial-prompt.js';
 import { mintSessionAuthToken } from '../mcp/session-auth.js';
 import { CronEngine } from '../utils/cron-engine.js';
+import { toHeaderSafeName } from '../utils/header-safe-name.js';
 import { deliverPromptSequenceToSession } from './sequence-delivery.js';
 
 const PENDING_STATUSES = new Set<ScheduledTaskStatus>(['pending', 'executing']);
@@ -325,7 +326,8 @@ export class ScheduledTaskManager extends EventEmitter {
       const mcpToken = mintSessionAuthToken(mcpConfig.authToken, sessionId, `[scheduled] ${task.title}`);
       const env: Record<string, string> = {
         HELM_SESSION_ID: sessionId,
-        HELM_SESSION_NAME: `[scheduled] ${task.title}`,
+        // Task titles are free text and this reaches an MCP request header.
+        HELM_SESSION_NAME: toHeaderSafeName(`[scheduled] ${task.title}`),
         HELM_MCP_TOKEN: mcpToken,
         HELM_MCP_URL: `http://127.0.0.1:${mcpConfig.port}/mcp`,
       };

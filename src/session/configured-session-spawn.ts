@@ -7,6 +7,7 @@ import { scheduleInitialPrompt } from './initial-prompt.js';
 import type { PtyManager, PtyProcess } from './pty-manager.js';
 import { deliverPromptSequenceToSession } from './sequence-delivery.js';
 import { logger } from '../utils/logger.js';
+import { toHeaderSafeName } from '../utils/header-safe-name.js';
 import { normalizeProjectPath } from './project-identity.js';
 
 /** Pause before writing the submit suffix so bracketed/paste-aware CLIs can settle. */
@@ -249,7 +250,9 @@ export function resolveConfiguredSpawnEnv(
       helmSession.sessionName,
     );
     env.HELM_SESSION_ID = helmSession.sessionId;
-    env.HELM_SESSION_NAME = helmSession.sessionName;
+    // MCP clients put this straight into a request header, so it must be
+    // header-legal by construction — see toHeaderSafeName.
+    env.HELM_SESSION_NAME = toHeaderSafeName(helmSession.sessionName);
     env.HELM_MCP_URL = `http://127.0.0.1:${mcpPort}/mcp`;
   }
   return Object.keys(env).length > 0 ? env : undefined;
