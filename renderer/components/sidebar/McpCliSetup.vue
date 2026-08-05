@@ -86,10 +86,14 @@ const codexSetup = computed(() => {
 const claudeEnv = computed(() => envForCli('claude', 'claude-code'));
 const claudeSetup = computed(() => {
   const env = envSetupLines(claudeEnv.value);
+  // No X-Helm-Session-Name header, deliberately. Session names are free text and
+  // HTTP header values are ISO-8859-1, so one em dash or emoji in a name makes
+  // `claude mcp add` reject the whole server ("has invalid value") and the CLI
+  // silently loses every Helm tool. The server resolves the sender's name from
+  // X-Helm-Session-Id and never reads a name header, so nothing is lost.
   const headers = [
     'Authorization: Bearer ${HELM_MCP_TOKEN}',
     'X-Helm-Session-Id: ${HELM_SESSION_ID}',
-    'X-Helm-Session-Name: ${HELM_SESSION_NAME}',
   ].map(h => `--header ${quoteArg(h)}`).join(' ');
   const cmd = `claude mcp add --transport http --scope user helm ${props.endpoint} ${headers}`;
   return env ? `${env}\n${cmd}` : cmd;

@@ -116,7 +116,6 @@ describe('McpCliSetup.vue placeholder preservation', () => {
 
     expect(text).toContain("--header 'Authorization: Bearer ${HELM_MCP_TOKEN}'");
     expect(text).toContain("--header 'X-Helm-Session-Id: ${HELM_SESSION_ID}'");
-    expect(text).toContain("--header 'X-Helm-Session-Name: ${HELM_SESSION_NAME}'");
     // A double-quoted placeholder would be expanded by the shell at
     // registration time — the exact macOS bug this guards against.
     expect(text).not.toContain('--header "Authorization: Bearer ${HELM_MCP_TOKEN}"');
@@ -128,7 +127,22 @@ describe('McpCliSetup.vue placeholder preservation', () => {
 
     expect(text).toContain('--header "Authorization: Bearer ${HELM_MCP_TOKEN}"');
     expect(text).toContain('--header "X-Helm-Session-Id: ${HELM_SESSION_ID}"');
-    expect(text).toContain('--header "X-Helm-Session-Name: ${HELM_SESSION_NAME}"');
+  });
+
+  // A session named "Windows verify — artifacts" made `claude mcp add` refuse
+  // the whole server: HTTP header values are ISO-8859-1, so the em dash is an
+  // invalid value and the CLI drops the connection with
+  //   Header 'X-Helm-Session-Name' has invalid value
+  // The server resolves the sender's name from the session id, never from this
+  // header, so the safe fix is to stop sending a free-text name as a header.
+  it('never puts the free-text session name in a header', async () => {
+    for (const platform of ['darwin', 'win32'] as NodeJS.Platform[]) {
+      setPlatform(platform);
+      const text = (await mountSetup()).text();
+
+      expect(text).not.toContain('X-Helm-Session-Name');
+      expect(text).not.toContain('HELM_SESSION_NAME');
+    }
   });
 
   it('preserves the placeholder for every MCP client, on both platforms', async () => {
