@@ -13,6 +13,7 @@ const artifactList = vi.fn();
 const artifactDelete = vi.fn().mockResolvedValue(true);
 const artifactDeleteAll = vi.fn().mockResolvedValue(true);
 const artifactExport = vi.fn().mockResolvedValue('/tmp/out.md');
+const artifactOpenExternal = vi.fn().mockResolvedValue({ success: true, path: '/tmp/a.md' });
 
 vi.mock('../../../renderer/ipc/clients.js', () => ({
   artifactsClient: {
@@ -20,6 +21,7 @@ vi.mock('../../../renderer/ipc/clients.js', () => ({
     artifactDelete: (...a: unknown[]) => artifactDelete(...a),
     artifactDeleteAll: (...a: unknown[]) => artifactDeleteAll(...a),
     artifactExport: (...a: unknown[]) => artifactExport(...a),
+    artifactOpenExternal: (...a: unknown[]) => artifactOpenExternal(...a),
   },
   // No-op event subscriptions — return undefined (composable guards with ?.).
   eventsClient: {
@@ -64,6 +66,7 @@ beforeEach(() => {
   artifactDelete.mockResolvedValue(true);
   artifactDeleteAll.mockResolvedValue(true);
   artifactExport.mockResolvedValue('/tmp/out.md');
+  artifactOpenExternal.mockResolvedValue({ success: true, path: '/tmp/a.md' });
 });
 
 describe('ArtifactViewer', () => {
@@ -121,6 +124,30 @@ describe('ArtifactViewer', () => {
     expect(artifactDelete).toHaveBeenCalledWith('a1');
     expect(w.findAll('.ap-item')).toHaveLength(0);
     expect(w.find('.ap-detail-empty').exists()).toBe(true);
+  });
+
+  it('opens the version currently on screen, not just the latest', async () => {
+    const { w } = await mountWith([makeArtifact()]);
+
+    // Pin an older version (v3 -> v2), then open externally.
+    const olderBtn = w.findAll('.ap-v-step').find((b) => b.attributes('title') === 'Older');
+    await olderBtn!.trigger('click');
+    await flushPromises();
+
+    await footBtn(w, 'Open externally')!.trigger('click');
+    await flushPromises();
+
+    expect(artifactOpenExternal).toHaveBeenCalledWith('a1', 2);
+  });
+
+  it('surfaces the failure reason in the footer when the OS has no handler', async () => {
+    artifactOpenExternal.mockResolvedValue({ success: false, error: 'No application is associated with .md' });
+    const { w } = await mountWith([makeArtifact()]);
+
+    await footBtn(w, 'Open externally')!.trigger('click');
+    await flushPromises();
+
+    expect(w.text()).toContain('No application is associated with .md');
   });
 
   it('copies a Helm reference for the selected artifact', async () => {

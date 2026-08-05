@@ -217,6 +217,7 @@ export const PRELOAD_API_DOMAINS = {
     'artifactDeleteAll',
     'artifactReveal',
     'artifactExport',
+    'artifactOpenExternal',
     'artifactCreateText',
     'artifactCreateWithFile',
     'artifactPickAndReadFile',

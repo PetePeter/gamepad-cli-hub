@@ -267,7 +267,7 @@ export function registerIPCHandlers(
   setupScheduledTaskHandlers(scheduledTaskManager, scheduledTaskHistoryManager, windowManager);
   setupRecycleBinHandlers(recycleBinManager, artifactManager, windowManager);
   setupRuntimeGroupHandlers(runtimeGroupManager, windowManager);
-  setupArtifactHandlers(artifactManager, artifactAttachmentManager, windowManager);
+  setupArtifactHandlers(artifactManager, artifactAttachmentManager, windowManager, dirname);
 
   // Forward artifact mutations/reveals to the main window AND the session's own
   // popout window (mirrors the session:updated dual-window forwarding below), so

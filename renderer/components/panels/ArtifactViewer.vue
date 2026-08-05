@@ -5,7 +5,8 @@
  * Master: a collapsible index rail (search + sort + Today/Earlier groups,
  * unread dots, hover-delete). Detail: the selected artifact rendered to
  * sanitized HTML with a version bar (‹ › + dropdown + older-version banner).
- * Footer: Export… / Delete / Clear all. Header: title + count + pop-out + close.
+ * Footer: Open externally / Export… / Copy reference / Delete.
+ * Header: title + count + pop-out + close.
  *
  * Supports manual artifact creation: text notes, file attachments via
  * file picker / drag-and-drop / clipboard paste. Images render inline
@@ -182,6 +183,18 @@ const count = computed(() => artifacts.value.length);
 function onSelect(id: string): void { viewer.select(id); }
 function onExport(): void { if (selectedId.value) void viewer.export(selectedId.value); }
 
+// Opens the version currently on screen (Export, by contrast, always writes the
+// latest). The failure reason is shown inline rather than swallowed — some
+// systems have no application registered for .md.
+const openError = ref<string | null>(null);
+async function onOpenExternal(): Promise<void> {
+  const id = selectedId.value;
+  if (!id) return;
+  openError.value = null;
+  const result = await viewer.openExternal(id, shownVersion.value?.version);
+  if (!result.success) openError.value = result.error ?? 'Could not open externally';
+}
+
 // Footer delete is guarded by an inline confirm so it can't be a one-click accident.
 const confirmDelete = ref(false);
 function onConfirmDelete(): void {
@@ -189,7 +202,7 @@ function onConfirmDelete(): void {
   confirmDelete.value = false;
   if (id) void viewer.remove(id);
 }
-watch(selectedId, () => { confirmDelete.value = false; });
+watch(selectedId, () => { confirmDelete.value = false; openError.value = null; });
 
 async function onCopyRef(): Promise<void> {
   const a = selected.value;
@@ -572,8 +585,10 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
 
         <!-- Footer -->
         <div v-if="!isCreatingText" class="ap-foot">
+          <button class="ap-btn" title="Open this version in your default app" :disabled="!selected" @click="onOpenExternal">⧉ Open externally</button>
           <button class="ap-btn" title="Save to a location you pick" :disabled="!selected" @click="onExport">⭳ Export…</button>
           <button class="ap-btn" title="Copy a reference an AI can resolve" :disabled="!selected" @click="onCopyRef">📋 Copy reference</button>
+          <span v-if="openError" class="ap-foot-error">{{ openError }}</span>
           <span class="ap-grow"></span>
           <template v-if="confirmDelete">
             <span class="ap-foot-confirm">Delete?</span>
@@ -719,5 +734,6 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
 .ap-btn--danger:hover:not(:disabled) { border-color: var(--red-border, #c55); color: var(--red, #ff6666); }
 .ap-btn { cursor: pointer; font-family: inherit; }
 .ap-foot-confirm { font-size: 0.74rem; color: var(--text-primary); }
+.ap-foot-error { font-size: 0.74rem; color: var(--red, #ff6666); }
 .ap-grow { flex: 1; }
 </style>

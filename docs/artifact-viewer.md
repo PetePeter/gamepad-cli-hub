@@ -60,7 +60,19 @@ Right-hand, resizable dock (width persisted). Master/detail so it scales to many
 artifacts:
 
 - **Index rail** (master): scrollable list, live search, sort (newest / recently-updated / A–Z), `Today` / `Earlier` group headers, unread dots, hover-delete, collapse handle.
-- **Detail pane**: sanitized render (see below), version bar (‹ › + dropdown + older-version banner + *Jump to latest*), footer with **Export… / Delete / Clear all**.
+- **Detail pane**: sanitized render (see below), version bar (‹ › + dropdown + older-version banner + *Jump to latest*), footer with **Open externally / Export… / Copy reference / Delete**.
+
+**Open externally** writes the version *currently on screen* to a read-only temp
+file under `<appData>/Helm/tmp` (`helm-artifact-<title>-<stamp>.md|.html`) and hands
+it to the OS default app via `shell.openPath`. The copy is deliberately left behind —
+the external app still holds it — and is reaped on next startup by
+`cleanupWorkTempFiles`. It is `chmod 0o444` because `artifacts.yaml` is the source of
+truth and edits to the copy would be silently lost. `shell.openPath` *resolves* an
+error string rather than throwing (e.g. Windows with no `.md` handler registered), so
+the reason is shown inline in the footer instead of the button appearing dead.
+
+**Export…** differs on both counts: it prompts for a location and always writes the
+**latest** version.
 
 **Show / hide:** a `📄 Artifacts` toolbar toggle with a live badge, `✕` on the
 panel header, and `Ctrl+Shift+A` (ignored while modal overlays / editors / plan
@@ -166,7 +178,8 @@ graph TB
 | `src/session/artifact-persistence.ts` | YAML save/load + type-guard sanitize |
 | `src/session/artifact-orphan-prune.ts` | Pure startup reclamation of artifacts with no live/binned owner |
 | `src/electron/ipc/recycle-bin-handlers.ts` | Forget/Empty clear a binned session's artifacts; restore preserves them |
-| `src/electron/ipc/artifact-handlers.ts` | IPC channels incl. `artifact:export` (native save dialog) |
+| `src/electron/ipc/artifact-handlers.ts` | IPC channels incl. `artifact:export` (native save dialog) and `artifact:openExternal` (read-only temp copy → `shell.openPath`) |
+| `src/session/artifact-temp-file.ts` | Pure filename helpers — `sanitizeFilename`, `artifactExtension`, `artifactTempFileName` (shared by export and open-externally) |
 | `src/mcp/tools/{definitions,dispatcher,validation}.ts` | 7 MCP tools, caller-session scoping, ownership check |
 | `src/mcp/helm-control-service.ts` | Service methods + `requireOwnedArtifact` guard |
 | `src/mcp/guides/session-info-guide.ts` | `artifact_viewer` advert in `session_info` |

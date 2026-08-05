@@ -1081,6 +1081,10 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   /** Export an artifact's latest version to a user-chosen file; returns the path or null */
   artifactExport: (artifactId: string): Promise<string | null> => ipcRenderer.invoke('artifact:export', artifactId),
 
+  /** Open one artifact version in the OS default app via a read-only temp copy */
+  artifactOpenExternal: (artifactId: string, version?: number): Promise<{ success: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke('artifact:openExternal', artifactId, version),
+
   /** Create a manual text/markdown artifact */
   artifactCreateText: (sessionId: string, title: string, content: string, kind?: 'markdown' | 'html'): Promise<Artifact> =>
     ipcRenderer.invoke('artifact:createText', sessionId, title, content, kind),

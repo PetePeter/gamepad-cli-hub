@@ -144,7 +144,7 @@ export function cleanupWorkTempFiles(dirname: string, appData?: string): void {
     if (!fs.existsSync(tmpDir)) return;
     const files = fs.readdirSync(tmpDir);
     for (const file of files) {
-      if (file.startsWith('helm-work-') || file.startsWith('helm-prompt-') || file.startsWith('helm-large-text-') || file.startsWith('helm-plan-export-')) {
+      if (file.startsWith('helm-work-') || file.startsWith('helm-prompt-') || file.startsWith('helm-large-text-') || file.startsWith('helm-plan-export-') || file.startsWith('helm-artifact-')) {
         const filePath = path.join(tmpDir, file);
         try {
           if (file.startsWith('helm-plan-export-')) {

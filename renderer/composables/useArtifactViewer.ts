@@ -160,6 +160,17 @@ async function exportArtifact(id: string): Promise<string | null> {
   try { return await artifactsClient.artifactExport(id); } catch { return null; }
 }
 
+/**
+ * Open one artifact version in the OS default app. Unlike the other mutations
+ * the failure reason is returned rather than swallowed — on Windows there may be
+ * no application registered for .md, and a silently dead button is worse than
+ * a message.
+ */
+async function openExternal(id: string, version?: number): Promise<{ success: boolean; error?: string }> {
+  try { return await artifactsClient.artifactOpenExternal(id, version); }
+  catch (err) { return { success: false, error: String(err) }; }
+}
+
 // ── Manual creation ──────────────────────────────────────────────────────
 
 /** Create a manual text/markdown artifact. Returns the artifact or null. */
@@ -267,6 +278,7 @@ export function useArtifactViewer() {
     remove,
     clearAll,
     export: exportArtifact,
+    openExternal,
     // manual creation
     createTextArtifact,
     createFileArtifact,
