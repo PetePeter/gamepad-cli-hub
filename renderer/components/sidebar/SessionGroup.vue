@@ -156,5 +156,12 @@ function onDrop(e: DragEvent): void {
         @click.stop="emit('closeGroup', group.groupId ?? group.dirPath)"
       >✕</button>
     </div>
+    <div v-else class="group-header-actions">
+      <button
+        class="group-header-action"
+        title="Close all sessions in this folder"
+        @click.stop="emit('closeGroup', group.dirPath)"
+      >✕</button>
+    </div>
   </div>
 </template>

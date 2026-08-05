@@ -138,12 +138,17 @@ watch(() => props.visible, async (v) => {
 }, { immediate: true });
 
 async function loadEditorDimensions(): Promise<void> {
-  // Width is window-responsive (50% default) — not restored from prefs — so it
-  // always tracks the current window. Only height is persisted/restored.
+  // Restore both width and height from persisted prefs.
+  // Fall back to responsive defaults when no saved pref exists.
   userResizedWidth.value = false;
   editorWidth.value = computeResponsiveWidth();
   try {
     const prefs = await configClient.configGetEditorPrefs();
+    if (prefs.editorPopupWidth) {
+      const maxW = window.innerWidth * MAX_WIDTH_VIEWPORT_RATIO;
+      editorWidth.value = Math.max(MIN_WIDTH, Math.min(prefs.editorPopupWidth, maxW));
+      userResizedWidth.value = true;
+    }
     if (prefs.editorPopupHeight) editorHeight.value = Math.max(MIN_HEIGHT, Math.min(prefs.editorPopupHeight, window.innerHeight * MAX_HEIGHT_VIEWPORT_RATIO));
     else editorHeight.value = Math.max(MIN_HEIGHT, Math.min(DEFAULT_HEIGHT, window.innerHeight * MAX_HEIGHT_VIEWPORT_RATIO));
   } catch (err) {

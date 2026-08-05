@@ -164,9 +164,9 @@ async function exportArtifact(id: string): Promise<string | null> {
  * Subscribe once to artifact IPC events. Safe to call repeatedly.
  *
  * - onArtifactChanged: reload only when it targets the bound session.
- * - onArtifactReveal:  focus that artifact, show the panel, and mark every
- *   other artifact unread (matching the mockup: a new artifact auto-selects,
- *   the rest gain an unread dot).
+ * - onArtifactReveal:  focus that artifact, show the panel, and mark it unread
+ *   (green dot). The dot stays until the user explicitly selects/interacts with
+ *   it. Other artifacts' unread state is preserved.
  */
 function ensureSubscribed(): void {
   if (subscribed) return;
@@ -179,9 +179,10 @@ function ensureSubscribed(): void {
   eventsClient.onArtifactReveal?.(async ({ sessionId, artifactId }) => {
     if (sessionId !== activeSessionId) return;
     await refresh(sessionId);
-    // Mark all others unread, then clear the revealed one and select it.
-    const next = new Set(artifacts.value.map(a => a.id));
-    next.delete(artifactId);
+    // Mark only the revealed artifact as unread (it has new/updated content).
+    // Preserve existing unread state for all other artifacts.
+    const next = new Set(unread.value);
+    next.add(artifactId);
     unread.value = next;
     selectedId.value = artifactId;
     selectedVersion.value = null;

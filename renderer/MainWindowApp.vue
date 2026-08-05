@@ -838,7 +838,17 @@ function onGroupRename(groupId: string): void {
 }
 function onGroupClose(groupId: string): void {
   const group = runtimeGroups.groups.value.find(g => g.id === groupId);
-  if (group) runtimeGroupActions.requestClose(group);
+  if (group) {
+    runtimeGroupActions.requestClose(group);
+    return;
+  }
+  // Directory group — close all sessions in that folder.
+  const dirGroup = sessionsState.groups.find(g => g.dirPath === groupId);
+  if (dirGroup && dirGroup.sessions.length > 0) {
+    for (const session of dirGroup.sessions) {
+      void doCloseSession(session.id);
+    }
+  }
 }
 function onGroupAddSession(groupId: string, sessionId: string): void {
   void runtimeGroupActions.moveToGroup(groupId, sessionId);
