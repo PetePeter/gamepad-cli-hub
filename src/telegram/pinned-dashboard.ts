@@ -20,7 +20,7 @@
  */
 
 import type { TelegramBotCore } from './bot.js';
-import type TelegramBot from 'node-telegram-bot-api';
+import type * as TelegramBot from 'node-telegram-bot-api';
 import type { SessionManager } from '../session/manager.js';
 import type { SessionInfo, SessionState } from '../types/session.js';
 import { escapeHtml } from './utils.js';

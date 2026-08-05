@@ -4,7 +4,7 @@
   "version": "2.1.0",
   "main": "dist-electron/main.js",
   "type": "module",
-  "description": "Helm \u2014 steer your fleet of agents",
+  "description": "Helm — steer your fleet of agents",
   "scripts": {
     "start": "npm run build && electron .",
     "dev": "npm run build && electron .",
@@ -114,7 +114,6 @@
   "devDependencies": {
     "@electron/rebuild": "^4.0.3",
     "@types/node": "^25.5.0",
-    "@types/node-telegram-bot-api": "^0.64.14",
     "@vitest/ui": "^4.1.0",
     "@vue/test-utils": "^2.4.6",
     "electron": "^41.0.3",

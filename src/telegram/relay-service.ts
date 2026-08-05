@@ -9,7 +9,7 @@ import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import type TelegramBot from 'node-telegram-bot-api';
+import type * as TelegramBot from 'node-telegram-bot-api';
 import { logger } from '../utils/logger.js';
 import type { TelegramBotCore } from './bot.js';
 import type { TopicManager } from './topic-manager.js';
@@ -362,8 +362,15 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     if (!active) return false;
 
     const from = reaction.user?.username ? `@${reaction.user.username}` : 'unknown';
-    const newEmojis = (reaction.new_reaction || []).map((r: any) => r.emoji).join(', ') || 'none';
-    const oldEmojis = (reaction.old_reaction || []).map((r: any) => r.emoji).join(', ');
+    // Only `type: 'emoji'` entries carry an `emoji` field — custom_emoji and paid
+    // reactions do not, and mapping over them leaves empty slots in the list.
+    const emojisOf = (list: TelegramBot.ReactionType[] | undefined): string =>
+      (list ?? [])
+        .filter((r): r is TelegramBot.ReactionTypeEmoji => r.type === 'emoji')
+        .map((r) => r.emoji)
+        .join(', ');
+    const newEmojis = emojisOf(reaction.new_reaction) || 'none';
+    const oldEmojis = emojisOf(reaction.old_reaction);
 
     const envelope = [
       `[HELM_TELEGRAM_REACTION${from === 'unknown' ? '' : ` from:${from}`} chat:${reaction.chat?.id}]`,

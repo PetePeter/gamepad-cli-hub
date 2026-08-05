@@ -1,4 +1,4 @@
-import type TelegramBot from 'node-telegram-bot-api';
+import type * as TelegramBot from 'node-telegram-bot-api';
 import type { SessionInfo, SessionState } from '../types/session.js';
 import path from 'path';
 

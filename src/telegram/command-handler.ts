@@ -4,7 +4,7 @@
  * Listens on `command:{name}` events from TelegramBotCore.
  */
 
-import type TelegramBot from 'node-telegram-bot-api';
+import type * as TelegramBot from 'node-telegram-bot-api';
 import type { TelegramBotCore } from './bot.js';
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';

@@ -8,7 +8,7 @@
  * active session. Filters out bot commands (starting with /).
  */
 
-import type TelegramBot from 'node-telegram-bot-api';
+import type * as TelegramBot from 'node-telegram-bot-api';
 import type { TelegramBotCore } from './bot.js';
 import type { TopicManager } from './topic-manager.js';
 import type { PtyManager } from '../session/pty-manager.js';

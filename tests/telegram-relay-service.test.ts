@@ -686,6 +686,47 @@ describe('TelegramRelayService', () => {
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('emoji: 👍'));
     });
 
+    // Telegram reactions are not all emoji: custom_emoji and paid entries carry
+    // no `emoji` field. Mapping over them blindly leaves an empty slot in the
+    // joined list, so a mixed reaction renders as "emoji: , 👍".
+    it('skips non-emoji reactions rather than leaving an empty slot', async () => {
+      const { relay, ptyManager } = makeRelay();
+
+      const consumed = await relay.handleReaction({
+        chat: { id: 12345 },
+        message_id: 77,
+        user: { id: 111, username: 'testuser' },
+        date: Date.now(),
+        old_reaction: [],
+        new_reaction: [
+          { type: 'custom_emoji', custom_emoji_id: '5789' },
+          { type: 'emoji', emoji: '👍' },
+        ],
+      });
+
+      expect(consumed).toBe(true);
+      const [, text] = ptyManager.deliverText.mock.calls[0];
+      expect(text).toContain('emoji: 👍');
+      expect(text).not.toMatch(/emoji: ,/);
+    });
+
+    it('reports no emoji when every reaction is non-emoji', async () => {
+      const { relay, ptyManager } = makeRelay();
+
+      await relay.handleReaction({
+        chat: { id: 12345 },
+        message_id: 78,
+        user: { id: 111, username: 'testuser' },
+        date: Date.now(),
+        old_reaction: [{ type: 'paid' }],
+        new_reaction: [{ type: 'custom_emoji', custom_emoji_id: '5789' }],
+      });
+
+      const [, text] = ptyManager.deliverText.mock.calls[0];
+      expect(text).toContain('emoji: none');
+      expect(text).not.toContain('removed:');
+    });
+
     it('returns false when no active session for reaction', async () => {
       const { relay, sessionManager } = makeRelay();
       sessionManager.getActiveSession.mockReturnValue(null);

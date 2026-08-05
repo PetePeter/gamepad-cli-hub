@@ -18,7 +18,7 @@
  *   peek:{sessionId}    — Peek at session terminal output
  */
 
-import type TelegramBot from 'node-telegram-bot-api';
+import type * as TelegramBot from 'node-telegram-bot-api';
 import type { TelegramBotCore } from './bot.js';
 import type { TopicManager } from './topic-manager.js';
 import type { SessionManager } from '../session/manager.js';
@@ -75,6 +75,18 @@ export function setupCallbackHandler(
   return () => {
     bot.removeListener('callback_query', handler);
   };
+}
+
+/**
+ * Topic id of the message a callback came from, if it is still reachable.
+ *
+ * `query.message` is a MaybeInaccessibleMessage: Telegram substitutes a stub
+ * carrying only chat/message_id/date once the original is too old, and that stub
+ * has no topic. Falling back to undefined puts the reply in the chat's General
+ * topic rather than throwing.
+ */
+function threadIdOf(msg: TelegramBot.MaybeInaccessibleMessage): number | undefined {
+  return 'message_thread_id' in msg ? msg.message_thread_id : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -546,7 +558,7 @@ async function doSpawnSession(
       await bot.getBot()?.sendMessage(
         msg.chat.id,
         `✅ Spawned <b>${escapeHtml(cliType)}</b> in <code>${escapeHtml(dirPath)}</code>\nSession: ${sessionId.substring(0, 8)}…`,
-        { parse_mode: 'HTML', message_thread_id: msg.message_thread_id },
+        { parse_mode: 'HTML', message_thread_id: threadIdOf(msg) },
       );
     }
     logger.info(`[SpawnWizard] Spawned ${cliType} in ${dirPath} → session ${sessionId}`);
@@ -615,7 +627,7 @@ async function handleStatus(
   if (msg) {
     await bot.getBot()?.sendMessage(msg.chat.id, text, {
       parse_mode: 'HTML',
-      message_thread_id: msg.message_thread_id,
+      message_thread_id: threadIdOf(msg),
     });
   }
   await bot.answerCallback(query.id);

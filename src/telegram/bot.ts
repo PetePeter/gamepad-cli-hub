@@ -1,9 +1,25 @@
 import TelegramBot from 'node-telegram-bot-api';
+// The default import binds only the class, so a separate type-only namespace
+// import is needed to reach the library's exported types. Both names refer to
+// the same module; TelegramBot stays the value (`new TelegramBot(...)`).
+import type * as TG from 'node-telegram-bot-api';
+
 import { EventEmitter } from 'events';
 import { Readable } from 'stream';
 import { existsSync, mkdirSync, statSync, writeFileSync } from 'fs';
 import path from 'path';
 import { logger } from '../utils/logger.js';
+
+// v1.x renamed the per-method option bags from `Send*Options` to `Send*Params`
+// and folded the positional arguments into them. These aliases name just the
+// "form" half — what each send*/edit* method actually accepts — so the call
+// sites stay readable and the rename lives in exactly one place.
+type SendMessageOptions = Omit<TG.SendMessageParams, 'chat_id' | 'text'>;
+type SendDocumentOptions = Omit<TG.SendDocumentParams, 'chat_id' | 'document'>;
+type SendVoiceOptions = Omit<TG.SendVoiceParams, 'chat_id' | 'voice'>;
+type SendPhotoOptions = Omit<TG.SendPhotoParams, 'chat_id' | 'photo'>;
+type SendVideoOptions = Omit<TG.SendVideoParams, 'chat_id' | 'video'>;
+type EditMessageTextOptions = Omit<TG.EditMessageTextParams, 'text'>;
 
 /**
  * Forum topic returned by the Telegram Bot API.
@@ -16,22 +32,14 @@ interface ForumTopic {
   icon_custom_emoji_id?: string;
 }
 
-/** A single emoji reaction entry in a MessageReaction. */
-interface ReactionEmoji {
-  type: 'emoji';
-  emoji: string;
-}
-
-/** Parsed representation of a Telegram message_reaction event. */
-interface MessageReaction {
-  chat: { id: number };
-  message_id: number;
-  from?: { id: number; username?: string; first_name?: string };
-  user?: { id: number; username?: string; first_name?: string };
-  date: number;
-  old_reaction: ReactionEmoji[];
-  new_reaction: ReactionEmoji[];
-}
+/**
+ * A Telegram message_reaction event.
+ *
+ * `old_reaction`/`new_reaction` are `ReactionType[]`, NOT emoji-only: Telegram
+ * also sends `custom_emoji` and `paid` entries, which carry no `emoji` field.
+ * Consumers must narrow on `type === 'emoji'` before reading it.
+ */
+type MessageReaction = TG.MessageReactionUpdated;
 
 /**
  * Queued message edit to prevent hitting Telegram rate limits.
@@ -41,8 +49,8 @@ interface PendingEdit {
   chatId: number;
   messageId: number;
   text: string;
-  options?: TelegramBot.EditMessageTextOptions;
-  resolveList: Array<(msg: TelegramBot.Message | boolean) => void>;
+  options?: EditMessageTextOptions;
+  resolveList: Array<(msg: TG.Message | boolean) => void>;
   rejectList: Array<(err: Error) => void>;
 }
 
@@ -68,9 +76,9 @@ const MAX_RECV_PER_MIN = 30;
  * - Message edit queue with debounce and rate limiting
  *
  * Events:
- * - 'callback_query' (query: TelegramBot.CallbackQuery) — authenticated callback
- * - 'message' (msg: TelegramBot.Message) — authenticated non-command message
- * - 'command:{name}' (msg: TelegramBot.Message, args: string) — slash command
+ * - 'callback_query' (query: TG.CallbackQuery) — authenticated callback
+ * - 'message' (msg: TG.Message) — authenticated non-command message
+ * - 'command:{name}' (msg: TG.Message, args: string) — slash command
  */
 export class TelegramBotCore extends EventEmitter {
   private bot: TelegramBot | null = null;
@@ -157,8 +165,8 @@ export class TelegramBotCore extends EventEmitter {
   /** Send a message to the configured chat, optionally in a specific topic. */
   async sendMessage(
     text: string,
-    options?: TelegramBot.SendMessageOptions,
-  ): Promise<TelegramBot.Message | null> {
+    options?: SendMessageOptions,
+  ): Promise<TG.Message | null> {
     if (!this.bot || !this.chatId) return null;
     try {
       return await this.withTimeout(this.bot.sendMessage(this.chatId, text, options), 'sendMessage');
@@ -172,8 +180,8 @@ export class TelegramBotCore extends EventEmitter {
   async sendToTopic(
     topicId: number,
     text: string,
-    options?: TelegramBot.SendMessageOptions,
-  ): Promise<TelegramBot.Message | null> {
+    options?: SendMessageOptions,
+  ): Promise<TG.Message | null> {
     return this.sendMessage(text, {
       ...options,
       message_thread_id: topicId,
@@ -185,10 +193,10 @@ export class TelegramBotCore extends EventEmitter {
     buffer: Buffer,
     filename: string,
     options?: { caption?: string; topicId?: number },
-  ): Promise<TelegramBot.Message | null> {
+  ): Promise<TG.Message | null> {
     if (!this.bot || !this.chatId) return null;
     try {
-      const sendOptions: TelegramBot.SendDocumentOptions = {
+      const sendOptions: SendDocumentOptions = {
         caption: options?.caption,
       };
       if (options?.topicId != null) {
@@ -208,10 +216,10 @@ export class TelegramBotCore extends EventEmitter {
   async sendVoice(
     buffer: Buffer,
     options?: { caption?: string; topicId?: number },
-  ): Promise<TelegramBot.Message | null> {
+  ): Promise<TG.Message | null> {
     if (!this.bot || !this.chatId) return null;
     try {
-      const sendOptions: TelegramBot.SendVoiceOptions = { caption: options?.caption };
+      const sendOptions: SendVoiceOptions = { caption: options?.caption };
       if (options?.topicId != null) {
         sendOptions.message_thread_id = options.topicId;
       }
@@ -229,10 +237,10 @@ export class TelegramBotCore extends EventEmitter {
   async sendPhoto(
     buffer: Buffer,
     options?: { caption?: string; topicId?: number },
-  ): Promise<TelegramBot.Message | null> {
+  ): Promise<TG.Message | null> {
     if (!this.bot || !this.chatId) return null;
     try {
-      const sendOptions: TelegramBot.SendPhotoOptions = { caption: options?.caption };
+      const sendOptions: SendPhotoOptions = { caption: options?.caption };
       if (options?.topicId != null) {
         sendOptions.message_thread_id = options.topicId;
       }
@@ -250,10 +258,10 @@ export class TelegramBotCore extends EventEmitter {
   async sendVideo(
     buffer: Buffer,
     options?: { caption?: string; topicId?: number },
-  ): Promise<TelegramBot.Message | null> {
+  ): Promise<TG.Message | null> {
     if (!this.bot || !this.chatId) return null;
     try {
-      const sendOptions: TelegramBot.SendVideoOptions = { caption: options?.caption };
+      const sendOptions: SendVideoOptions = { caption: options?.caption };
       if (options?.topicId != null) {
         sendOptions.message_thread_id = options.topicId;
       }
@@ -320,9 +328,9 @@ export class TelegramBotCore extends EventEmitter {
     chatId: number,
     messageId: number,
     text: string,
-    options?: TelegramBot.EditMessageTextOptions,
+    options?: EditMessageTextOptions,
     topicId?: number,
-  ): Promise<TelegramBot.Message | boolean> {
+  ): Promise<TG.Message | boolean> {
     const key = `${chatId}:${messageId}`;
 
     return new Promise((resolve, reject) => {
@@ -519,7 +527,7 @@ export class TelegramBotCore extends EventEmitter {
     return false;
   }
 
-  private handleMessage(msg: TelegramBot.Message): void {
+  private handleMessage(msg: TG.Message): void {
     if (!this.isAuthorized(msg.from?.id)) {
       const who = msg.from;
       const label = who?.username ? `@${who.username}` : (who?.first_name ?? 'unknown');
@@ -542,7 +550,7 @@ export class TelegramBotCore extends EventEmitter {
     this.emit('message', msg);
   }
 
-  private handleCallbackQuery(query: TelegramBot.CallbackQuery): void {
+  private handleCallbackQuery(query: TG.CallbackQuery): void {
     if (!this.isAuthorized(query.from?.id)) {
       logger.warn(`[Telegram] Unauthorized callback from user ${query.from?.id}`);
       return;
@@ -557,7 +565,9 @@ export class TelegramBotCore extends EventEmitter {
   }
 
   private handleMessageReaction(reaction: MessageReaction): void {
-    const userId = reaction.from?.id ?? reaction.user?.id;
+    // Telegram sends `user` for a reaction by a user; the anonymous-admin case
+    // carries `actor_chat` and no user id, which fails authorization below.
+    const userId = reaction.user?.id;
     if (!this.isAuthorized(userId)) {
       logger.warn(`[Telegram] Unauthorized message reaction from user ${userId}`);
       return;
