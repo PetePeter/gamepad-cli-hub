@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ArtifactAttachmentManager } from '../session/artifact-attachment-manager.js';
-import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 let testDir: string;
 
 vi.mock('../utils/app-paths.js', async (importOriginal) => {
-  const actual = await importOriginal();
+  const actual = await importOriginal<typeof import('../utils/app-paths.js')>();
   return {
     ...actual,
     getConfigDir: () => testDir,
@@ -53,7 +53,7 @@ describe('ArtifactAttachmentManager', () => {
   });
 
   it('deletes all attachments for an artifact', () => {
-    const a1 = manager.add('artifact-1', { filename: 'a.txt', content: Buffer.from('a') });
+    manager.add('artifact-1', { filename: 'a.txt', content: Buffer.from('a') });
     manager.add('artifact-1', { filename: 'b.txt', content: Buffer.from('b') });
     const a3 = manager.add('artifact-2', { filename: 'c.txt', content: Buffer.from('c') });
 

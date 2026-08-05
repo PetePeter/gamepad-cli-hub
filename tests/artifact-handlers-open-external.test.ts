@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import path from 'node:path';
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
@@ -74,7 +75,8 @@ describe('artifact:openExternal', () => {
     expect(result.success).toBe(true);
     const [writtenPath, writtenContent] = mockWriteFileSync.mock.calls[0];
     expect(writtenPath).toContain('helm-artifact-');
-    expect(writtenPath).toContain('/tmp/helm-test');
+    // Compare via path.dirname so the assertion holds under both separators.
+    expect(path.dirname(writtenPath)).toBe(path.normalize('/tmp/helm-test'));
     expect(writtenPath.endsWith('.md')).toBe(true);
     // Version 1 was explicitly requested — not the latest.
     expect(writtenContent).toBe('# v1 body');
