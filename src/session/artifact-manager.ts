@@ -22,7 +22,7 @@
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { logger } from '../utils/logger.js';
-import type { Artifact, ArtifactKind } from '../types/artifact.js';
+import type { Artifact, ArtifactKind, ArtifactSource } from '../types/artifact.js';
 
 export class ArtifactManager extends EventEmitter {
   private artifacts = new Map<string, Artifact[]>(); // sessionId -> artifacts
@@ -30,6 +30,7 @@ export class ArtifactManager extends EventEmitter {
   constructor(
     private readonly persist?: (all: Record<string, Artifact[]>) => void,
     private readonly now: () => number = Date.now,
+    private readonly onDelete?: (artifactId: string) => void,
   ) {
     super();
   }
@@ -39,7 +40,7 @@ export class ArtifactManager extends EventEmitter {
    * a distinct uuid — duplicate titles are permitted. Emits 'artifact:reveal'
    * so the UI brings the new artifact forward.
    */
-  create(sessionId: string, title: string, kind: ArtifactKind, content: string): Artifact {
+  create(sessionId: string, title: string, kind: ArtifactKind, content: string, source?: ArtifactSource): Artifact {
     const ts = this.now();
     const artifact: Artifact = {
       id: randomUUID(),
@@ -49,6 +50,7 @@ export class ArtifactManager extends EventEmitter {
       versions: [{ version: 1, content, createdAt: ts }],
       createdAt: ts,
       updatedAt: ts,
+      ...(source ? { source } : {}),
     };
     if (!this.artifacts.has(sessionId)) this.artifacts.set(sessionId, []);
     this.artifacts.get(sessionId)!.push(artifact);
@@ -117,7 +119,24 @@ export class ArtifactManager extends EventEmitter {
         artifacts.splice(idx, 1);
         if (artifacts.length === 0) this.artifacts.delete(sessionId);
         this.markChanged(sessionId);
+        this.onDelete?.(artifactId);
         logger.info(`[ArtifactManager] Deleted artifact ${artifactId}`);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Rename an artifact. Returns true if found and renamed.
+   */
+  rename(artifactId: string, newTitle: string): boolean {
+    for (const [sessionId, artifacts] of this.artifacts) {
+      const artifact = artifacts.find(a => a.id === artifactId);
+      if (artifact) {
+        artifact.title = newTitle;
+        artifact.updatedAt = this.now();
+        this.markChanged(sessionId);
         return true;
       }
     }

@@ -217,6 +217,11 @@ export const PRELOAD_API_DOMAINS = {
     'artifactDeleteAll',
     'artifactReveal',
     'artifactExport',
+    'artifactCreateText',
+    'artifactCreateWithFile',
+    'artifactPickAndReadFile',
+    'artifactRename',
+    'artifactOpenAttachment',
   ],
   peers: [
     'peerListDiscovered',

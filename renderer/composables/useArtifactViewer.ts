@@ -160,6 +160,55 @@ async function exportArtifact(id: string): Promise<string | null> {
   try { return await artifactsClient.artifactExport(id); } catch { return null; }
 }
 
+// ── Manual creation ──────────────────────────────────────────────────────
+
+/** Create a manual text/markdown artifact. Returns the artifact or null. */
+async function createTextArtifact(title: string, content: string, kind?: 'markdown' | 'html'): Promise<Artifact | null> {
+  if (!activeSessionId) return null;
+  try {
+    const artifact = await artifactsClient.artifactCreateText(activeSessionId, title, content, kind);
+    void refresh(activeSessionId);
+    return artifact ?? null;
+  } catch { return null; }
+}
+
+/** Create a manual artifact from a base64-encoded file. Returns the artifact or null. */
+async function createFileArtifact(input: {
+  filename: string;
+  contentBase64: string;
+  contentType?: string;
+}): Promise<Artifact | null> {
+  if (!activeSessionId) return null;
+  try {
+    const result = await artifactsClient.artifactCreateWithFile(activeSessionId, input);
+    void refresh(activeSessionId);
+    return result?.artifact ?? null;
+  } catch { return null; }
+}
+
+/** Open a native file picker, read the file, and create an artifact from it. */
+async function attachFile(): Promise<Artifact | null> {
+  try {
+    const fileData = await artifactsClient.artifactPickAndReadFile();
+    if (!fileData) return null;
+    return createFileArtifact(fileData);
+  } catch { return null; }
+}
+
+/** Rename an artifact. Returns true on success. */
+async function renameArtifact(id: string, newTitle: string): Promise<boolean> {
+  try {
+    const success = await artifactsClient.artifactRename(id, newTitle);
+    if (success) void refresh();
+    return success;
+  } catch { return false; }
+}
+
+/** Open an attachment in the system's default app. */
+async function openAttachment(artifactId: string, attachmentId: string): Promise<boolean> {
+  try { return await artifactsClient.artifactOpenAttachment(artifactId, attachmentId); } catch { return false; }
+}
+
 /**
  * Subscribe once to artifact IPC events. Safe to call repeatedly.
  *
@@ -218,5 +267,11 @@ export function useArtifactViewer() {
     remove,
     clearAll,
     export: exportArtifact,
+    // manual creation
+    createTextArtifact,
+    createFileArtifact,
+    attachFile,
+    renameArtifact,
+    openAttachment,
   };
 }

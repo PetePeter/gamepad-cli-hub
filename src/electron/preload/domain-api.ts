@@ -1081,6 +1081,33 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   /** Export an artifact's latest version to a user-chosen file; returns the path or null */
   artifactExport: (artifactId: string): Promise<string | null> => ipcRenderer.invoke('artifact:export', artifactId),
 
+  /** Create a manual text/markdown artifact */
+  artifactCreateText: (sessionId: string, title: string, content: string, kind?: 'markdown' | 'html'): Promise<Artifact> =>
+    ipcRenderer.invoke('artifact:createText', sessionId, title, content, kind),
+
+  /** Create a manual artifact from a base64-encoded file */
+  artifactCreateWithFile: (sessionId: string, input: {
+    filename: string;
+    contentBase64: string;
+    contentType?: string;
+  }): Promise<{ artifact: Artifact; attachment: { id: string } }> =>
+    ipcRenderer.invoke('artifact:createWithFile', sessionId, input),
+
+  /** Open a native file picker and read the selected file; returns base64 content or null */
+  artifactPickAndReadFile: (): Promise<{
+    filename: string;
+    contentBase64: string;
+    contentType?: string;
+  } | null> => ipcRenderer.invoke('artifact:pickAndReadFile'),
+
+  /** Rename an artifact */
+  artifactRename: (artifactId: string, newTitle: string): Promise<boolean> =>
+    ipcRenderer.invoke('artifact:rename', artifactId, newTitle),
+
+  /** Open an attachment file in the system's default app */
+  artifactOpenAttachment: (artifactId: string, attachmentId: string): Promise<boolean> =>
+    ipcRenderer.invoke('artifact:openAttachment', artifactId, attachmentId),
+
   /** Subscribe to artifact mutation events for a session */
   onArtifactChanged: (callback: (event: { sessionId: string }) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, data: { sessionId: string }) => callback(data);

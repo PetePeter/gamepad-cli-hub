@@ -22,7 +22,8 @@ function isArtifact(value: unknown): value is Artifact {
     && value.versions.length > 0        // a versionless artifact would break update()/render
     && value.versions.every(isArtifactVersion)
     && isNumber(value.createdAt)
-    && isNumber(value.updatedAt);
+    && isNumber(value.updatedAt)
+    && (value.source === undefined || value.source === 'ai' || value.source === 'manual');
 }
 
 function sanitizeArtifacts(value: unknown): Record<string, Artifact[]> {

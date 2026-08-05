@@ -26,6 +26,7 @@ import { RecycleBinManager, recordRemovedSession } from '../../session/recycle-b
 import { RuntimeGroupManager } from '../../session/runtime-group-manager.js';
 import { saveRuntimeGroups, loadRuntimeGroups } from '../../session/runtime-group-persistence.js';
 import { ArtifactManager } from '../../session/artifact-manager.js';
+import { ArtifactAttachmentManager } from '../../session/artifact-attachment-manager.js';
 import { saveArtifacts, loadArtifacts } from '../../session/artifact-persistence.js';
 import { pruneOrphanArtifacts } from '../../session/artifact-orphan-prune.js';
 import { setupPowerMonitor } from '../../session/power-monitor.js';
@@ -132,7 +133,12 @@ export function registerIPCHandlers(
   const stateDetector = new StateDetector();
   const pipelineQueue = new PipelineQueue();
   const draftManager = new DraftManager(saveDrafts);
-  const artifactManager = new ArtifactManager((all) => saveArtifacts(all));
+  const artifactAttachmentManager = new ArtifactAttachmentManager();
+  const artifactManager = new ArtifactManager(
+    (all) => saveArtifacts(all),
+    Date.now,
+    (artifactId) => artifactAttachmentManager.deleteForArtifact(artifactId),
+  );
   artifactManager.importAll(loadArtifacts());
   const planManager = new PlanManager(projectStore);
   const contextManager = new ContextManager(planManager);
@@ -202,6 +208,12 @@ export function registerIPCHandlers(
     id => artifactManager.clearSession(id),
   );
 
+  // Prune orphan attachment directories (artifacts deleted in a previous crash)
+  const allArtifactIds = new Set(
+    Object.values(artifactManager.exportAll()).flat().map(a => a.id),
+  );
+  artifactAttachmentManager.pruneOrphans(allArtifactIds);
+
   draftManager.importAll(loadDrafts());
   // PlanManager loads from disk in its constructor — no explicit importAll needed
 
@@ -255,7 +267,7 @@ export function registerIPCHandlers(
   setupScheduledTaskHandlers(scheduledTaskManager, scheduledTaskHistoryManager, windowManager);
   setupRecycleBinHandlers(recycleBinManager, artifactManager, windowManager);
   setupRuntimeGroupHandlers(runtimeGroupManager, windowManager);
-  setupArtifactHandlers(artifactManager, windowManager);
+  setupArtifactHandlers(artifactManager, artifactAttachmentManager, windowManager);
 
   // Forward artifact mutations/reveals to the main window AND the session's own
   // popout window (mirrors the session:updated dual-window forwarding below), so

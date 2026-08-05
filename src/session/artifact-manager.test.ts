@@ -184,4 +184,35 @@ describe('ArtifactManager', () => {
     expect(fresh.count('s2')).toBe(1);
     expect(fresh.getForSession('s1')[0].versions[0].content).toBe('1');
   });
+
+  it('create() with source param stores the source on the artifact', () => {
+    const art = manager.create('s1', 'Note', 'markdown', 'text', 'manual');
+    expect(art.source).toBe('manual');
+    expect(manager.get(art.id)!.source).toBe('manual');
+  });
+
+  it('create() without source defaults to undefined (backward compat)', () => {
+    const art = manager.create('s1', 'Report', 'markdown', 'ai text');
+    expect(art.source).toBeUndefined();
+  });
+
+  it('rename() changes title and bumps updatedAt', () => {
+    const art = manager.create('s1', 'Old Title', 'markdown', 'x');
+    expect(manager.rename(art.id, 'New Title')).toBe(true);
+    const updated = manager.get(art.id)!;
+    expect(updated.title).toBe('New Title');
+    expect(updated.updatedAt).toBe(1010); // clock advanced on rename
+  });
+
+  it('rename() returns false for unknown id', () => {
+    expect(manager.rename('nonexistent', 'New')).toBe(false);
+  });
+
+  it('delete() invokes onDelete callback with artifactId', () => {
+    const deletedIds: string[] = [];
+    const onDeleteManager = new ArtifactManager(capturePersist, clock, (id) => deletedIds.push(id));
+    const art = onDeleteManager.create('s1', 'A', 'markdown', 'x');
+    onDeleteManager.delete(art.id);
+    expect(deletedIds).toEqual([art.id]);
+  });
 });
