@@ -17,6 +17,7 @@ import type { ArtifactManager } from '../../session/artifact-manager.js';
 import type { ArtifactAttachmentManager } from '../../session/artifact-attachment-manager.js';
 import type { WindowManager } from '../window-manager.js';
 import { mimeForPath } from '../helm-img-protocol.js';
+import { setPendingDocument } from '../helm-artifact-protocol.js';
 import { sanitizeFilename, artifactExtension, artifactTempFileName } from '../../session/artifact-temp-file.js';
 import { getTempDir } from '../../utils/app-paths.js';
 import { logger } from '../../utils/logger.js';
@@ -42,6 +43,14 @@ export function setupArtifactHandlers(
       counts[sessionId] = artifacts.length;
     }
     return counts;
+  });
+
+  // Hand a built HTML artifact document to the helm-artifact:// handler and
+  // return the nonce the renderer puts in the iframe src. The renderer builds
+  // the document because that is where DOMParser lives; main only serves it,
+  // with the CSP response header that makes the isolation real.
+  ipcMain.handle('artifact:prepareRender', (_event, html: string): string => {
+    return setPendingDocument(html);
   });
 
   ipcMain.handle('artifact:get', (_event, artifactId: string) => {

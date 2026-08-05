@@ -44,6 +44,61 @@ export function decodeHelmImgUrl(url: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Image source resolution
+// ---------------------------------------------------------------------------
+
+// Safe non-svg data: image types — mirrors EXT_TO_MIME below, minus SVG.
+export const DATA_IMAGE_SAFE = /^data:image\/(png|jpe?g|gif|webp|bmp|avif);/i;
+
+/**
+ * Decides what src value (if any) an <img> pointing at a local file should carry.
+ *
+ * Lives here, next to encodeHelmImgUrl, because both the markdown sanitizer and
+ * the HTML document builder need it and neither should own a second copy of the
+ * path rules. Pure and DOM-free, so it is safe to import from either process.
+ *
+ * Rules (in order):
+ *   1. Local absolute path — Windows drive (C:\), UNC (\\), or POSIX (/) →
+ *      encoded as helm-img:// so Chromium serves it via the privileged protocol.
+ *   2. file: URI → extract the path and treat as (1).
+ *   3. data:image/<safe-type> (non-svg) → pass through unchanged.
+ *   4. Everything else (http/https, data:image/svg+xml, javascript:, …) → null.
+ *
+ * @returns The safe src to use, or null when the caller should suppress or
+ *          leave the original value for a CSP to reject.
+ */
+export function resolveImageSrc(rawSrc: string): string | null {
+  if (!rawSrc) return null;
+
+  // file: URI → strip scheme, use the raw path component
+  if (/^file:/i.test(rawSrc)) {
+    // file:///C:/a/i.png → C:/a/i.png  (Windows: strip leading slash after authority)
+    // file:///home/u/f.png → /home/u/f.png  (POSIX: keep leading slash)
+    const withoutScheme = rawSrc.replace(/^file:\/\//i, '');
+    const path = /^\/[a-zA-Z]:/.test(withoutScheme) ? withoutScheme.slice(1) : withoutScheme;
+    return encodeHelmImgUrl(path);
+  }
+
+  // Windows absolute path: C:\, D:/, \\server\share
+  if (/^[a-zA-Z]:[/\\]/.test(rawSrc) || /^\\\\/.test(rawSrc)) {
+    return encodeHelmImgUrl(rawSrc);
+  }
+
+  // POSIX absolute path
+  if (rawSrc.startsWith('/')) {
+    return encodeHelmImgUrl(rawSrc);
+  }
+
+  // Safe data: image (non-svg)
+  if (DATA_IMAGE_SAFE.test(rawSrc)) {
+    return rawSrc;
+  }
+
+  // Everything else: http/https, data:image/svg+xml, javascript:, relative, garbage
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // MIME resolution
 // ---------------------------------------------------------------------------
 

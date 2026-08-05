@@ -1,10 +1,15 @@
 /**
- * render-artifact — turn artifact content into safe HTML for v-html.
+ * render-artifact — turn MARKDOWN artifact content into safe HTML for v-html.
  *
- * Artifacts are AI-authored, so their content is untrusted. Every path here
- * ends in DOMPurify.sanitize so no unsanitized markup ever reaches the DOM:
- *   - 'markdown' → marked (GFM) → sanitize
- *   - 'html'     → sanitize directly
+ * This is the markdown path only. HTML artifacts are served as their own
+ * isolated document over helm-artifact:// (see build-artifact-document.ts and
+ * src/electron/helm-artifact-protocol.ts) so their CSS, SVG and scripts survive
+ * intact; containment there comes from an opaque origin + CSP rather than from
+ * the tag allow-list below.
+ *
+ * Markdown output is bound with v-html inside the PRIVILEGED window, so it is
+ * untrusted content in a trusted DOM and must still be sanitized:
+ *   markdown → marked (GFM) → DOMPurify.sanitize
  *
  * ```mermaid fenced code blocks are emitted as <pre class="mermaid"> carrying the
  * escaped diagram source; ArtifactViewer runs mermaid over those nodes after the
@@ -21,7 +26,11 @@
 import { Marked } from 'marked';
 import DOMPurify from 'dompurify';
 import type { ArtifactKind } from '../../src/types/artifact.js';
-import { encodeHelmImgUrl } from '../../src/electron/helm-img-protocol.js';
+import { DATA_IMAGE_SAFE, resolveImageSrc } from '../../src/electron/helm-img-protocol.js';
+
+// Re-exported for the existing render-artifact tests and any renderer caller
+// that already imports it from here.
+export { resolveImageSrc };
 
 function escapeHtml(s: string): string {
   return s
@@ -30,60 +39,6 @@ function escapeHtml(s: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-}
-
-// ---------------------------------------------------------------------------
-// Image source resolver
-// ---------------------------------------------------------------------------
-
-// Safe non-svg data: image types — matches the MIME types the helm-img protocol
-// handler itself accepts (EXT_TO_MIME in helm-img-protocol.ts, minus SVG).
-const DATA_IMAGE_SAFE = /^data:image\/(png|jpe?g|gif|webp|bmp|avif);/i;
-
-/**
- * Decides what src value (if any) a local-image <img> should carry.
- *
- * Rules (evaluated in order):
- *   1. Local absolute path — Windows drive (C:\) or UNC (\\) or POSIX (/) →
- *      encoded as helm-img:// so Chromium serves it via the privileged protocol.
- *   2. file: URI → extract the path and treat as (1).
- *   3. data:image/<safe-type> (non-svg) → pass through unchanged.
- *   4. Everything else (http/https, data:image/svg+xml, javascript:, empty, …) → null.
- *      null means: drop the <img> entirely, keep only alt text.
- *
- * @returns The safe src string to use, or null to suppress the image.
- */
-export function resolveImageSrc(rawSrc: string): string | null {
-  if (!rawSrc) return null;
-
-  // file: URI → strip scheme, use the raw path component
-  if (/^file:/i.test(rawSrc)) {
-    // file:///C:/a/i.png → C:/a/i.png  (Windows: strip leading slash after authority)
-    // file:///home/u/f.png → /home/u/f.png  (POSIX: keep leading slash)
-    const withoutScheme = rawSrc.replace(/^file:\/\//i, '');
-    // withoutScheme is now "/C:/a/i.png" (Windows) or "/home/u/f.png" (POSIX).
-    // If a Windows drive letter follows the leading slash, remove that slash.
-    const path = /^\/[a-zA-Z]:/.test(withoutScheme) ? withoutScheme.slice(1) : withoutScheme;
-    return encodeHelmImgUrl(path);
-  }
-
-  // Windows absolute path: C:\, D:/, \\server\share
-  if (/^[a-zA-Z]:[/\\]/.test(rawSrc) || /^\\\\/.test(rawSrc)) {
-    return encodeHelmImgUrl(rawSrc);
-  }
-
-  // POSIX absolute path
-  if (rawSrc.startsWith('/')) {
-    return encodeHelmImgUrl(rawSrc);
-  }
-
-  // Safe data: image (non-svg)
-  if (DATA_IMAGE_SAFE.test(rawSrc)) {
-    return rawSrc;
-  }
-
-  // Everything else: http/https, data:image/svg+xml, javascript:, relative paths, garbage
-  return null;
 }
 
 // ---------------------------------------------------------------------------

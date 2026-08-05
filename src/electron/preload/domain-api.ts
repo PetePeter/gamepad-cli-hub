@@ -1069,6 +1069,9 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   /** Get a single artifact by id (or null if unknown) */
   artifactGet: (artifactId: string): Promise<Artifact | null> => ipcRenderer.invoke('artifact:get', artifactId),
 
+  /** Stage a built HTML artifact document for helm-artifact://; returns its nonce */
+  artifactPrepareRender: (html: string): Promise<string> => ipcRenderer.invoke('artifact:prepareRender', html),
+
   /** Delete a single artifact by id */
   artifactDelete: (artifactId: string): Promise<boolean> => ipcRenderer.invoke('artifact:delete', artifactId),
 

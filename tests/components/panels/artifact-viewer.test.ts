@@ -4,7 +4,7 @@
  *
  * @vitest-environment jsdom
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import type { Artifact } from '../../../src/types/artifact.js';
 
@@ -14,6 +14,8 @@ const artifactDelete = vi.fn().mockResolvedValue(true);
 const artifactDeleteAll = vi.fn().mockResolvedValue(true);
 const artifactExport = vi.fn().mockResolvedValue('/tmp/out.md');
 const artifactOpenExternal = vi.fn().mockResolvedValue({ success: true, path: '/tmp/a.md' });
+const artifactPrepareRender = vi.fn().mockResolvedValue('nonce-1');
+const systemOpenExternalUrl = vi.fn().mockResolvedValue(true);
 
 vi.mock('../../../renderer/ipc/clients.js', () => ({
   artifactsClient: {
@@ -22,6 +24,10 @@ vi.mock('../../../renderer/ipc/clients.js', () => ({
     artifactDeleteAll: (...a: unknown[]) => artifactDeleteAll(...a),
     artifactExport: (...a: unknown[]) => artifactExport(...a),
     artifactOpenExternal: (...a: unknown[]) => artifactOpenExternal(...a),
+    artifactPrepareRender: (...a: unknown[]) => artifactPrepareRender(...a),
+  },
+  systemClient: {
+    systemOpenExternalUrl: (...a: unknown[]) => systemOpenExternalUrl(...a),
   },
   // No-op event subscriptions — return undefined (composable guards with ?.).
   eventsClient: {
@@ -67,6 +73,86 @@ beforeEach(() => {
   artifactDeleteAll.mockResolvedValue(true);
   artifactExport.mockResolvedValue('/tmp/out.md');
   artifactOpenExternal.mockResolvedValue({ success: true, path: '/tmp/a.md' });
+  artifactPrepareRender.mockResolvedValue('nonce-1');
+  systemOpenExternalUrl.mockResolvedValue(true);
+});
+
+describe('ArtifactViewer — html vs markdown render path', () => {
+  const htmlArtifact = () => makeArtifact({
+    kind: 'html',
+    versions: [{ version: 1, content: '<style>p{color:red}</style><p>styled</p>', createdAt: Date.now() }],
+  });
+
+  it('renders an HTML artifact in a sandboxed frame, not inline', async () => {
+    const { w } = await mountWith([htmlArtifact()]);
+
+    const frame = w.find('iframe.ap-frame');
+    expect(frame.exists()).toBe(true);
+    expect(frame.attributes('sandbox')).toBe('allow-scripts');
+    expect(frame.attributes('src')).toContain('helm-artifact://');
+    expect(w.find('.ap-doc').exists()).toBe(false);
+  });
+
+  it('leaves the markdown path rendering inline', async () => {
+    const { w } = await mountWith([makeArtifact()]);
+
+    expect(w.find('.ap-doc').exists()).toBe(true);
+    expect(w.find('iframe.ap-frame').exists()).toBe(false);
+    expect(artifactPrepareRender).not.toHaveBeenCalled();
+  });
+});
+
+describe('ArtifactViewer — artifact frame link bridge', () => {
+  // Each mount registers a window message listener, so leaked mounts would
+  // answer every dispatch and make call counts meaningless.
+  const mounted: Array<{ unmount: () => void }> = [];
+  afterEach(() => {
+    while (mounted.length) mounted.pop()!.unmount();
+  });
+
+  /**
+   * jsdom never loads the frame, so its contentWindow is null — which would
+   * make the identity gate vacuously true. Stub a distinct window per frame so
+   * the check under test is the real one.
+   */
+  async function mountHtml(): Promise<{ w: ReturnType<typeof mount>; frameWindow: object }> {
+    const { w } = await mountWith([makeArtifact({
+      kind: 'html',
+      versions: [{ version: 1, content: '<a href="https://example.com">go</a>', createdAt: Date.now() }],
+    })]);
+    mounted.push(w);
+    const frameWindow = {};
+    Object.defineProperty(w.find('iframe.ap-frame').element, 'contentWindow', { value: frameWindow });
+    return { w, frameWindow };
+  }
+
+  function post(source: unknown, url: string): void {
+    window.dispatchEvent(new MessageEvent('message', {
+      source: source as MessageEventSource,
+      data: { type: 'helm-artifact-open-url', url },
+    }));
+  }
+
+  it('opens an https link externally, once', async () => {
+    const { frameWindow } = await mountHtml();
+    post(frameWindow, 'https://example.com/docs');
+    expect(systemOpenExternalUrl).toHaveBeenCalledTimes(1);
+    expect(systemOpenExternalUrl).toHaveBeenCalledWith('https://example.com/docs');
+  });
+
+  it('drops a javascript: url', async () => {
+    const { frameWindow } = await mountHtml();
+    post(frameWindow, 'javascript:alert(1)');
+    expect(systemOpenExternalUrl).not.toHaveBeenCalled();
+  });
+
+  // The frame has an opaque origin, so event.origin is the useless string
+  // "null" — sender identity is the only gate that actually holds.
+  it('drops a message from a window that is not the artifact frame', async () => {
+    await mountHtml();
+    post(window, 'https://evil.example');
+    expect(systemOpenExternalUrl).not.toHaveBeenCalled();
+  });
 });
 
 describe('ArtifactViewer', () => {

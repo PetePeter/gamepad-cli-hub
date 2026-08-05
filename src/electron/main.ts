@@ -23,12 +23,15 @@ import { ConfigLoader } from '../config/loader.js';
 import { logger } from '../utils/logger.js';
 import { getRendererHtmlPath, isPackaged, seedConfigIfNeeded, getConfigDir, migrateLegacyUserDataIfNeeded } from '../utils/app-paths.js';
 import { registerHelmImgProtocol } from './helm-img-protocol.js';
+import { registerHelmArtifactProtocol } from './helm-artifact-protocol.js';
 
-// Register helm-img:// as a privileged scheme BEFORE app is ready.
-// standard+secure makes it behave like https for CSP/CORS; supportFetchAPI
-// allows <img> and fetch() to load from it inside the renderer.
+// Register the custom schemes as privileged BEFORE app is ready.
+// standard+secure makes them behave like https for CSP/CORS; supportFetchAPI
+// allows <img> and fetch() to load from helm-img inside the renderer.
+// Neither sets bypassCSP: helm-artifact documents are contained BY their CSP.
 protocol.registerSchemesAsPrivileged([
   { scheme: 'helm-img', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  { scheme: 'helm-artifact', privileges: { standard: true, secure: true } },
 ]);
 
 // Enable Chromium gamepad extensions for Bluetooth controller support
@@ -380,6 +383,11 @@ app.whenReady().then(async () => {
   // Register helm-img:// handler so the renderer can load local image files
   // without loosening webSecurity or file:// access.
   registerHelmImgProtocol(protocol);
+
+  // Register helm-artifact:// so HTML artifacts render as their own isolated
+  // document with an authoritative CSP header (srcdoc would inherit the
+  // renderer's stricter policy and silently block artifact scripts).
+  registerHelmArtifactProtocol(protocol);
 
   // Create main window
   createWindow();

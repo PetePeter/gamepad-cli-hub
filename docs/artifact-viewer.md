@@ -120,6 +120,96 @@ graph LR
     FS -->|"bytes + Content-Type"| DOM
 ```
 
+## HTML rendering
+
+`kind: 'html'` artifacts do **not** go through the markdown sanitizer. Passing
+them through it discarded every visual decision the author made — `<style>` is
+not in the allowlist, `style` is in `FORBID_ATTR`, `class` is stripped except
+the `mermaid` marker, and `<svg>` is refused — so HTML reports arrived as
+unstyled prose. They are instead served as their own **isolated document** with
+full CSS/SVG/JS fidelity, contained by origin isolation and a CSP rather than by
+tag-stripping.
+
+```mermaid
+graph TB
+    A[Artifact content] --> K{kind}
+    K -->|markdown| M[marked GFM] --> S[DOMPurify allowlist] --> V["v-html into .ap-doc<br/>app DOM · mermaid pass"]
+    K -->|html| B["buildArtifactDocument()<br/>renderer · DOMParser<br/>img rewrite + fallback CSS"]
+    B -->|"IPC artifact:prepareRender"| N["main: single-slot store<br/>nonce → html"]
+    N --> P["helm-artifact:// handler<br/>Response + CSP header"]
+    P --> I["iframe src<br/>origin 'null' · sandbox=allow-scripts"]
+```
+
+### Why not `<iframe srcdoc>`
+
+Documents with a *local scheme* (`about:srcdoc`, `about:blank`, `blob:`,
+`data:`) **inherit the embedding document's CSP**, and the inherited policy
+applies *in addition* to anything the frame declares — the intersection wins.
+W3C closed the request to opt out ([webappsec-csp#700]) as **wontfix**. The
+renderer's policy is `script-src 'self'`, so a `srcdoc` frame would silently
+refuse to run the artifact's own inline scripts and would block `helm-img:`
+images.
+
+A document fetched over a **real scheme via `src`** does not inherit, and can
+carry an authoritative `Content-Security-Policy` **response header** that
+artifact script cannot strip. Electron additionally gives custom-protocol
+iframes origin `"null"` ([electron#40663]) — the opaque origin, for free.
+
+[webappsec-csp#700]: https://github.com/w3c/webappsec-csp/issues/700
+[electron#40663]: https://github.com/electron/electron/issues/40663
+
+### The pipeline
+
+| Stage | Where |
+|---|---|
+| Parse (inert), rewrite `<img src>` via `resolveImageSrc`, inject fallback CSS + link bridge | `renderer/artifacts/build-artifact-document.ts` |
+| Stage the document, mint a nonce | `artifact:prepareRender` → `src/electron/helm-artifact-protocol.ts` |
+| Serve with `text/html` + CSP header | `helm-artifact://doc/?k=<nonce>` handler |
+| Display | `<iframe sandbox="allow-scripts" referrerpolicy="no-referrer">` in `ArtifactViewer.vue` |
+
+The store is a **single slot**: only the document currently on screen is
+reachable, so nothing accumulates and a stale frame cannot re-read an old
+document.
+
+### Policy
+
+```
+default-src 'none'; img-src helm-img: data:; style-src 'unsafe-inline';
+font-src data:; script-src 'unsafe-inline'; form-action 'none';
+base-uri 'none'; frame-ancestors 'self'
+```
+
+`script-src 'unsafe-inline'` carries **no** `'self'` and no host source: the
+artifact's own inline `<script>` runs, but no external script can load. The
+`sandbox` attribute adds denial of top-level navigation, popups and form
+submission on top of the opaque origin.
+
+Denied: app DOM access, the preload bridge, `localStorage`/cookies, and **all
+network egress** — no CDN, no fetch, no web fonts, no remote images.
+
+### Styling
+
+Artifact decides, app provides fallback. `ARTIFACT_BASE_CSS`
+(`renderer/artifacts/artifact-base-css.ts`) is injected **only** when the
+document has no `<style>`, no stylesheet `<link>` and no inline `style`
+attribute, so an unstyled HTML artifact looks like the markdown one. CSS custom
+properties do not cross the document boundary, so those values are inlined
+literals mirroring `renderer/styles/main.css`.
+
+### Links
+
+Links in the frame are inert by design, so an injected capture listener posts
+`{ type: 'helm-artifact-open-url', url }` to the parent, which opens `http(s)`
+URLs via the same `shell.openExternal` route the markdown path uses. The parent
+gates on **`event.source === frame.contentWindow`** — the frame's opaque origin
+makes `event.origin` the useless string `"null"`.
+
+### Limitations
+
+- **No network.** Artifacts must inline assets or use `data:` / `helm-img:`.
+- **No mermaid in HTML artifacts.** The library is lazily imported into the *renderer*, not the frame. Markdown ` ```mermaid ` fences are unaffected.
+- **No auto-height.** The frame fills the panel and scrolls internally.
+
 ## Selection & copy
 
 Artifact text is fully selectable. Ctrl+C or Ctrl+X with a text selection inside the `.ap-doc` container performs a **native browser copy** — the keyboard relay does not forward the event to the PTY as a SIGINT or escape code.
@@ -132,8 +222,10 @@ The carve-out is the `shouldAllowNativeCopy()` predicate (`renderer/paste-handle
 
 If no text is selected, the predicate returns `false` and the existing PTY behaviour applies (Ctrl+C → SIGINT escape sequence). This mirrors the analogous carve-out in `TerminalView` for xterm selections.
 
-**Security:** artifact bodies are AI-authored (untrusted) and render via `v-html`
-inside the *privileged* Electron window, so defence is layered:
+**Security:** artifact bodies are AI-authored (untrusted). The two kinds are
+contained by **different mechanisms** — see [HTML rendering](#html-rendering)
+for why. Markdown renders via `v-html` inside the *privileged* Electron window,
+so its defence is layered:
 - `renderArtifact()` compiles markdown with a synchronous `marked` instance, then runs **`DOMPurify.sanitize`** against a strict **document allowlist** — prose/lists/tables/code/links/images only. Forms, controls, inline `style` (no `position:fixed` overlay spoofing), `target`, and non-`http(s)`/`mailto` URLs are stripped. `<img src>` is rewritten by the `uponSanitizeAttribute` hook before DOMPurify evaluates it.
 - Link clicks inside the rendered doc are intercepted (`onDocClick`) and `http(s)` links open in the OS browser via `shell.openExternal`; they never navigate the app.
 - `system:openExternalUrl` re-validates the scheme (http/https/mailto only).

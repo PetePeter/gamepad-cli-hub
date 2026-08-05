@@ -3,7 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:">
+  <!-- img-src helm-img: — local images attached to artifacts are served over the
+       privileged helm-img scheme, which is not covered by 'self'.
+       frame-src helm-artifact: — HTML artifacts render as their own isolated
+       document; without this, default-src 'self' blocks the frame outright.
+       script-src stays 'self': the artifact frame carries its own CSP header. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: helm-img:; frame-src helm-artifact:">
   <title>Helm — steer your fleet of agents</title>
   <link rel="stylesheet" href="styles/main.css">
   <link rel="stylesheet" href="../node_modules/@xterm/xterm/css/xterm.css">

@@ -20,8 +20,9 @@ import { computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useArtifactViewer } from '../../composables/useArtifactViewer.js';
 import { useToast } from '../../composables/useToast.js';
 import { renderArtifact } from '../../artifacts/render-artifact.js';
+import { buildArtifactDocument, OPEN_URL_MESSAGE } from '../../artifacts/build-artifact-document.js';
 import { formatHelmRef } from '../../lib/helm-ref.js';
-import { systemClient } from '../../ipc/clients.js';
+import { artifactsClient, systemClient } from '../../ipc/clients.js';
 import type { Artifact } from '../../../src/types/artifact.js';
 
 const props = defineProps<{ sessionId: string }>();
@@ -68,12 +69,52 @@ const isViewingOlder = computed(() =>
   !!shownVersion.value && shownVersion.value.version !== latestVersionNumber.value,
 );
 
+/** HTML artifacts render as their own isolated document, not inline. */
+const isHtml = computed(() => selected.value?.kind === 'html');
+
+// Markdown only: sanitized inline HTML for v-html. Empty for HTML artifacts,
+// which keeps the mermaid watcher below correct without a second condition.
 const renderedHtml = computed(() => {
   const a = selected.value;
   const v = shownVersion.value;
-  if (!a || !v) return '';
+  if (!a || !v || isHtml.value) return '';
   return renderArtifact(a.kind, v.content);
 });
+
+// ── HTML artifacts: isolated document ───────────────────────────────────────
+
+// Built in the renderer (DOMParser lives here), staged in main, then loaded by
+// URL. It must be a real scheme rather than srcdoc: a local-scheme document
+// inherits the embedder's CSP, and this window's `script-src 'self'` would
+// silently stop the artifact's own scripts from ever running.
+const frameSrc = ref('');
+const frameRef = ref<HTMLIFrameElement | null>(null);
+
+watch([selected, shownVersion], async () => {
+  if (!isHtml.value || !shownVersion.value) {
+    frameSrc.value = '';
+    return;
+  }
+  const doc = buildArtifactDocument(shownVersion.value.content);
+  const nonce = await artifactsClient.artifactPrepareRender(doc);
+  frameSrc.value = `helm-artifact://doc/?k=${encodeURIComponent(nonce)}`;
+}, { immediate: true });
+
+/**
+ * Links inside the frame are inert (sandbox blocks navigation, CSP blocks
+ * loads), so the frame reports clicks here instead — same external-open
+ * behaviour as the markdown path.
+ *
+ * The frame has an opaque origin, so `event.origin` is the string "null" and is
+ * useless as a gate; identity of the sending window is the real check.
+ */
+function onFrameMessage(e: MessageEvent): void {
+  if (e.source !== frameRef.value?.contentWindow) return;
+  const data = e.data as { type?: string; url?: string } | null;
+  if (data?.type !== OPEN_URL_MESSAGE) return;
+  const url = data.url ?? '';
+  if (/^https?:\/\//i.test(url)) void systemClient.systemOpenExternalUrl(url);
+}
 
 // ── Mermaid diagrams ────────────────────────────────────────────────────────
 const docRef = ref<HTMLElement | null>(null);
@@ -423,6 +464,11 @@ onMounted(() => {
   viewer.ensureSubscribed();
   void viewer.setActiveSession(props.sessionId);
   void nextTick(renderMermaid);
+  window.addEventListener('message', onFrameMessage);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('message', onFrameMessage);
 });
 
 watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
@@ -568,8 +614,18 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
             <button class="ap-restore" @click="viewer.jumpToLatest()">Jump to latest ›</button>
           </div>
 
-          <div class="ap-body">
-            <div class="ap-doc" ref="docRef" v-html="renderedHtml" @click="onDocClick"></div>
+          <div class="ap-body" :class="{ 'ap-body--frame': isHtml }">
+            <!-- HTML artifacts: opaque-origin document, sandboxed on top. Scripts
+                 run but cannot reach the app DOM, the preload bridge, or the network. -->
+            <iframe
+              v-if="isHtml"
+              ref="frameRef"
+              class="ap-frame"
+              :src="frameSrc"
+              sandbox="allow-scripts"
+              referrerpolicy="no-referrer"
+            ></iframe>
+            <div v-else class="ap-doc" ref="docRef" v-html="renderedHtml" @click="onDocClick"></div>
           </div>
         </template>
 
@@ -690,6 +746,9 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
 .ap-restore { margin-left: auto; font-size: 0.68rem; color: var(--accent); border: 1px solid #1e3d2b; border-radius: 4px; padding: 3px 9px; background: none; }
 
 .ap-body { flex: 1; overflow: auto; padding: 16px 18px; }
+/* HTML artifacts own their whole viewport and scroll inside the frame. */
+.ap-body--frame { overflow: hidden; padding: 0; }
+.ap-frame { width: 100%; height: 100%; border: 0; display: block; background: var(--bg-primary); }
 .ap-detail-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
 .ap-detail-empty-sub { color: var(--text-dim); font-size: 0.74rem; text-align: center; line-height: 1.5; }
 
