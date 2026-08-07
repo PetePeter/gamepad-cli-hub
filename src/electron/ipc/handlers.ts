@@ -29,6 +29,7 @@ import { ArtifactManager } from '../../session/artifact-manager.js';
 import { ArtifactAttachmentManager } from '../../session/artifact-attachment-manager.js';
 import { saveArtifacts, loadArtifacts } from '../../session/artifact-persistence.js';
 import { pruneOrphanArtifacts } from '../../session/artifact-orphan-prune.js';
+import { ArtifactTempRegistry, attachSessionTempCleanup } from '../../session/artifact-temp-registry.js';
 import { setupPowerMonitor } from '../../session/power-monitor.js';
 import { ConfigLoader } from '../../config/loader.js';
 import { keyboard } from '../../output/keyboard.js';
@@ -129,6 +130,10 @@ export function registerIPCHandlers(
   configLoader.setProjectStore(projectStore);
 
   const sessionManager = new SessionManager(projectStore);
+  // Temp copies handed to external apps are attributed to their session so a
+  // close reaps them, whether or not the session is still recoverable.
+  const artifactTempRegistry = new ArtifactTempRegistry();
+  attachSessionTempCleanup(sessionManager, artifactTempRegistry);
   const ptyManager = new PtyManager();
   const stateDetector = new StateDetector();
   const pipelineQueue = new PipelineQueue();
@@ -265,9 +270,9 @@ export function registerIPCHandlers(
   setupSkillHandlers(skillManager, skillAnalyticsManager);
   setupPlanHandlers(planManager, contextManager, windowManager, incomingWatcher, dirname);
   setupScheduledTaskHandlers(scheduledTaskManager, scheduledTaskHistoryManager, windowManager);
-  setupRecycleBinHandlers(recycleBinManager, artifactManager, windowManager);
+  setupRecycleBinHandlers(recycleBinManager, artifactManager, windowManager, artifactTempRegistry);
   setupRuntimeGroupHandlers(runtimeGroupManager, windowManager);
-  setupArtifactHandlers(artifactManager, artifactAttachmentManager, windowManager, dirname);
+  setupArtifactHandlers(artifactManager, artifactAttachmentManager, windowManager, dirname, artifactTempRegistry);
 
   // Forward artifact mutations/reveals to the main window AND the session's own
   // popout window (mirrors the session:updated dual-window forwarding below), so

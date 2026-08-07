@@ -22,9 +22,30 @@ export function artifactExtension(kind: ArtifactKind): string {
 }
 
 /**
- * Name for a throwaway copy of an artifact version. The stamp keeps repeat opens
- * from colliding while an earlier copy is still held open by the external app.
+ * Separator between the session id and the title. A double hyphen, because both
+ * a UUID session id and a sanitized title may contain single hyphens — the id
+ * segment is normalised so it can never contain `--`, keeping the first
+ * occurrence an unambiguous boundary for anyone reading the temp dir.
  */
-export function artifactTempFileName(title: string, kind: ArtifactKind, stamp: number): string {
-  return `${ARTIFACT_TEMP_PREFIX}${sanitizeFilename(title)}-${stamp}.${artifactExtension(kind)}`;
+const SESSION_SEPARATOR = '--';
+
+/** Reduce a session id to a filename-safe token that contains no `--`. */
+function sanitizeSessionId(sessionId: string): string {
+  const cleaned = sessionId.replace(/[^A-Za-z0-9-]/g, '_').replace(/-{2,}/g, '-');
+  return cleaned.length > 0 ? cleaned.slice(0, 64) : 'unknown';
+}
+
+/**
+ * Name for a throwaway copy of an artifact version. The stamp keeps repeat opens
+ * from colliding while an earlier copy is still held open by the external app;
+ * the session id makes the copy attributable, so closing a session can reap it.
+ */
+export function artifactTempFileName(
+  sessionId: string,
+  title: string,
+  kind: ArtifactKind,
+  stamp: number,
+): string {
+  const stem = `${sanitizeSessionId(sessionId)}${SESSION_SEPARATOR}${sanitizeFilename(title)}`;
+  return `${ARTIFACT_TEMP_PREFIX}${stem}-${stamp}.${artifactExtension(kind)}`;
 }

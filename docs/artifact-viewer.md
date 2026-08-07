@@ -30,6 +30,12 @@ Each artifact holds an ordered `versions[]` stack (1-based). The AI only ever
 writes the newest version:
 - `artifact_create` → version 1 (always a new uuid; duplicate titles allowed).
 - `artifact_update(id, content)` → appends the next version and brings it forward.
+- A user-attached file (`artifact:createWithFile`) → **also just version 1**. The
+  attachment is filed under the artifact's id, so the handler pre-mints that uuid and
+  passes it to `ArtifactManager.create` (the optional trailing `id`), storing the file
+  and building the markdown *before* the artifact exists. Creating it empty and
+  `update`-ing it afterwards produced two versions and doubled the changed/reveal
+  events per drop.
 
 The user can read any prior version in the viewer (‹ › steppers + a version
 dropdown, with a "viewing older version" banner and *Jump to latest*).
@@ -63,13 +69,27 @@ artifacts:
 - **Detail pane**: sanitized render (see below), version bar (‹ › + dropdown + older-version banner + *Jump to latest*), footer with **Open externally / Export… / Copy reference / Delete**.
 
 **Open externally** writes the version *currently on screen* to a read-only temp
-file under `<appData>/Helm/tmp` (`helm-artifact-<title>-<stamp>.md|.html`) and hands
-it to the OS default app via `shell.openPath`. The copy is deliberately left behind —
-the external app still holds it — and is reaped on next startup by
-`cleanupWorkTempFiles`. It is `chmod 0o444` because `artifacts.yaml` is the source of
-truth and edits to the copy would be silently lost. `shell.openPath` *resolves* an
-error string rather than throwing (e.g. Windows with no `.md` handler registered), so
-the reason is shown inline in the footer instead of the button appearing dead.
+file under `<appData>/Helm/tmp` (`helm-artifact-<sessionId>--<title>-<stamp>.md|.html`)
+and hands it to the OS default app via `shell.openPath`. It is `chmod 0o444` because
+`artifacts.yaml` is the source of truth and edits to the copy would be silently lost.
+`shell.openPath` *resolves* an error string rather than throwing (e.g. Windows with no
+`.md` handler registered), so the reason is shown inline in the footer instead of the
+button appearing dead.
+
+*Temp-copy lifecycle.* The copy outlives the IPC call — the external app still holds
+it — so it is attributed to the owning session, both in the filename and in the
+in-memory `ArtifactTempRegistry`. It is deleted when that session goes away:
+
+| Trigger | Effect |
+|---|---|
+| `session:removed` (any close, recoverable or not) | Drains that session's temp copies. A restore re-opens artifacts from the store, never from these files. |
+| Recycle-bin **Forget** / **Empty** / 30-day expiry | Drains the binned session's temp copies alongside its artifacts. |
+| App startup (`cleanupWorkTempFiles`) | Backstop only — sweeps anything a crash or a quit-with-open-sessions stranded, including legacy names with no session id. |
+
+Deletion goes through `forceDeleteTempFile`, which clears the `0o444` bit before
+`unlink` — without that, Windows fails the unlink with `EPERM` and the copies
+accumulate forever. A copy the external app still has locked survives the drain and
+is caught by the next startup sweep.
 
 **Export…** differs on both counts: it prompts for a location and always writes the
 **latest** version.
@@ -272,6 +292,8 @@ graph TB
 | `src/electron/ipc/recycle-bin-handlers.ts` | Forget/Empty clear a binned session's artifacts; restore preserves them |
 | `src/electron/ipc/artifact-handlers.ts` | IPC channels incl. `artifact:export` (native save dialog) and `artifact:openExternal` (read-only temp copy → `shell.openPath`) |
 | `src/session/artifact-temp-file.ts` | Pure filename helpers — `sanitizeFilename`, `artifactExtension`, `artifactTempFileName` (shared by export and open-externally) |
+| `src/session/artifact-temp-registry.ts` | In-memory sessionId → temp paths written by `openExternal`; `attachSessionTempCleanup` drains on `session:removed` |
+| `src/utils/temp-file-delete.ts` | `forceDeleteTempFile` — clears the read-only bit then unlinks (Windows `EPERM`), restoring it if the unlink fails |
 | `src/mcp/tools/{definitions,dispatcher,validation}.ts` | 7 MCP tools, caller-session scoping, ownership check |
 | `src/mcp/helm-control-service.ts` | Service methods + `requireOwnedArtifact` guard |
 | `src/mcp/guides/session-info-guide.ts` | `artifact_viewer` advert in `session_info` |

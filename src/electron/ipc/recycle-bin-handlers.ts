@@ -11,12 +11,14 @@ import type { RecycleBinManager } from '../../session/recycle-bin-manager.js';
 import type { ArtifactManager } from '../../session/artifact-manager.js';
 import type { RecycleBinEntry } from '../../types/recycle-bin.js';
 import type { WindowManager } from '../window-manager.js';
+import { ArtifactTempRegistry } from '../../session/artifact-temp-registry.js';
 import { logger } from '../../utils/logger.js';
 
 export function setupRecycleBinHandlers(
   recycleBin: RecycleBinManager,
   artifactManager: ArtifactManager,
   windowManager?: WindowManager,
+  tempRegistry: ArtifactTempRegistry = new ArtifactTempRegistry(),
 ): void {
   const getTargetWindows = () => windowManager?.getAllWindows() ?? BrowserWindow.getAllWindows();
 
@@ -28,8 +30,13 @@ export function setupRecycleBinHandlers(
 
   // An entry that ages out of the retention window at runtime takes its preserved
   // artifacts with it — same effect as a Forget.
+  // Temp copies opened externally go too — a session that ages out is never
+  // coming back, so nothing can still legitimately reference them.
   recycleBin.on('recycle-bin:expired', (expired: RecycleBinEntry[]) => {
-    for (const entry of expired) artifactManager.clearSession(entry.sessionId);
+    for (const entry of expired) {
+      artifactManager.clearSession(entry.sessionId);
+      tempRegistry.drain(entry.sessionId);
+    }
   });
 
   ipcMain.handle('recycleBin:list', () => {
@@ -71,7 +78,10 @@ export function setupRecycleBinHandlers(
       // only fires on a genuine Forget, never on restore).
       const sessionId = recycleBin.list().find(e => e.id === id)?.sessionId;
       recycleBin.forget(id);
-      if (sessionId) artifactManager.clearSession(sessionId);
+      if (sessionId) {
+        artifactManager.clearSession(sessionId);
+        tempRegistry.drain(sessionId);
+      }
       return true;
     } catch (err) {
       logger.error(`[recycleBin:forget] Failed: ${err}`);
@@ -84,7 +94,10 @@ export function setupRecycleBinHandlers(
       // Snapshot every binned session id before emptying, then clear their artifacts.
       const sessionIds = recycleBin.list().map(e => e.sessionId);
       recycleBin.empty();
-      for (const sessionId of sessionIds) artifactManager.clearSession(sessionId);
+      for (const sessionId of sessionIds) {
+        artifactManager.clearSession(sessionId);
+        tempRegistry.drain(sessionId);
+      }
       return true;
     } catch (err) {
       logger.error(`[recycleBin:empty] Failed: ${err}`);

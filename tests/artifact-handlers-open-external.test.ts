@@ -39,6 +39,7 @@ vi.mock('node:fs', () => ({
   mkdirSync: (...args: unknown[]) => mockMkdirSync(...args),
   chmodSync: (...args: unknown[]) => mockChmodSync(...args),
   existsSync: vi.fn(() => true),
+  unlinkSync: vi.fn(),
 }));
 
 import { setupArtifactHandlers } from '../src/electron/ipc/artifact-handlers.js';

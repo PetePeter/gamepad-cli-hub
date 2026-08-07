@@ -39,11 +39,16 @@ export class ArtifactManager extends EventEmitter {
    * Create a NEW artifact (version 1) for a session and return it. Always mints
    * a distinct uuid — duplicate titles are permitted. Emits 'artifact:reveal'
    * so the UI brings the new artifact forward.
+   *
+   * `id` lets a caller supply a pre-minted uuid for the artifact. That exists so
+   * side files keyed by artifact id (attachments) can be written BEFORE the
+   * artifact, letting version 1 hold the real content instead of being seeded
+   * empty and immediately updated.
    */
-  create(sessionId: string, title: string, kind: ArtifactKind, content: string, source?: ArtifactSource): Artifact {
+  create(sessionId: string, title: string, kind: ArtifactKind, content: string, source?: ArtifactSource, id?: string): Artifact {
     const ts = this.now();
     const artifact: Artifact = {
-      id: randomUUID(),
+      id: id ?? randomUUID(),
       sessionId,
       title,
       kind,

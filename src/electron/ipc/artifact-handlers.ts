@@ -12,13 +12,16 @@
 import { ipcMain, dialog, BrowserWindow, shell } from 'electron';
 import { readFile, stat, writeFile as fsWriteFile } from 'node:fs/promises';
 import { mkdirSync, writeFileSync, chmodSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { basename, join } from 'node:path';
 import type { ArtifactManager } from '../../session/artifact-manager.js';
 import type { ArtifactAttachmentManager } from '../../session/artifact-attachment-manager.js';
+import type { ArtifactAttachment } from '../../types/artifact-attachment.js';
 import type { WindowManager } from '../window-manager.js';
 import { mimeForPath } from '../helm-img-protocol.js';
 import { setPendingDocument } from '../helm-artifact-protocol.js';
 import { sanitizeFilename, artifactExtension, artifactTempFileName } from '../../session/artifact-temp-file.js';
+import { ArtifactTempRegistry } from '../../session/artifact-temp-registry.js';
 import { getTempDir } from '../../utils/app-paths.js';
 import { logger } from '../../utils/logger.js';
 
@@ -29,6 +32,7 @@ export function setupArtifactHandlers(
   attachmentManager: ArtifactAttachmentManager,
   windowManager?: WindowManager,
   moduleDirname?: string,
+  tempRegistry: ArtifactTempRegistry = new ArtifactTempRegistry(),
 ): void {
   // ── Read operations (existing) ───────────────────────────────────────────
 
@@ -109,7 +113,8 @@ export function setupArtifactHandlers(
    *
    * The copy is left behind deliberately — the external app still holds it. It is
    * marked read-only (edits there would be silently lost, since artifacts.yaml is
-   * the source of truth) and reaped on next startup by `cleanupWorkTempFiles`.
+   * the source of truth), registered against the owning session so closing that
+   * session reaps it, and swept on next startup by `cleanupWorkTempFiles`.
    */
   ipcMain.handle('artifact:openExternal', async (
     _event,
@@ -125,10 +130,14 @@ export function setupArtifactHandlers(
       ?? artifact.versions[artifact.versions.length - 1];
 
     const tmpDir = getTempDir(moduleDirname ?? '');
-    const tmpPath = join(tmpDir, artifactTempFileName(artifact.title, artifact.kind, Date.now()));
+    const tmpPath = join(
+      tmpDir,
+      artifactTempFileName(artifact.sessionId, artifact.title, artifact.kind, Date.now()),
+    );
     try {
       mkdirSync(tmpDir, { recursive: true });
       writeFileSync(tmpPath, shown.content, 'utf8');
+      tempRegistry.record(artifact.sessionId, tmpPath);
       try { chmodSync(tmpPath, 0o444); } catch (err) {
         logger.warn(`[artifact:openExternal] Could not mark ${tmpPath} read-only: ${err}`);
       }
@@ -169,28 +178,38 @@ export function setupArtifactHandlers(
     }
     const buffer = Buffer.from(input.contentBase64, 'base64');
 
-    // Create the artifact first (empty content, will update after storing attachment)
-    const artifact = artifactManager.create(sessionId, input.filename, 'markdown', '', 'manual');
+    // The attachment is filed under the artifact's id, but the artifact must not
+    // exist until its real markdown is ready — creating it empty and updating it
+    // afterwards produced two versions and two reveal/changed events per drop.
+    // So mint the id up front, store the attachment, then create once.
+    const artifactId = randomUUID();
 
-    // Store the attachment on disk
-    const attachment = attachmentManager.add(artifact.id, {
-      filename: input.filename,
-      content: buffer,
-      contentType: input.contentType,
-    });
-
-    // Build markdown content referencing the stored file
-    const absPath = attachmentManager.getPath(artifact.id, attachment.id);
-    const isImage = input.contentType?.startsWith('image/');
+    let attachment: ArtifactAttachment;
     let mdContent: string;
-    if (isImage) {
-      mdContent = `![${input.filename}](${absPath})\n`;
-    } else {
-      mdContent = `**${input.filename}** — ${formatBytes(buffer.length)} — ${input.contentType ?? 'application/octet-stream'}\n\n📎 [Open in system viewer](${absPath})\n`;
+    try {
+      attachment = attachmentManager.add(artifactId, {
+        filename: input.filename,
+        content: buffer,
+        contentType: input.contentType,
+      });
+
+      // Build markdown content referencing the stored file
+      const absPath = attachmentManager.getPath(artifactId, attachment.id);
+      const isImage = input.contentType?.startsWith('image/');
+      if (isImage) {
+        mdContent = `![${input.filename}](${absPath})\n`;
+      } else {
+        mdContent = `**${input.filename}** — ${formatBytes(buffer.length)} — ${input.contentType ?? 'application/octet-stream'}\n\n📎 [Open in system viewer](${absPath})\n`;
+      }
+    } catch (err) {
+      // No artifact exists yet, so nothing is stranded in the store — but a
+      // partially written attachment would linger under the unused id.
+      try { attachmentManager.deleteForArtifact(artifactId); } catch { /* best effort */ }
+      logger.error(`[artifact:createWithFile] Failed to store ${input.filename}: ${err}`);
+      throw err;
     }
 
-    // Update the artifact with the real content (version 2, since v1 was empty)
-    artifactManager.update(artifact.id, mdContent);
+    const artifact = artifactManager.create(sessionId, input.filename, 'markdown', mdContent, 'manual', artifactId);
 
     return { artifact, attachment };
   });

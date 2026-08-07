@@ -7,11 +7,11 @@ import { sanitizeFilename, artifactTempFileName } from './artifact-temp-file.js'
 
 describe('artifactTempFileName', () => {
   it('picks the extension from the kind and prefixes for temp reaping', () => {
-    const md = artifactTempFileName('Auth Flow Audit', 'markdown', 1700000000000);
-    const html = artifactTempFileName('Auth Flow Audit', 'html', 1700000000000);
+    const md = artifactTempFileName('sess-1', 'Auth Flow Audit', 'markdown', 1700000000000);
+    const html = artifactTempFileName('sess-1', 'Auth Flow Audit', 'html', 1700000000000);
 
-    expect(md).toBe('helm-artifact-Auth Flow Audit-1700000000000.md');
-    expect(html).toBe('helm-artifact-Auth Flow Audit-1700000000000.html');
+    expect(md).toBe('helm-artifact-sess-1--Auth Flow Audit-1700000000000.md');
+    expect(html).toBe('helm-artifact-sess-1--Auth Flow Audit-1700000000000.html');
     // The prefix is what lets cleanupWorkTempFiles reap these on startup.
     expect(md.startsWith('helm-artifact-')).toBe(true);
   });

@@ -10,6 +10,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { logger, logDir } from '../../utils/logger.js';
 import { getTempDir } from '../../utils/app-paths.js';
+import { forceDeleteTempFile } from '../../utils/temp-file-delete.js';
+import { ARTIFACT_TEMP_PREFIX } from '../../session/artifact-temp-file.js';
 
 export function setupSystemHandlers(dirname: string): void {
   ipcMain.handle('app:getVersion', () => app.getVersion());
@@ -134,27 +136,31 @@ export function setupSystemHandlers(dirname: string): void {
   });
 }
 
+/** Prefixes of temp files Helm owns and may reap wholesale on startup. */
+const OWNED_TEMP_PREFIXES = [
+  'helm-work-',
+  'helm-prompt-',
+  'helm-large-text-',
+  'helm-plan-export-',
+  ARTIFACT_TEMP_PREFIX,
+];
+
 /**
  * Clean up stale temp files from previous sessions.
- * Called on startup to prevent accumulation. Best-effort — errors are logged but not fatal.
+ *
+ * Called on startup to prevent accumulation, and the backstop for anything a
+ * crash stranded — including legacy `helm-artifact-*` names from before those
+ * files carried a session id. Best-effort: errors are logged, never fatal.
  */
 export function cleanupWorkTempFiles(dirname: string, appData?: string): void {
   const tmpDir = getTempDir(dirname, appData);
   try {
     if (!fs.existsSync(tmpDir)) return;
-    const files = fs.readdirSync(tmpDir);
-    for (const file of files) {
-      if (file.startsWith('helm-work-') || file.startsWith('helm-prompt-') || file.startsWith('helm-large-text-') || file.startsWith('helm-plan-export-') || file.startsWith('helm-artifact-')) {
-        const filePath = path.join(tmpDir, file);
-        try {
-          if (file.startsWith('helm-plan-export-')) {
-            try { fs.chmodSync(filePath, 0o666); } catch {}
-          }
-          fs.unlinkSync(filePath);
-          logger.debug(`[System] Cleaned up temp file: ${filePath}`);
-        } catch (err) {
-          logger.debug(`[System] Could not delete temp file ${filePath}: ${err}`);
-        }
+    for (const file of fs.readdirSync(tmpDir)) {
+      if (!OWNED_TEMP_PREFIXES.some(prefix => file.startsWith(prefix))) continue;
+      // Artifact and plan exports are written read-only, so unlink alone fails.
+      if (forceDeleteTempFile(path.join(tmpDir, file))) {
+        logger.debug(`[System] Cleaned up temp file: ${file}`);
       }
     }
   } catch (error) {
