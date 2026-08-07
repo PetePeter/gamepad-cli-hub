@@ -15,6 +15,7 @@ const mockTerminalManager = {
   getOutputBuffer: vi.fn(() => ({ clear: vi.fn(), append: vi.fn() })),
   setOnEmpty: vi.fn(),
   setOnSwitch: vi.fn(),
+  setVisibleOrderProvider: vi.fn(),
   setOnTitleChange: vi.fn(),
   getActiveSessionId: vi.fn(() => null),
   getSessionIds: vi.fn(() => Array.from(currentLocalSessions.keys())),
@@ -100,6 +101,7 @@ vi.mock('../renderer/screens/sessions-spawn.js', () => ({
 
 vi.mock('../renderer/screens/sessions.js', () => ({
   updateSessionsFocus: vi.fn(),
+  getTabCycleSessionIds: vi.fn(() => []),
 }));
 
 vi.mock('../renderer/screens/sessions-plans.js', () => ({

@@ -82,6 +82,7 @@ vi.mock('../renderer/screens/sessions-spawn.js', () => ({
 
 vi.mock('../renderer/screens/sessions.js', () => ({
   updateSessionsFocus: vi.fn(),
+  getTabCycleSessionIds: vi.fn(() => []),
 }));
 
 vi.mock('../renderer/stores/draft-editor-registry.js', () => ({

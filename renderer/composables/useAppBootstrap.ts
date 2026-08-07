@@ -731,6 +731,10 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
   setSpawnTerminalManagerGetter(() => tm); // wire sessions-spawn.ts getTerminalManager()
 
   if (onTerminalEmpty) tm.setOnEmpty(onTerminalEmpty);
+  // Auto-select after a close follows the sidebar's visible order — the same
+  // navList-derived list Ctrl+Tab and Ctrl+N use, so collapsed-group, hidden,
+  // and snapped-out sessions are never picked.
+  tm.setVisibleOrderProvider(getTabCycleSessionIds);
   if (onTerminalSwitch) {
     tm.setOnSwitch((sessionId) => {
       // Reconciliation only — don't call tm.switchTo (avoids re-entrancy).

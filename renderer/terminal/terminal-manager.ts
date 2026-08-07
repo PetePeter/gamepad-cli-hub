@@ -7,6 +7,7 @@
 
 import { TerminalView } from './terminal-view.js';
 import { PtyOutputBuffer } from './pty-output-buffer.js';
+import { resolveSuccessorSessionId } from './successor-pick.js';
 import type { SessionInfo } from '../../src/types/session.js';
 import { loadStoredSessions } from '../session-store.js';
 import { eventsClient, terminalClient } from '../ipc/clients.js';
@@ -33,6 +34,7 @@ export class TerminalManager {
   private unsubscribers: Array<() => void> = [];
   private resizeObserver: ResizeObserver | null = null;
   private onEmpty: (() => void) | null = null;
+  private visibleOrderProvider: (() => string[]) | null = null;
   private onSwitch: ((sessionId: string | null) => void) | null = null;
   private onTitleChangeCallback: ((sessionId: string, title: string) => void) | null = null;
   private pendingFitRaf: number | null = null;
@@ -61,6 +63,16 @@ export class TerminalManager {
 
   setOnSwitch(callback: (sessionId: string | null) => void): void {
     this.onSwitch = callback;
+  }
+
+  /**
+   * Register the source of visible session order (navList display order, with
+   * collapsed-group / hidden / snapped-out sessions already excluded). Used to
+   * hand over to the right terminal when the active one is destroyed or detached.
+   * Without a provider — child windows, tests — insertion order is used.
+   */
+  setVisibleOrderProvider(provider: () => string[]): void {
+    this.visibleOrderProvider = provider;
   }
 
   /** Register a callback invoked when a terminal's OSC title changes */
@@ -418,15 +430,34 @@ export class TerminalManager {
     terminalClient.ptyKill?.(sessionId);
     this.outputBuffer.clear(sessionId);
 
-    // Switch to another terminal if active one was destroyed
-    if (this.activeSessionId === sessionId) {
-      this.activeSessionId = null;
-      const remaining = Array.from(this.terminals.keys());
-      if (remaining.length > 0) {
-        this.switchTo(remaining[0]);
-      } else if (this.onEmpty) {
-        this.onEmpty();
-      }
+    this.handOverActive(sessionId);
+  }
+
+  /**
+   * Hand the active slot over after `sessionId` stopped being managed here.
+   * Picks the next session in visible order; when terminals remain but none are
+   * visible (all in collapsed groups) we deselect rather than activate a session
+   * the user cannot see. onEmpty stays reserved for "no terminals at all".
+   */
+  private handOverActive(sessionId: string): void {
+    if (this.activeSessionId !== sessionId) return;
+    this.activeSessionId = null;
+
+    const remaining = Array.from(this.terminals.keys());
+    if (remaining.length === 0) {
+      this.onEmpty?.();
+      return;
+    }
+
+    const visibleOrder = this.visibleOrderProvider?.();
+    const next = visibleOrder
+      ? resolveSuccessorSessionId(visibleOrder, remaining, sessionId)
+      : remaining[0];
+
+    if (next) {
+      this.switchTo(next);
+    } else {
+      this.onSwitch?.(null);
     }
   }
 
@@ -443,16 +474,7 @@ export class TerminalManager {
     this.outputBuffer.clear(sessionId);
     if (buffer) this.snapBackBuffer.set(sessionId, []);
 
-    // Switch to another terminal if active one was detached
-    if (this.activeSessionId === sessionId) {
-      this.activeSessionId = null;
-      const remaining = Array.from(this.terminals.keys());
-      if (remaining.length > 0) {
-        this.switchTo(remaining[0]);
-      } else if (this.onEmpty) {
-        this.onEmpty();
-      }
-    }
+    this.handOverActive(sessionId);
   }
 
   /** Write data to a terminal's display (from PTY output) */

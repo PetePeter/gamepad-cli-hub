@@ -67,6 +67,34 @@ Session cards also display an elapsed timer showing time since last CLI output (
 
 Colors centralized in `renderer/state-colors.ts` via `getActivityColor()`.
 
+## Terminal Hand-Over
+
+When the active terminal goes away — closed (`detachTerminal`), snapped out, or killed by a failed
+spawn / PTY exit (`destroyTerminal`) — another session takes the active slot. That successor is
+chosen from the **sidebar's visible order**, never from terminal creation order.
+
+The visible order comes from `getOrderedSessionIds()` (`renderer/utils/session-shortcut-map.ts`),
+the same navList-derived list behind Ctrl+Tab and Ctrl+N. Sessions in a collapsed group are absent
+from navList by construction; hidden and snapped-out sessions are filtered out explicitly. A session
+you cannot see therefore can never be auto-selected.
+
+```mermaid
+graph TD
+    X[Active terminal removed] --> E{Any terminals left?}
+    E -->|no| ON[onEmpty → clear active session]
+    E -->|yes| P{visibleOrderProvider set?}
+    P -->|no — child window| FIRST[First by creation order]
+    P -->|yes| S[resolveSuccessorSessionId]
+    S --> N{Visible survivor?}
+    N -->|yes| SW[switchTo next in visible order,<br/>wrapping to first if it was last]
+    N -->|no — all collapsed| DES[onSwitch null → deselect]
+```
+
+`onEmpty` means *no terminals at all*. Terminals that exist but are all hidden take the deselect
+branch instead: the pane blanks rather than silently activating an invisible session. The teardown
+runs before `refreshSessions()`, so navList still holds the departing session — that position is
+what makes "the next one down the list" resolvable rather than restarting from the top.
+
 ## Delivery & Recovery
 
 Programmatic text (inter-session `session_send_text`, Telegram, scheduled tasks) is written to the
@@ -116,7 +144,8 @@ flowchart TD
 | InitialPrompt | `src/session/initial-prompt.ts` | Converts sequence parser syntax to PTY escape codes, sends after configurable delay. `onComplete` callback signals when all items are done |
 | SequenceParser | `src/input/sequence-parser.ts` | Parses `{Enter}`, `{Ctrl+C}`, `{Wait 500}` etc. into typed actions |
 | TerminalView | `renderer/terminal/terminal-view.ts` | xterm.js wrapper with fit/search addons, OSC title change callback. Optional `onScrollInput` callback for gamepad scroll-specific PTY writes. `scroll(direction, lines)` method: normal buffer → `scrollLines()` viewport scroll; alternate buffer → PageUp/PageDown escape sequences to PTY via `onScrollInput` (falls back to `onData`). Mouse wheel handled natively by xterm.js v6 SmoothScrollableElement — no custom interception. PageUp/PageDown key handler: normal buffer → `scrollLines()` viewport scroll; alternate buffer → xterm.js sends to CLI natively |
-| TerminalManager | `renderer/terminal/terminal-manager.ts` | Multi-terminal switching, lifecycle. `deselect()` pauses keyboard relay without destroying terminal. Accepts `contextText` forwarded to main process via `ptySpawn()`. `adoptTerminal()` creates a TerminalView for externally-spawned PTY sessions without calling `pty:spawn`. Capture-phase `mousedown` listener on terminal elements blocks right-click (button 2) from reaching xterm.js paste handling. `switchTo()` calls `pty:markSwitching` before fit() to suppress false activity promotion during terminal switching. Owns `PtyOutputBuffer` for preview data. `setOnTitleChange()` routes terminal title events to renderer state. `writeToTerminal()` writes PTY output directly to xterm.js (no filtering) |
+| TerminalManager | `renderer/terminal/terminal-manager.ts` | Multi-terminal switching, lifecycle. `deselect()` pauses keyboard relay without destroying terminal. Accepts `contextText` forwarded to main process via `ptySpawn()`. `adoptTerminal()` creates a TerminalView for externally-spawned PTY sessions without calling `pty:spawn`. Capture-phase `mousedown` listener on terminal elements blocks right-click (button 2) from reaching xterm.js paste handling. `switchTo()` calls `pty:markSwitching` before fit() to suppress false activity promotion during terminal switching. Owns `PtyOutputBuffer` for preview data. `setOnTitleChange()` routes terminal title events to renderer state. `writeToTerminal()` writes PTY output directly to xterm.js (no filtering). `setVisibleOrderProvider()` supplies the sidebar's visible session order used for hand-over when the active terminal is destroyed or detached |
+| SuccessorPick | `renderer/terminal/successor-pick.ts` | `resolveSuccessorSessionId(orderedVisibleIds, liveTerminalIds, closedId)` — which terminal takes the active slot after a close. Walks forward from the closed session's slot in visible order, wraps once, returns `null` when no visible session survives |
 | PtyFilter | `renderer/terminal/pty-filter.ts` | Optionally strips alternate-screen ANSI escape sequences from PTY output. `applyPtyFilters(data, opts?)` — conditionally strips alt screen modes (47/1047/1048/1049) and ED 3 (`\x1b[3J`). ED 2 (`\x1b[2J`) intentionally preserved. `stripAltScreen()` convenience wrapper. Fast-path skips regex when no escape sequences present. Mouse tracking sequences pass through to xterm.js for native handling |
 | PtyOutputBuffer | `renderer/terminal/pty-output-buffer.ts` | Ring buffer for PTY output per session (ANSI-stripped plain text). Used by group overview for live previews |
 | Bindings | `renderer/bindings.ts` | PTY-aware input routing: voice OS-default (robotjs) with PTY opt-in via `target: 'terminal'` + `keyToPtyEscape()` (F1-F12 VT220 sequences) |
