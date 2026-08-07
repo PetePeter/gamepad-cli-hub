@@ -20,6 +20,7 @@ import { useFocusTrap } from '../../composables/useFocusTrap.js';
 import { FORM_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { useRecycleBin } from '../../composables/useRecycleBin.js';
 import { state } from '../../state.js';
+import { getCliDisplayName } from '../../utils.js';
 import {
   buildRecycleTree,
   type RecycleFolderNode,
@@ -200,7 +201,7 @@ defineExpose({ handleButton });
                       <div class="rb-info">
                         <div class="rb-name-line">
                           <span class="rb-name">{{ entry.name }}</span>
-                          <span class="rb-cli">{{ entry.cliType }}</span>
+                          <span class="rb-cli">{{ getCliDisplayName(entry.cliType) }}</span>
                         </div>
                         <div class="rb-path" :title="entry.workingDir">{{ entry.workingDir }}</div>
                         <div class="rb-meta">
@@ -233,7 +234,7 @@ defineExpose({ handleButton });
                     <div class="rb-info">
                       <div class="rb-name-line">
                         <span class="rb-name">{{ entry.name }}</span>
-                        <span class="rb-cli">{{ entry.cliType }}</span>
+                        <span class="rb-cli">{{ getCliDisplayName(entry.cliType) }}</span>
                       </div>
                       <div class="rb-path" :title="entry.workingDir">{{ entry.workingDir }}</div>
                       <div class="rb-meta">

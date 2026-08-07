@@ -1,6 +1,7 @@
 import type * as TelegramBot from 'node-telegram-bot-api';
 import type { SessionInfo, SessionState } from '../types/session.js';
 import path from 'path';
+import { cliLabel } from './cli-label.js';
 
 // Max button label length before truncation
 const MAX_LABEL = 15;
@@ -152,7 +153,7 @@ export function sessionListKeyboard(
 
   for (const s of sessions) {
     const emoji = stateEmoji(s.state);
-    text += `${emoji} "${s.name}" — ${s.cliType}\n`;
+    text += `${emoji} "${s.name}" — ${cliLabel(s.cliType)}\n`;
 
     row.push({
       text: `${emoji} ${truncLabel(s.name)}`,
@@ -207,7 +208,7 @@ export function sessionControlKeyboard(
   chatId: number | null = null,
 ): { text: string; keyboard: TelegramBot.InlineKeyboardButton[][] } {
   const emoji = stateEmoji(session.state);
-  const text = `${emoji} ${session.cliType} — ${path.basename(session.workingDir ?? 'unknown')}\nSession: "${session.name}"  ${emoji} ${capitalize(session.state ?? 'idle')}`;
+  const text = `${emoji} ${cliLabel(session.cliType)} — ${path.basename(session.workingDir ?? 'unknown')}\nSession: "${session.name}"  ${emoji} ${capitalize(session.state ?? 'idle')}`;
 
   const keyboard: TelegramBot.InlineKeyboardButton[][] = [];
   const state = session.state ?? 'idle';
@@ -235,15 +236,18 @@ export function sessionControlKeyboard(
 
 /**
  * Build the spawn wizard step 1: tool selection keyboard.
+ *
+ * Buttons show the human label but carry the CLI type id — since ids became
+ * UUIDs, using the id as the label would show the user a UUID.
  */
 export function spawnToolKeyboard(
-  tools: string[],
+  tools: Array<{ id: string; label: string }>,
 ): TelegramBot.InlineKeyboardButton[][] {
   const rows: TelegramBot.InlineKeyboardButton[][] = [];
   const row: TelegramBot.InlineKeyboardButton[] = [];
 
   for (const tool of tools) {
-    row.push({ text: truncLabel(tool), callback_data: `spawn:tool:${tool}` });
+    row.push({ text: truncLabel(tool.label), callback_data: `spawn:tool:${tool.id}` });
     if (row.length >= 3) {
       rows.push([...row]);
       row.length = 0;

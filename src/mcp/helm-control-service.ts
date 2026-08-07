@@ -50,7 +50,10 @@ const SKILL_FEEDBACK_FOOTER = '---\nSkill applied. Call skill_submit_feedback("{
 export interface SessionSummary {
   id: string;
   name: string;
+  /** UUID identity — pass it back verbatim; it is not meant to be shown to a human. */
   cliType: string;
+  /** Human label for cliType. Use this in anything a person reads. */
+  cliTypeName: string;
   workingDir?: string;
   projectId?: string;
   projectPath?: string;
@@ -100,6 +103,7 @@ export interface SessionTerminalTailResponse {
   sessionId: string;
   name: string;
   cliType: string;
+  cliTypeName: string;
   workingDir?: string;
   returnedLines: number;
   ptyRunning: boolean;

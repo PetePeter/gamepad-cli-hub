@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { resolveEnvWithMode, type ConfigLoader, type SequenceListItem } from '../config/loader.js';
+import { resolveEnvWithMode, type ConfigLoader, type ResolvedCliType, type SequenceListItem } from '../config/loader.js';
 import { mintSessionAuthToken } from '../mcp/session-auth.js';
 import { parseSubmitSuffix } from '../mcp/submit-suffix.js';
 import type { SessionManager } from './manager.js';
@@ -45,14 +45,23 @@ export interface ConfiguredSessionSpawnResult {
 export function spawnConfiguredSession(params: ConfiguredSessionSpawnParams): ConfiguredSessionSpawnResult {
   const now = Date.now();
   const sessionId = params.sessionId ?? randomUUID();
-  const cliType = params.cliType || 'unknown';
-  const sessionName = params.sessionName?.trim() || cliType;
+  // Resolve once, up front: the session records the canonical uuid, never the
+  // slug or display name the caller happened to use.
+  const resolved = resolveCliType(params.configLoader, params.cliType);
+  const cliType = resolved?.id ?? params.cliType ?? 'unknown';
+  const cfg = resolved?.config;
+  // Falling back to the raw ref would name sessions after a UUID, so prefer the
+  // human label whenever the type resolved.
+  const sessionName = params.sessionName?.trim()
+    || cfg?.displayName
+    || cfg?.name
+    || params.cliType
+    || 'unknown';
   const isResume = Boolean(params.resumeSessionName);
   const cliSessionName = params.resumeSessionName || randomUUID();
-  const cfg = getCliEntry(params.configLoader, params.cliType);
   const { rawCommand, command, args } = resolveSpawnCommand({
     cfg,
-    cliType,
+    cliType: params.cliType ?? 'unknown',
     cliSessionName,
     isResume,
     fallbackCommand: params.command,
@@ -222,8 +231,17 @@ function resolveSpawnCommand(options: {
     return { rawCommand };
   }
 
+  // No template on the CLI type and no explicit command from the caller. There
+  // used to be a `command: cliType` fallback here; now that a cliType is a UUID
+  // that would try to execute the identity string. Fail loudly instead.
+  if (!options.fallbackCommand) {
+    throw new Error(
+      `Cannot spawn CLI type "${options.cliType}": it has no spawnCommand/resumeCommand/continueCommand configured and no explicit command was supplied.`,
+    );
+  }
+
   return {
-    command: options.fallbackCommand ?? options.cliType,
+    command: options.fallbackCommand,
     args: options.fallbackArgs ?? [],
   };
 }
@@ -239,7 +257,7 @@ export function resolveConfiguredSpawnEnv(
   cliType: string | undefined,
   helmSession?: { sessionId: string; sessionName: string },
 ): Record<string, string> | undefined {
-  const envEntries = getCliEntry(configLoader, cliType)?.env;
+  const envEntries = resolveCliType(configLoader, cliType)?.config.env;
   const env = resolveEnvWithMode(envEntries ?? [], process.env as Record<string, string | undefined>, resolveEnvValue);
   if (helmSession) {
     const mcpConfig = configLoader?.getMcpConfig?.();
@@ -273,13 +291,14 @@ export function resolveInitialPromptConfig(
   };
 }
 
-function getCliEntry(configLoader: ConfigLoader | undefined, cliType: string | undefined): ReturnType<ConfigLoader['getCliTypeEntry']> | undefined {
+/**
+ * Resolve a caller-supplied CLI type ref through the ConfigLoader choke point.
+ * Returns undefined when there is no loader or no match — callers then rely on
+ * an explicitly supplied command, or fail in resolveSpawnCommand.
+ */
+function resolveCliType(configLoader: ConfigLoader | undefined, cliType: string | undefined): ResolvedCliType | undefined {
   if (!configLoader || !cliType) return undefined;
-  try {
-    return configLoader.getCliTypeEntry?.(cliType);
-  } catch {
-    return undefined;
-  }
+  return configLoader.resolveCliType?.(cliType) ?? undefined;
 }
 
 function resolveEnvValue(value: string): string {

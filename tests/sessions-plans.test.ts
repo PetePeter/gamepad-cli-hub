@@ -18,7 +18,6 @@ const mockShowPlanScreen = vi.fn();
 const mockOpenPlan = vi.fn();
 
 const mockLogEvent = vi.fn();
-const mockGetCliIcon = vi.fn((_type: string) => '🤖');
 const mockGetCliDisplayName = vi.fn((type: string) => type || 'Unknown');
 
 vi.mock('../renderer/utils.js', () => {
@@ -30,7 +29,6 @@ vi.mock('../renderer/utils.js', () => {
   };
   return {
     logEvent: mockLogEvent,
-    getCliIcon: mockGetCliIcon,
     getCliDisplayName: mockGetCliDisplayName,
     toDirection: (button: string) => dirMap[button] ?? null,
   };

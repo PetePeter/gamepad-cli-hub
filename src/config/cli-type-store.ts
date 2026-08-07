@@ -7,6 +7,43 @@ import { normalizeToolConfig } from './loader-helpers.js';
 import { loadYaml, saveYaml } from './yaml-store.js';
 import type { CliTypeConfig } from './loader.js';
 
+/**
+ * Guarantee every entry carries its identity fields, so callers can rely on
+ * `displayName` regardless of how old the YAML on disk is.
+ *
+ * `mintId` is deliberately off for load/importBulk: a missing `id` is the signal
+ * cli-type-migration uses to detect a pre-UUID file, and stamping the slug key in
+ * as an id here would make that migration think it had already run.
+ * Returns true when anything was filled in, so the caller can persist once.
+ */
+function normalizeIdentity(key: string, config: CliTypeConfig | undefined, mintId: boolean): boolean {
+  if (!config) return false;
+  let changed = false;
+  if (!config.id && mintId) { config.id = key; changed = true; }
+  if (!config.displayName) { config.displayName = config.name || key; changed = true; }
+  // Keep the deprecated alias in sync — legacy readers still use it.
+  if (config.name !== config.displayName) { config.name = config.displayName; changed = true; }
+  return changed;
+}
+
+/** A CLI type paired with its canonical map key (the UUID identity). */
+export interface ResolvedCliType {
+  id: string;
+  config: CliTypeConfig;
+}
+
+/**
+ * Raised when a reference matches several CLI types by display name. Two types
+ * may legitimately share a label, so guessing one would silently spawn the wrong
+ * CLI — the caller has to disambiguate with an id.
+ */
+export class AmbiguousCliTypeError extends Error {
+  constructor(readonly ref: string, readonly ids: string[]) {
+    super(`Ambiguous CLI type "${ref}" — matches ${ids.length} types by display name: ${ids.join(', ')}. Use the CLI type id instead.`);
+    this.name = 'AmbiguousCliTypeError';
+  }
+}
+
 export class CliTypeStore {
   private data: { [key: string]: CliTypeConfig } = {};
 
@@ -23,12 +60,57 @@ export class CliTypeStore {
     let anyChanged = false;
     for (const key of Object.keys(this.data)) {
       if (normalizeToolConfig(this.data[key])) anyChanged = true;
+      if (normalizeIdentity(key, this.data[key], false)) anyChanged = true;
     }
     if (anyChanged) this.save();
   }
 
+  /**
+   * THE resolution choke point. Every human- or agent-supplied CLI type
+   * reference in the app funnels through here, so there is exactly one answer to
+   * "which CLI type is this string?".
+   *
+   * Resolution order, most to least authoritative:
+   *   1. the UUID identity (the map key) — never changes, never ambiguous
+   *   2. `legacyKey`, the pre-UUID slug — keeps persisted references working
+   *   3. `displayName`, trimmed and case-insensitive — the human-friendly handle
+   *
+   * A display name shared by two types throws rather than picking one; an
+   * unknown reference returns null rather than falling back to anything.
+   */
+  resolve(ref: string): ResolvedCliType | null {
+    if (typeof ref !== 'string') return null;
+    const trimmed = ref.trim();
+    if (!trimmed) return null;
+
+    const byId = this.data[trimmed];
+    if (byId) return { id: trimmed, config: byId };
+
+    for (const [id, config] of Object.entries(this.data)) {
+      if (config?.legacyKey === trimmed) return { id, config };
+    }
+
+    const wanted = trimmed.toLowerCase();
+    const byName = Object.entries(this.data).filter(
+      ([, config]) => (config?.displayName ?? config?.name ?? '').trim().toLowerCase() === wanted,
+    );
+    if (byName.length > 1) throw new AmbiguousCliTypeError(trimmed, byName.map(([id]) => id));
+    if (byName.length === 1) return { id: byName[0][0], config: byName[0][1] };
+
+    return null;
+  }
+
+  /**
+   * Canonical map key for a reference. Delegates to `resolve` — no second
+   * implementation. Unknown refs come back unchanged so callers keep producing
+   * their own "not found" errors against the string the user actually typed.
+   */
+  resolveKey(key: string): string {
+    return this.resolve(key)?.id ?? key;
+  }
+
   get(key: string): CliTypeConfig | undefined {
-    return this.data[key];
+    return this.resolve(key)?.config;
   }
 
   getAll(): { [key: string]: CliTypeConfig } {
@@ -41,16 +123,21 @@ export class CliTypeStore {
 
   add(key: string, config: CliTypeConfig): void {
     if (this.data[key]) throw new Error(`CLI type already exists: ${key}`);
+    normalizeIdentity(key, config, true);
     this.data[key] = config;
     this.save();
   }
 
+  /** Update in place. Never re-keys — identity is the map key and is immutable. */
   set(key: string, config: CliTypeConfig): void {
+    key = this.resolveKey(key);
+    normalizeIdentity(key, config, true);
     this.data[key] = config;
     this.save();
   }
 
   remove(key: string): void {
+    key = this.resolveKey(key);
     if (!this.data[key]) throw new Error(`CLI type not found: ${key}`);
     delete this.data[key];
     this.save();
@@ -74,6 +161,7 @@ export class CliTypeStore {
    */
   importBulk(data: { [key: string]: CliTypeConfig }): void {
     for (const [key, config] of Object.entries(data)) {
+      normalizeIdentity(key, config, false);
       this.data[key] = config;
     }
     this.save();

@@ -571,8 +571,8 @@ import SpawnGrid from '../../../renderer/components/sidebar/SpawnGrid.vue';
 
 describe('SpawnGrid', () => {
   const items = [
-    { cliType: 'claude-code', icon: '🤖', displayName: 'Claude' },
-    { cliType: 'copilot-cli', icon: '🚀', displayName: 'Copilot' },
+    { cliType: 'claude-code', displayName: 'Claude' },
+    { cliType: 'copilot-cli', displayName: 'Copilot' },
   ];
 
   it('renders spawn buttons for each item', () => {
@@ -581,11 +581,6 @@ describe('SpawnGrid', () => {
     expect(buttons.length).toBe(2);
     expect(buttons[0].find('.spawn-label').text()).toBe('Claude');
     expect(buttons[1].find('.spawn-label').text()).toBe('Copilot');
-  });
-
-  it('shows icons', () => {
-    const w = mount(SpawnGrid, { props: { items, focusIndex: 0, isActive: false } });
-    expect(w.findAll('.spawn-icon')[0].text()).toBe('🤖');
   });
 
   it('applies focused class to active item', () => {

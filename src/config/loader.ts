@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { randomUUID } from 'crypto';
 import logger from '../utils/logger.js';
 import { getConfigDir, isPackaged, seedConfigIfNeeded } from '../utils/app-paths.js';
 import { fileURLToPath } from 'url';
@@ -12,10 +13,11 @@ import {
   type HelmActionMap,
   type SpawnConfig,
 } from './loader-helpers.js';
-import { CliTypeStore } from './cli-type-store.js';
+import { CliTypeStore, type ResolvedCliType } from './cli-type-store.js';
 import { BindingStore } from './binding-store.js';
 import { InputConfigStore } from './input-config-store.js';
 import { migrateFromProfile } from './profile-migrator.js';
+import { migrateCliTypeIds, defaultCliTypeMigrationFiles } from './cli-type-migration.js';
 import { normalizeProjectPath, dirDisplayNameFromPath } from '../session/project-identity.js';
 import type { ProjectStore } from '../session/project-store.js';
 import { DEFAULT_FLEET_CONFIG, DEFAULT_MCP_CONFIG, SettingsManager } from './settings-manager.js';
@@ -23,6 +25,8 @@ import { TelegramConfigManager } from './telegram-config-manager.js';
 
 export { parseCliArgs, resolveEnvWithMode, slugify } from './loader-helpers.js';
 export type { CliTypeOptions, EnvVarEntry, HelmActionMap, SpawnConfig } from './loader-helpers.js';
+export { AmbiguousCliTypeError } from './cli-type-store.js';
+export type { ResolvedCliType } from './cli-type-store.js';
 
 // ============================================================================
 // Action & Binding Types
@@ -106,7 +110,19 @@ export interface PatternRule {
 // Shared Config Types
 // ============================================================================
 
+/** A bare CLI-type identity. Matching this means the reference is an id, not a label. */
+const CLI_TYPE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface CliTypeConfig {
+  /** Stable UUID v4 identity — also the map key in cli-types.yaml. Renaming never changes it.
+   *  Optional in the type only so legacy YAML and older literals still parse; every entry that
+   *  passes through CliTypeStore is guaranteed to carry one. */
+  id?: string;
+  /** Free-text human label. Authoritative — `name` is kept in sync as a deprecated alias. */
+  displayName?: string;
+  /** The pre-UUID slug key this entry was migrated from. Diagnostic only. */
+  legacyKey?: string;
+  /** @deprecated Alias of displayName, kept so existing readers keep working. */
   name: string;
   /** Extra environment variables injected into the spawned CLI process. */
   env?: EnvVarEntry[];
@@ -408,6 +424,13 @@ export class ConfigLoader {
     this.bindingStore.load();
     this.inputConfigStore.load();
     migrateFromProfile(this.configDir, this.cliTypeStore, this.bindingStore, this.inputConfigStore);
+    // Re-key slug-based CLI types to UUIDs. Runs after the profile migration so
+    // types it just imported are covered too; rewrites files directly, hence the
+    // reload of the two stores whose backing files it touched.
+    if (migrateCliTypeIds(defaultCliTypeMigrationFiles(this.configDir))) {
+      this.cliTypeStore.load();
+      this.bindingStore.load();
+    }
   }
 
   private loadSettings(): void {
@@ -430,9 +453,24 @@ export class ConfigLoader {
     }
   }
 
+  /**
+   * Resolve a human- or agent-supplied CLI type reference (uuid, legacy slug, or
+   * display name) to its entry plus canonical uuid key. Null means "no such CLI
+   * type" — there is deliberately no fallback. See CliTypeStore.resolve.
+   */
+  resolveCliType(ref: string): ResolvedCliType | null {
+    this.ensureLoaded();
+    return this.cliTypeStore.resolve(ref);
+  }
+
+  /** Canonical map key for a CLI type reference; unknown refs pass through. */
+  private resolveCliTypeKey(cliType: string): string {
+    return this.cliTypeStore.resolveKey(cliType);
+  }
+
   getBindings(cliType: string): ButtonBindings | null {
     this.ensureLoaded();
-    return this.bindingStore.get(cliType);
+    return this.bindingStore.get(this.resolveCliTypeKey(cliType));
   }
 
   getSpawnConfig(cliType: string): SpawnConfig | null {
@@ -449,7 +487,23 @@ export class ConfigLoader {
 
   getCliTypeName(cliType: string): string | null {
     this.ensureLoaded();
-    return this.cliTypeStore.get(cliType)?.name ?? null;
+    const entry = this.cliTypeStore.get(cliType);
+    return entry ? (entry.displayName ?? entry.name ?? null) : null;
+  }
+
+  /**
+   * Display label for any CLI type reference, for text a human will read.
+   * Never throws and never returns null: an unresolvable reference falls back to
+   * itself, except a bare UUID, which is an identity no user should ever see.
+   */
+  getCliTypeLabel(cliType: string): string {
+    const ref = typeof cliType === 'string' ? cliType.trim() : '';
+    try {
+      const name = this.getCliTypeName(ref);
+      if (name && name.trim()) return name.trim();
+    } catch { /* ambiguous label — fall through to the raw reference */ }
+    if (!ref || CLI_TYPE_UUID_RE.test(ref)) return 'Unknown CLI';
+    return ref;
   }
 
   getCliTypes(): string[] {
@@ -563,6 +617,7 @@ export class ConfigLoader {
 
   setBinding(button: string, cliType: string, binding: Binding): void {
     this.ensureLoaded();
+    cliType = this.resolveCliTypeKey(cliType);
     // Auto-create binding entry if CLI type exists in tools but not yet in bindings
     if (!this.bindingStore.get(cliType)) {
       if (this.cliTypeStore.get(cliType)) {
@@ -576,11 +631,13 @@ export class ConfigLoader {
 
   removeBinding(button: string, cliType: string): void {
     this.ensureLoaded();
-    this.bindingStore.removeButton(button, cliType);
+    this.bindingStore.removeButton(button, this.resolveCliTypeKey(cliType));
   }
 
   copyCliBindings(sourceCli: string, targetCli: string): number {
     this.ensureLoaded();
+    sourceCli = this.resolveCliTypeKey(sourceCli);
+    targetCli = this.resolveCliTypeKey(targetCli);
     // Validate source has bindings
     if (!this.bindingStore.get(sourceCli)) {
       throw new Error(`No bindings found for source: ${sourceCli}`);
@@ -895,11 +952,15 @@ export class ConfigLoader {
     initialPromptOrDelay?: SequenceListItem[] | number,
     initialPromptDelayOrOptions?: number | CliTypeOptions,
     maybeOptions?: CliTypeOptions,
-  ): void {
+  ): string {
     this.ensureLoaded();
+    // `key` is now only a caller-supplied slug — identity is a freshly minted
+    // UUID so a later rename never has to re-key anything. The slug is kept as
+    // `legacyKey` so callers that still address CLI types by slug resolve.
     if (this.cliTypeStore.get(key)) {
       throw new Error(`CLI type already exists: ${key}`);
     }
+    const id = randomUUID();
     const legacyCommand = typeof legacyCommandOrInitialPrompt === 'string' ? legacyCommandOrInitialPrompt.trim() : '';
     const initialPrompt = Array.isArray(legacyCommandOrInitialPrompt)
       ? legacyCommandOrInitialPrompt
@@ -910,7 +971,10 @@ export class ConfigLoader {
     const options = isCliTypeOptions(initialPromptDelayOrOptions)
       ? initialPromptDelayOrOptions
       : maybeOptions;
-    const tool: CliTypeConfig = { name, initialPrompt, initialPromptDelay };
+    // A brand-new type has no pre-UUID history, so it gets no legacyKey — the
+    // slug is only meaningful when it is the key an older config addressed.
+    const tool: CliTypeConfig = { id, displayName: name, name, initialPrompt, initialPromptDelay };
+    if (key && key !== name) tool.legacyKey = key;
     const spawnCommand = options?.spawnCommand?.trim() || legacyCommand;
     if (spawnCommand) tool.spawnCommand = spawnCommand;
     if (options?.env !== undefined && options.env.length > 0) tool.env = options.env;
@@ -924,7 +988,8 @@ export class ConfigLoader {
     if (options?.pasteMode) tool.pasteMode = options.pasteMode;
     const helmActions = this.cleanHelmActions(options?.helmActions);
     if (helmActions) tool.helmActions = helmActions;
-    this.cliTypeStore.add(key, tool);
+    this.cliTypeStore.add(id, tool);
+    return id;
   }
 
   /** Drop blank action mappings; return null when nothing remains (so callers can omit the field). */
@@ -960,7 +1025,9 @@ export class ConfigLoader {
       ? initialPromptDelayOrOptions
       : maybeOptions;
     const existing = this.cliTypeStore.get(key)!;
-    // Merge — preserve fields not provided (sequences, etc.)
+    // Merge — preserve fields not provided (sequences, etc.). A rename touches
+    // displayName only: the map key and `id` are identity and never change.
+    existing.displayName = name;
     existing.name = name;
     existing.initialPrompt = initialPrompt;
     if (initialPromptDelay !== undefined) existing.initialPromptDelay = initialPromptDelay;

@@ -21,6 +21,7 @@ import {
 } from './input/input-ownership.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { state } from './state.js';
+import { resolveCliTypeRecord } from './utils.js';
 import { keyboardClient, terminalClient } from './ipc/clients.js';
 import { isForegroundOnlyPasteMode, type DeliveryContext, type PtyWriteOptions } from '../src/session/delivery-context.js';
 
@@ -110,7 +111,7 @@ function getConfiguredSubmitSuffix(sessionId: string, withReturn?: boolean, over
   if (override !== undefined) return override;
   if (!withReturn) return '';
   const session = state.sessions.find(s => s.id === sessionId);
-  const configured = session ? state.cliToolsCache?.[session.cliType]?.submitSuffix : undefined;
+  const configured = session ? resolveCliTypeRecord(session.cliType)?.submitSuffix : undefined;
   return configured ? parseSubmitSuffix(configured) : '\r';
 }
 
@@ -164,7 +165,7 @@ export async function deliverViaClipboardPaste(text: string): Promise<void> {
  *  or OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode. */
 export async function deliverBulkText(sessionId: string, text: string, options?: { withReturn?: boolean; submitSuffix?: string; deliveryContext?: DeliveryContext }): Promise<void> {
   const session = state.sessions.find(s => s.id === sessionId);
-  const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
+  const tool = session ? resolveCliTypeRecord(session.cliType) : undefined;
   const suffix = getConfiguredSubmitSuffix(sessionId, options?.withReturn, options?.submitSuffix);
   const deliveryContext = options?.deliveryContext ?? 'interactive';
   const ptyWriteOptions = getPtyWriteOptions(deliveryContext);
@@ -373,7 +374,7 @@ export function setupKeyboardRelay(
       });
       if (activeContext === 'editable-field') return;
       const session = state.sessions.find(s => s.id === sessionId);
-      const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
+      const tool = session ? resolveCliTypeRecord(session.cliType) : undefined;
       if (document.querySelector('.scheduler-popup-backdrop')) {
         e.stopPropagation();
         return;

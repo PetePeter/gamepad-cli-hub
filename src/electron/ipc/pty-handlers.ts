@@ -52,7 +52,8 @@ export function setupPtyHandlers(
         args,
         cwd: normalizedCwd,
         cliType,
-        sessionName: cliType || 'unknown',
+        // No sessionName: spawnConfiguredSession names it after the resolved CLI
+        // type's displayName. Passing cliType here would surface a raw UUID.
         contextText,
         resumeSessionName,
         markRestored: sid => stateDetector.markRestored(sid),

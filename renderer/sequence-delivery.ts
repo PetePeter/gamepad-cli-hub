@@ -3,10 +3,11 @@ import type { DeliveryContext, PtyWriteOptions } from '../src/session/delivery-c
 import { terminalClient } from './ipc/clients.js';
 import { deliverBulkText, parseSubmitSuffix } from './paste-handler.js';
 import { state } from './state.js';
+import { resolveCliTypeRecord } from './utils.js';
 
 function getSubmitSuffix(sessionId: string): string {
   const session = state.sessions.find(s => s.id === sessionId);
-  const configured = session ? state.cliToolsCache?.[session.cliType]?.submitSuffix : undefined;
+  const configured = session ? resolveCliTypeRecord(session.cliType)?.submitSuffix : undefined;
   return configured ? parseSubmitSuffix(configured) : '\r';
 }
 

@@ -69,24 +69,35 @@ const DEFAULT_COOLDOWN_MS = 300_000; // 5 minutes
 export class PatternMatcher extends EventEmitter {
   private readonly ptyWriteFn: (sessionId: string, data: string) => void | Promise<void>;
   private readonly getPatternsFn: (cliType: string) => PatternRule[];
+  private readonly resolveCliTypeFn: (cliType: string) => string;
 
   private pendingSchedules: Map<string, PendingSchedule> = new Map();
   private lastFired: LastFiredMap = new Map();
 
+  /**
+   * @param resolveCliTypeFn Maps a CLI type reference to its canonical id. Without
+   *   it, a session stored under a legacy slug and one stored under the uuid would
+   *   each get their own regex-cache entry for the same rules.
+   */
   constructor(
     ptyWriteFn: (sessionId: string, data: string) => void | Promise<void>,
     getPatternsFn: (cliType: string) => PatternRule[],
+    resolveCliTypeFn: (cliType: string) => string = (cliType) => cliType,
   ) {
     super();
     this.ptyWriteFn = ptyWriteFn;
     this.getPatternsFn = getPatternsFn;
+    this.resolveCliTypeFn = resolveCliTypeFn;
   }
 
   /**
    * Feed raw or pre-stripped PTY output for a session. ANSI sequences are stripped internally.
    * Call this after StateDetector.processOutput.
    */
-  processOutput(sessionId: string, cliType: string, rawText: string): void {
+  processOutput(sessionId: string, cliTypeRef: string, rawText: string): void {
+    // Canonicalize first: rules, the emitted event, and the regex cache key must
+    // all agree on one identity for the CLI type regardless of how it was addressed.
+    const cliType = this.resolveCliTypeFn(cliTypeRef);
     const cleanText = PatternMatcher.stripAnsi(rawText);
     const rules = this.getPatternsFn(cliType);
     if (rules.length === 0) return;

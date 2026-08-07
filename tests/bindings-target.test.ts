@@ -48,6 +48,7 @@ vi.mock('../renderer/utils', () => ({
   showScreen: vi.fn(),
   updateProfileDisplay: vi.fn(),
   getCliDisplayName: vi.fn((ct: string) => ct),
+  resolveCliTypeRecord: vi.fn(() => null),
   toDirection: vi.fn(),
   getSequenceSyntaxHelpText: vi.fn().mockReturnValue(''),
 }));

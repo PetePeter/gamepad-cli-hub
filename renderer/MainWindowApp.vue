@@ -17,7 +17,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { sessionsState } from './screens/sessions-state.js';
 import { useAppStore } from './stores/app.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
-import { getCliDisplayName, getCliIcon } from './utils.js';
+import { getCliDisplayName } from './utils.js';
 import { initConfigCache } from './bindings.js';
 import { doSpawn, doSpawnShell, switchToSession, doCloseSession,
   bootstrap, teardown, startTimerRefresh, stopTimerRefresh,
@@ -408,7 +408,6 @@ const sortOptions = [
 const spawnItems = computed(() =>
   sessionsState.cliTypes.map(ct => ({
     cliType: ct,
-    icon: getCliIcon(ct),
     displayName: getCliDisplayName(ct),
   })),
 );

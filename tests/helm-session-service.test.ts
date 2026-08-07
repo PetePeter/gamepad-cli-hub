@@ -17,6 +17,7 @@ function makeConfigLoader() {
     getWorkingDirectories: vi.fn(() => []),
     getCliTypes: vi.fn(() => []),
     getCliTypeEntry: vi.fn(() => null),
+    getCliTypeLabel: vi.fn((ref: string) => ref),
   };
 }
 

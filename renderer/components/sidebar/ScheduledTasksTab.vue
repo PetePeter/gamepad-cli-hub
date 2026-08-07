@@ -12,6 +12,7 @@ import PromptTextarea from '../common/PromptTextarea.vue';
 import { useFocusTrap } from '../../composables/useFocusTrap.js';
 import { FORM_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { loadStoredSessions } from '../../session-store.js';
+import { getCliDisplayName } from '../../utils.js';
 import { getBackgroundDeliveryWarning, type PasteMode } from '../../../src/session/delivery-context.js';
 
 const emit = defineEmits<{
@@ -333,7 +334,7 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer); modalStack.po
       <div class="st-form-row st-form-row--picker"><label class="st-label">Working Directory *</label><button class="st-picker-btn focusable" @click="openDirPickerModal">{{ selectedDirPath ? shortenPath(selectedDirPath) : 'Select Directory...' }}</button></div>
       <div class="st-form-row"><label class="st-label">Mode</label><select v-model="formMode" class="st-input focusable" @change="onModeChange"><option value="spawn">Spawn new session</option><option value="direct">Send to existing session</option></select></div>
       <div v-if="formMode !== 'direct'" class="st-form-row st-form-row--picker"><label class="st-label">CLI Type *</label><button class="st-picker-btn focusable" @click="openCliPicker">{{ selectedCliType || 'Select CLI...' }}</button></div>
-      <div v-if="formMode === 'direct'" class="st-form-row"><label class="st-label">Target Session *</label><select v-model="selectedTargetSessionId" class="st-input focusable" :disabled="sessionsForDir.length === 0"><option value="" disabled>{{ sessionsForDir.length === 0 ? 'No sessions in this directory' : 'Select session...' }}</option><option v-for="s in sessionsForDir" :key="s.id" :value="s.id">{{ s.name }} ({{ s.cliType }})</option></select></div>
+      <div v-if="formMode === 'direct'" class="st-form-row"><label class="st-label">Target Session *</label><select v-model="selectedTargetSessionId" class="st-input focusable" :disabled="sessionsForDir.length === 0"><option value="" disabled>{{ sessionsForDir.length === 0 ? 'No sessions in this directory' : 'Select session...' }}</option><option v-for="s in sessionsForDir" :key="s.id" :value="s.id">{{ s.name }} ({{ getCliDisplayName(s.cliType) }})</option></select></div>
       <div v-if="schedulerDeliveryWarning" class="st-warning">{{ schedulerDeliveryWarning }}</div>
       <div v-if="formMode !== 'direct'" class="st-form-row"><label class="st-label">CLI Params (optional)</label><input v-model="formCliParams" type="text" class="st-input focusable" placeholder="Additional CLI arguments" /></div>
       <div class="st-form-row"><label class="st-label">Scheduled Time *</label><input v-model="formTime" type="datetime-local" class="st-input focusable" /></div>
@@ -357,7 +358,7 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer); modalStack.po
       <div v-for="task in sortedTasks" :key="task.id" class="st-task-card" :class="'st-task-card--' + task.status">
         <div class="st-task-header"><h4 class="st-task-title">{{ task.title }}</h4><span class="st-task-badge" :class="getStatusBadge(task.status).cssClass">{{ getStatusBadge(task.status).label }}</span></div>
         <p v-if="task.description" class="st-task-description">{{ task.description }}</p>
-        <div class="st-task-meta"><span class="st-task-chip">{{ task.cliType }}</span><span class="st-task-chip">{{ shortenPath(task.dirPath) }}</span><span class="st-task-chip">{{ formatSchedule(task) }}</span><span v-if="task.status === 'pending'" class="st-task-countdown">{{ formatNextRun(task) }}</span><span v-else-if="task.status === 'executing'" class="st-task-countdown st-task-countdown--running">running...</span><span v-else class="st-task-time">{{ formatTime(task.scheduledTime) }}</span></div>
+        <div class="st-task-meta"><span class="st-task-chip">{{ getCliDisplayName(task.cliType) }}</span><span class="st-task-chip">{{ shortenPath(task.dirPath) }}</span><span class="st-task-chip">{{ formatSchedule(task) }}</span><span v-if="task.status === 'pending'" class="st-task-countdown">{{ formatNextRun(task) }}</span><span v-else-if="task.status === 'executing'" class="st-task-countdown st-task-countdown--running">running...</span><span v-else class="st-task-time">{{ formatTime(task.scheduledTime) }}</span></div>
         <div v-if="task.error" class="st-task-error">{{ task.error }}</div>
         <div v-if="task.status === 'pending'" class="st-task-actions"><button class="st-btn st-btn--secondary focusable" :disabled="creating" @click="editTask(task)">Edit</button><button class="st-btn st-btn--danger focusable" :disabled="creating" @click="cancelTask(task.id)">Cancel Task</button></div>
       </div>

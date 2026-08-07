@@ -44,21 +44,37 @@ describe('navigateFocus', () => {
   });
 });
 
+const CLAUDE_ID = '5e1f5c1e-6c2f-4d54-9a3f-1c7d9b2a4e10';
+const COPILOT_ID = 'b2c3d4e5-1111-4222-8333-444455556666';
+
 describe('getCliDisplayName', () => {
   beforeEach(() => {
     state.cliToolsCache = {};
   });
 
-  it('prefers the configured tool name from live config cache', () => {
-    state.cliToolsCache['azure-copilot'] = { name: 'Azure Copilot' };
-    expect(getCliDisplayName('azure-copilot')).toBe('Azure Copilot');
+  it('returns the record displayName for a uuid reference', () => {
+    state.cliToolsCache[CLAUDE_ID] = { id: CLAUDE_ID, displayName: 'Claude', name: 'Claude', legacyKey: 'claude-code' };
+    expect(getCliDisplayName(CLAUDE_ID)).toBe('Claude');
   });
 
-  it('falls back to built-in display names when no config entry exists', () => {
-    expect(getCliDisplayName('copilot-cli')).toBe('Copilot');
+  it('resolves a persisted legacy slug to the record displayName', () => {
+    state.cliToolsCache[CLAUDE_ID] = { id: CLAUDE_ID, displayName: 'Claude Code', name: 'Claude Code', legacyKey: 'claude-code' };
+    expect(getCliDisplayName('claude-code')).toBe('Claude Code');
   });
 
-  it('falls back to the cli key when neither config nor built-in name exists', () => {
+  it('resolves a display-name reference case-insensitively', () => {
+    state.cliToolsCache[COPILOT_ID] = { id: COPILOT_ID, displayName: 'Copilot', name: 'Copilot', legacyKey: 'copilot-cli' };
+    expect(getCliDisplayName('  copilot ')).toBe('Copilot');
+  });
+
+  it('never prints a raw uuid when the reference does not resolve', () => {
+    const label = getCliDisplayName(CLAUDE_ID);
+    expect(label).not.toContain(CLAUDE_ID);
+    expect(label).toBe('Unknown CLI');
+  });
+
+  it('echoes a non-uuid reference verbatim when nothing resolves', () => {
     expect(getCliDisplayName('my-custom-cli')).toBe('my-custom-cli');
   });
 });
+

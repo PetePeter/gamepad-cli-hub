@@ -20,6 +20,44 @@ config/
 
 Release builds ship sanitised configs. `prepareDeploy.py` creates a transient `config-deploy/` directory with profiles stripped of `workingDirectories`, default-only `settings.yaml`, and empty `sessions.yaml`. This is overlaid onto `config/` by electron-builder during packaging so personal paths never ship.
 
+## CLI Type Identity
+
+A CLI type has two separate handles, and confusing them is the bug this split exists to prevent:
+
+| | What it is | Who sees it |
+|---|---|---|
+| `id` | UUID v4, minted once at creation. Also the map key in `cli-types.yaml`, and the key everything else joins on. | Nobody. Never rendered. |
+| `displayName` | Free-text label the user edits. `name` is a deprecated alias kept in sync for legacy readers. | Everywhere — sidebar, spawn grid, settings, Telegram, session default names. |
+
+Renaming writes `displayName` and nothing else. No key changes, so bindings, live sessions, recycle-bin entries and scheduled tasks all keep resolving.
+
+```mermaid
+graph LR
+    ID[id · uuid] --> B[bindings.yaml key]
+    ID --> S[Session.cliType]
+    ID --> RB[recycle bin]
+    ID --> ST[scheduled tasks]
+    DN[displayName] --> UI[UI · Telegram · MCP]
+    DN -.resolve.-> ID
+    LK[legacyKey · old slug] -.resolve.-> ID
+```
+
+### Resolution
+
+`ConfigLoader.resolveCliType(ref)` is the single choke point. Every cliType reference supplied by a human or an agent — MCP `session_create`, scheduled tasks, Telegram, IPC — goes through it. It resolves in order:
+
+1. exact `id` (uuid)
+2. `legacyKey` — the pre-UUID slug, e.g. `claude-code`. Kept indefinitely; agents and docs in the wild still use it.
+3. `displayName`, trimmed and case-insensitive
+
+An ambiguous `displayName` throws `AmbiguousCliTypeError` naming the conflicting ids rather than silently picking one — the settings UI blocks duplicate names on add, clone and rename, so this only fires on a hand-edited YAML. An unknown reference returns `null`; nothing falls back to treating the reference as an executable name.
+
+`ConfigLoader.getCliTypeLabel(ref)` is the display counterpart: never throws, never returns a uuid. Telegram gets it via `setCliLabelResolver` (wired once in `initTelegramModules`) because the notifier, topic manager and keyboard builders hold no `ConfigLoader`.
+
+### Migration
+
+`src/config/cli-type-migration.ts` runs from `ConfigLoader.load()`. A `cli-types.yaml` whose entries have no `id` is pre-UUID: each entry gets a minted uuid, `displayName` from the old `name`, and `legacyKey` set to the old slug, preserving order. The slug→uuid map is then applied to `bindings.yaml`, persisted sessions, recycle-bin entries, and scheduled tasks plus their history. Staged write, verify, then swap — a failure leaves the originals untouched. Running it again is a no-op.
+
 ## Profiles
 
 **Profiles are self-contained**— each profile YAML includes tools (CLI definitions), working directories, button bindings, stick config, and dpad config. Switching profiles changes everything. Profile switch shows a confirmation dialog when terminals are open (keep sessions / close all). `createProfile(name)` creates an empty profile; `createProfile(name, copyFrom)` clones from an existing profile.

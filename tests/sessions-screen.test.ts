@@ -32,7 +32,6 @@ const mockPlanCreate = vi.fn();
 const mockDestroyTerminal = vi.fn();
 
 const mockLogEvent = vi.fn();
-const mockGetCliIcon = vi.fn((_type: string) => '🤖');
 const mockGetCliDisplayName = vi.fn((type: string) => type || 'Unknown');
 const mockRenderFooterBindings = vi.fn();
 const mockSwitchTo = vi.fn();
@@ -73,7 +72,6 @@ vi.mock('../renderer/utils.js', () => {
   };
   return {
     logEvent: mockLogEvent,
-    getCliIcon: mockGetCliIcon,
     getCliDisplayName: mockGetCliDisplayName,
     renderFooterBindings: mockRenderFooterBindings,
     toDirection: (button: string) => dirMap[button] ?? null,

@@ -291,6 +291,8 @@ export const toolEditor = reactive({
   visible: false,
   mode: 'add' as 'add' | 'edit' | 'clone',
   editKey: '',
+  /** Inline name check owned by the settings controller (blocks duplicate labels). */
+  validateName: null as ((name: string) => string | null) | null,
   initialData: { ...EMPTY_TOOL_DATA } as ToolEditorBridgeData,
 });
 

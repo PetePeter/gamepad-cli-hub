@@ -5,7 +5,7 @@
  * edge cases (empty lists), button content.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   notificationKeyboard,
   directoryListKeyboard,
@@ -18,6 +18,7 @@ import {
   resolvePathIndex,
   _resetPathRegistry,
 } from '../src/telegram/keyboards.js';
+import { setCliLabelResolver } from '../src/telegram/cli-label.js';
 import type { SessionInfo } from '../src/types/session.js';
 
 // ---------------------------------------------------------------------------
@@ -331,17 +332,28 @@ describe('sessionControlKeyboard', () => {
 
 describe('spawnToolKeyboard', () => {
   it('creates tool selection buttons', () => {
-    const tools = ['claude-code', 'copilot-cli', 'aider'];
+    const tools = [
+      { id: 'uuid-cc', label: 'Claude Code' },
+      { id: 'uuid-cp', label: 'Copilot CLI' },
+      { id: 'uuid-ai', label: 'Aider' },
+    ];
     const kb = spawnToolKeyboard(tools);
 
     const data = allCallbackData(kb);
-    expect(data).toContain('spawn:tool:claude-code');
-    expect(data).toContain('spawn:tool:copilot-cli');
-    expect(data).toContain('spawn:tool:aider');
+    expect(data).toContain('spawn:tool:uuid-cc');
+    expect(data).toContain('spawn:tool:uuid-cp');
+    expect(data).toContain('spawn:tool:uuid-ai');
+  });
+
+  it('labels buttons with the display name, never the id', () => {
+    const kb = spawnToolKeyboard([{ id: '5f3c2b1a-0000-4000-8000-000000000001', label: 'Claude Code' }]);
+    const button = allButtons(kb).find((b: any) => b.callback_data?.startsWith('spawn:tool:'));
+    expect(button.text).toBe('Claude Code');
+    expect(button.callback_data).toBe('spawn:tool:5f3c2b1a-0000-4000-8000-000000000001');
   });
 
   it('includes cancel/back button', () => {
-    const kb = spawnToolKeyboard(['claude-code']);
+    const kb = spawnToolKeyboard([{ id: 'uuid-cc', label: 'Claude Code' }]);
     const lastRow = kb[kb.length - 1];
     expect(lastRow.some((b: any) => b.callback_data === 'sessions:list')).toBe(true);
   });
@@ -355,7 +367,7 @@ describe('spawnToolKeyboard', () => {
   });
 
   it('callback_data uses spawn:tool: prefix', () => {
-    const kb = spawnToolKeyboard(['my-tool']);
+    const kb = spawnToolKeyboard([{ id: 'my-tool', label: 'My Tool' }]);
     const toolButtons = allButtons(kb).filter((b: any) =>
       b.callback_data?.startsWith('spawn:tool:'),
     );
@@ -433,3 +445,40 @@ describe('topic cleanup controls', () => {
   });
 });
 
+
+// ---------------------------------------------------------------------------
+// CLI label rendering
+// ---------------------------------------------------------------------------
+
+describe('CLI type labels in Telegram text', () => {
+  const CLAUDE_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+
+  beforeEach(() => {
+    _resetPathRegistry();
+    setCliLabelResolver(ref => (ref === CLAUDE_ID ? 'Claude Code' : ref));
+  });
+
+  afterEach(() => setCliLabelResolver(null));
+
+  it('renders the display name, never the uuid, in the session list', () => {
+    const sessions = [makeSession({ cliType: CLAUDE_ID })];
+    const { text } = sessionListKeyboard(sessions, '/projects/app');
+
+    expect(text).toContain('Claude Code');
+    expect(text).not.toContain(CLAUDE_ID);
+  });
+
+  it('renders the display name, never the uuid, in the session control panel', () => {
+    const { text } = sessionControlKeyboard(makeSession({ cliType: CLAUDE_ID }));
+
+    expect(text).toContain('Claude Code');
+    expect(text).not.toContain(CLAUDE_ID);
+  });
+
+  it('falls back to the raw reference when no resolver is wired', () => {
+    setCliLabelResolver(null);
+    const { text } = sessionControlKeyboard(makeSession({ cliType: 'generic-terminal' }));
+
+    expect(text).toContain('generic-terminal');
+  });
+});

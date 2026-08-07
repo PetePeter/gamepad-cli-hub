@@ -28,8 +28,10 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
     options?: { env?: EnvVarEntry[]; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; helmPreambleForInterSession?: boolean; largeTextAsTempFile?: boolean; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste'; submitSuffix?: string; helmActions?: { clear?: string; compact?: string; export?: string } },
   ) => {
     try {
-      configLoader.addCliType(key, name, initialPrompt, initialPromptDelay, options);
-      return { success: true };
+      // The minted uuid goes back to the caller — a clone needs it to copy
+      // bindings onto the new type, and the renderer keys tabs by it.
+      const id = configLoader.addCliType(key, name, initialPrompt, initialPromptDelay, options);
+      return { success: true, id };
     } catch (error) {
       logger.error(`[IPC] Failed to add CLI type: ${error}`);
       return { success: false, error: String(error) };

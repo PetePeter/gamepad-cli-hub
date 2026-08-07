@@ -98,6 +98,10 @@ describe('pty:spawn resume logic', () => {
     };
     configLoader = {
       getCliTypeEntry: vi.fn(),
+      resolveCliType: vi.fn((ref: string) => {
+        const config = configLoader.getCliTypeEntry(ref);
+        return config ? { id: ref, config } : null;
+      }),
       getMcpConfig: vi.fn(() => ({ enabled: false, port: 47373, authToken: '' })),
       reloadActiveProfileIfChanged: vi.fn(),
     };
@@ -133,7 +137,7 @@ describe('pty:spawn resume logic', () => {
       cwd: normalizeProjectPath('/work'),
       env: expect.objectContaining({
         HELM_SESSION_ID: 'sid-1',
-        HELM_SESSION_NAME: 'claude-code',
+        HELM_SESSION_NAME: 'Claude Code',
       }),
     }));
   });
@@ -158,7 +162,7 @@ describe('pty:spawn resume logic', () => {
       cwd: normalizeProjectPath('/work'),
       env: expect.objectContaining({
         HELM_SESSION_ID: 'sid-1',
-        HELM_SESSION_NAME: 'claude-code',
+        HELM_SESSION_NAME: 'Claude Code',
       }),
     }));
   });
@@ -181,7 +185,7 @@ describe('pty:spawn resume logic', () => {
       cwd: normalizeProjectPath('/work'),
       env: expect.objectContaining({
         HELM_SESSION_ID: 'sid-1',
-        HELM_SESSION_NAME: 'generic',
+        HELM_SESSION_NAME: 'Generic',
       }),
     }));
   });
@@ -331,7 +335,7 @@ describe('pty:spawn resume logic', () => {
       cwd: normalizeProjectPath('/work'),
       env: expect.objectContaining({
         HELM_SESSION_ID: 'sid-1',
-        HELM_SESSION_NAME: 'claude-code',
+        HELM_SESSION_NAME: 'Claude Code',
       }),
     }));
   });
@@ -359,7 +363,7 @@ describe('pty:spawn resume logic', () => {
           HELM_MCP_TOKEN: expect.any(String),
           HELM_MCP_URL: 'http://127.0.0.1:47373/mcp',
           HELM_SESSION_ID: 'sid-1',
-          HELM_SESSION_NAME: 'copilot-ollama',
+          HELM_SESSION_NAME: 'Ollama Copilot',
         }),
       }),
     );
@@ -393,7 +397,7 @@ describe('pty:spawn resume logic', () => {
           HELM_MCP_TOKEN: expect.any(String),
           HELM_MCP_URL: 'http://127.0.0.1:47373/mcp',
           HELM_SESSION_ID: 'sid-1',
-          HELM_SESSION_NAME: 'azure-copilot',
+          HELM_SESSION_NAME: 'Azure Copilot',
         }),
       }),
     );
@@ -419,14 +423,14 @@ describe('pty:spawn resume logic', () => {
           HELM_MCP_TOKEN: expect.any(String),
           HELM_MCP_URL: 'http://127.0.0.1:47373/mcp',
           HELM_SESSION_ID: 'sid-1',
-          HELM_SESSION_NAME: 'claude-code',
+          HELM_SESSION_NAME: 'Claude Code',
         }),
       }),
     );
     const env = (ptyManager.spawn as ReturnType<typeof vi.fn>).mock.calls[0][0].env;
     expect(parseSessionAuthToken('helm-token', env.HELM_MCP_TOKEN)).toEqual({
       sessionId: 'sid-1',
-      sessionName: 'claude-code',
+      sessionName: 'Claude Code',
     });
   });
 
@@ -447,7 +451,7 @@ describe('pty:spawn resume logic', () => {
       cwd: normalizeProjectPath('/work'),
       env: expect.objectContaining({
         HELM_SESSION_ID: 'sid-1',
-        HELM_SESSION_NAME: 'generic',
+        HELM_SESSION_NAME: 'Generic',
       }),
     }));
   });
@@ -471,7 +475,7 @@ describe('pty:spawn resume logic', () => {
       cwd: normalizeProjectPath('/work'),
       env: expect.objectContaining({
         HELM_SESSION_ID: 'sid-1',
-        HELM_SESSION_NAME: 'claude-code',
+        HELM_SESSION_NAME: 'Claude Code',
       }),
     }));
   });

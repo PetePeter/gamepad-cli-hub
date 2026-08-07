@@ -240,28 +240,36 @@ export function useSettingsController(options: {
     ];
   }
 
-  function makeCliTypeKey(name: string): string {
-    return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  /**
+   * A CLI type's display name is the handle humans and MCP callers address it
+   * by, so two types sharing one label make resolution ambiguous — the loader
+   * throws AmbiguousCliTypeError rather than guessing. Block the collision here,
+   * where the user can still fix it, instead of at spawn time.
+   *
+   * `excludeId` is the type being renamed, so keeping its own name is allowed.
+   */
+  function validateCliTypeName(rawName: string, excludeId?: string): string | null {
+    const trimmed = (rawName ?? '').trim();
+    if (!trimmed) return 'Name is required.';
+    const clashes = settingsTools.value.some(
+      (tool) => tool.key !== excludeId && tool.name.trim().toLowerCase() === trimmed.toLowerCase(),
+    );
+    return clashes ? `A CLI type named "${trimmed}" already exists.` : null;
   }
 
   function makeUniqueCloneName(sourceName: string): string {
-    const existingKeys = new Set(settingsCliTypes.value);
-    const existingNames = new Set(settingsTools.value.map((tool) => tool.name.trim().toLowerCase()));
     const baseName = sourceName.trim() || 'CLI Type';
     let index = 1;
     while (true) {
       const candidate = index === 1 ? `${baseName} Copy` : `${baseName} Copy ${index}`;
-      const candidateKey = makeCliTypeKey(candidate);
-      if (!existingKeys.has(candidateKey) && !existingNames.has(candidate.toLowerCase())) {
-        return candidate;
-      }
+      if (!validateCliTypeName(candidate)) return candidate;
       index++;
     }
   }
 
   function buildToolEditorData(value: any, fallbackName: string): ToolEditorBridgeData {
     return {
-      name: value?.name || fallbackName,
+      name: value?.displayName || value?.name || fallbackName,
       env: Array.isArray(value?.env)
         ? value.env.map((i: any) => ({ name: i.name || '', value: i.value || '', mode: i.mode }))
         : [],
@@ -304,7 +312,7 @@ export function useSettingsController(options: {
       const cliTypes = toolsData?.cliTypes || {};
       settingsTools.value = Object.entries(cliTypes).map(([key, value]: [string, any]) => ({
         key,
-        name: value.name || key,
+        name: value.displayName || value.name || key,
         command: value.spawnCommand || value.resumeCommand || value.continueCommand || '',
         hasInitialPrompt: Array.isArray(value.initialPrompt) && value.initialPrompt.length > 0,
         initialPromptCount: Array.isArray(value.initialPrompt) ? value.initialPrompt.length : 0,
@@ -416,6 +424,7 @@ export function useSettingsController(options: {
   function onToolAdd(): void {
     toolEditor.mode = 'add';
     toolEditor.editKey = '';
+    toolEditor.validateName = (candidate: string) => validateCliTypeName(candidate);
     toolEditor.initialData = {
       name: '',
       env: [],
@@ -434,22 +443,23 @@ export function useSettingsController(options: {
     };
     setToolEditorCallback(async (values) => {
       const name = values.name?.trim();
-      if (!name) {
-        logEvent('Add CLI type: name is required');
+      const nameError = validateCliTypeName(name ?? '');
+      if (nameError) {
+        logEvent(`Add CLI type: ${nameError}`);
         return;
       }
-      const key = makeCliTypeKey(name);
       const validItems = (values._promptItems || []).filter((item: { sequence: string }) => item.sequence.trim());
       const initialPromptDelay = values.initialPromptDelay || 0;
+      // The loader mints the uuid identity; there is no slug to invent here.
       const addResult = await toolsClient.toolsAddCliType(
-        key,
+        name,
         name,
         validItems,
         initialPromptDelay,
         buildToolEditorOptions(values),
       );
       if (addResult.success) {
-        logEvent(`Added CLI type: ${key}`);
+        logEvent(`Added CLI type: ${name}`);
         await refreshAfterToolChange();
         return;
       }
@@ -466,13 +476,21 @@ export function useSettingsController(options: {
 
       toolEditor.mode = 'edit';
       toolEditor.editKey = key;
+      toolEditor.validateName = (candidate: string) => validateCliTypeName(candidate, key);
       toolEditor.initialData = buildToolEditorData(value, key);
       setToolEditorCallback(async (values) => {
+        const name = values.name?.trim();
+        const nameError = validateCliTypeName(name ?? '', key);
+        if (nameError) {
+          logEvent(`Update CLI type: ${nameError}`);
+          return;
+        }
         const validItems = (values._promptItems || []).filter((item: { sequence: string }) => item.sequence.trim());
         const initialPromptDelay = values.initialPromptDelay || 0;
+        // `key` is the uuid identity — a rename changes displayName only.
         const updateResult = await toolsClient.toolsUpdateCliType(
           key,
-          values.name,
+          name,
           validItems,
           initialPromptDelay,
           buildToolEditorOptions(values),
@@ -498,30 +516,32 @@ export function useSettingsController(options: {
 
       toolEditor.mode = 'clone';
       toolEditor.editKey = key;
+      toolEditor.validateName = (candidate: string) => validateCliTypeName(candidate);
       toolEditor.initialData = {
         ...buildToolEditorData(value, key),
-        name: makeUniqueCloneName(value.name || key),
+        name: makeUniqueCloneName(value.displayName || value.name || key),
       };
       setToolEditorCallback(async (values) => {
         const name = values.name?.trim();
-        if (!name) {
-          logEvent('Clone CLI type: name is required');
+        const nameError = validateCliTypeName(name ?? '');
+        if (nameError) {
+          logEvent(`Clone CLI type: ${nameError}`);
           return;
         }
-        const cloneKey = makeCliTypeKey(name);
         const validItems = (values._promptItems || []).filter((item: { sequence: string }) => item.sequence.trim());
         const initialPromptDelay = values.initialPromptDelay || 0;
         const addResult = await toolsClient.toolsAddCliType(
-          cloneKey,
+          name,
           name,
           validItems,
           initialPromptDelay,
           buildToolEditorOptions(values),
         );
-        if (addResult.success) {
-          await configClient.configCopyCliBindings(key, cloneKey);
-          logEvent(`Cloned CLI type ${key} to ${cloneKey}`);
-          await refreshAfterToolChange(cloneKey);
+        // The clone's bindings are copied onto the uuid the loader just minted.
+        if (addResult.success && addResult.id) {
+          await configClient.configCopyCliBindings(key, addResult.id);
+          logEvent(`Cloned CLI type ${getCliDisplayName(key)} to ${name}`);
+          await refreshAfterToolChange(addResult.id);
           return;
         }
         logEvent(`Failed to clone CLI type: ${addResult.error || 'unknown error'}`);
@@ -536,7 +556,7 @@ export function useSettingsController(options: {
     try {
       const result = await toolsClient.toolsRemoveCliType(key);
       if (result.success) {
-        logEvent(`Deleted CLI type: ${key}`);
+        logEvent(`Deleted CLI type: ${getCliDisplayName(key)}`);
         delete state.cliBindingsCache[key];
         state.cliTypes = await configClient.configGetCliTypes();
         state.availableSpawnTypes = state.cliTypes;
@@ -561,7 +581,7 @@ export function useSettingsController(options: {
         await initConfigCache();
         options.reloadSessions?.();
         void loadSettingsData();
-        logEvent(`Reordered CLI type: ${key} (${direction})`);
+        logEvent(`Reordered CLI type: ${getCliDisplayName(key)} (${direction})`);
       } else {
         logEvent(`Failed to reorder: ${result.error || 'unknown error'}`);
       }
@@ -990,6 +1010,7 @@ export function useSettingsController(options: {
     loadSettingsData,
     loadCurrentTabBindings,
     buildSettingsTabs,
+    validateCliTypeName,
     onToolAdd,
     onToolEdit,
     onToolClone,

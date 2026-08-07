@@ -82,7 +82,7 @@ export class HelmSessionService {
     opts: { creatorSessionId?: string; runtimeGroupId?: string } = {},
   ): { id: string; runtimeGroupId?: string; runtimeGroupName?: string } {
     const workingDir = this.requireWorkingDirectory(dirPath);
-    this.requireCliEntry(cliType);
+    const cli = this.requireCliEntry(cliType);
     const sessionName = name.trim();
     // A `peer:<id>` creator means this spawn arrived over the Fleet proxy, so the
     // session is marked as remotely created; a local creator is a real UUID.
@@ -91,7 +91,7 @@ export class HelmSessionService {
       ptyManager: this.ptyManager,
       sessionManager: this.sessionManager,
       configLoader: this.configLoader,
-      cliType,
+      cliType: cli.id,
       sessionName,
       cwd: workingDir.path,
       fallbackCompleteDelayMs: 500,
@@ -217,6 +217,7 @@ export class HelmSessionService {
       sessionId: session.id,
       name: session.name,
       cliType: session.cliType,
+      cliTypeName: this.configLoader.getCliTypeLabel(session.cliType),
       workingDir: session.workingDir,
       returnedLines: Math.max(rawLength, strippedLength),
       ptyRunning: this.ptyManager.has(session.id),
@@ -239,6 +240,7 @@ export class HelmSessionService {
       id: session.id,
       name: session.name,
       cliType: session.cliType,
+      cliTypeName: this.configLoader.getCliTypeLabel(session.cliType),
       workingDir: session.workingDir,
       projectId: session.projectId,
       projectPath: session.projectPath,
@@ -269,12 +271,17 @@ export class HelmSessionService {
     return this.sessionManager.getSession(sessionRef);
   }
 
+  /**
+   * MCP callers address CLI types by whatever handle they have — a uuid, an old
+   * slug, or the display name they saw in `directory_list`. All three go through
+   * the one resolver so the rest of this service only ever deals in uuids.
+   */
   private requireCliEntry(cliType: string) {
-    const entry = this.configLoader.getCliTypeEntry(cliType);
-    if (!entry) {
+    const resolved = this.configLoader.resolveCliType(cliType);
+    if (!resolved) {
       throw new Error(`Unknown CLI type: ${cliType}`);
     }
-    return entry;
+    return resolved;
   }
 
   private requireWorkingDirectory(dirPath: string) {

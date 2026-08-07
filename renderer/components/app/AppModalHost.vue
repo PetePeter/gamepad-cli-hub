@@ -298,6 +298,7 @@ function onRuntimeGroupMoveCancel(): void {
     :mode="toolEditor.mode"
     :edit-key="toolEditor.editKey"
     :initial-data="toolEditor.initialData"
+    :validate-name="toolEditor.validateName ?? undefined"
     @save="onToolEditorSave"
     @cancel="toolEditor.visible = false"
   />

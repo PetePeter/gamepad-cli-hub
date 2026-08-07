@@ -1,3 +1,5 @@
+import { getCliDisplayName } from '../utils.js';
+
 export interface ChipbarTemplateContext {
   cwd: string;
   cliType: string;
@@ -12,7 +14,7 @@ export interface ChipbarTemplateDefinition {
 
 export const CHIPBAR_TEMPLATE_DEFINITIONS: ChipbarTemplateDefinition[] = [
   { token: '{cwd}', description: 'The active session working directory.' },
-  { token: '{cliType}', description: 'The active session CLI type key, such as claude-code.' },
+  { token: '{cliType}', description: 'The active session CLI type name, such as Claude Code.' },
   { token: '{sessionName}', description: 'The active session display name.' },
   { token: '{inboxDir}', description: 'The writable planner inbox folder at config/plans/incoming.' },
   { token: '{plansDir}', description: 'Alias for {inboxDir}, kept for backward compatibility.' },
@@ -21,7 +23,9 @@ export const CHIPBAR_TEMPLATE_DEFINITIONS: ChipbarTemplateDefinition[] = [
 export function resolveChipbarTemplates(sequence: string, ctx: ChipbarTemplateContext): string {
   const replacements: Record<string, string> = {
     cwd: ctx.cwd,
-    clitype: ctx.cliType,
+    // The stored cliType is a UUID identity; expanding that into prompt text
+    // would be meaningless to the CLI reading it. Expand the human label.
+    clitype: getCliDisplayName(ctx.cliType),
     sessionname: ctx.sessionName,
     inboxdir: ctx.inboxDir,
     plansdir: ctx.inboxDir,

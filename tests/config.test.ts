@@ -29,6 +29,28 @@ function readYaml<T>(relativePath: string): T {
   return YAML.parse(fs.readFileSync(fullPath, 'utf8')) as T;
 }
 
+/**
+ * CLI types are keyed by UUID on disk since the id migration — re-index the raw
+ * YAML by the human slug (legacyKey) so on-disk assertions stay readable.
+ */
+function readCliTypesBySlug(): Record<string, any> {
+  const raw = readYaml<Record<string, any>>('cli-types.yaml');
+  return Object.fromEntries(Object.values(raw).map((e: any) => [e.legacyKey ?? e.id, e]));
+}
+
+/** bindings.yaml is keyed by the CLI type UUID — re-index by slug via cli-types.yaml. */
+function readBindingsBySlug(): Record<string, any> {
+  const types = readYaml<Record<string, any>>('cli-types.yaml');
+  const slugById = new Map(Object.entries(types).map(([id, e]: [string, any]) => [id, e.legacyKey ?? id]));
+  const raw = readYaml<Record<string, any>>('bindings.yaml');
+  return Object.fromEntries(Object.entries(raw).map(([k, v]) => [slugById.get(k) ?? k, v]));
+}
+
+/** CLI type keys are UUIDs — map them back to slugs for order/membership assertions. */
+function cliTypeSlugs(loader: any): string[] {
+  return loader.getCliTypes().map((id: string) => loader.getCliTypeEntry(id)?.legacyKey ?? id);
+}
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -167,7 +189,7 @@ describe('ConfigLoader', () => {
   describe('getCliTypes', () => {
     it('returns CLI type keys from cli-types.yaml', () => {
       loader.load();
-      expect(loader.getCliTypes()).toEqual(['claude-code', 'copilot-cli']);
+      expect(cliTypeSlugs(loader)).toEqual(['claude-code', 'copilot-cli']);
     });
   });
 
@@ -311,7 +333,7 @@ describe('ConfigLoader', () => {
 
       expect(loader.getBindings('claude-code')!['X']).toEqual(newBinding);
 
-      const onDisk = readYaml<any>('bindings.yaml');
+      const onDisk = readBindingsBySlug();
       expect(onDisk['claude-code']['X']).toEqual(newBinding);
     });
 
@@ -330,7 +352,7 @@ describe('ConfigLoader', () => {
 
       expect(loader.getBindings('claude-code')!['Y']).toEqual(promptTreeBinding);
 
-      const onDisk = readYaml<any>('bindings.yaml');
+      const onDisk = readBindingsBySlug();
       expect(onDisk['claude-code']['Y']).toEqual(promptTreeBinding);
     });
 
@@ -575,11 +597,11 @@ describe('ConfigLoader', () => {
       loader.load();
       loader.addCliType('new-tool', 'New Tool', 'echo');
 
-      expect(loader.getCliTypes()).toContain('new-tool');
+      expect(cliTypeSlugs(loader)).toContain('new-tool');
       expect(loader.getCliTypeName('new-tool')).toBe('New Tool');
       expect(loader.getSpawnConfig('new-tool')).toEqual({ command: 'echo', args: [] });
 
-      const onDisk = readYaml<any>('cli-types.yaml');
+      const onDisk = readCliTypesBySlug();
       expect(onDisk['new-tool']).toBeDefined();
       expect(onDisk['new-tool'].spawnCommand).toBe('echo');
     });
@@ -608,9 +630,9 @@ describe('ConfigLoader', () => {
       loader.load();
       loader.removeCliType('copilot-cli');
 
-      expect(loader.getCliTypes()).not.toContain('copilot-cli');
+      expect(cliTypeSlugs(loader)).not.toContain('copilot-cli');
 
-      const onDisk = readYaml<any>('cli-types.yaml');
+      const onDisk = readCliTypesBySlug();
       expect(onDisk['copilot-cli']).toBeUndefined();
     });
 
@@ -646,7 +668,7 @@ describe('ConfigLoader', () => {
       expect(entry!.initialPromptDelay).toBe(3000);
 
       // Verify persisted to disk
-      const onDisk = readYaml<any>('cli-types.yaml');
+      const onDisk = readCliTypesBySlug();
       expect(onDisk['claude-code'].initialPromptDelay).toBe(3000);
     });
 
@@ -679,7 +701,7 @@ describe('ConfigLoader', () => {
 
       const entry = loader.getCliTypeEntry('worker');
       expect(entry!.helmActions).toEqual({ clear: '/clear{Enter}', export: '/export $path{Enter}' });
-      const onDisk = readYaml<any>('cli-types.yaml');
+      const onDisk = readCliTypesBySlug();
       expect(onDisk['worker'].helmActions).toEqual({ clear: '/clear{Enter}', export: '/export $path{Enter}' });
     });
 
@@ -736,7 +758,7 @@ describe('ConfigLoader', () => {
       expect(entry).not.toBeNull();
       expect(entry!.initialPromptDelay).toBe(5000);
 
-      const onDisk = readYaml<any>('cli-types.yaml');
+      const onDisk = readCliTypesBySlug();
       expect(onDisk['my-tool'].initialPromptDelay).toBe(5000);
     });
 
@@ -749,7 +771,7 @@ describe('ConfigLoader', () => {
       const entry = loader.getCliTypeEntry('my-tool');
       expect(entry!.helmPreambleForInterSession).toBe(false);
 
-      const onDisk = readYaml<any>('cli-types.yaml');
+      const onDisk = readCliTypesBySlug();
       expect(onDisk['my-tool'].helmPreambleForInterSession).toBe(false);
     });
 
@@ -762,7 +784,7 @@ describe('ConfigLoader', () => {
 
       let entry = loader.getCliTypeEntry('claude-code');
       expect(entry!.helmPreambleForInterSession).toBe(false);
-      let onDisk = readYaml<any>('cli-types.yaml');
+      let onDisk = readCliTypesBySlug();
       expect(onDisk['claude-code'].helmPreambleForInterSession).toBe(false);
 
       loader.updateCliType('claude-code', 'Claude Code', [{ label: 'Prompt', sequence: 'hello' }], 5000, {
@@ -771,7 +793,7 @@ describe('ConfigLoader', () => {
 
       entry = loader.getCliTypeEntry('claude-code');
       expect(entry!.helmPreambleForInterSession).toBeUndefined();
-      onDisk = readYaml<any>('cli-types.yaml');
+      onDisk = readCliTypesBySlug();
       expect(onDisk['claude-code'].helmPreambleForInterSession).toBeUndefined();
     });
 
@@ -796,7 +818,7 @@ describe('ConfigLoader', () => {
       const entry = loader.getCliTypeEntry('claude-code');
       expect(entry!.initialPromptDelay).toBe(7000);
 
-      const onDisk = readYaml<any>('cli-types.yaml');
+      const onDisk = readCliTypesBySlug();
       expect(onDisk['claude-code'].initialPromptDelay).toBe(7000);
     });
 
@@ -1065,7 +1087,7 @@ describe('ConfigLoader', () => {
       expect(entry!.initialPromptDelay).toBe(1000);
 
       // Verify migrated on disk too
-      const onDisk = readYaml<any>('cli-types.yaml');
+      const onDisk = readCliTypesBySlug();
       expect(onDisk['claude-code'].initialPrompt).toEqual([{ label: 'Prompt', sequence: 'hello world' }]);
     });
 

@@ -51,6 +51,11 @@ function makeService() {
   const configLoader = {
     getWorkingDirectories: vi.fn(() => [{ name: 'Helm', path: '/work' }]),
     getCliTypeEntry: vi.fn(() => ({})),
+    getCliTypeLabel: vi.fn((ref: string) => ref),
+    resolveCliType: vi.fn((ref: string) => {
+      const config = configLoader.getCliTypeEntry();
+      return config ? { id: ref, config } : null;
+    }),
     getAllCliTypes: vi.fn(() => []),
     getCliTypeConfig: vi.fn(() => ({})),
     getMcpConfig: vi.fn(() => ({ enabled: true, port: 47373, authToken: 'helm-token' })),
@@ -348,7 +353,7 @@ describe('HelmControlService.spawnCli', () => {
     const { service, ptyManager, configLoader } = makeService();
     (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
       name: 'Claude Code',
-      command: 'claude',
+      spawnCommand: 'claude',
       env: [{ name: 'EXTRA_FLAG', value: 'enabled' }],
     });
 
@@ -377,7 +382,7 @@ describe('HelmControlService.spawnCli', () => {
     const { service, ptyManager, configLoader } = makeService();
     (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
       name: 'Claude Code',
-      command: 'claude',
+      spawnCommand: 'claude',
     });
 
     service.spawnCli('claude-code', '/work', 'Windows verify — artifacts');
@@ -394,7 +399,7 @@ describe('HelmControlService.spawnCli', () => {
       const { service, ptyManager, configLoader } = makeService();
       (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
         name: 'Claude Code',
-        command: 'claude',
+        spawnCommand: 'claude',
         initialPrompt: [{ label: 'hello', sequence: 'Hello world{Enter}' }],
         initialPromptDelay: 1000,
       });
@@ -416,7 +421,7 @@ describe('HelmControlService.spawnCli', () => {
       const { service, ptyManager, configLoader } = makeService();
       (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
         name: 'Claude Code',
-        command: 'claude',
+        spawnCommand: 'claude',
         initialPrompt: [{ label: 'init', sequence: 'init{Enter}' }],
         initialPromptDelay: 500,
       });
@@ -972,6 +977,7 @@ describe('HelmControlService.readSessionTerminal', () => {
       sessionId: 's1',
       name: 'Claude',
       cliType: 'claude-code',
+      cliTypeName: 'claude-code',
       workingDir: '/work',
       returnedLines: 1,
       ptyRunning: true,
@@ -1411,7 +1417,7 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
     // Recipient tool config absent helmPreambleForInterSession field — defaults to true
     (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
       name: 'Claude Code',
-      command: 'claude',
+      spawnCommand: 'claude',
       // helmPreambleForInterSession is undefined, should default to true
     });
 
@@ -1433,7 +1439,7 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
     // Recipient tool config has helmPreambleForInterSession: true
     (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
       name: 'Claude Code',
-      command: 'claude',
+      spawnCommand: 'claude',
       helmPreambleForInterSession: true,
     });
 
@@ -1455,7 +1461,7 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
     // Recipient tool config has helmPreambleForInterSession: false
     (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
       name: 'Claude Code',
-      command: 'claude',
+      spawnCommand: 'claude',
       helmPreambleForInterSession: false,
     });
 

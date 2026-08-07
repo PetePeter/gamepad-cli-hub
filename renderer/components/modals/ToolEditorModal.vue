@@ -52,6 +52,8 @@ const props = defineProps<{
   mode: 'add' | 'edit' | 'clone';
   editKey: string;
   initialData: ToolEditorData;
+  /** Returns an error message when the name is not usable, or null when it is. */
+  validateName?: (name: string) => string | null;
 }>();
 
 const emit = defineEmits<{
@@ -76,6 +78,7 @@ const emit = defineEmits<{
 }>();
 
 const name = ref('');
+const nameError = ref<string | null>(null);
 type EnvItem = { id: number; name: string; value: string; mode: 'replace' | 'append' | 'prepend' };
 const envItems = ref<EnvItem[]>([]);
 const initialPromptDelay = ref(2000);
@@ -99,13 +102,12 @@ const overlayRef = ref<HTMLElement | null>(null);
 const { onKeydown } = useFocusTrap(overlayRef);
 let nextEnvId = 1;
 
-const title = computed(() =>
-  props.mode === 'add'
-    ? 'Add CLI Type'
-    : props.mode === 'clone'
-      ? `Clone CLI Type: ${props.editKey}`
-      : `Edit CLI Type: ${props.editKey}`,
-);
+// The display name is the handle — the uuid identity never belongs in a title.
+const title = computed(() => {
+  const handle = props.initialData?.name?.trim() || 'CLI Type';
+  if (props.mode === 'add') return 'Add CLI Type';
+  return props.mode === 'clone' ? `Clone CLI Type: ${handle}` : `Edit CLI Type: ${handle}`;
+});
 const pasteModeWarning = computed(() => getNonPtyPasteModeWarning(pasteMode.value));
 
 const modalStack = useModalStack();
@@ -131,6 +133,7 @@ function handleButton(button: string): boolean {
 function initForm(): void {
   const d = props.initialData;
   name.value = d.name ?? '';
+  nameError.value = null;
   envItems.value = Array.isArray(d.env)
     ? d.env.map(item => ({
         id: nextEnvId++,
@@ -187,6 +190,11 @@ function removeEnvItem(index: number): void {
 }
 
 function onSave(): void {
+  // Validate before emitting: the host closes the modal on save, so a rejected
+  // name has to stop here or the user loses the form and never sees why.
+  nameError.value = props.validateName?.(name.value) ?? null;
+  if (nameError.value) return;
+
   emit('save', {
     name: name.value,
     env: envItems.value.map(item => ({
@@ -245,6 +253,8 @@ defineExpose({ handleButton });
               <label for="te-name">Name</label>
               <input id="te-name" v-model="name" type="text" placeholder="e.g. Claude Code" class="te-input" />
             </div>
+            <p v-if="nameError" class="te-error">{{ nameError }}</p>
+            <p v-if="mode !== 'add' && editKey" class="te-identity">id: {{ editKey }}</p>
           </fieldset>
 
           <fieldset class="te-section">
@@ -378,6 +388,8 @@ defineExpose({ handleButton });
 <style scoped>
 .tool-editor-modal { max-width: 720px; max-height: 90vh; }
 .tool-editor-modal .modal-body { display: flex; flex-direction: column; gap: var(--spacing-md); }
+.te-error { margin: 0; padding: 6px 10px; border: 1px solid rgba(255, 82, 82, 0.5); border-radius: var(--radius-sm); color: #ff8a8a; background: rgba(255, 82, 82, 0.08); font-size: var(--font-size-sm); }
+.te-identity { margin: 0; color: var(--text-dim); font-size: 11px; font-family: 'Consolas', 'Courier New', monospace; user-select: text; }
 .te-params { color: var(--text-muted, #9aa3b2); font-weight: 400; font-size: 0.85em; margin-left: var(--spacing-xs); }
 .te-params code { color: #ffd479; }
 .te-env-list { display: flex; flex-direction: column; gap: var(--spacing-sm); }

@@ -6,6 +6,7 @@ import type { SessionState } from '../types/session.js';
 import { notificationKeyboard } from './keyboards.js';
 import { logger } from '../utils/logger.js';
 import path from 'path';
+import { cliLabel } from './cli-label.js';
 
 /** States considered "active" (CLI is working). */
 const ACTIVE_STATES: ReadonlySet<SessionState> = new Set(['implementing', 'planning']);
@@ -98,7 +99,7 @@ export class TelegramNotifier {
       `${labelInfo.emoji} ${labelInfo.title}`,
       '',
       `"${session.name}" in ${dirName}`,
-      `${session.cliType} — ${labelInfo.verb}`,
+      `${cliLabel(session.cliType)} — ${labelInfo.verb}`,
     ].join('\n');
 
     const keyboard = notificationKeyboard(sessionId, newState);

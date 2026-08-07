@@ -4,6 +4,7 @@ import type { SessionInfo } from '../types/session.js';
 import { saveSessions } from '../session/persistence.js';
 import { logger } from '../utils/logger.js';
 import { TelegramTopicRegistry, type TelegramTopicRecord } from './topic-registry.js';
+import { cliLabel } from './cli-label.js';
 
 export interface StaleTopicProbe {
   sessionId: string;
@@ -116,7 +117,7 @@ export class TopicManager {
 
     await this.bot.sendToTopic(
       topicId,
-      `🖥️ Session: ${session.name}\nCLI: ${session.cliType}\nDir: ${session.workingDir ?? 'unknown'}`,
+      `🖥️ Session: ${session.name}\nCLI: ${cliLabel(session.cliType)}\nDir: ${session.workingDir ?? 'unknown'}`,
     );
 
     return topicId;

@@ -20,6 +20,7 @@ import { setupTopicInput } from './topic-input.js';
 import { setupCommandHandler } from './command-handler.js';
 import { logger } from '../utils/logger.js';
 import type { HelmControlService } from '../mcp/helm-control-service.js';
+import { setCliLabelResolver } from './cli-label.js';
 
 export interface TelegramModules {
   dashboard: PinnedDashboard;
@@ -38,6 +39,8 @@ export function initTelegramModules(
   draftManager?: { clearSession(sessionId: string): void },
   projectStore?: ProjectStore,
 ): TelegramModules {
+  // CLI types are keyed by UUID; Telegram must render labels, never ids.
+  setCliLabelResolver(ref => configLoader.getCliTypeLabel(ref));
   const instanceName = configLoader.getTelegramConfig().instanceName;
   const dashboard = new PinnedDashboard(bot, sessionManager, instanceName);
   const relayService = new TelegramRelayService(bot, topicManager, sessionManager, ptyManager, configLoader, helmControlService);
@@ -52,7 +55,7 @@ export function initTelegramModules(
     bot, topicManager, ptyManager, configLoader, sessionManager, relayService,
   );
 
-  const cleanupCommands = setupCommandHandler(bot, sessionManager, ptyManager, topicManager, helmControlService);
+  const cleanupCommands = setupCommandHandler(bot, sessionManager, ptyManager, topicManager, helmControlService, configLoader);
 
   // Listen for forum_topic_closed events from Telegram
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

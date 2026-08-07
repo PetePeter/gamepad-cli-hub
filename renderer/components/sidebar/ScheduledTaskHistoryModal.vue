@@ -11,6 +11,7 @@ import { eventsClient, schedulerClient } from '../../ipc/clients.js';
 import type { ScheduledTaskHistoryEntry } from '../../../src/types/scheduled-task.js';
 import { useFocusTrap } from '../../composables/useFocusTrap.js';
 import { FORM_KEYS, useModalStack } from '../../composables/useModalStack.js';
+import { getCliDisplayName } from '../../utils.js';
 
 const MODAL_ID = 'scheduler-history';
 
@@ -207,7 +208,7 @@ defineExpose({ handleButton });
               </div>
 
               <div class="sth-chips">
-                <span class="st-task-chip">{{ entry.cliType }}</span>
+                <span class="st-task-chip">{{ getCliDisplayName(entry.cliType) }}</span>
                 <span class="st-task-chip">{{ shortenPath(entry.dirPath) }}</span>
                 <span class="st-task-chip">{{ scheduleLabel(entry) }}</span>
                 <span class="st-task-chip">{{ modeLabel(entry) }}</span>

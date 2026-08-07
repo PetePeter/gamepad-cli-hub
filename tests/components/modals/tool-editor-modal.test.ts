@@ -84,8 +84,8 @@ describe('ToolEditorModal.vue', () => {
   });
 
   it('shows edit title in edit mode', () => {
-    const w = factory({ mode: 'edit', editKey: 'my-tool' });
-    expect(w.text()).toContain('Edit CLI Type: my-tool');
+    const w = factory({ mode: 'edit', editKey: 'my-tool', initialData: { ...DEFAULT_DATA, name: 'My Tool' } });
+    expect(w.find('.modal-title').text()).toBe('Edit CLI Type: My Tool');
     w.unmount();
   });
 
@@ -302,6 +302,58 @@ describe('ToolEditorModal.vue', () => {
     await removeBtn.trigger('click');
     await flushPromises();
     expect(w.findAll('.te-env-item:not(.te-env-item--readonly)').length).toBe(1);
+    w.unmount();
+  });
+
+  // The display name is the handle users address a CLI type by; a clash makes
+  // resolution ambiguous, so the modal blocks the save inline rather than
+  // letting the write fail behind a closed dialog.
+  describe('display-name validation', () => {
+    it('surfaces the validation error and does not emit save', async () => {
+      const w = factory({
+        initialData: { ...DEFAULT_DATA, name: 'Codex' },
+        validateName: (name: string) => (name.trim() === 'Codex' ? 'A CLI type named "Codex" already exists.' : null),
+      });
+
+      await w.find('.btn--primary').trigger('click');
+      await flushPromises();
+
+      expect(w.find('.te-error').text()).toContain('already exists');
+      expect(w.emitted('save')).toBeUndefined();
+      expect(w.emitted('update:visible')).toBeUndefined();
+      w.unmount();
+    });
+
+    it('clears the error and saves once the name is unique', async () => {
+      const w = factory({
+        initialData: { ...DEFAULT_DATA, name: 'Codex' },
+        validateName: (name: string) => (name.trim() === 'Codex' ? 'A CLI type named "Codex" already exists.' : null),
+      });
+
+      await w.find('.btn--primary').trigger('click');
+      await flushPromises();
+      expect(w.find('.te-error').exists()).toBe(true);
+
+      await w.find('#te-name').setValue('Codex Next');
+      await w.find('.btn--primary').trigger('click');
+      await flushPromises();
+
+      expect(w.find('.te-error').exists()).toBe(false);
+      expect(w.emitted('save')?.[0]?.[0]).toMatchObject({ name: 'Codex Next' });
+      w.unmount();
+    });
+  });
+
+  it('shows the display name as the handle and the id only as diagnostic detail', () => {
+    const w = factory({
+      mode: 'edit' as const,
+      editKey: '11111111-2222-4333-8444-555566667777',
+      initialData: { ...DEFAULT_DATA, name: 'Codex' },
+    });
+
+    expect(w.find('.modal-title').text()).toBe('Edit CLI Type: Codex');
+    expect(w.find('.modal-title').text()).not.toContain('1111');
+    expect(w.find('.te-identity').text()).toContain('11111111-2222-4333-8444-555566667777');
     w.unmount();
   });
 

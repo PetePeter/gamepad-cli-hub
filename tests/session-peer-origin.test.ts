@@ -23,7 +23,8 @@ function makeService(added: Array<Record<string, unknown>>) {
   const configLoader = {
     getWorkingDirectories: vi.fn(() => [{ path: '/repo/main', name: 'main' }]),
     getCliTypes: vi.fn(() => []),
-    getCliTypeEntry: vi.fn(() => ({ command: 'claude' })),
+    getCliTypeEntry: vi.fn(() => ({ name: 'Claude Code', spawnCommand: 'claude' })),
+    resolveCliType: vi.fn((ref: string) => ({ id: ref, config: { name: 'Claude Code', spawnCommand: 'claude' } })),
   };
   const ptyManager = {
     spawn: vi.fn(() => ({ pid: 4242 })),
@@ -83,6 +84,9 @@ describe('spawnConfiguredSession — peer origin', () => {
         sessionManager: { addSession, updateSession: vi.fn(), hasSession: vi.fn(() => false) } as any,
         sessionId: 'sess-peer',
         cliType: 'claude-code',
+        // No configLoader in this harness, so the command must be explicit —
+        // spawnConfiguredSession no longer falls back to executing the cliType.
+        command: 'claude',
         cwd: '/repo/main',
       },
     };

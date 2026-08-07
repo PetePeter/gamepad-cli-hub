@@ -253,8 +253,9 @@ describe('Config auto-seeding for dev mode (Option A)', () => {
     // Verify: Config loaded correctly
     expect(loader.getHapticFeedback()).toBe(true);
     expect(loader.getNotifications()).toBe(false);
-    const cliTypes = loader.getCliTypes();
-    expect(cliTypes).toContain('claude-code');
+    // Keys are UUIDs post id-migration; the seeded slug survives as legacyKey.
+    const slugs = loader.getCliTypes().map(id => loader.getCliTypeEntry(id)?.legacyKey);
+    expect(slugs).toContain('claude-code');
   });
 
   // =========================================================================

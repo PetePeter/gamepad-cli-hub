@@ -2,13 +2,11 @@
 /**
  * SpawnGrid.vue — 2-column grid of CLI spawn buttons.
  *
- * Each button shows the CLI icon + display name and emits a spawn event on
- * click.
+ * Each button shows the CLI display name and emits a spawn event on click.
  */
 
 export interface SpawnItem {
   cliType: string;
-  icon: string;
   displayName: string;
 }
 
@@ -32,7 +30,6 @@ const emit = defineEmits<{
       :class="{ focused: isActive && focusIndex === i }"
       @click="emit('spawn', item.cliType)"
     >
-      <span class="spawn-icon">{{ item.icon }}</span>
       <span class="spawn-label">{{ item.displayName }}</span>
     </button>
   </div>

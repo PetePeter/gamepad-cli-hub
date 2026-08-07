@@ -22,6 +22,9 @@ describe('spawnConfiguredSession', () => {
       sessionManager: sessionManager as any,
       sessionId: 'sess-restore',
       cliType: 'claude-code',
+      // Explicit command: with no configLoader there is no spawnCommand, and the
+      // `command: cliType` fallback is gone.
+      command: 'claude',
       cwd: 'X:\\coding\\gamepad-cli-hub',
       resumeSessionName: 'resume-123',
     });
@@ -57,6 +60,9 @@ describe('spawnConfiguredSession', () => {
       sessionManager: sessionManager as any,
       sessionId: 'sess-new',
       cliType: 'claude-code',
+      // Explicit command: with no configLoader there is no spawnCommand, and the
+      // `command: cliType` fallback is gone.
+      command: 'claude',
       cwd: 'X:\\coding\\gamepad-cli-hub',
     });
 

@@ -8,6 +8,7 @@
 import { defineStore } from 'pinia';
 import { computed } from 'vue';
 import { state } from '../state.js';
+import { resolveCliTypeRecord } from '../utils.js';
 
 export const useConfigStore = defineStore('config', () => {
   // ── Getters ──────────────────────────────────────────────────────────
@@ -24,7 +25,9 @@ export const useConfigStore = defineStore('config', () => {
 
 /** Get tool config for a specific CLI type. */
   function getToolConfig(cliType: string): { pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste'; [k: string]: any } {
-    return state.cliToolsCache[cliType] ?? {};
+    // Route through the resolver so a legacy slug or a display name finds the
+    // uuid-keyed record, exactly as the main-process choke point does.
+    return resolveCliTypeRecord(cliType) ?? {};
   }
 
   /** Update the full bindings cache (called by initConfigCache). */

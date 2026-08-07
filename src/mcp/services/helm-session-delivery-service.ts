@@ -335,7 +335,7 @@ export class HelmSessionDeliveryService {
     const template = this.configLoader.getCliTypeEntry(cliType)?.helmActions?.[action]?.trim();
     if (!template) {
       throw new Error(
-        `CLI type "${cliType}" has no "${action}" action configured. Set helmActions.${action} in its CLI config to enable session_${action}.`,
+        `CLI type "${this.configLoader.getCliTypeLabel(cliType)}" has no "${action}" action configured. Set helmActions.${action} in its CLI config to enable session_${action}.`,
       );
     }
     return template;

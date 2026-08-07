@@ -11,6 +11,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { mount, VueWrapper, flushPromises } from '@vue/test-utils';
 import { useModalStack } from '../../../renderer/composables/useModalStack.js';
+import { state } from '../../../renderer/state.js';
 
 // Stub Teleport so content renders inline (not teleported outside wrapper).
 const GLOBAL_STUBS = { teleport: true } as const;
@@ -646,6 +647,8 @@ describe('DirPickerModal.vue', () => {
   });
 
   it('title includes CLI display name', () => {
+    // Labels come from the CLI type record, never from a hardcoded slug table.
+    state.cliToolsCache = { 'claude-code': { displayName: 'Claude', name: 'Claude' } };
     const w = factory();
     expect(w.text()).toContain('Claude');
     expect(w.text()).toContain('Select Directory');
@@ -1184,6 +1187,7 @@ describe('BindingEditorModal.vue', () => {
   }
 
   it('renders title with button and CLI name', () => {
+    state.cliToolsCache = { 'claude-code': { displayName: 'Claude', name: 'Claude' } };
     const w = factory();
     expect(w.text()).toContain('A');
     expect(w.text()).toContain('Claude');

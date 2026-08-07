@@ -40,6 +40,7 @@ import { escapeHtml } from './utils.js';
 import { spawnConfiguredSession } from '../session/configured-session-spawn.js';
 import { logger } from '../utils/logger.js';
 import { normalizeProjectPath, dirDisplayNameFromPath } from '../session/project-identity.js';
+import { cliLabel } from './cli-label.js';
 
 /**
  * Register callback query handler on the bot.
@@ -448,7 +449,10 @@ async function handleSpawnToolSelect(
   configLoader: ConfigLoader,
   query: TelegramBot.CallbackQuery,
 ): Promise<void> {
-  const tools = configLoader.getCliTypes();
+  const tools = configLoader.getCliTypes().map((id) => ({
+    id,
+    label: configLoader.getCliTypeName(id) ?? id,
+  }));
   const keyboard = spawnToolKeyboard(tools);
 
   await editOriginalMessage(bot, query, '🛠️ Select a CLI tool:', keyboard);
@@ -461,12 +465,19 @@ async function handleSpawnToolSelect(
  */
 async function handleSpawnProjectSelect(
   bot: TelegramBotCore,
-  _configLoader: ConfigLoader,
+  configLoader: ConfigLoader,
   projectStore: ProjectStore | undefined,
   toolName: string,
   query: TelegramBot.CallbackQuery,
 ): Promise<void> {
-  spawnWizardState.set(query.from.id, { tool: toolName, createdAt: Date.now() });
+  const resolved = configLoader.resolveCliType(toolName);
+  if (!resolved) {
+    await bot.answerCallback(query.id, `❌ Unknown CLI type: ${toolName}`);
+    return;
+  }
+  // Store the canonical id — the wizard can outlive a rename.
+  spawnWizardState.set(query.from.id, { tool: resolved.id, createdAt: Date.now() });
+  const label = resolved.config.displayName ?? resolved.config.name;
 
   if (!projectStore) {
     await bot.answerCallback(query.id, '❌ Project store unavailable');
@@ -475,8 +486,8 @@ async function handleSpawnProjectSelect(
 
   const projects = projectStore.list();
   const keyboard = spawnProjectKeyboard(projects);
-  await editOriginalMessage(bot, query, `🗂️ Select project for ${toolName}:`, keyboard);
-  await bot.answerCallback(query.id, `Selected: ${toolName}`);
+  await editOriginalMessage(bot, query, `🗂️ Select project for ${label}:`, keyboard);
+  await bot.answerCallback(query.id, `Selected: ${label}`);
 }
 
 /**
@@ -522,7 +533,8 @@ async function handleSpawnDirSelect(
   }
 
   const keyboard = spawnDirKeyboard(projectDirs);
-  await editOriginalMessage(bot, query, `📂 Select folder for ${entry.tool}:`, keyboard);
+  const toolLabel = configLoader.resolveCliType(entry.tool)?.config.displayName ?? entry.tool;
+  await editOriginalMessage(bot, query, `📂 Select folder for ${toolLabel}:`, keyboard);
   await bot.answerCallback(query.id);
 }
 
@@ -538,30 +550,37 @@ async function doSpawnSession(
 ): Promise<void> {
   try {
     configLoader.reloadActiveProfileIfChanged();
-    const spawnConfig = configLoader.getSpawnConfig(cliType);
+    // The wizard callback carries whatever handle the button was built with;
+    // resolve it so the session records the uuid and the user sees the label.
+    const cli = configLoader.resolveCliType(cliType);
+    if (!cli) {
+      await bot.answerCallback(query.id, `❌ Unknown CLI type: ${cliType}`);
+      return;
+    }
+    const label = cli.config.displayName ?? cli.config.name;
+    const spawnConfig = configLoader.getSpawnConfig(cli.id);
     const { sessionId } = spawnConfiguredSession({
       ptyManager,
       sessionManager,
       configLoader,
-      cliType,
-      sessionName: cliType,
-      command: spawnConfig?.command || cliType,
-      args: spawnConfig?.args || [],
+      cliType: cli.id,
+      sessionName: label,
+      ...(spawnConfig?.command ? { command: spawnConfig.command, args: spawnConfig.args ?? [] } : {}),
       cwd: dirPath,
       fallbackCompleteDelayMs: 500,
     });
 
-    await bot.answerCallback(query.id, `🚀 Spawned ${cliType}!`);
+    await bot.answerCallback(query.id, `🚀 Spawned ${label}!`);
 
     const msg = query.message;
     if (msg) {
       await bot.getBot()?.sendMessage(
         msg.chat.id,
-        `✅ Spawned <b>${escapeHtml(cliType)}</b> in <code>${escapeHtml(dirPath)}</code>\nSession: ${sessionId.substring(0, 8)}…`,
+        `✅ Spawned <b>${escapeHtml(label)}</b> in <code>${escapeHtml(dirPath)}</code>\nSession: ${sessionId.substring(0, 8)}…`,
         { parse_mode: 'HTML', message_thread_id: threadIdOf(msg) },
       );
     }
-    logger.info(`[SpawnWizard] Spawned ${cliType} in ${dirPath} → session ${sessionId}`);
+    logger.info(`[SpawnWizard] Spawned ${label} (${cli.id}) in ${dirPath} → session ${sessionId}`);
   } catch (err) {
     logger.error(`[SpawnWizard] Spawn failed: ${err}`);
     await bot.answerCallback(query.id, '❌ Spawn failed');
@@ -619,7 +638,7 @@ async function handleStatus(
   let text = '📊 <b>Session Status</b>\n\n';
   for (const s of sessions) {
     const state = s.state ?? 'idle';
-    text += `${stateEmojis[state] ?? '⚪'} <b>${escapeHtml(s.name)}</b> (${escapeHtml(s.cliType)})\n`;
+    text += `${stateEmojis[state] ?? '⚪'} <b>${escapeHtml(s.name)}</b> (${escapeHtml(cliLabel(s.cliType))})\n`;
     text += `   ${state}\n\n`;
   }
 

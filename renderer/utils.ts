@@ -52,26 +52,44 @@ export function showScreen(screenName: string): void {
 }
 
 
-export function getCliIcon(cliType: string): string {
-  const icons: Record<string, string> = {
-    'claude-code': '🤖',
-    'copilot-cli': '💬',
-    'codex': '🧠',
-    'generic-terminal': '📟',
-  };
-  return icons[cliType] || '📟';
+const CLI_TYPE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Renderer-side mirror of ConfigLoader.resolveCliType — same order, same rules:
+ * uuid id → legacy slug → display name. The tools cache is uuid-keyed, but a
+ * reference reaching the UI can still be a pre-migration slug or a label a
+ * human typed, so all three have to resolve to the same record.
+ */
+export function resolveCliTypeRecord(cliType: string): Record<string, any> | null {
+  if (typeof cliType !== 'string') return null;
+  const ref = cliType.trim();
+  if (!ref) return null;
+  const cache = state.cliToolsCache;
+  if (!cache) return null;
+
+  const byId = cache[ref];
+  if (byId) return byId;
+
+  const entries = Object.entries(cache);
+  const byLegacyKey = entries.find(([, record]) => record?.legacyKey === ref);
+  if (byLegacyKey) return byLegacyKey[1];
+
+  const wanted = ref.toLowerCase();
+  const byName = entries.find(
+    ([, record]) => String(record?.displayName ?? record?.name ?? '').trim().toLowerCase() === wanted,
+  );
+  return byName ? byName[1] : null;
 }
 
 export function getCliDisplayName(cliType: string): string {
-  const configuredName = state.cliToolsCache?.[cliType]?.name;
-  if (typeof configuredName === 'string' && configuredName.trim().length > 0) return configuredName.trim();
-  const names: Record<string, string> = {
-    'claude-code': 'Claude',
-    'copilot-cli': 'Copilot',
-    'codex': 'Codex',
-    'generic-terminal': 'Terminal',
-  };
-  return names[cliType] || cliType;
+  const record = resolveCliTypeRecord(cliType);
+  const label = record?.displayName ?? record?.name;
+  if (typeof label === 'string' && label.trim().length > 0) return label.trim();
+  // Nothing resolved. A uuid is meaningless to a human and must never reach the
+  // screen; any other reference is at least a readable handle, so show it.
+  const ref = typeof cliType === 'string' ? cliType.trim() : '';
+  if (!ref || CLI_TYPE_UUID_RE.test(ref)) return 'Unknown CLI';
+  return ref;
 }
 
 export function getFocusableElements(): HTMLElement[] {

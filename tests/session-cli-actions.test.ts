@@ -26,7 +26,7 @@ function makeService(entry: Partial<CliTypeConfig> | null, ptyRunning = true) {
     getAllSessions: () => [session],
   };
   const ptyManager = { has: () => ptyRunning };
-  const configLoader = { getCliTypeEntry: () => entry };
+  const configLoader = { getCliTypeEntry: () => entry, getCliTypeLabel: (ref: string) => ref };
   const service = new HelmSessionDeliveryService(sessionManager as any, ptyManager as any, configLoader as any);
   return { service, session };
 }

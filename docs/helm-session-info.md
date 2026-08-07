@@ -21,7 +21,7 @@ The tool returns a `SessionInfoResponse` object with these fields:
 
 - **`sessionId`** (string, optional) — Helm session UUID if the caller authenticated with a session-scoped token (HELM_MCP_TOKEN). Undefined if using a global auth token.
 - **`sessionName`** (string, optional) — Display name of the session (`HELM_SESSION_NAME` env var at session startup). Undefined for global token callers.
-- **`cliType`** (string, optional) — CLI type of the session (e.g., `'claude-code'`, `'copilot-cli'`). Undefined for global token callers.
+- **`cliType`** (string, optional) — CLI type identity of the session. A UUID — pass it back verbatim, never show it to a human; `session_list` / `session_read_terminal` carry `cliTypeName` alongside it for that. Pre-UUID slugs (`'claude-code'`, `'copilot-cli'`) and display names still resolve. Undefined for global token callers. See [config-system.md](config-system.md#cli-type-identity).
 - **`workingDir`** (string, optional) — Working directory the session was spawned in. Undefined for global token callers.
 
 ### MCP Endpoint Context

@@ -1,3 +1,8 @@
+/**
+ * Settings controller tests.
+ *
+ * @vitest-environment jsdom
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -10,6 +15,15 @@ const mocks = vi.hoisted(() => ({
   configGetMcpConfig: vi.fn(),
   telegramGetConfig: vi.fn(),
   telegramIsRunning: vi.fn(),
+  configCopyCliBindings: vi.fn(),
+  toolsAddCliType: vi.fn(),
+  toolsUpdateCliType: vi.fn(),
+  toolsReorderCliType: vi.fn(),
+  initConfigCache: vi.fn(),
+}));
+
+vi.mock('../../renderer/bindings.js', () => ({
+  initConfigCache: mocks.initConfigCache,
 }));
 
 vi.mock('../../renderer/ipc/clients.js', () => ({
@@ -20,9 +34,13 @@ vi.mock('../../renderer/ipc/clients.js', () => ({
     configGetSortPrefs: mocks.configGetSortPrefs,
     configGetBindings: mocks.configGetBindings,
     configGetMcpConfig: mocks.configGetMcpConfig,
+    configCopyCliBindings: mocks.configCopyCliBindings,
   },
   toolsClient: {
     toolsGetAll: mocks.toolsGetAll,
+    toolsAddCliType: mocks.toolsAddCliType,
+    toolsUpdateCliType: mocks.toolsUpdateCliType,
+    toolsReorderCliType: mocks.toolsReorderCliType,
   },
   telegramClient: {
     telegramGetConfig: mocks.telegramGetConfig,
@@ -33,6 +51,18 @@ vi.mock('../../renderer/ipc/clients.js', () => ({
 import { useSettingsController } from '../../renderer/composables/useSettingsController.js';
 import { sessionsState } from '../../renderer/screens/sessions-state.js';
 import { state } from '../../renderer/state.js';
+import { getToolEditorCallback, toolEditor } from '../../renderer/stores/modal-bridge.js';
+
+const CODEX_ID = '11111111-2222-4333-8444-555566667777';
+const CLAUDE_ID = '99999999-8888-4777-8666-555544443333';
+
+/** Two real CLI types, uuid-keyed exactly as tools:getAll returns them post-migration. */
+function twoCliTypes(): Record<string, any> {
+  return {
+    [CODEX_ID]: { id: CODEX_ID, displayName: 'Codex', name: 'Codex', legacyKey: 'codex', spawnCommand: 'codex' },
+    [CLAUDE_ID]: { id: CLAUDE_ID, displayName: 'Claude', name: 'Claude', legacyKey: 'claude-code', spawnCommand: 'claude' },
+  };
+}
 
 describe('useSettingsController', () => {
   beforeEach(() => {
@@ -102,5 +132,100 @@ describe('useSettingsController', () => {
     expect(controller.settingsTools.value).toHaveLength(1);
     expect(controller.settingsTelegramConfig.value).toMatchObject({ botToken: '', chatId: '' });
     expect(controller.settingsMcpConfig.value).toEqual({ enabled: false, port: 47373, authToken: '' });
+  });
+
+  // ------------------------------------------------------------------------
+  // Display-name uniqueness. Two CLI types sharing a label make the resolver
+  // ambiguous (AmbiguousCliTypeError at spawn time), so the UI blocks it.
+  // ------------------------------------------------------------------------
+  describe('duplicate display names', () => {
+    async function loadedController() {
+      mocks.configGetCliTypes.mockResolvedValue([CODEX_ID, CLAUDE_ID]);
+      mocks.toolsGetAll.mockResolvedValue({ cliTypes: twoCliTypes() });
+      const controller = useSettingsController({ refreshProjects: vi.fn().mockResolvedValue(undefined) });
+      await controller.loadSettingsData();
+      return controller;
+    }
+
+    it('rejects a duplicate display name on add, ignoring case and whitespace', async () => {
+      const controller = await loadedController();
+      controller.onToolAdd();
+
+      expect(toolEditor.validateName?.('Codex')).toMatch(/already exists/i);
+      expect(toolEditor.validateName?.('  cODEx  ')).toMatch(/already exists/i);
+      expect(toolEditor.validateName?.('')).toMatch(/required/i);
+      expect(toolEditor.validateName?.('Gemini')).toBeNull();
+    });
+
+    it('rejects a duplicate display name on clone', async () => {
+      const controller = await loadedController();
+      await controller.onToolClone(CODEX_ID);
+
+      expect(toolEditor.validateName?.('claude')).toMatch(/already exists/i);
+      expect(toolEditor.validateName?.('Codex Copy')).toBeNull();
+    });
+
+    it('rejects a rename onto another type but allows a type to keep its own name', async () => {
+      const controller = await loadedController();
+      await controller.onToolEdit(CODEX_ID);
+
+      expect(toolEditor.validateName?.('Claude')).toMatch(/already exists/i);
+      expect(toolEditor.validateName?.('CODEX')).toBeNull();
+      expect(toolEditor.validateName?.('Codex Next')).toBeNull();
+    });
+  });
+
+  it('renames through the uuid identity without re-keying the CLI type', async () => {
+    mocks.configGetCliTypes.mockResolvedValue([CODEX_ID, CLAUDE_ID]);
+    mocks.toolsGetAll.mockResolvedValue({ cliTypes: twoCliTypes() });
+    mocks.toolsUpdateCliType.mockResolvedValue({ success: true });
+    const controller = useSettingsController({ refreshProjects: vi.fn().mockResolvedValue(undefined) });
+    await controller.loadSettingsData();
+
+    await controller.onToolEdit(CODEX_ID);
+    await getToolEditorCallback()?.({
+      name: 'Codex Next',
+      env: [],
+      initialPromptDelay: 0,
+      _promptItems: [],
+      helmActions: {},
+    });
+
+    const [key, name, , , options] = mocks.toolsUpdateCliType.mock.calls[0];
+    expect(key).toBe(CODEX_ID);
+    expect(name).toBe('Codex Next');
+  });
+
+  it('reorders by the uuid-keyed position in state.cliTypes', async () => {
+    state.cliTypes = [CODEX_ID, CLAUDE_ID];
+    mocks.configGetCliTypes.mockResolvedValue([CODEX_ID, CLAUDE_ID]);
+    mocks.toolsGetAll.mockResolvedValue({ cliTypes: twoCliTypes() });
+    mocks.toolsReorderCliType.mockResolvedValue({ success: true });
+    const controller = useSettingsController({ refreshProjects: vi.fn().mockResolvedValue(undefined) });
+
+    await controller.onToolReorder(CLAUDE_ID, 'up');
+
+    expect(mocks.toolsReorderCliType).toHaveBeenCalledWith(1, 'up');
+  });
+
+  it('carries the minted uuid from add into the clone binding copy', async () => {
+    const cloneId = 'aaaabbbb-cccc-4ddd-8eee-ffff00001111';
+    mocks.configGetCliTypes.mockResolvedValue([CODEX_ID, CLAUDE_ID]);
+    mocks.toolsGetAll.mockResolvedValue({ cliTypes: twoCliTypes() });
+    mocks.toolsAddCliType.mockResolvedValue({ success: true, id: cloneId });
+    mocks.configCopyCliBindings.mockResolvedValue({ success: true });
+    const controller = useSettingsController({ refreshProjects: vi.fn().mockResolvedValue(undefined) });
+    await controller.loadSettingsData();
+
+    await controller.onToolClone(CODEX_ID);
+    await getToolEditorCallback()?.({
+      name: 'Codex Copy',
+      env: [],
+      initialPromptDelay: 0,
+      _promptItems: [],
+      helmActions: {},
+    });
+
+    expect(mocks.configCopyCliBindings).toHaveBeenCalledWith(CODEX_ID, cloneId);
   });
 });

@@ -333,18 +333,26 @@ export class ScheduledTaskManager extends EventEmitter {
       };
 
       this.configLoader.reloadActiveProfileIfChanged();
-      const cliConfig = this.configLoader.getCliTypeEntry(task.cliType);
-      if (!cliConfig) {
+      // A task's stored cliType may predate the UUID migration, or be a display
+      // name the user picked in the scheduler UI — resolve it through the one
+      // choke point so a renamed CLI type still spawns the right thing.
+      const cli = this.configLoader.resolveCliType(task.cliType);
+      if (!cli) {
         throw new Error(`Unknown CLI type: ${task.cliType}`);
       }
+      const cliConfig = cli.config;
 
       let rawCommand = cliConfig.spawnCommand?.replaceAll('{cliSessionName}', cliSessionName);
       if (rawCommand && task.cliParams?.trim()) {
         rawCommand = `${rawCommand} ${task.cliParams.trim()}`;
       }
+      if (!rawCommand) {
+        // The old fallback executed the cliType itself, which is now a UUID.
+        throw new Error(`Scheduled task "${task.title}" cannot spawn: CLI type "${cliConfig.displayName ?? cliConfig.name}" has no spawnCommand configured.`);
+      }
       const pty = this.ptyManager.spawn({
         sessionId,
-        ...(rawCommand ? { rawCommand } : { command: task.cliType, args: task.cliParams ? splitCliParams(task.cliParams) : [] }),
+        rawCommand,
         cwd: task.dirPath,
         env,
       });
@@ -358,7 +366,7 @@ export class ScheduledTaskManager extends EventEmitter {
       this.sessionManager.addSession({
         id: sessionId,
         name: `[scheduled] ${task.title}`,
-        cliType: task.cliType,
+        cliType: cli.id,
         processId: pty.pid,
         workingDir: task.dirPath,
         cliSessionName,
@@ -551,8 +559,4 @@ export class ScheduledTaskManager extends EventEmitter {
       deliveryContext: 'background',
     });
   }
-}
-
-function splitCliParams(params: string): string[] {
-  return params.trim().length > 0 ? params.trim().split(/\s+/) : [];
 }

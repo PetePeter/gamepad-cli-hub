@@ -90,8 +90,18 @@ function createMockConfigLoader(
   sequences: Record<string, Array<{ label: string; sequence: string }>> = {},
   dirs: Array<{ name: string; path: string }> = [],
 ) {
+  // `tools` doubles as the CLI type id list; each gets a Title-ish display name
+  // so the wizard's label/id split is exercised.
+  const displayName = (id: string) => `${id} (display)`;
   return {
     getCliTypes: vi.fn(() => tools),
+    getCliTypeName: vi.fn((id: string) => (tools.includes(id) ? displayName(id) : null)),
+    resolveCliType: vi.fn((ref: string) => {
+      const id = tools.includes(ref)
+        ? ref
+        : tools.find((t) => displayName(t).toLowerCase() === ref.toLowerCase());
+      return id ? { id, config: { name: displayName(id), displayName: displayName(id) } } : null;
+    }),
     getSequences: vi.fn(() => sequences),
     getWorkingDirectories: vi.fn(() => dirs),
     getCliTypeEntry: vi.fn(),
@@ -460,7 +470,7 @@ describe('setupCallbackHandler', () => {
     });
 
     it('shows directory selection on spawn:tool:{name}', async () => {
-      configLoader = createMockConfigLoader([], {}, [{ name: 'proj', path: '/proj' }]);
+      configLoader = createMockConfigLoader(['claude'], {}, [{ name: 'proj', path: '/proj' }]);
       const mockProjectStore = { list: vi.fn().mockReturnValue([]) };
       setupCallbackHandler(
         bot as any, createMockTopicManager(), sessionManager as any,
@@ -471,7 +481,7 @@ describe('setupCallbackHandler', () => {
 
       await handler(makeQuery('spawn:tool:claude'));
       expect(mockProjectStore.list).toHaveBeenCalled();
-      expect(bot.answerCallback).toHaveBeenCalledWith('q1', 'Selected: claude');
+      expect(bot.answerCallback).toHaveBeenCalledWith('q1', 'Selected: claude (display)');
     });
 
     it('spawns a session on spawn:dir after tool selection', async () => {
@@ -492,14 +502,19 @@ describe('setupCallbackHandler', () => {
       } as unknown as SessionManager;
 
       configLoader = createMockConfigLoader(['claude'], {}, [{ name: 'proj', path: '/proj' }]);
-      (configLoader as any).getCliTypeEntry = vi.fn(() => ({
+      const claudeEntry = {
+        name: 'claude (display)',
+        displayName: 'claude (display)',
         command: 'claude',
         spawnCommand: 'claude --session-id {cliSessionName}',
         env: [
           { name: 'TEST_LITERAL', value: 'literal-value' },
           { name: 'TEST_REF', value: '%TELEGRAM_SPAWN_TEST_REF%' },
         ],
-      }));
+      };
+      (configLoader as any).getCliTypeEntry = vi.fn(() => claudeEntry);
+      (configLoader as any).resolveCliType = vi.fn((ref: string) =>
+        (ref === 'claude' || ref === 'claude (display)') ? { id: 'claude', config: claudeEntry } : null);
       process.env.TELEGRAM_SPAWN_TEST_REF = 'resolved-value';
 
       const innerBot = { editMessageText: vi.fn(), sendMessage: vi.fn() };
@@ -524,7 +539,7 @@ describe('setupCallbackHandler', () => {
             TEST_LITERAL: 'literal-value',
             TEST_REF: 'resolved-value',
             HELM_SESSION_ID: expect.any(String),
-            HELM_SESSION_NAME: 'claude',
+            HELM_SESSION_NAME: 'claude (display)',
             HELM_MCP_TOKEN: expect.any(String),
             HELM_MCP_URL: 'http://127.0.0.1:47373/mcp',
           }),
@@ -542,7 +557,7 @@ describe('setupCallbackHandler', () => {
         expect.any(Function),
       );
       // ensureTopic is handled by session:added event in handlers.ts, not by handleSpawnExec
-      expect(bot.answerCallback).toHaveBeenCalledWith('q1', '🚀 Spawned claude!');
+      expect(bot.answerCallback).toHaveBeenCalledWith('q1', '🚀 Spawned claude (display)!');
       delete process.env.TELEGRAM_SPAWN_TEST_REF;
     });
 

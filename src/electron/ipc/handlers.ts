@@ -244,6 +244,17 @@ export function registerIPCHandlers(
   const patternMatcher = new PatternMatcher(
     (sessionId, data) => ptyManager.deliverText(sessionId, data),
     (cliType) => configLoader.getPatterns(cliType),
+    // This runs on every PTY output chunk. resolveCliType throws on an ambiguous
+    // display name (two types sharing a label — reachable by hand-editing
+    // cli-types.yaml), and per invariant 7 nothing on the PTY data path may
+    // throw. Degrade to the raw reference instead.
+    (cliType) => {
+      try {
+        return configLoader.resolveCliType(cliType)?.id ?? cliType;
+      } catch {
+        return cliType;
+      }
+    },
   );
 
   const cleanupSession = setupSessionHandlers(sessionManager, ptyManager, draftManager, windowManager, configLoader);

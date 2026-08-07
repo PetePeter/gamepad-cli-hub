@@ -11,6 +11,7 @@ import NotificationCarousel from './NotificationCarousel.vue';
 import { useRuntimeGroups } from '../../composables/useRuntimeGroups.js';
 import { useSessionDrag } from '../../composables/useSessionDrag.js';
 import { formatHelmRef } from '../../lib/helm-ref.js';
+import { getCliDisplayName } from '../../utils.js';
 
 // --- Types ---
 
@@ -197,7 +198,7 @@ function colClass(col: number): string {
 
 const copied = ref(false);
 const sessionRef = computed(
-  () => formatHelmRef('session', { label: props.session.name, meta: props.session.cliType, id: props.session.id }),
+  () => formatHelmRef('session', { label: props.session.name, meta: getCliDisplayName(props.session.cliType), id: props.session.id }),
 );
 
 async function copyId(): Promise<void> {

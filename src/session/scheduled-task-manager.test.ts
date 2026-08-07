@@ -9,6 +9,22 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'events';
 import { ScheduledTaskManager } from './scheduled-task-manager.js';
 import { saveScheduledTasks } from './persistence.js';
+
+/**
+ * Scheduled-task persistence resolves to one process-wide config path — the
+ * real user config dir. Reading it makes these tests depend on whatever the
+ * running app happens to have scheduled, and writing it races the other suite
+ * that drives a ScheduledTaskManager. Keep the store in memory.
+ */
+vi.mock('./persistence.js', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  let stored: unknown[] = [];
+  return {
+    ...actual,
+    saveScheduledTasks: (tasks: unknown[]) => { stored = tasks; },
+    loadScheduledTasks: () => stored,
+  };
+});
 import type { ScheduledTask, ScheduledTaskHistoryEntry, CreateScheduledTaskParams } from '../types/scheduled-task.js';
 
 // ─── Fakes for dependencies ─────────────────────────────────────────────────────
@@ -112,6 +128,12 @@ class FakeConfigLoader {
       stickConfig: { mode: 'cursor' },
       dpadConfig: { autoRepeat: true },
     };
+  }
+
+  /** Mirrors ConfigLoader's single resolution choke point. */
+  resolveCliType(ref: string) {
+    const config = this.getCliTypeEntry(ref);
+    return config ? { id: ref, config } : null;
   }
 
   getWorkingDirectories() { return [{ path: 'X:\\\\coding\\\\test', name: 'test' }]; }

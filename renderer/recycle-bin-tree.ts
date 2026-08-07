@@ -9,6 +9,7 @@
  */
 
 import type { RecycleBinEntry } from '../src/types/recycle-bin.js';
+import { getCliDisplayName } from './utils.js';
 
 /** Synthetic bucket for entries whose working dir maps to no known project. */
 export const NO_PROJECT_ID = '__no_project__';
@@ -48,13 +49,14 @@ export interface RecycleProjectNode {
 /** Resolve an entry to its owning project, or null when none applies. */
 export type ResolveProject = (entry: RecycleBinEntry) => { id: string; name: string } | null;
 
-/** Case-insensitive match over name, cliType, and workingDir. Empty query → all. */
+/** Case-insensitive match over name, CLI type label, and workingDir. Empty query → all. */
 export function matchesRecycleQuery(entry: RecycleBinEntry, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
   return (
     entry.name.toLowerCase().includes(q) ||
-    entry.cliType.toLowerCase().includes(q) ||
+    // Match the label, not the stored UUID — nobody searches for an identity.
+    getCliDisplayName(entry.cliType).toLowerCase().includes(q) ||
     entry.workingDir.toLowerCase().includes(q)
   );
 }

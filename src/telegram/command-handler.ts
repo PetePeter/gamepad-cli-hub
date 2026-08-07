@@ -10,10 +10,12 @@ import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
 import type { TopicManager } from './topic-manager.js';
 import type { HelmControlService } from '../mcp/helm-control-service.js';
+import type { ConfigLoader } from '../config/loader.js';
 import path from 'path';
 import { cleanTerminalOutput, escapeHtml } from './utils.js';
 import { peekSessionPickerKeyboard, helpKeyboard, directoryListKeyboard } from './keyboards.js';
 import { logger } from '../utils/logger.js';
+import { cliLabel } from './cli-label.js';
 
 const PEEK_LINE_COUNT = 30;
 const TELEGRAM_MSG_LIMIT = 4096;
@@ -37,6 +39,7 @@ export function setupCommandHandler(
   ptyManager: PtyManager,
   topicManager: TopicManager,
   helmControlService: HelmControlService,
+  configLoader?: ConfigLoader,
 ): () => void {
   const handlers: Array<() => void> = [];
 
@@ -56,7 +59,7 @@ export function setupCommandHandler(
   };
 
   registerCommandHandler('help', async (msg) => handleHelp(bot, sessionManager, topicManager, msg));
-  registerCommandHandler('peek', async (msg, args) => handlePeek(bot, sessionManager, ptyManager, topicManager, msg, args));
+  registerCommandHandler('peek', async (msg, args) => handlePeek(bot, sessionManager, ptyManager, topicManager, configLoader, msg, args));
   registerCommandHandler('sessions', async (msg) => handleSessionsCommand(bot, sessionManager, msg));
   registerCommandHandler('spawn', async (msg) => handleSpawnCommand(bot, msg));
   registerCommandHandler('status', async (msg) => handleStatusCommand(bot, sessionManager, msg));
@@ -152,7 +155,7 @@ async function handleStatusCommand(
   let text = '📊 <b>Session Status</b>\n\n';
   for (const s of sessions) {
     const state = s.state ?? 'idle';
-    text += `${stateEmojis[state] ?? '⚪'} <b>${escapeHtml(s.name)}</b> (${escapeHtml(s.cliType)})\n`;
+    text += `${stateEmojis[state] ?? '⚪'} <b>${escapeHtml(s.name)}</b> (${escapeHtml(cliLabel(s.cliType))})\n`;
     text += `   📂 ${escapeHtml(path.basename(s.workingDir ?? 'unknown'))}\n`;
     text += `   ${state}\n\n`;
   }
@@ -279,6 +282,7 @@ async function handlePeek(
   sessionManager: SessionManager,
   ptyManager: PtyManager,
   topicManager: TopicManager,
+  configLoader: ConfigLoader | undefined,
   msg: TelegramBot.Message,
   args: string,
 ): Promise<void> {
@@ -291,10 +295,14 @@ async function handlePeek(
   let targetSession: { id: string; name: string } | undefined;
 
   if (args.trim()) {
+    const needle = args.trim();
+    // A user types a CLI's label, not its uuid — resolve the arg once so
+    // "/peek claude" still matches sessions stored under the uuid.
+    const cliTypeId = configLoader?.resolveCliType(needle)?.id;
     const match = sessions.find(
-      s => s.name.toLowerCase() === args.trim().toLowerCase()
-        || s.cliType.toLowerCase() === args.trim().toLowerCase()
-        || s.id.startsWith(args.trim()),
+      s => s.name.toLowerCase() === needle.toLowerCase()
+        || (cliTypeId !== undefined && s.cliType === cliTypeId)
+        || s.id.startsWith(needle),
     );
     if (!match) {
       await bot.sendMessage(`Session not found: ${escapeHtml(args.trim())}`, {
