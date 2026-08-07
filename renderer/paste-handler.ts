@@ -23,7 +23,7 @@ import { getTerminalManager } from './runtime/terminal-provider.js';
 import { state } from './state.js';
 import { resolveCliTypeRecord } from './utils.js';
 import { keyboardClient, terminalClient } from './ipc/clients.js';
-import { isForegroundOnlyPasteMode, type DeliveryContext, type PtyWriteOptions } from '../src/session/delivery-context.js';
+import { isForegroundOnlyPasteMode, SUBMIT_SETTLE_DELAY_MS, type DeliveryContext, type PtyWriteOptions } from '../src/session/delivery-context.js';
 
 /**
  * Convert escape notation strings to actual characters.
@@ -132,6 +132,18 @@ async function writePtySubmitSuffix(sessionId: string, suffix: string, options?:
   await writePty(sessionId, suffix, options);
 }
 
+/**
+ * Pause between the delivered text and its submit suffix.
+ *
+ * Full-screen TUIs ingest a paste asynchronously; an Enter that lands before the
+ * composer has re-rendered is swallowed and the text sits unsent on the prompt.
+ * Only used where text was just written — a submit-only delivery sends at once.
+ */
+async function settleBeforeSubmit(suffix: string): Promise<void> {
+  if (!suffix) return;
+  await new Promise(resolve => setTimeout(resolve, SUBMIT_SETTLE_DELAY_MS));
+}
+
 async function sendKeyboardSubmitSuffix(suffix: string): Promise<void> {
   if (!suffix) return;
 
@@ -197,6 +209,7 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
         await writePty(sessionId, char, ptyWriteOptions);
         await new Promise(resolve => setTimeout(resolve, PTY_INDIVIDUAL_DELAY_MS));
       }
+      await settleBeforeSubmit(suffix);
       await writePtySubmitSuffix(sessionId, suffix, ptyWriteOptions);
       console.log(`[Paste] ptyindividual complete: ${text.length} chars sent`);
     } finally {
@@ -210,12 +223,14 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
       await keyboardClient.keyboardTypeString(char);
       await new Promise(resolve => setTimeout(resolve, SENDKEYS_INDIVIDUAL_DELAY_MS));
     }
+    await settleBeforeSubmit(suffix);
     await sendKeyboardSubmitSuffix(suffix);
     return;
   }
 
   if (tool?.pasteMode === 'sendkeys' && keyboardClient.keyboardTypeString) {
     await keyboardClient.keyboardTypeString(text);
+    await settleBeforeSubmit(suffix);
     await sendKeyboardSubmitSuffix(suffix);
     return;
   }
@@ -231,6 +246,7 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
 
     termSession.view.focus();
     await simulateClipboardPaste(text);
+    await settleBeforeSubmit(suffix);
     await writePtySubmitSuffix(sessionId, suffix, ptyWriteOptions);
     console.log(`[Paste] clippaste complete: ${text.length} chars pasted via clipboard, suffix via PTY`);
     return;
@@ -253,12 +269,8 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
     ? `\x1b[200~${text}\x1b[201~`
     : text;
 
-  if (deliveryContext === 'background' && suffix) {
-    await writePty(sessionId, payload + suffix, ptyWriteOptions);
-    return;
-  }
-
   await writePty(sessionId, payload, ptyWriteOptions);
+  await settleBeforeSubmit(suffix);
   await writePtySubmitSuffix(sessionId, suffix, ptyWriteOptions);
 }
 

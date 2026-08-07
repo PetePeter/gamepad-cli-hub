@@ -88,11 +88,126 @@ describe('verifyDeliveryAfterDelay — activity-timestamp polling', () => {
     expect(result.detail).toContain('no payload delivered');
   });
 
-  it('retryAttempted is always false', async () => {
+  it('does not attempt recovery when retrySubmit is false', async () => {
     const buffer = new TerminalOutputBuffer();
     buffer.append(SESSION_ID, 'baseline\n');
-    const request = makeRequest(buffer);
+    const deliverText = vi.fn();
+    const request = makeRequest(buffer, {
+      retrySubmit: false,
+      ptyManager: {
+        getTerminalTail: (sid, lines, mode, strip) => buffer.tail(sid, lines, mode, strip),
+        deliverText,
+      },
+    });
+
     const result = await verifyDeliveryAfterDelay(request);
+
+    expect(result.status).toBe('no_signal');
     expect(result.retryAttempted).toBe(false);
+    expect(deliverText).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Recovery: the CLI took the text into its prompt but never submitted it (the
+ * "stuck on the prompt" bug), or never saw it at all. Detection already existed;
+ * these cover the remedy.
+ */
+describe('verifyDeliveryAfterDelay — recovery', () => {
+  /**
+   * A CLI that accepted the input: it echoes, then keeps emitting as it generates.
+   * The verifier reads two advances after its baseline as "moving".
+   */
+  function respondLikeGeneratingCli(buffer: TerminalOutputBuffer): void {
+    buffer.append(SESSION_ID, 'ack\n');
+    setTimeout(() => buffer.append(SESSION_ID, 'thinking\n'), 150);
+    setTimeout(() => buffer.append(SESSION_ID, 'generating\n'), 450);
+  }
+
+  it('re-sends the submit suffix when stuck, and reports retry_confirmed once it moves', async () => {
+    const buffer = new TerminalOutputBuffer();
+    buffer.append(SESSION_ID, 'baseline\n');
+    const deliverText = vi.fn(async () => respondLikeGeneratingCli(buffer));
+
+    const request = makeRequest(buffer, {
+      ptyManager: {
+        getTerminalTail: (sid, lines, mode, strip) => buffer.tail(sid, lines, mode, strip),
+        deliverText,
+      },
+    });
+    const promise = verifyDeliveryAfterDelay(request);
+    // Echo of our input only — the CLI parked the text on its prompt.
+    setTimeout(() => buffer.append(SESSION_ID, 'echo of input\n'), 30);
+
+    const result = await promise;
+
+    expect(result.status).toBe('retry_confirmed');
+    expect(result.retryCount).toBe(1);
+    expect(result.retryAttempted).toBe(true);
+  });
+
+  it('stuck recovery re-sends ONLY the suffix — never the text', async () => {
+    const buffer = new TerminalOutputBuffer();
+    buffer.append(SESSION_ID, 'baseline\n');
+    const deliverText = vi.fn(async () => respondLikeGeneratingCli(buffer));
+
+    const request = makeRequest(buffer, {
+      ptyManager: {
+        getTerminalTail: (sid, lines, mode, strip) => buffer.tail(sid, lines, mode, strip),
+        deliverText,
+      },
+    });
+    const promise = verifyDeliveryAfterDelay(request);
+    setTimeout(() => buffer.append(SESSION_ID, 'echo of input\n'), 30);
+    await promise;
+
+    expect(deliverText).toHaveBeenCalledTimes(1);
+    expect(deliverText).toHaveBeenCalledWith(SESSION_ID, '', expect.objectContaining({ submitSuffix: '\r' }));
+  });
+
+  it('gives up as retry_failed after two suffix re-sends that change nothing', async () => {
+    const buffer = new TerminalOutputBuffer();
+    buffer.append(SESSION_ID, 'baseline\n');
+    const deliverText = vi.fn(async (_sessionId: string, _text: string) => {});
+
+    const request = makeRequest(buffer, {
+      ptyManager: {
+        getTerminalTail: (sid, lines, mode, strip) => buffer.tail(sid, lines, mode, strip),
+        deliverText,
+      },
+    });
+    const promise = verifyDeliveryAfterDelay(request);
+    setTimeout(() => buffer.append(SESSION_ID, 'echo of input\n'), 30);
+
+    const result = await promise;
+
+    expect(result.status).toBe('retry_failed');
+    expect(result.retryCount).toBe(2);
+    expect(deliverText).toHaveBeenCalledTimes(2);
+    expect(deliverText.mock.calls.every(call => call[1] === '')).toBe(true);
+  });
+
+  it('re-sends the full text exactly once when nothing arrived at all', async () => {
+    const buffer = new TerminalOutputBuffer();
+    buffer.append(SESSION_ID, 'baseline\n');
+    const deliverText = vi.fn(async () => respondLikeGeneratingCli(buffer));
+
+    const request = makeRequest(buffer, {
+      ptyManager: {
+        getTerminalTail: (sid, lines, mode, strip) => buffer.tail(sid, lines, mode, strip),
+        deliverText,
+      },
+    });
+
+    const result = await verifyDeliveryAfterDelay(request);
+
+    expect(result.status).toBe('retry_confirmed');
+    expect(result.retryCount).toBe(1);
+    expect(deliverText).toHaveBeenCalledTimes(1);
+    expect(deliverText).toHaveBeenCalledWith(
+      SESSION_ID,
+      'hello world this is a delivery',
+      expect.objectContaining({ submitSuffix: '\r' }),
+    );
   });
 });

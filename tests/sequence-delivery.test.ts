@@ -83,8 +83,8 @@ describe('deliverPromptSequenceToSession', () => {
       expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'before');
       expect(mocks.ptyManager.deliverText).not.toHaveBeenCalledWith('s1', 'after');
 
-      // Advance past the 500ms wait plus the 200ms submit delay that fires afterwards
-      await vi.advanceTimersByTimeAsync(700);
+      // Advance past the 500ms wait plus the submit settle delay that fires afterwards
+      await vi.advanceTimersByTimeAsync(1000);
       await promise;
 
       expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'after');
@@ -307,8 +307,9 @@ describe('deliverPromptSequenceToSession', () => {
   });
 
   describe('submit delay', () => {
-    it('submit fires ≥200ms after text flush (real timers)', async () => {
-      // Verify the 200ms SUBMIT_DELAY_MS constant is respected at runtime.
+    it('submit fires a settle delay after text flush (real timers)', async () => {
+      // Verify SUBMIT_SETTLE_DELAY_MS is respected at runtime — the gap is what stops
+      // an Ink TUI from swallowing Enter while it is still ingesting the paste.
       // We record the timestamp inside deliverText and compare to when the submit arrives.
       const mocks = makeMocks({ cliType: 'cmd' });
       let textFlushAt = 0;
@@ -326,7 +327,7 @@ describe('deliverPromptSequenceToSession', () => {
 
       expect(submitAt).toBeGreaterThan(0);
       expect(textFlushAt).toBeGreaterThan(0);
-      expect(submitAt - textFlushAt).toBeGreaterThanOrEqual(190); // 10ms tolerance
+      expect(submitAt - textFlushAt).toBeGreaterThanOrEqual(390); // 10ms tolerance
     });
 
     it('explicit {Enter} token submits exactly once even with the delay', async () => {
@@ -353,23 +354,23 @@ describe('deliverPromptSequenceToSession', () => {
       mocks.ptyManager.getTerminalTail = ((sid: string, lines: number, mode: any, strip?: boolean) =>
         buffer.tail(sid, lines, mode, strip)) as any;
 
-      // Note: SUBMIT_DELAY_MS = 200ms inside deliver() before verification starts.
-      // Phase 1 advance: ~50ms into verification window.
-      setTimeout(() => buffer.append('s1', 'echo of input\n'), 250);
+      // Note: the submit settle delay runs inside deliver() before verification starts.
+      // Phase 1 advance: shortly into the verification window.
+      setTimeout(() => buffer.append('s1', 'echo of input\n'), 450);
       // Phase 2 advance: must beat firstAdvance + 250ms gap.
-      setTimeout(() => buffer.append('s1', 'response part 1\n'), 600);
+      setTimeout(() => buffer.append('s1', 'response part 1\n'), 800);
 
       const result = await deliver(text, mocks, {
         verifyDelivery: { label: 'test delivery', delayMs: 0 },
       });
 
       expect(result?.status).toBe('confirmed');
-      // Only the initial submit — the new verifier does not perform blind retries.
+      // Only the initial submit — a landed delivery needs no recovery.
       const submitCalls = mocks.ptyManager.deliverText.mock.calls.filter((c: any[]) => c[2]?.submitSuffix === '\r');
       expect(submitCalls).toHaveLength(1);
     });
 
-    it('returns suspected_stuck when tail activity advances once then stalls', async () => {
+    it('re-submits and reports retry_failed when the CLI stalls on the prompt', async () => {
       const { TerminalOutputBuffer } = await import('../src/session/terminal-output-buffer.js');
       const text = 'hello please execute this prompt now';
       const mocks = makeMocks();
@@ -378,21 +379,22 @@ describe('deliverPromptSequenceToSession', () => {
       mocks.ptyManager.getTerminalTail = ((sid: string, lines: number, mode: any, strip?: boolean) =>
         buffer.tail(sid, lines, mode, strip)) as any;
 
-      // One advance — no further activity. Fires after SUBMIT_DELAY_MS=200ms so
+      // One advance — no further activity. Fires after the submit settle delay so
       // verification observes it as a fresh Phase 1 advance, then nothing more.
-      setTimeout(() => buffer.append('s1', 'echo of input\n'), 250);
+      setTimeout(() => buffer.append('s1', 'echo of input\n'), 450);
 
       const result = await deliver(text, mocks, {
         verifyDelivery: { label: 'test delivery', delayMs: 0 },
       });
 
-      expect(result?.status).toBe('suspected_stuck');
-      // No retry — the new verifier never re-submits.
+      expect(result?.status).toBe('retry_failed');
+      // Initial submit plus two recovery re-submits, none of which carried the text again.
       const submitCalls = mocks.ptyManager.deliverText.mock.calls.filter((c: any[]) => c[2]?.submitSuffix === '\r');
-      expect(submitCalls).toHaveLength(1);
+      expect(submitCalls).toHaveLength(3);
+      expect(submitCalls.every((c: any[]) => c[1] === '')).toBe(true);
     });
 
-    it('returns no_signal when tail activity never advances', async () => {
+    it('re-sends the whole payload when the CLI never showed any activity', async () => {
       const { TerminalOutputBuffer } = await import('../src/session/terminal-output-buffer.js');
       const mocks = makeMocks();
       const buffer = new TerminalOutputBuffer();
@@ -400,11 +402,16 @@ describe('deliverPromptSequenceToSession', () => {
       mocks.ptyManager.getTerminalTail = ((sid: string, lines: number, mode: any, strip?: boolean) =>
         buffer.tail(sid, lines, mode, strip)) as any;
 
-      const result = await deliver('hello please execute this prompt now', mocks, {
+      const text = 'hello please execute this prompt now';
+      const result = await deliver(text, mocks, {
         verifyDelivery: { label: 'test delivery', delayMs: 0 },
       });
 
-      expect(result?.status).toBe('no_signal');
+      expect(result?.status).toBe('retry_failed');
+      expect(result?.retryCount).toBe(1);
+      // The whole payload is replayed through the sequence executor: text chunk then submit.
+      const textCalls = mocks.ptyManager.deliverText.mock.calls.filter((c: any[]) => c[1] === text);
+      expect(textCalls).toHaveLength(2);
     });
   });
 });

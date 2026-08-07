@@ -12,6 +12,17 @@ export interface TextDeliveryOptions {
   deliveryContext?: DeliveryContext;
 }
 
+/**
+ * Pause between the text write and the submit suffix.
+ *
+ * Ink-based full-screen TUIs (Copilot CLI) ingest a paste asynchronously and
+ * only honour Enter once they have re-rendered their composer. An Enter that
+ * lands mid-paste is swallowed and the text sits unsent on the prompt. Shared
+ * by the main-process sequence delivery and the renderer paste path so both
+ * halves of the pipeline settle for the same beat.
+ */
+export const SUBMIT_SETTLE_DELAY_MS = 400;
+
 const FOREGROUND_ONLY_PASTE_MODES = new Set<PasteMode>([
   'clippaste',
   'sendkeys',

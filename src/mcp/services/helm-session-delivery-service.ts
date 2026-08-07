@@ -43,6 +43,23 @@ function buildNonBlockingDirective(senderSessionId: string): string {
   );
 }
 
+/**
+ * Flatten a verification result into the caller-facing delivery outcome.
+ *
+ * The status and retry count travel back to the sending LLM so an unattended
+ * caller can tell "the CLI is working on it" from "it never got sent" instead of
+ * moving on behind a bare boolean.
+ */
+function summarizeDelivery(
+  verification: DeliveryVerificationResult | undefined,
+): { verified: boolean; deliveryStatus: string; retryCount: number } {
+  if (!verification) {
+    return { verified: true, deliveryStatus: 'unverified', retryCount: 0 };
+  }
+  const verified = verification.status === 'confirmed' || verification.status === 'retry_confirmed';
+  return { verified, deliveryStatus: verification.status, retryCount: verification.retryCount };
+}
+
 /** Replace $-prefixed placeholders (e.g. $instruction, $path) in an action template. */
 function substituteActionParams(template: string, params: Record<string, string>): string {
   let result = template;
@@ -85,7 +102,7 @@ export class HelmSessionDeliveryService {
     sessionRef: string,
     text: string,
     options?: { senderSessionId?: string; senderSessionName?: string; expectsResponse?: boolean },
-  ): Promise<{ ok: true; preambleUsed: boolean; verified: boolean }> {
+  ): Promise<{ ok: true; preambleUsed: boolean; verified: boolean; deliveryStatus: string; retryCount: number }> {
     const session = this.findSession(sessionRef);
     if (!session) {
       throw new Error(`Session not found: ${sessionRef}`);
@@ -168,8 +185,7 @@ export class HelmSessionDeliveryService {
       logger.warn(`[HelmSessionDelivery] Delivery verification for ${session.id}: ${deliveryVerification.status} (${deliveryVerification.detail})`);
     }
 
-    const verified = !deliveryVerification || deliveryVerification.status === 'confirmed' || deliveryVerification.status === 'retry_confirmed';
-    return { ok: true, preambleUsed: usePreamble, verified };
+    return { ok: true, preambleUsed: usePreamble, ...summarizeDelivery(deliveryVerification) };
   }
 
   /**
@@ -180,7 +196,7 @@ export class HelmSessionDeliveryService {
     sessionRef: string,
     sequence: string,
     options?: { senderSessionId?: string; senderSessionName?: string; impliedSubmit?: boolean; verify?: boolean },
-  ): Promise<{ ok: true; verified: boolean }> {
+  ): Promise<{ ok: true; verified: boolean; deliveryStatus: string; retryCount: number }> {
     const session = this.findSession(sessionRef);
     if (!session) {
       throw new Error(`Session not found: ${sessionRef}`);
@@ -212,8 +228,7 @@ export class HelmSessionDeliveryService {
       logger.warn(`[HelmSessionDelivery] Delivery verification for terminal input to ${session.id}: ${deliveryVerification.status} (${deliveryVerification.detail})`);
     }
 
-    const verified = !deliveryVerification || deliveryVerification.status === 'confirmed' || deliveryVerification.status === 'retry_confirmed';
-    return { ok: true, verified };
+    return { ok: true, ...summarizeDelivery(deliveryVerification) };
   }
 
   /**

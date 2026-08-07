@@ -3,15 +3,12 @@ import { parseSubmitSuffix } from '../mcp/submit-suffix.js';
 import type { ConfigLoader } from '../config/loader.js';
 import type { PtyManager } from './pty-manager.js';
 import type { SessionManager } from './manager.js';
-import type { DeliveryContext, TextDeliveryOptions } from './delivery-context.js';
+import { SUBMIT_SETTLE_DELAY_MS, type DeliveryContext, type TextDeliveryOptions } from './delivery-context.js';
 import { logger } from '../utils/logger.js';
 import {
   verifyDeliveryAfterDelay,
   type DeliveryVerificationResult,
 } from './delivery-verification.js';
-
-/** Pause before writing the submit suffix — gives CLIs time to process the preceding text. */
-const SUBMIT_DELAY_MS = 200;
 
 /** Token patterns the sequence parser recognizes as actions, not literal text. */
 const RECOGNIZED_TOKEN_PATTERNS = [
@@ -136,17 +133,19 @@ export async function deliverPromptSequenceToSession(input: {
       : ptyManager.deliverText(sid, chunk)
   );
 
-  await executeSequenceString({
+  const runSequence = () => executeSequenceString({
     sessionId,
     input: processedText,
     write: (sid, data) => ptyManager.write(sid, data),
     deliverText: (sid, chunk) => deliverText(sid, chunk, textDeliveryOptions),
     submit: async (sid) => {
-      await new Promise<void>((resolve) => setTimeout(resolve, SUBMIT_DELAY_MS));
+      await new Promise<void>((resolve) => setTimeout(resolve, SUBMIT_SETTLE_DELAY_MS));
       return deliverText(sid, '', { ...textDeliveryOptions, submitSuffix });
     },
     impliedSubmit: impliedSubmit ?? true,
   });
+
+  await runSequence();
 
   if (!verifyDelivery) return undefined;
 
@@ -159,6 +158,9 @@ export async function deliverPromptSequenceToSession(input: {
     label: verifyDelivery.label,
     delayMs: verifyDelivery.delayMs,
     retrySubmit: verifyDelivery.retrySubmit ?? true,
+    // Recovery must replay through the sequence executor: `text` still holds
+    // {Wait}/{Enter} tokens, which a raw write would type out literally.
+    resendPayload: runSequence,
   };
 
   if (verifyDelivery.background) {

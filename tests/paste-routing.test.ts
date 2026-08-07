@@ -683,14 +683,18 @@ describe('deliverBulkText', () => {
     expect(mockPtyWrite).not.toHaveBeenCalled();
   });
 
-  it('marks background PTY writes as programmatic and submits in the same write', async () => {
+  it('marks background PTY writes as programmatic and settles before submitting', async () => {
     mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
     mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
 
-    await deliverBulkText('sess-1', 'hello', { deliveryContext: 'background', submitSuffix: '\n' });
+    const promise = deliverBulkText('sess-1', 'hello', { deliveryContext: 'background', submitSuffix: '\n' });
+    await vi.runAllTimersAsync();
+    await promise;
 
-    expect(mockPtyWrite).toHaveBeenCalledOnce();
-    expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'hello\n', { inputOrigin: 'programmatic' });
+    expect(mockPtyWrite.mock.calls).toEqual([
+      ['sess-1', 'hello', { inputOrigin: 'programmatic' }],
+      ['sess-1', '\n', { inputOrigin: 'programmatic' }],
+    ]);
   });
 
   it('does not bracket-paste background auto-submit text', async () => {
@@ -702,10 +706,45 @@ describe('deliverBulkText', () => {
       }),
     });
 
-    await deliverBulkText('sess-1', 'hello', { deliveryContext: 'background', submitSuffix: '\r' });
+    const promise = deliverBulkText('sess-1', 'hello', { deliveryContext: 'background', submitSuffix: '\r' });
+    await vi.runAllTimersAsync();
+    await promise;
 
-    expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'hello\r', { inputOrigin: 'programmatic' });
+    expect(mockPtyWrite.mock.calls).toEqual([
+      ['sess-1', 'hello', { inputOrigin: 'programmatic' }],
+      ['sess-1', '\r', { inputOrigin: 'programmatic' }],
+    ]);
     expect(mockPtyWrite.mock.calls[0][1]).not.toContain('\x1b[200~');
+  });
+
+  // The root-cause fix for "text lands on the prompt but is never sent": Ink-based
+  // TUIs (Copilot CLI) need a beat to ingest a paste before they honour Enter.
+  it('waits the settle delay between the text write and the submit suffix', async () => {
+    mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
+    mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
+
+    const promise = deliverBulkText('sess-1', 'hello', { submitSuffix: '\r' });
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Text is out; the suffix must still be parked behind the settle delay.
+    expect(mockPtyWrite).toHaveBeenCalledOnce();
+    expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'hello');
+
+    await vi.runAllTimersAsync();
+    await promise;
+
+    expect(mockPtyWrite).toHaveBeenCalledTimes(2);
+    expect(mockPtyWrite).toHaveBeenNthCalledWith(2, 'sess-1', '\r');
+  });
+
+  it('does not delay a submit-only delivery', async () => {
+    mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
+    mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
+
+    await deliverBulkText('sess-1', '', { submitSuffix: '\r' });
+
+    expect(mockPtyWrite).toHaveBeenCalledOnce();
+    expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', '\r');
   });
 
   it('marks background ptyindividual writes as programmatic', async () => {
@@ -1124,7 +1163,9 @@ describe('deliverBulkText', () => {
     });
 
     it('PTY mode: submitSuffix appended OUTSIDE bracketed paste markers', async () => {
-      await deliverBulkText('helm-test', 'hello', { submitSuffix: '\n' });
+      const promise = deliverBulkText('helm-test', 'hello', { submitSuffix: '\n' });
+      await vi.runAllTimersAsync();
+      await promise;
 
       // writePtySubmitSuffix sends suffix as a separate ptyWrite call
       expect(mockPtyWrite).toHaveBeenCalledTimes(2);
@@ -1133,7 +1174,9 @@ describe('deliverBulkText', () => {
     });
 
     it('PTY mode: withReturn ignored when submitSuffix provided', async () => {
-      await deliverBulkText('helm-test', 'test', { withReturn: true, submitSuffix: '\n' });
+      const promise = deliverBulkText('helm-test', 'test', { withReturn: true, submitSuffix: '\n' });
+      await vi.runAllTimersAsync();
+      await promise;
 
       // submitSuffix takes precedence over withReturn; suffix sent as separate call
       expect(mockPtyWrite).toHaveBeenCalledTimes(2);
@@ -1150,7 +1193,9 @@ describe('deliverBulkText', () => {
       };
       mockTerminalManager.getSession.mockReturnValue(mockSession);
 
-      await deliverBulkText('helm-test', 'cmd', { submitSuffix: '\n' });
+      const promise = deliverBulkText('helm-test', 'cmd', { submitSuffix: '\n' });
+      await vi.runAllTimersAsync();
+      await promise;
 
       // Text and suffix are separate ptyWrite calls
       expect(mockPtyWrite).toHaveBeenCalledTimes(2);
@@ -1174,6 +1219,7 @@ describe('deliverBulkText', () => {
 
       // Both ptyWrite calls share the same mock promise; resolving once unblocks both
       resolveWrite();
+      await vi.runAllTimersAsync();
       await promise;
 
       expect(resolved).toBe(true);
@@ -1205,7 +1251,9 @@ describe('deliverBulkText', () => {
       (window as any).gamepadCli.keyboardTypeString = mockKeyboardTypeString;
       (window as any).gamepadCli.keyboardKeyTap = mockKeyboardKeyTap;
 
-      await deliverBulkText('helm-test', 'send', { submitSuffix: '\n' });
+      const promise = deliverBulkText('helm-test', 'send', { submitSuffix: '\n' });
+      await vi.runAllTimersAsync();
+      await promise;
 
       // sendKeyboardSubmitSuffix routes '\n' through keyboardKeyTap('enter')
       expect(mockKeyboardTypeString).toHaveBeenCalledWith('send');

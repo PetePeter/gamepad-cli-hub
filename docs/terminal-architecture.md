@@ -67,6 +67,45 @@ Session cards also display an elapsed timer showing time since last CLI output (
 
 Colors centralized in `renderer/state-colors.ts` via `getActivityColor()`.
 
+## Delivery & Recovery
+
+Programmatic text (inter-session `session_send_text`, Telegram, scheduled tasks) is written to the
+PTY in two parts: the text, then the submit suffix. They are never coalesced.
+
+**Why the gap matters.** Ink-based full-screen TUIs (Copilot CLI) ingest a paste asynchronously and
+only honour Enter once the composer has re-rendered. An Enter that lands mid-paste is swallowed, and
+the message sits on the prompt looking sent but never running. `SUBMIT_SETTLE_DELAY_MS`
+(`src/session/delivery-context.ts`) is the shared pause both halves of the pipeline wait before
+submitting — the main-process sequence executor and the renderer paste path.
+
+**Verification.** After delivery, `verifyDeliveryAfterDelay` polls the terminal tail's `lastOutputAt`.
+One advance means the CLI emitted something (usually the echo); a second advance means it moved past
+the echo and is generating. TUIs draw input inside ANSI boxes, so substring matching is unreliable —
+timestamps are not.
+
+**Recovery.** A failed pass is remedied, not just logged. Recovery mode is fixed by the first pass so
+a stuck CLI is never sent the same message twice. Callers delivering raw terminal control input pass
+`retrySubmit: false` to disable it — re-sending arrows or Esc would move a TUI somewhere unintended.
+
+```mermaid
+flowchart TD
+    D[Write text] --> S[Settle: SUBMIT_SETTLE_DELAY_MS]
+    S --> E[Write submit suffix]
+    E --> V{Verification pass<br/>tail advanced twice?}
+    V -->|yes| C[confirmed]
+    V -->|once, then stalled| ST[suspected_stuck<br/>text is on the prompt]
+    V -->|never| NS[no_signal<br/>text likely never arrived]
+    ST --> R1[Re-send suffix only<br/>max 2 attempts]
+    NS --> R2[Re-send text + suffix<br/>max 1 attempt]
+    R1 --> V2{Moved?}
+    R2 --> V2
+    V2 -->|yes| RC[retry_confirmed]
+    V2 -->|no| RF[retry_failed]
+```
+
+`session_send_text` and `session_send_input` return `deliveryStatus` and `retryCount` alongside
+`verified`, so an unattended caller can tell "the CLI is working on it" from "it never got sent".
+
 ## Key Modules
 
 | Module | File | Role |
