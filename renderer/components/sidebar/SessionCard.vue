@@ -27,6 +27,7 @@ export interface SessionCardSession {
   lastActiveAt?: number;
   /** Remote Fleet peer that created this session, when spawned over the peer proxy. */
   createdByPeerId?: string;
+  locked?: boolean;
 }
 
 export type SessionCardFocusColumn = 0 | 1 | 2 | 3 | 4;
@@ -257,6 +258,7 @@ function onCardClick(e: MouseEvent): void {
     <div class="session-top-row">
       <span class="session-activity-dot" :style="{ background: dotColor }" />
       <span v-if="isSnappedOut" class="snap-indicator" title="Snapped out">📤</span>
+      <span v-if="session.locked" class="snap-indicator" title="Session locked against closure">🔒</span>
 
       <button
         class="session-state-btn"
@@ -329,7 +331,8 @@ function onCardClick(e: MouseEvent): void {
       <button
         class="session-close"
         :class="colClass(4)"
-        :title="`Close ${displayName}`"
+        :title="session.locked ? `${displayName} is locked` : `Close ${displayName}`"
+        :disabled="session.locked"
         @click.stop="emit('close', session.id, displayName)"
       >
         ✕

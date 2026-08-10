@@ -61,6 +61,8 @@ export interface SessionInfo {
    *  by an inbound peer proxy call rather than locally. Drives the sidebar's
    *  peer-created card tint. Persists across restarts. */
   createdByPeerId?: string;
+  /** Prevent deliberate user, MCP, or Telegram closure until explicitly cleared. */
+  locked?: boolean;
 }
 
 /**

@@ -131,6 +131,8 @@ export class ScheduledTaskManager extends EventEmitter {
     if (Object.prototype.hasOwnProperty.call(updates, 'cronExpression')) task.cronExpression = updates.cronExpression;
     if (Object.prototype.hasOwnProperty.call(updates, 'endDate')) task.endDate = updates.endDate;
     if (updates.dirPath !== undefined) task.dirPath = updates.dirPath;
+    if (updates.mode !== undefined) task.mode = updates.mode;
+    if (Object.prototype.hasOwnProperty.call(updates, 'targetSessionId')) task.targetSessionId = updates.targetSessionId;
     task.nextRunAt = this.computeInitialNextRunAt(task.scheduleKind ?? 'once', task.scheduledTime, task.cronExpression, task.endDate);
 
     this.saveTasks();
@@ -539,7 +541,7 @@ export class ScheduledTaskManager extends EventEmitter {
     }
     try {
       if (this.sessionManager.getSession(sessionId)) {
-        this.sessionManager.removeSession(sessionId);
+        this.sessionManager.removeSession(sessionId, { force: true });
       }
     } catch (error) {
       logger.warn(`[ScheduledTaskManager] Failed to remove scheduled session ${sessionId}: ${error}`);

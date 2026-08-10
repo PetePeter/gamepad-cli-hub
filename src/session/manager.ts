@@ -72,10 +72,13 @@ export class SessionManager extends EventEmitter {
    * Remove a session
    * @param sessionId - Session ID to remove
    */
-  removeSession(sessionId: string): void {
+  removeSession(sessionId: string, options: { force?: boolean } = {}): void {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session with id "${sessionId}" does not exist`);
+    }
+    if (session.locked && !options.force) {
+      throw new Error(`Session "${session.name}" is locked and cannot be closed`);
     }
 
     this.sessions.delete(sessionId);
@@ -209,6 +212,20 @@ export class SessionManager extends EventEmitter {
       timestamp: Date.now(),
     };
     this.emit('session:updated', event);
+  }
+
+  /** Throw when a deliberate close operation targets a locked session. */
+  assertSessionClosable(sessionId: string): SessionInfo {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error(`Session with id "${sessionId}" does not exist`);
+    if (session.locked) throw new Error(`Session "${session.name}" is locked and cannot be closed`);
+    return session;
+  }
+
+  /** Persist a session lock change and notify every projection. */
+  setSessionLocked(sessionId: string, locked: boolean): SessionInfo {
+    this.updateSession(sessionId, { locked });
+    return this.sessions.get(sessionId)!;
   }
 
   /**

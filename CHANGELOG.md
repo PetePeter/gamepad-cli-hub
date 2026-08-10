@@ -2,6 +2,17 @@
 
 All notable changes to gamepad-cli-hub are documented in this file.
 
+## [2.2.0] - 2026-08-10
+
+### Features
+
+- **Caller-bound self-timers** — MCP direct schedules can target `"caller"`, resolving the authenticated Helm session once and retaining that target across restarts. The schedule editor reopens with the correct target session selected.
+- **Session locks** — Sessions can be durably locked or unlocked through `session_set_locked`. Locks prevent deliberate closure from the desktop, MCP, Telegram, runtime-group close, and force restart.
+
+### Improvements
+
+- **Clear lock visibility** — Locked sessions display a lock indicator and disable their desktop close control. Process-exit cleanup remains safe, while force restarts explicitly reject locked sessions.
+
 ## [1.9.0] - 2026-06-16
 
 ### Features

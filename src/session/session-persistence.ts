@@ -22,6 +22,7 @@ function serializeSession(s: SessionInfo): Record<string, unknown> {
     ...(s.createdAt != null ? { createdAt: s.createdAt } : {}),
     ...(s.lastActiveAt != null ? { lastActiveAt: s.lastActiveAt } : {}),
     ...(s.createdByPeerId ? { createdByPeerId: s.createdByPeerId } : {}),
+    ...(s.locked ? { locked: true } : {}),
   };
 }
 

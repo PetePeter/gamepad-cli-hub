@@ -92,8 +92,12 @@ export function setupSessionHandlers(
   });
 
   ipcMain.handle('session:remove', (_event, id: string) => {
-    sessionManager.removeSession(id);
-    return { success: true };
+    try {
+      sessionManager.removeSession(id);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
   });
 
   ipcMain.handle('session:rename', (_event, id: string, newName: string) => {
@@ -119,6 +123,9 @@ export function setupSessionHandlers(
       const session = sessionManager.getSession(id);
       if (!session) {
         return { success: false, error: 'Session not found' };
+      }
+      if (session.locked) {
+        return { success: false, error: `Session "${session.name}" is locked and cannot be closed` };
       }
 
       try {

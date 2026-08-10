@@ -525,6 +525,11 @@ export async function callMcpTool(
           asString(args.sessionId ?? args.name, 'sessionId or name is required'),
           asAiagentState(args.state, 'state must be one of planning, implementing, completed, or idle'),
         );
+      case 'session_set_locked':
+        return service.setSessionLocked(
+          asString(args.sessionId ?? args.name, 'sessionId or name is required'),
+          requireBooleanResult(args.locked, 'locked is required'),
+        );
       case 'session_rename':
         return service.renameSession(
           asString(args.sessionId ?? args.name, 'sessionId or name is required'),
@@ -587,6 +592,12 @@ export async function callMcpTool(
         return service.closeTelegramChannel(asString(args.channelId, 'channelId is required'));
       case 'scheduler_create': {
         const planIds = (args.planIds as string[] | undefined) ?? [];
+        const targetSessionId = args.targetSession === 'caller'
+          ? requireCallerSession(authContext, 'scheduler_create')
+          : args.targetSessionId as string | undefined;
+        if (args.targetSession !== undefined && args.targetSession !== 'caller') {
+          throw new Error('targetSession must be "caller" when provided');
+        }
         return service.createScheduledTask({
           title: asString(args.title, 'title is required'),
           description: args.description as string | undefined,
@@ -600,7 +611,7 @@ export async function callMcpTool(
           endDate: args.endDate as string | undefined,
           planIds,
           mode: args.mode as 'spawn' | 'direct' | undefined,
-          targetSessionId: args.targetSessionId as string | undefined,
+          targetSessionId,
         });
       }
       case 'scheduler_list':
@@ -611,6 +622,12 @@ export async function callMcpTool(
         const id = asString(args.id, 'id is required');
         const updates: Record<string, unknown> = { ...args };
         delete updates.id;
+        if (updates.targetSession === 'caller') {
+          updates.targetSessionId = requireCallerSession(authContext, 'scheduler_update');
+        } else if (updates.targetSession !== undefined) {
+          throw new Error('targetSession must be "caller" when provided');
+        }
+        delete updates.targetSession;
         if (typeof updates.planIds === 'undefined') delete updates.planIds;
         return service.updateScheduledTask(id, updates as Parameters<typeof service.updateScheduledTask>[1]);
       }

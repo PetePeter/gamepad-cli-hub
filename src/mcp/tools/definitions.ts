@@ -1008,6 +1008,21 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'session_set_locked',
+    title: 'Set Session Lock',
+    description: 'Set or clear the durable closure lock for a Helm session. A locked session rejects deliberate close operations from the desktop, MCP, Telegram, group close, and force restart. Accepts sessionId or exact session name.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        name: { type: 'string' },
+        locked: { type: 'boolean', description: 'true locks the session; false clears the lock.' },
+      },
+      required: ['locked'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'session_close',
     title: 'Close Session',
     description: 'Kill the PTY process and remove a session from Helm. Use this when a task is complete and the session is no longer needed, or to recover from a stuck session. Accepts sessionId or session name.',
@@ -1127,7 +1142,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'scheduler_create',
     title: 'Create Scheduler Entry',
-    description: 'Create a new scheduled task. The task will spawn a CLI session at the specified time with the given prompt. Use scheduleKind "once", "interval" (min 1 minute interval), or "cron" with a cronExpression. scheduledTime is an ISO 8601 date string.',
+    description: 'Create a scheduled task. Use mode "spawn" to launch a CLI session, or "direct" to send a prompt to an existing session. For a self-timer, pass targetSession:"caller"; Helm resolves the authenticated creating session and stores its ID durably. Use scheduleKind "once", "interval" (min 1 minute interval), or "cron" with a cronExpression. scheduledTime is an ISO 8601 date string.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1144,6 +1159,7 @@ export const MCP_TOOLS: McpTool[] = [
         planIds: { type: 'array', items: { type: 'string' }, description: 'Associated plan IDs' },
         mode: { type: 'string', enum: ['spawn', 'direct'], description: 'spawn new session or send to existing (default: spawn)' },
         targetSessionId: { type: 'string', description: 'Session ID for direct mode' },
+        targetSession: { type: 'string', enum: ['caller'], description: 'For direct mode, target the authenticated session that creates this schedule.' },
       },
       required: ['title', 'initialPrompt', 'cliType', 'dirPath', 'scheduledTime'],
       additionalProperties: false,
@@ -1193,6 +1209,7 @@ export const MCP_TOOLS: McpTool[] = [
         planIds: { type: 'array', items: { type: 'string' } },
         mode: { type: 'string', enum: ['spawn', 'direct'] },
         targetSessionId: { type: 'string' },
+        targetSession: { type: 'string', enum: ['caller'], description: 'Replace the direct target with the authenticated calling session.' },
       },
       required: ['id'],
       additionalProperties: false,

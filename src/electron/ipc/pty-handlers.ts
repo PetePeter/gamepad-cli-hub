@@ -175,7 +175,7 @@ export function setupPtyHandlers(
     patternMatcher?.removeSession(sessionId);
     notificationManager?.removeSession(sessionId);
     if (sessionManager.hasSession(sessionId)) {
-      sessionManager.removeSession(sessionId);
+      sessionManager.removeSession(sessionId, { force: true });
     }
 
     if (snappedWindowId !== undefined) {

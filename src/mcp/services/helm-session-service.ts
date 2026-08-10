@@ -167,6 +167,9 @@ export class HelmSessionService {
     if (!session) {
       throw new Error(`Session not found: ${sessionRef}`);
     }
+    if (session.locked) {
+      throw new Error(`Session "${session.name}" is locked and cannot be closed`);
+    }
     try {
       this.ptyManager.kill(session.id);
     } catch (killError) {
@@ -174,6 +177,13 @@ export class HelmSessionService {
     }
     this.sessionManager.removeSession(session.id);
     return { ok: true };
+  }
+
+  setSessionLocked(sessionRef: string, locked: boolean): { ok: true; locked: boolean } {
+    const session = this.findSession(sessionRef);
+    if (!session) throw new Error(`Session not found: ${sessionRef}`);
+    this.sessionManager.setSessionLocked(session.id, locked);
+    return { ok: true, locked };
   }
 
   renameSession(sessionRef: string, name: string): { ok: true } {
@@ -257,6 +267,7 @@ export class HelmSessionService {
         : {}),
       ...(session.createdByPeerId ? { createdByPeerId: session.createdByPeerId } : {}),
       ...(session.aiagentState ? { aiagentState: session.aiagentState } : {}),
+      ...(session.locked ? { locked: true } : {}),
     };
   }
 

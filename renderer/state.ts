@@ -26,6 +26,8 @@ export interface Session {
   lastActiveAt?: number;
   /** Remote Fleet peer that created this session, when spawned over the peer proxy. */
   createdByPeerId?: string;
+  /** True when deliberate closure is blocked until unlocked. */
+  locked?: boolean;
 }
 
 export interface ProjectSummary {

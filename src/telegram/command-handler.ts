@@ -219,6 +219,10 @@ async function handleClose(
     await bot.sendMessage('❌ No session linked to this topic.', { message_thread_id: topicId });
     return;
   }
+  if (session.locked) {
+    await bot.sendMessage(`🔒 ${escapeHtml(session.name)} is locked and cannot be closed.`, { message_thread_id: topicId });
+    return;
+  }
 
   ptyManager.kill(session.id);
 

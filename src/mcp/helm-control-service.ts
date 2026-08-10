@@ -74,6 +74,8 @@ export interface SessionSummary {
   aiagentState?: 'planning' | 'implementing' | 'completed' | 'idle';
   /** Remote Fleet peer that created this session, when spawned over the peer proxy. */
   createdByPeerId?: string;
+  /** True when deliberate session closure is blocked. */
+  locked?: boolean;
 }
 
 export interface CliSummary {
@@ -671,6 +673,10 @@ export class HelmControlService extends EventEmitter {
     return this.sessionService.closeSession(sessionRef);
   }
 
+  setSessionLocked(sessionRef: string, locked: boolean) {
+    return this.sessionService.setSessionLocked(sessionRef, locked);
+  }
+
   // ---------------------------------------------------------------------------
   // User-managed skills
   // ---------------------------------------------------------------------------
@@ -774,6 +780,10 @@ export class HelmControlService extends EventEmitter {
     let sessionsClosed = 0;
     if (!resume) {
       const sessions = this.sessionService.listSessions();
+      const locked = sessions.filter((session) => session.locked);
+      if (locked.length > 0) {
+        throw new Error(`Cannot force-restart while locked sessions exist: ${locked.map((session) => session.name).join(', ')}`);
+      }
       for (const session of sessions) {
         try {
           this.sessionService.closeSession(session.id);

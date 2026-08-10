@@ -72,6 +72,10 @@ export function initTelegramModules(
       }
       topicManager.handleTopicClosed(topicId);
       if (session) {
+        if (session.locked) {
+          logger.info(`[Telegram] Preserving locked session ${session.id} after its topic closed`);
+          return;
+        }
         try { ptyManager.kill(session.id); } catch { /* already dead */ }
         sessionManager.removeSession(session.id);
       }

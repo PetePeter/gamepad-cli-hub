@@ -669,6 +669,10 @@ async function handleCloseSession(
     await bot.answerCallback(query.id, '❌ Session not found');
     return;
   }
+  if (session.locked) {
+    await bot.answerCallback(query.id, `🔒 ${session.name} is locked`);
+    return;
+  }
   await bot.answerCallback(query.id, `🔴 Closing ${session.name}…`);
   ptyManager.kill(sessionId);
   if (sessionManager.hasSession(sessionId)) {
@@ -695,7 +699,9 @@ async function handleCloseAll(
   }
 
   let closed = 0;
+  let locked = 0;
   for (const session of sessions) {
+    if (session.locked) { locked++; continue; }
     try {
       ptyManager.kill(session.id);
       // removeSession triggers session:removed → topic cleanup + notifier/mirror/summarizer cleanup
@@ -709,7 +715,7 @@ async function handleCloseAll(
     }
   }
 
-  await bot.answerCallback(query.id, `🗑️ Closed ${closed} session(s)`);
+  await bot.answerCallback(query.id, `🗑️ Closed ${closed} session(s)${locked ? `; ${locked} locked` : ''}`);
 }
 
 // ---------------------------------------------------------------------------

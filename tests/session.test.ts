@@ -137,6 +137,16 @@ describe('SessionManager', () => {
         'Session with id "non-existent" does not exist'
       );
     });
+
+    it('rejects ordinary removal of a locked session but permits forced cleanup', () => {
+      manager.addSession({ ...mockSession1, locked: true });
+
+      expect(() => manager.removeSession(mockSession1.id)).toThrow('is locked and cannot be closed');
+      expect(manager.getSession(mockSession1.id)).not.toBeNull();
+
+      manager.removeSession(mockSession1.id, { force: true });
+      expect(manager.getSession(mockSession1.id)).toBeNull();
+    });
   });
 
   describe('nextSession', () => {

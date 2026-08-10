@@ -69,7 +69,12 @@ const modalStack = useModalStack();
 
 const sessionsForDir = computed(() => {
   if (formMode.value !== 'direct' || !selectedDirPath.value) return [];
-  return availableSessions.value.filter(s => s.workingDir === selectedDirPath.value);
+  const inDirectory = availableSessions.value.filter(s => s.workingDir === selectedDirPath.value);
+  // A stored direct target is authoritative. Keep it visible in the editor even
+  // if its directory metadata later differs, so the schedule info/edit popup
+  // always shows the session this task will actually target.
+  const selected = availableSessions.value.find(s => s.id === selectedTargetSessionId.value);
+  return selected && !inDirectory.some(s => s.id === selected.id) ? [selected, ...inDirectory] : inDirectory;
 });
 
 const canCreate = computed(() => {
