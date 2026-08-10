@@ -15,6 +15,7 @@ const artifactDeleteAll = vi.fn().mockResolvedValue(true);
 const artifactExport = vi.fn().mockResolvedValue('/tmp/out.md');
 const artifactOpenExternal = vi.fn().mockResolvedValue({ success: true, path: '/tmp/a.md' });
 const artifactPrepareRender = vi.fn().mockResolvedValue('nonce-1');
+const artifactCreateWithFile = vi.fn();
 const systemOpenExternalUrl = vi.fn().mockResolvedValue(true);
 
 vi.mock('../../../renderer/ipc/clients.js', () => ({
@@ -25,6 +26,7 @@ vi.mock('../../../renderer/ipc/clients.js', () => ({
     artifactExport: (...a: unknown[]) => artifactExport(...a),
     artifactOpenExternal: (...a: unknown[]) => artifactOpenExternal(...a),
     artifactPrepareRender: (...a: unknown[]) => artifactPrepareRender(...a),
+    artifactCreateWithFile: (...a: unknown[]) => artifactCreateWithFile(...a),
   },
   systemClient: {
     systemOpenExternalUrl: (...a: unknown[]) => systemOpenExternalUrl(...a),
@@ -74,6 +76,7 @@ beforeEach(() => {
   artifactExport.mockResolvedValue('/tmp/out.md');
   artifactOpenExternal.mockResolvedValue({ success: true, path: '/tmp/a.md' });
   artifactPrepareRender.mockResolvedValue('nonce-1');
+  artifactCreateWithFile.mockResolvedValue({ artifact: makeArtifact({ id: 'pasted-file' }) });
   systemOpenExternalUrl.mockResolvedValue(true);
 });
 
@@ -156,6 +159,26 @@ describe('ArtifactViewer — artifact frame link bridge', () => {
 });
 
 describe('ArtifactViewer', () => {
+  it('pastes an arbitrary clipboard file through the attachment IPC path', async () => {
+    const { w } = await mountWith([makeArtifact()]);
+    const file = new File([new Uint8Array([0, 1, 255])], 'capture.dat', {
+      type: 'application/octet-stream',
+    });
+
+    await w.find('.artifact-panel').trigger('paste', {
+      clipboardData: {
+        items: [{ kind: 'file', getAsFile: () => file }],
+      },
+    });
+    await flushPromises();
+
+    expect(artifactCreateWithFile).toHaveBeenCalledWith('sess-1', {
+      filename: 'capture.dat',
+      contentBase64: 'AAH/',
+      contentType: 'application/octet-stream',
+    });
+  });
+
   it('lists artifacts and auto-selects the newest, rendering its latest version', async () => {
     const b = makeArtifact({ id: 'b1', title: 'Perf Benchmark', updatedAt: Date.now() - 5000, createdAt: Date.now() - 5000 });
     const { w } = await mountWith([makeArtifact(), b]);

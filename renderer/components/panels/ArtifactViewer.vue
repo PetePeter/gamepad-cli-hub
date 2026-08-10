@@ -23,6 +23,7 @@ import { renderArtifact } from '../../artifacts/render-artifact.js';
 import { buildArtifactDocument, OPEN_URL_MESSAGE } from '../../artifacts/build-artifact-document.js';
 import { formatHelmRef } from '../../lib/helm-ref.js';
 import { artifactsClient, systemClient } from '../../ipc/clients.js';
+import { clipboardFileInput } from '../../artifacts/clipboard-file.js';
 import type { Artifact } from '../../../src/types/artifact.js';
 
 const props = defineProps<{ sessionId: string }>();
@@ -285,18 +286,23 @@ async function onCreateFromClipboard(): Promise<void> {
   try {
     const items = await navigator.clipboard.read();
     for (const item of items) {
-      if (item.types.includes('text/plain')) {
-        const blob = await item.getType('text/plain');
-        const text = await blob.text();
-        if (text.trim()) {
-          isCreatingText.value = true;
-          newTextTitle.value = 'Pasted note';
-          newTextContent.value = text;
-        }
+      // Prefer a file-like representation when a clipboard item has both an
+      // image/binary type and text/plain (common for copied screenshots).
+      const fileType = item.types.find(type => type !== 'text/plain');
+      if (fileType) {
+        await createArtifactFromBlob(await item.getType(fileType));
         return;
       }
+      if (!item.types.includes('text/plain')) continue;
+      const text = await (await item.getType('text/plain')).text();
+      if (text.trim()) {
+        isCreatingText.value = true;
+        newTextTitle.value = 'Pasted note';
+        newTextContent.value = text;
+      }
+      return;
     }
-    addToast({ message: 'No text in clipboard', type: 'error' });
+    addToast({ message: 'No supported clipboard item', type: 'error' });
   } catch {
     addToast({ message: 'Could not read clipboard', type: 'error' });
   }
@@ -342,50 +348,42 @@ async function onAttachFile(): Promise<void> {
   }
 }
 
-// ── Manual creation: paste handler (clipboard images) ─────────────────────
+// ── Manual creation: paste handler (clipboard files and binary) ────────────
 
 async function handlePaste(e: ClipboardEvent): Promise<void> {
-  // Only intercept paste when the detail pane is focused and not in text-creation mode
-  if (isCreatingText.value) return;
+  // Let editable controls keep their native paste behaviour.
+  if (isCreatingText.value || isEditablePasteTarget(e.target)) return;
 
   const items = e.clipboardData?.items;
   if (!items) return;
 
   for (const item of items) {
-    if (item.type.startsWith('image/')) {
-      e.preventDefault();
-      e.stopPropagation();
-      const blob = item.getAsFile();
-      if (blob) void handleImageBlob(blob);
-      return;
-    }
+    if (item.kind !== 'file') continue;
+    const file = item.getAsFile();
+    if (!file) continue;
+    e.preventDefault();
+    e.stopPropagation();
+    void createArtifactFromBlob(file, file.name);
+    return;
   }
 }
 
-async function handleImageBlob(blob: Blob): Promise<void> {
+function isEditablePasteTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement
+    && Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
+}
+
+async function createArtifactFromBlob(blob: Blob, filename?: string): Promise<void> {
   try {
-    const buffer = await blob.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
-    // Chunk the base64 conversion to avoid stack overflow on large images
-    let binary = '';
-    for (let i = 0; i < bytes.length; i += 8192) {
-      binary += String.fromCharCode(...bytes.slice(i, i + 8192));
-    }
-    const base64 = btoa(binary);
-    const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/jpeg' ? 'jpg' : blob.type === 'image/gif' ? 'gif' : blob.type === 'image/webp' ? 'webp' : 'png';
-    const filename = `pasted-image-${Date.now()}.${ext}`;
-    const artifact = await viewer.createFileArtifact({
-      filename,
-      contentBase64: base64,
-      contentType: blob.type,
-    });
+    const input = await clipboardFileInput(blob, filename);
+    const artifact = await viewer.createFileArtifact(input);
     if (artifact) {
-      addToast({ message: 'Image pasted', type: 'success' });
+      addToast({ message: input.contentType.startsWith('image/') ? 'Image pasted' : 'Clipboard file added', type: 'success' });
     } else {
-      addToast({ message: 'Failed to paste image', type: 'error' });
+      addToast({ message: 'Failed to add clipboard file', type: 'error' });
     }
   } catch {
-    addToast({ message: 'Failed to process image', type: 'error' });
+    addToast({ message: 'Failed to process clipboard file', type: 'error' });
   }
 }
 
@@ -413,18 +411,7 @@ async function onDrop(e: DragEvent): Promise<void> {
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     try {
-      const buffer = await file.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      let binary = '';
-      for (let j = 0; j < bytes.length; j += 8192) {
-        binary += String.fromCharCode(...bytes.slice(j, j + 8192));
-      }
-      const base64 = btoa(binary);
-      await viewer.createFileArtifact({
-        filename: file.name,
-        contentBase64: base64,
-        contentType: file.type || undefined,
-      });
+      await viewer.createFileArtifact(await clipboardFileInput(file, file.name));
     } catch {
       addToast({ message: `Failed to drop ${file.name}`, type: 'error' });
     }
