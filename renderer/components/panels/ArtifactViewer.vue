@@ -79,7 +79,7 @@ const renderedHtml = computed(() => {
   const a = selected.value;
   const v = shownVersion.value;
   if (!a || !v || isHtml.value) return '';
-  return renderArtifact(a.kind, v.content);
+  return renderArtifact(a.kind, v.content, a.source === 'manual');
 });
 
 // ── HTML artifacts: isolated document ───────────────────────────────────────
@@ -90,14 +90,25 @@ const renderedHtml = computed(() => {
 // silently stop the artifact's own scripts from ever running.
 const frameSrc = ref('');
 const frameRef = ref<HTMLIFrameElement | null>(null);
+let frameRequest = 0;
 
-watch([selected, shownVersion], async () => {
-  if (!isHtml.value || !shownVersion.value) {
+watch(() => {
+  const artifact = selected.value;
+  const version = shownVersion.value;
+  if (!artifact || artifact.kind !== 'html' || !version) return null;
+  // Refresh replaces artifact/version objects even when the selected document
+  // is unchanged. Watch stable content identity so a background list refresh
+  // does not reload an interactive frame or reset its scroll position.
+  return [artifact.id, version.version, version.content] as const;
+}, async (documentIdentity) => {
+  const request = ++frameRequest;
+  if (!documentIdentity) {
     frameSrc.value = '';
     return;
   }
-  const doc = buildArtifactDocument(shownVersion.value.content);
+  const doc = buildArtifactDocument(documentIdentity[2]);
   const nonce = await artifactsClient.artifactPrepareRender(doc);
+  if (request !== frameRequest) return;
   frameSrc.value = `helm-artifact://doc/?k=${encodeURIComponent(nonce)}`;
 }, { immediate: true });
 

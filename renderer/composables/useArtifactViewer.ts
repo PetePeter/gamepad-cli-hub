@@ -29,6 +29,8 @@ const unread = ref<Set<string>>(new Set());
 /** The session the panel is currently bound to (host-driven). */
 let activeSessionId: string | null = null;
 let subscribed = false;
+let refreshRequest = 0;
+let creationRequest = 0;
 
 function loadBool(key: string, fallback: boolean): boolean {
   try {
@@ -56,6 +58,7 @@ const unreadCount = computed(() => unread.value.size);
  * Auto-selects the newest artifact when nothing valid is selected.
  */
 async function refresh(sessionId: string | null = activeSessionId): Promise<void> {
+  const request = ++refreshRequest;
   activeSessionId = sessionId;
   if (!sessionId) {
     artifacts.value = [];
@@ -68,6 +71,7 @@ async function refresh(sessionId: string | null = activeSessionId): Promise<void
   } catch {
     list = [];
   }
+  if (request !== refreshRequest || sessionId !== activeSessionId) return;
   artifacts.value = list;
 
   // Drop unread markers + stale selection for artifacts that no longer exist.
@@ -175,10 +179,13 @@ async function openExternal(id: string, version?: number): Promise<{ success: bo
 
 /** Create a manual text/markdown artifact. Returns the artifact or null. */
 async function createTextArtifact(title: string, content: string, kind?: 'markdown' | 'html'): Promise<Artifact | null> {
-  if (!activeSessionId) return null;
+  const sessionId = activeSessionId;
+  const request = ++creationRequest;
+  if (!sessionId) return null;
   try {
-    const artifact = await artifactsClient.artifactCreateText(activeSessionId, title, content, kind);
-    void refresh(activeSessionId);
+    const artifact = await artifactsClient.artifactCreateText(sessionId, title, content, kind);
+    await refresh(sessionId);
+    if (artifact && request === creationRequest && activeSessionId === sessionId) select(artifact.id);
     return artifact ?? null;
   } catch { return null; }
 }
@@ -189,10 +196,13 @@ async function createFileArtifact(input: {
   contentBase64: string;
   contentType?: string;
 }): Promise<Artifact | null> {
-  if (!activeSessionId) return null;
+  const sessionId = activeSessionId;
+  const request = ++creationRequest;
+  if (!sessionId) return null;
   try {
-    const result = await artifactsClient.artifactCreateWithFile(activeSessionId, input);
-    void refresh(activeSessionId);
+    const result = await artifactsClient.artifactCreateWithFile(sessionId, input);
+    await refresh(sessionId);
+    if (result?.artifact && request === creationRequest && activeSessionId === sessionId) select(result.artifact.id);
     return result?.artifact ?? null;
   } catch { return null; }
 }

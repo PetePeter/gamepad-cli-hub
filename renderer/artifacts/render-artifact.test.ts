@@ -160,6 +160,17 @@ describe('renderArtifact — anchor href scheme lockdown', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderArtifact', () => {
+  it('preserves single newlines in pasted plain text', () => {
+    const out = renderArtifact('markdown', 'first line\nsecond line', true);
+    expect(out).toContain('first line<br>second line');
+  });
+
+  it('does not force breaks in ordinary markdown by default', () => {
+    const out = renderArtifact('markdown', 'first line\nsecond line');
+    expect(out).toContain('first line\nsecond line');
+    expect(out).not.toContain('<br>');
+  });
+
   it('renders safe markdown (headings, tables, code)', () => {
     const out = renderArtifact('markdown', '# Title\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n`code`');
     expect(out).toContain('<h1>Title</h1>');

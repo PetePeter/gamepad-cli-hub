@@ -170,10 +170,10 @@ const SANITIZE_OPTIONS = {
  * @param content Raw (untrusted) artifact body.
  * @returns Sanitized HTML string restricted to the document allowlist above.
  */
-export function renderArtifact(kind: ArtifactKind, content: string): string {
+export function renderArtifact(kind: ArtifactKind, content: string, preserveLineBreaks = false): string {
   let raw: string;
   if (kind === 'markdown') {
-    const parsed = md.parse(content ?? '');
+    const parsed = md.parse(content ?? '', { breaks: preserveLineBreaks });
     if (typeof parsed !== 'string') {
       throw new Error('[render-artifact] marked returned a Promise; expected synchronous output');
     }

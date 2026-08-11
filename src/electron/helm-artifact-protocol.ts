@@ -48,21 +48,28 @@ export function encodeHelmArtifactUrl(nonce: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Pending document (single slot)
+// Pending documents
 // ---------------------------------------------------------------------------
 
-// Only the document currently on screen is ever reachable. A single slot means
-// nothing accumulates across renders, and a stale frame holding an old URL
-// cannot re-read a document the user has navigated away from.
-let pending: { nonce: string; html: string } | null = null;
+// Preparing an iframe document is asynchronous across the renderer/main
+// boundary. A single slot let a later selection evict a frame whose navigation
+// had not started yet, leaving a perfectly valid artifact blank with a 404.
+// Keep a deliberately small, insertion-ordered cache instead. This preserves
+// isolation while allowing rapid selection changes and more than one viewer.
+export const MAX_PENDING_DOCUMENTS = 32;
+const pendingDocuments = new Map<string, string>();
 
 /**
- * Stores the document to be served next and returns its one-shot nonce.
- * Replaces any previously stored document.
+ * Stores a document to be served and returns its opaque nonce.
+ * The cache is bounded, so stale documents cannot accumulate indefinitely.
  */
 export function setPendingDocument(html: string): string {
   const nonce = randomUUID();
-  pending = { nonce, html };
+  if (pendingDocuments.size >= MAX_PENDING_DOCUMENTS) {
+    const oldestNonce = pendingDocuments.keys().next().value;
+    if (oldestNonce) pendingDocuments.delete(oldestNonce);
+  }
+  pendingDocuments.set(nonce, html);
   return nonce;
 }
 
@@ -83,10 +90,11 @@ export function setPendingDocument(html: string): string {
 export function registerHelmArtifactProtocol(protocol: Pick<Protocol, 'handle'>): void {
   protocol.handle('helm-artifact', async (request) => {
     const nonce = new URL(request.url).searchParams.get('k');
-    if (!nonce || pending === null || nonce !== pending.nonce) {
+    const html = nonce ? pendingDocuments.get(nonce) : undefined;
+    if (!nonce || html === undefined) {
       return new Response('No such artifact document', { status: 404 });
     }
-    return new Response(pending.html, {
+    return new Response(html, {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Content-Security-Policy': ARTIFACT_CSP,

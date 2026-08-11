@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   ARTIFACT_CSP,
+  MAX_PENDING_DOCUMENTS,
   encodeHelmArtifactUrl,
   setPendingDocument,
   registerHelmArtifactProtocol,
@@ -52,19 +53,26 @@ describe('helm-artifact:// protocol', () => {
     expect(res.status).toBe(404);
   });
 
-  // Single-slot by design: only the document currently on screen is reachable,
-  // so nothing accumulates and a stale frame cannot re-read an old document.
-  it('drops the previous document when a new one is stored', async () => {
+  it('keeps rapid consecutive documents reachable by their own nonce', async () => {
     const handle = captureHandler();
     const first = setPendingDocument('<p>first</p>');
     const second = setPendingDocument('<p>second</p>');
 
-    expect((await handle({ url: encodeHelmArtifactUrl(first) })).status).toBe(404);
+    expect(await (await handle({ url: encodeHelmArtifactUrl(first) })).text()).toContain('first');
     expect(await (await handle({ url: encodeHelmArtifactUrl(second) })).text()).toContain('second');
   });
 
   it('mints a distinct nonce per document', () => {
     expect(setPendingDocument('<p>a</p>')).not.toBe(setPendingDocument('<p>a</p>'));
+  });
+
+  it('bounds retained documents by evicting the oldest nonce', async () => {
+    const handle = captureHandler();
+    const first = setPendingDocument('<p>oldest</p>');
+    for (let index = 0; index < MAX_PENDING_DOCUMENTS; index++) {
+      setPendingDocument(`<p>${index}</p>`);
+    }
+    expect((await handle({ url: encodeHelmArtifactUrl(first) })).status).toBe(404);
   });
 
   describe('ARTIFACT_CSP', () => {

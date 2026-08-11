@@ -15,6 +15,7 @@ const artifactDeleteAll = vi.fn().mockResolvedValue(true);
 const artifactExport = vi.fn().mockResolvedValue('/tmp/out.md');
 const artifactOpenExternal = vi.fn().mockResolvedValue({ success: true, path: '/tmp/a.md' });
 const artifactPrepareRender = vi.fn().mockResolvedValue('nonce-1');
+const artifactCreateText = vi.fn();
 const artifactCreateWithFile = vi.fn();
 const systemOpenExternalUrl = vi.fn().mockResolvedValue(true);
 
@@ -26,6 +27,7 @@ vi.mock('../../../renderer/ipc/clients.js', () => ({
     artifactExport: (...a: unknown[]) => artifactExport(...a),
     artifactOpenExternal: (...a: unknown[]) => artifactOpenExternal(...a),
     artifactPrepareRender: (...a: unknown[]) => artifactPrepareRender(...a),
+    artifactCreateText: (...a: unknown[]) => artifactCreateText(...a),
     artifactCreateWithFile: (...a: unknown[]) => artifactCreateWithFile(...a),
   },
   systemClient: {
@@ -40,6 +42,12 @@ vi.mock('../../../renderer/ipc/clients.js', () => ({
 
 import ArtifactViewer from '../../../renderer/components/panels/ArtifactViewer.vue';
 import { useArtifactViewer } from '../../../renderer/composables/useArtifactViewer.js';
+
+const originalClipboard = navigator.clipboard;
+
+afterEach(() => {
+  Object.assign(navigator, { clipboard: originalClipboard });
+});
 
 function makeArtifact(over: Partial<Artifact> = {}): Artifact {
   const now = Date.now();
@@ -76,6 +84,7 @@ beforeEach(() => {
   artifactExport.mockResolvedValue('/tmp/out.md');
   artifactOpenExternal.mockResolvedValue({ success: true, path: '/tmp/a.md' });
   artifactPrepareRender.mockResolvedValue('nonce-1');
+  artifactCreateText.mockResolvedValue(makeArtifact({ id: 'text-note' }));
   artifactCreateWithFile.mockResolvedValue({ artifact: makeArtifact({ id: 'pasted-file' }) });
   systemOpenExternalUrl.mockResolvedValue(true);
 });
@@ -159,6 +168,43 @@ describe('ArtifactViewer — artifact frame link bridge', () => {
 });
 
 describe('ArtifactViewer', () => {
+  it('creates and selects a distinct artifact for each pasted text note', async () => {
+    const notes: Artifact[] = [];
+    let nextId = 1;
+    artifactCreateText.mockImplementation(async (_sessionId: string, title: string, content: string) => {
+      const artifact = makeArtifact({
+        id: `text-${nextId++}`,
+        title,
+        versions: [{ version: 1, content, createdAt: Date.now() }],
+      });
+      notes.unshift(artifact);
+      return artifact;
+    });
+    Object.assign(navigator, {
+      clipboard: {
+        read: vi.fn().mockResolvedValue([{
+          types: ['text/plain'],
+          getType: async () => new Blob(['first\nline'], { type: 'text/plain' }),
+        }]),
+      },
+    });
+
+    const { w, viewer } = await mountWith([]);
+    artifactList.mockImplementation(async () => [...notes]);
+    for (let i = 0; i < 2; i++) {
+      await w.find('.ap-btn-new').trigger('click');
+      await w.findAll('.dropdown-item')[1].trigger('click');
+      await flushPromises();
+      await w.find('.ap-btn--primary').trigger('click');
+      await flushPromises();
+    }
+
+    expect(artifactCreateText).toHaveBeenCalledTimes(2);
+    expect(notes).toHaveLength(2);
+    expect(viewer.selectedId.value).toBe('text-2');
+    expect(w.findAll('.ap-item')).toHaveLength(2);
+  });
+
   it('pastes an arbitrary clipboard file through the attachment IPC path', async () => {
     const { w } = await mountWith([makeArtifact()]);
     const file = new File([new Uint8Array([0, 1, 255])], 'capture.dat', {
