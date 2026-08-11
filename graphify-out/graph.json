@@ -18769,6 +18769,15 @@
       "norm_label": "normalizecmdinput()"
     },
     {
+      "label": "create-live-restore-point.mjs",
+      "file_type": "code",
+      "source_file": "scripts\\create-live-restore-point.mjs",
+      "source_location": "L1",
+      "id": "scripts_create_live_restore_point_mjs",
+      "community": 193,
+      "norm_label": "create-live-restore-point.mjs"
+    },
+    {
       "label": "binding-store.ts",
       "file_type": "code",
       "source_file": "src\\config\\binding-store.ts",
@@ -22779,7 +22788,7 @@
       "source_file": "src\\mcp\\guides\\agent-plan-guide.test.ts",
       "source_location": "L1",
       "id": "src_mcp_guides_agent_plan_guide_test_ts",
-      "community": 193,
+      "community": 194,
       "norm_label": "agent-plan-guide.test.ts"
     },
     {
@@ -22842,7 +22851,7 @@
       "source_file": "src\\mcp\\guides\\notification-guide.test.ts",
       "source_location": "L1",
       "id": "src_mcp_guides_notification_guide_test_ts",
-      "community": 194,
+      "community": 195,
       "norm_label": "notification-guide.test.ts"
     },
     {
@@ -22914,7 +22923,7 @@
       "source_file": "src\\mcp\\guides\\session-send-text-guide.test.ts",
       "source_location": "L1",
       "id": "src_mcp_guides_session_send_text_guide_test_ts",
-      "community": 195,
+      "community": 196,
       "norm_label": "session-send-text-guide.test.ts"
     },
     {
@@ -22941,7 +22950,7 @@
       "source_file": "src\\mcp\\guides\\startup-guide.test.ts",
       "source_location": "L1",
       "id": "src_mcp_guides_startup_guide_test_ts",
-      "community": 196,
+      "community": 197,
       "norm_label": "startup-guide.test.ts"
     },
     {
@@ -22968,7 +22977,7 @@
       "source_file": "src\\mcp\\guides\\telegram-guide.test.ts",
       "source_location": "L1",
       "id": "src_mcp_guides_telegram_guide_test_ts",
-      "community": 197,
+      "community": 198,
       "norm_label": "telegram-guide.test.ts"
     },
     {
@@ -26730,7 +26739,7 @@
       "source_file": "src\\mcp\\tools\\reminders.test.ts",
       "source_location": "L1",
       "id": "src_mcp_tools_reminders_test_ts",
-      "community": 198,
+      "community": 199,
       "norm_label": "reminders.test.ts"
     },
     {
@@ -33057,7 +33066,7 @@
       "source_file": "src\\session\\__tests__\\plan-read-tracker.test.ts",
       "source_location": "L1",
       "id": "src_session_tests_plan_read_tracker_test_ts",
-      "community": 199,
+      "community": 200,
       "norm_label": "plan-read-tracker.test.ts"
     },
     {
@@ -34308,7 +34317,7 @@
       "source_file": "src\\telegram\\piper-tts.test.ts",
       "source_location": "L1",
       "id": "src_telegram_piper_tts_test_ts",
-      "community": 200,
+      "community": 201,
       "norm_label": "piper-tts.test.ts"
     },
     {
@@ -35631,7 +35640,7 @@
       "source_file": "tests\\artifact-unread-dots.test.ts",
       "source_location": "L1",
       "id": "tests_artifact_unread_dots_test_ts",
-      "community": 201,
+      "community": 202,
       "norm_label": "artifact-unread-dots.test.ts"
     },
     {
@@ -36072,7 +36081,7 @@
       "source_file": "tests\\close-group-plan.test.ts",
       "source_location": "L1",
       "id": "tests_close_group_plan_test_ts",
-      "community": 202,
+      "community": 203,
       "norm_label": "close-group-plan.test.ts"
     },
     {
@@ -37215,7 +37224,7 @@
       "source_file": "tests\\initial-prompt.test.ts",
       "source_location": "L1",
       "id": "tests_initial_prompt_test_ts",
-      "community": 203,
+      "community": 204,
       "norm_label": "initial-prompt.test.ts"
     },
     {
@@ -38322,7 +38331,7 @@
       "source_file": "tests\\pinia-setup.ts",
       "source_location": "L1",
       "id": "tests_pinia_setup_ts",
-      "community": 204,
+      "community": 205,
       "norm_label": "pinia-setup.ts"
     },
     {
@@ -38376,7 +38385,7 @@
       "source_file": "tests\\pipeline-queue.test.ts",
       "source_location": "L1",
       "id": "tests_pipeline_queue_test_ts",
-      "community": 205,
+      "community": 206,
       "norm_label": "pipeline-queue.test.ts"
     },
     {
@@ -38394,7 +38403,7 @@
       "source_file": "tests\\plan-backup-handlers.test.ts",
       "source_location": "L1",
       "id": "tests_plan_backup_handlers_test_ts",
-      "community": 206,
+      "community": 207,
       "norm_label": "plan-backup-handlers.test.ts"
     },
     {
@@ -39087,7 +39096,7 @@
       "source_file": "tests\\raw-paste-regression.test.ts",
       "source_location": "L1",
       "id": "tests_raw_paste_regression_test_ts",
-      "community": 207,
+      "community": 208,
       "norm_label": "raw-paste-regression.test.ts"
     },
     {
@@ -39330,7 +39339,7 @@
       "source_file": "tests\\runtime-group-drop.test.ts",
       "source_location": "L1",
       "id": "tests_runtime_group_drop_test_ts",
-      "community": 208,
+      "community": 209,
       "norm_label": "runtime-group-drop.test.ts"
     },
     {
@@ -39402,7 +39411,7 @@
       "source_file": "tests\\sequence-parser.test.ts",
       "source_location": "L1",
       "id": "tests_sequence_parser_test_ts",
-      "community": 209,
+      "community": 210,
       "norm_label": "sequence-parser.test.ts"
     },
     {
@@ -39411,7 +39420,7 @@
       "source_file": "tests\\sequence-session.test.ts",
       "source_location": "L1",
       "id": "tests_sequence_session_test_ts",
-      "community": 210,
+      "community": 211,
       "norm_label": "sequence-session.test.ts"
     },
     {
@@ -39996,7 +40005,7 @@
       "source_file": "tests\\state-detector.test.ts",
       "source_location": "L1",
       "id": "tests_state_detector_test_ts",
-      "community": 211,
+      "community": 212,
       "norm_label": "state-detector.test.ts"
     },
     {
@@ -40005,7 +40014,7 @@
       "source_file": "tests\\successor-pick.test.ts",
       "source_location": "L1",
       "id": "tests_successor_pick_test_ts",
-      "community": 212,
+      "community": 213,
       "norm_label": "successor-pick.test.ts"
     },
     {
@@ -40833,7 +40842,7 @@
       "source_file": "tests\\use-app-bootstrap-spawn.test.ts",
       "source_location": "L1",
       "id": "tests_use_app_bootstrap_spawn_test_ts",
-      "community": 213,
+      "community": 214,
       "norm_label": "use-app-bootstrap-spawn.test.ts"
     },
     {
@@ -40860,7 +40869,7 @@
       "source_file": "tests\\use-peers-fleet.test.ts",
       "source_location": "L1",
       "id": "tests_use_peers_fleet_test_ts",
-      "community": 214,
+      "community": 215,
       "norm_label": "use-peers-fleet.test.ts"
     },
     {
@@ -40905,7 +40914,7 @@
       "source_file": "tests\\user-data-migration.test.ts",
       "source_location": "L1",
       "id": "tests_user_data_migration_test_ts",
-      "community": 215,
+      "community": 216,
       "norm_label": "user-data-migration.test.ts"
     },
     {
@@ -42578,7 +42587,7 @@
       "file_type": "code",
       "source_file": "tests\\use-peers-federation.test.ts",
       "source_location": "L1",
-      "community": 216,
+      "community": 217,
       "norm_label": "use-peers-federation.test.ts",
       "id": "tests_use_peers_federation_test_ts"
     },
@@ -89218,9 +89227,9 @@
       "weight": 1.0,
       "_src": "renderer_artifacts_clipboard_file_ts",
       "_tgt": "artifacts_clipboard_file_extensionfor",
+      "confidence_score": 1.0,
       "source": "renderer_artifacts_clipboard_file_ts",
-      "target": "artifacts_clipboard_file_extensionfor",
-      "confidence_score": 1.0
+      "target": "artifacts_clipboard_file_extensionfor"
     },
     {
       "relation": "contains",
@@ -89230,9 +89239,9 @@
       "weight": 1.0,
       "_src": "renderer_artifacts_clipboard_file_ts",
       "_tgt": "artifacts_clipboard_file_generatedfilename",
+      "confidence_score": 1.0,
       "source": "renderer_artifacts_clipboard_file_ts",
-      "target": "artifacts_clipboard_file_generatedfilename",
-      "confidence_score": 1.0
+      "target": "artifacts_clipboard_file_generatedfilename"
     },
     {
       "relation": "contains",
@@ -89242,9 +89251,9 @@
       "weight": 1.0,
       "_src": "renderer_artifacts_clipboard_file_ts",
       "_tgt": "artifacts_clipboard_file_clipboardfileinput",
+      "confidence_score": 1.0,
       "source": "renderer_artifacts_clipboard_file_ts",
-      "target": "artifacts_clipboard_file_clipboardfileinput",
-      "confidence_score": 1.0
+      "target": "artifacts_clipboard_file_clipboardfileinput"
     },
     {
       "relation": "imports_from",
@@ -89252,11 +89261,11 @@
       "source_file": "tests\\clipboard-file.test.ts",
       "source_location": "L3",
       "weight": 1.0,
-      "_src": "tests_clipboard_file_test_ts",
-      "_tgt": "renderer_artifacts_clipboard_file_ts",
+      "_src": "renderer_artifacts_clipboard_file_ts",
+      "_tgt": "tests_clipboard_file_test_ts",
+      "confidence_score": 1.0,
       "source": "renderer_artifacts_clipboard_file_ts",
-      "target": "tests_clipboard_file_test_ts",
-      "confidence_score": 1.0
+      "target": "tests_clipboard_file_test_ts"
     },
     {
       "relation": "calls",
@@ -89264,11 +89273,11 @@
       "source_file": "renderer\\artifacts\\clipboard-file.ts",
       "source_location": "L29",
       "weight": 1.0,
-      "_src": "artifacts_clipboard_file_generatedfilename",
-      "_tgt": "artifacts_clipboard_file_extensionfor",
+      "_src": "artifacts_clipboard_file_extensionfor",
+      "_tgt": "artifacts_clipboard_file_generatedfilename",
+      "confidence_score": 1.0,
       "source": "artifacts_clipboard_file_extensionfor",
-      "target": "artifacts_clipboard_file_generatedfilename",
-      "confidence_score": 1.0
+      "target": "artifacts_clipboard_file_generatedfilename"
     },
     {
       "relation": "calls",
@@ -89276,11 +89285,11 @@
       "source_file": "renderer\\artifacts\\clipboard-file.ts",
       "source_location": "L40",
       "weight": 1.0,
-      "_src": "artifacts_clipboard_file_clipboardfileinput",
-      "_tgt": "artifacts_clipboard_file_generatedfilename",
+      "_src": "artifacts_clipboard_file_generatedfilename",
+      "_tgt": "artifacts_clipboard_file_clipboardfileinput",
+      "confidence_score": 1.0,
       "source": "artifacts_clipboard_file_generatedfilename",
-      "target": "artifacts_clipboard_file_clipboardfileinput",
-      "confidence_score": 1.0
+      "target": "artifacts_clipboard_file_clipboardfileinput"
     },
     {
       "relation": "imports_from",

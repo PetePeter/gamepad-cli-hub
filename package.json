@@ -14,6 +14,7 @@
     "build:renderer": "vite build --config vite.renderer.config.ts",
     "package": "npm run build && electron-builder --win --x64",
     "package:mac": "npm run build && electron-builder --mac",
+    "pretest": "node scripts/create-live-restore-point.mjs",
     "test": "vitest",
     "test:ui": "vitest --ui"
   },

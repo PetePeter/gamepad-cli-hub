@@ -1,11 +1,11 @@
 # Graph Report - gamepad-cli-hub  (2026-08-11)
 
 ## Corpus Check
-- 650 files · ~3,341,348 words
+- 651 files · ~3,341,668 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 4733 nodes · 9539 edges · 140 communities detected
+- 4734 nodes · 9539 edges · 140 communities detected
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 168 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
@@ -921,7 +921,7 @@ Nodes (1): FakeSessionManager
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `registerIPCHandlers()` connect `Community 0` to `Community 1`?**
-  _High betweenness centrality (0.282) - this node is a cross-community bridge._
+  _High betweenness centrality (0.286) - this node is a cross-community bridge._
 - **What connects `Stage clean seed configs into config-deploy/ (overlaid onto config/ by     elec`, `Run shell command, printing output in real-time.`, `Patch node-pty .gyp files to disable Spectre mitigation requirement.      VS 2` to the rest of the system?**
   _25 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 0` be split into smaller, more focused modules?**
