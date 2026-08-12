@@ -194,6 +194,16 @@ export class SessionManager extends EventEmitter {
   }
 
   /**
+   * Find a session by its display name.
+   * Returns undefined if not found or if multiple sessions share the same name
+   * (ambiguous match — prevents routing to the wrong session).
+   */
+  findByName(name: string): SessionInfo | undefined {
+    const matches = this.getAllSessions().filter(s => s.name === name);
+    return matches.length === 1 ? matches[0] : undefined;
+  }
+
+  /**
    * Update a session's fields in-place.
    * @param sessionId - Session ID
    * @param updates - Partial fields to update

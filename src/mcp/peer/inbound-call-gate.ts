@@ -45,14 +45,11 @@ export const RESERVED_PEER_TOOLS_METHOD = '__peer_tools__';
  */
 export const HARD_DENY_TOOLS: ReadonlySet<string> = new Set<string>([
   'restart_helm',
-  // Running-session killers: destructive to host/app lifecycle. A peer with a
-  // wildcard `*` allow-list could otherwise terminate ANY local session —
-  // including the orchestrator's own — or batch-kill a whole group. These must
-  // never be remotely invocable even under `*`. (session_create / project_* are
-  // intentionally NOT here: those are legitimate opt-in fleet gated by the
-  // per-peer allow-list.)
-  'session_close',
+  // Running-session group killer: destructive to host/app lifecycle. A peer with a
+  // wildcard `*` allow-list could otherwise batch-kill a whole group.
   'session_group_close',
+  // NOTE: session_close is NOT here — it is handled by the ownership gate below,
+  // allowing peers to close only sessions they created via session_create.
 ]);
 
 /**
@@ -92,6 +89,41 @@ export function wrapCallerIdentityOverrides(peerId: string, params: unknown): un
   return copy;
 }
 
+/**
+ * Tri-state result for session ownership checks.
+ * - `owned`: session exists and its createdByPeerId matches the calling peer.
+ * - `not-owned`: session exists but was created by a different peer or locally.
+ * - `not-found`: session reference missing, malformed, or session does not exist.
+ */
+type OwnershipResult = 'owned' | 'not-owned' | 'not-found';
+
+/**
+ * Check whether a peer owns the session targeted by a tool call.
+ * Returns `'owned'` only when the session's `createdByPeerId` matches the
+ * calling peer. All other outcomes (not-owned, not-found, missing params,
+ * no lookup) produce the same result so the gate can deny uniformly.
+ */
+function checkSessionOwnership(
+  params: unknown,
+  peerId: string,
+  lookup: InboundCallGateDeps['sessionLookup'],
+): OwnershipResult {
+  if (!lookup) return 'not-found';
+  if (!params || typeof params !== 'object' || Array.isArray(params)) return 'not-found';
+
+  const args = params as Record<string, unknown>;
+  const sessionId = typeof args.sessionId === 'string' ? args.sessionId : undefined;
+  const name = typeof args.name === 'string' ? args.name : undefined;
+  const ref = sessionId ?? name;
+
+  if (!ref) return 'not-found';
+
+  // Try by ID first, then by name — mirrors HelmSessionService.findSession.
+  const session = lookup.getSession(ref) ?? lookup.findByName(ref);
+  if (!session) return 'not-found';
+  return session.createdByPeerId === peerId ? 'owned' : 'not-owned';
+}
+
 /** JSON-RPC error shape the RemoteLink can serialize as {error:{code,message}}. */
 export class GateError extends Error {
   constructor(public readonly code: number, message: string) {
@@ -126,6 +158,14 @@ export interface InboundCallGateDeps {
   dispatch: (method: string, params: unknown, ctx: AuthContext) => Promise<unknown>;
   rateLimiter: PeerRateLimiter;
   audit: PeerAuditLog;
+  /**
+   * Optional session lookup for ownership-gated tools (e.g. session_close).
+   * If absent, ownership-gated tools fall back to hard-deny (safe default).
+   */
+  sessionLookup?: {
+    getSession(sessionId: string): { createdByPeerId?: string } | null;
+    findByName(name: string): { createdByPeerId?: string } | undefined;
+  };
   now?: () => number;
 }
 
@@ -134,6 +174,7 @@ export class InboundCallGate {
   private readonly dispatch: InboundCallGateDeps['dispatch'];
   private readonly rateLimiter: PeerRateLimiter;
   private readonly audit: PeerAuditLog;
+  private readonly sessionLookup: InboundCallGateDeps['sessionLookup'];
   private readonly now: () => number;
 
   constructor(deps: InboundCallGateDeps) {
@@ -141,6 +182,7 @@ export class InboundCallGate {
     this.dispatch = deps.dispatch;
     this.rateLimiter = deps.rateLimiter;
     this.audit = deps.audit;
+    this.sessionLookup = deps.sessionLookup;
     this.now = deps.now ?? Date.now;
   }
 
@@ -177,6 +219,18 @@ export class InboundCallGate {
     // 1. Hard-deny — never proxyable, even under a wildcard allow-list.
     if (HARD_DENY_TOOLS.has(method)) {
       return this.denied(peerId, method, argSummary);
+    }
+
+    // 1b. Ownership-gated tools — peer may only invoke these on sessions it
+    // created via session_create (tracked by createdByPeerId). Falls through
+    // to the allow-list check when ownership is confirmed. Uniform deny for
+    // all other outcomes (not-owned, not-found, missing ref) — no information
+    // leak about whether the session exists or who owns it.
+    if (method === 'session_close') {
+      const ownership = checkSessionOwnership(params, peerId, this.sessionLookup);
+      if (ownership !== 'owned') {
+        return this.denied(peerId, method, argSummary);
+      }
     }
 
     // 2. Per-peer allow-list — same uniform message (no existence leak).

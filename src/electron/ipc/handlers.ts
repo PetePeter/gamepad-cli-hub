@@ -485,6 +485,7 @@ export function registerIPCHandlers(
       localhostMcpServer.dispatchForPeer(method, asRecord(params), ctx),
     rateLimiter: createDefaultPeerRateLimiter(),
     audit: peerAuditLog,
+    sessionLookup: sessionManager,
   });
 
   // In-app fleet toggle (P-0658): ONE controller owns the LIVE transport +

@@ -56,6 +56,10 @@ function build(
     dispatchImpl?: (method: string, params: unknown, ctx: AuthContext) => Promise<unknown>;
     capacity?: number;
     enabledMap?: Record<string, boolean>;
+    sessionLookup?: {
+      getSession(sessionId: string): { createdByPeerId?: string } | null;
+      findByName(name: string): { createdByPeerId?: string } | undefined;
+    };
   } = {},
 ): Built {
   const now = opts.now ?? (() => 0);
@@ -77,6 +81,7 @@ function build(
     dispatch,
     rateLimiter,
     audit,
+    sessionLookup: opts.sessionLookup,
     now,
   });
   return { gate, audit, calls };
@@ -101,7 +106,7 @@ describe('InboundCallGate', () => {
 
   it('denies a disallowed tool: uniform error, no dispatch, audit denied', async () => {
     const { gate, audit, calls } = build({ mac: ['artifact_get'] });
-    await expect(gate.handle('mac', 'session_close', {})).rejects.toMatchObject({
+    await expect(gate.handle('mac', 'scheduler_list', {})).rejects.toMatchObject({
       code: -32000,
       message: 'Tool not permitted',
     });
@@ -287,12 +292,12 @@ describe('InboundCallGate', () => {
     expect(ctxSeen!.sessionId).toBe('peer:peer1');       // proxy is the only identity
   });
 
-  it('I-1: hard-denies session_close even with a wildcard allow-list', async () => {
+  it('I-1: denies session_close without sessionLookup (safe fallback — no ownership data)', async () => {
     const { gate, calls } = build({ mac: ['*'] });
     await expect(gate.handle('mac', 'session_close', { sessionId: 'x' }))
       .rejects.toMatchObject({ code: -32000, message: 'Tool not permitted' });
     expect(calls).toHaveLength(0);
-    expect(HARD_DENY_TOOLS.has('session_close')).toBe(true);
+    expect(HARD_DENY_TOOLS.has('session_close')).toBe(false); // no longer hard-denied
   });
 
   it('I-1: hard-denies session_group_close even with a wildcard allow-list', async () => {
@@ -307,9 +312,9 @@ describe('InboundCallGate', () => {
 describe('InboundCallGate — reserved __peer_tools__ meta-method', () => {
   it('returns MCP_TOOLS filtered by allow-list ∩ not-hard-denied; never dispatches', async () => {
     // Allow-list grants a set of session_* tools plus the hard-denied
-    // restart_helm/session_close: those two must STILL be excluded (hard-deny),
-    // a non-allowed tool (artifact_get) must be absent. (The fake matches exact
-    // names, mirroring the allow-list ∩ catalogue intersection.)
+    // restart_helm: those must STILL be excluded (hard-deny),
+    // a non-allowed tool (artifact_get) must be absent.
+    // session_close is NOT hard-denied (ownership-gated), so it appears.
     const { gate, calls } = build({
       mac: ['session_list', 'session_create', 'restart_helm', 'session_close'],
     });
@@ -322,9 +327,9 @@ describe('InboundCallGate — reserved __peer_tools__ meta-method', () => {
     // allow-listed, catalogued, not hard-denied → present
     expect(names).toContain('session_list');
     expect(names).toContain('session_create');
-    // hard-denied tools EXCLUDED even though allow-listed
+    expect(names).toContain('session_close'); // ownership-gated, NOT hard-denied
+    // hard-denied tool EXCLUDED even though allow-listed
     expect(names).not.toContain('restart_helm');
-    expect(names).not.toContain('session_close');
     // non-allowed tool absent
     expect(names).not.toContain('artifact_get');
 
@@ -436,5 +441,150 @@ describe('InboundCallGate — fleet sender wrapping', () => {
 
     expect(calls[0].ctx.sessionId).toBe('peer:mac');
     expect(isProxySessionId(calls[0].ctx.sessionId)).toBe(true);
+  });
+});
+
+describe('InboundCallGate — session_close ownership gate', () => {
+  /** Build a minimal sessionLookup for tests. Key = sessionId, value includes createdByPeerId. */
+  function fakeLookup(
+    sessions: Array<{ id: string; name: string; createdByPeerId?: string }>,
+  ) {
+    const byId = new Map(sessions.map(s => [s.id, { createdByPeerId: s.createdByPeerId }]));
+    return {
+      getSession(id: string) { return byId.get(id) ?? null; },
+      findByName(name: string) {
+        const matches = sessions.filter(s => s.name === name);
+        return matches.length === 1 ? { createdByPeerId: matches[0].createdByPeerId } : undefined;
+      },
+    };
+  }
+
+  it('allows peer to close a session it created (by sessionId)', async () => {
+    const lookup = fakeLookup([
+      { id: 's1', name: 'Worker', createdByPeerId: 'mac' },
+    ]);
+    const { gate, calls, audit } = build({ mac: ['*'] }, { sessionLookup: lookup });
+    expect(await gate.handle('mac', 'session_close', { sessionId: 's1' })).toEqual({ ok: true });
+    expect(calls).toHaveLength(1);
+    expect(audit.list()[0].outcome).toBe('ok');
+  });
+
+  it('allows peer to close a session it created (by name)', async () => {
+    const lookup = fakeLookup([
+      { id: 's1', name: 'Worker', createdByPeerId: 'mac' },
+    ]);
+    const { gate, calls } = build({ mac: ['*'] }, { sessionLookup: lookup });
+    expect(await gate.handle('mac', 'session_close', { name: 'Worker' })).toEqual({ ok: true });
+    expect(calls).toHaveLength(1);
+  });
+
+  it('denies peer closing a session created by another peer', async () => {
+    const lookup = fakeLookup([
+      { id: 's1', name: 'Worker', createdByPeerId: 'other-peer' },
+    ]);
+    const { gate, calls, audit } = build({ mac: ['*'] }, { sessionLookup: lookup });
+    await expect(gate.handle('mac', 'session_close', { sessionId: 's1' }))
+      .rejects.toMatchObject({ code: -32000, message: 'Tool not permitted' });
+    expect(calls).toHaveLength(0);
+    expect(audit.list()[0].outcome).toBe('denied');
+  });
+
+  it('denies peer closing a locally-created session (no createdByPeerId)', async () => {
+    const lookup = fakeLookup([
+      { id: 's1', name: 'Local', createdByPeerId: undefined },
+    ]);
+    const { gate, calls, audit } = build({ mac: ['*'] }, { sessionLookup: lookup });
+    await expect(gate.handle('mac', 'session_close', { sessionId: 's1' }))
+      .rejects.toMatchObject({ code: -32000, message: 'Tool not permitted' });
+    expect(calls).toHaveLength(0);
+    expect(audit.list()[0].outcome).toBe('denied');
+  });
+
+  it('denies peer closing a non-existent session (uniform message, no existence leak)', async () => {
+    const lookup = fakeLookup([
+      { id: 's1', name: 'Worker', createdByPeerId: 'mac' },
+    ]);
+    const { gate, calls } = build({ mac: ['*'] }, { sessionLookup: lookup });
+    await expect(gate.handle('mac', 'session_close', { sessionId: 'nonexistent' }))
+      .rejects.toMatchObject({ code: -32000, message: 'Tool not permitted' });
+    expect(calls).toHaveLength(0);
+    // Same message as an ownership denial — no leak
+  });
+
+  it('denies peer closing with missing sessionId and name', async () => {
+    const lookup = fakeLookup([
+      { id: 's1', name: 'Worker', createdByPeerId: 'mac' },
+    ]);
+    const { gate, calls } = build({ mac: ['*'] }, { sessionLookup: lookup });
+    await expect(gate.handle('mac', 'session_close', { foo: 'bar' }))
+      .rejects.toMatchObject({ code: -32000, message: 'Tool not permitted' });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('denies even with ownership if session_close is not in allow-list', async () => {
+    const lookup = fakeLookup([
+      { id: 's1', name: 'Worker', createdByPeerId: 'mac' },
+    ]);
+    // Peer has session_create but NOT session_close in allow-list
+    const { gate, calls, audit } = build({ mac: ['session_create'] }, { sessionLookup: lookup });
+    await expect(gate.handle('mac', 'session_close', { sessionId: 's1' }))
+      .rejects.toMatchObject({ code: -32000, message: 'Tool not permitted' });
+    expect(calls).toHaveLength(0);
+    expect(audit.list()[0].outcome).toBe('denied');
+  });
+
+  it('falls back to deny when sessionLookup is not provided', async () => {
+    const { gate, calls } = build({ mac: ['*'] });
+    await expect(gate.handle('mac', 'session_close', { sessionId: 's1' }))
+      .rejects.toMatchObject({ code: -32000, message: 'Tool not permitted' });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('denies when findByName returns undefined (ambiguous name)', async () => {
+    const lookup = fakeLookup([
+      { id: 's1', name: 'Worker', createdByPeerId: 'mac' },
+      { id: 's2', name: 'Worker', createdByPeerId: 'mac' }, // duplicate name
+    ]);
+    const { gate, calls } = build({ mac: ['*'] }, { sessionLookup: lookup });
+    await expect(gate.handle('mac', 'session_close', { name: 'Worker' }))
+      .rejects.toMatchObject({ code: -32000, message: 'Tool not permitted' });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('prefers sessionId over name when both present', async () => {
+    const lookup = fakeLookup([
+      { id: 's1', name: 'Worker', createdByPeerId: 'mac' },
+      { id: 's2', name: 'Other', createdByPeerId: 'other' },
+    ]);
+    const { gate, calls } = build({ mac: ['*'] }, { sessionLookup: lookup });
+    // sessionId matches peer, name would NOT match — sessionId wins
+    expect(await gate.handle('mac', 'session_close', { sessionId: 's1', name: 'Other' }))
+      .toEqual({ ok: true });
+    expect(calls).toHaveLength(1);
+  });
+
+  it('ownership denial is indistinguishable from allow-list denial (no information leak)', async () => {
+    const lookup = fakeLookup([
+      { id: 's1', name: 'Worker', createdByPeerId: 'other' },
+    ]);
+    const { gate } = build({ mac: ['session_close'] }, { sessionLookup: lookup });
+    let ownershipMsg = '';
+    await gate.handle('mac', 'session_close', { sessionId: 's1' }).catch(e => { ownershipMsg = e.message; });
+    // allow-list deny (different peer with empty list)
+    const { gate: gate2 } = build({ mac: [] });
+    let allowMsg = '';
+    await gate2.handle('mac', 'session_close', {}).catch(e => { allowMsg = e.message; });
+    expect(ownershipMsg).toBe(allowMsg);
+    expect(ownershipMsg).toBe('Tool not permitted');
+  });
+
+  it('handles malformed params (non-object) without crashing', async () => {
+    const lookup = fakeLookup([
+      { id: 's1', name: 'Worker', createdByPeerId: 'mac' },
+    ]);
+    const { gate, calls } = build({ mac: ['*'] }, { sessionLookup: lookup });
+    await expect(gate.handle('mac', 'session_close', 'not-an-object'))
+      .rejects.toMatchObject({ code: -32000, message: 'Tool not permitted' });
+    expect(calls).toHaveLength(0);
   });
 });
