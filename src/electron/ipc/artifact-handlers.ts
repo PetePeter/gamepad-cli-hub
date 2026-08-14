@@ -254,6 +254,16 @@ export function setupArtifactHandlers(
     return artifactManager.rename(artifactId, newTitle);
   });
 
+  /**
+   * Save an edited body as a NEW version (history is never rewritten). Blank
+   * content is refused rather than stored — an empty save is always a mistake,
+   * and it would otherwise leave the artifact showing nothing.
+   */
+  ipcMain.handle('artifact:update', (_event, artifactId: string, content: string) => {
+    if (typeof content !== 'string' || content.trim() === '') return null;
+    return artifactManager.update(artifactId, content);
+  });
+
   /** Open an attachment file in the system's default app. */
   ipcMain.handle('artifact:openAttachment', async (_event, artifactId: string, attachmentId: string) => {
     try {

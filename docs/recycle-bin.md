@@ -183,7 +183,10 @@ buildRecycleTree(entries, resolveProject, query)
   `projectId`/`projectName` existed), else the synthetic `(no project)` bucket
   (`NO_PROJECT_ID` / `NO_PROJECT_NAME`).
 - Ordering is deterministic, newest-first at every level.
-- Every level folds independently with a live descendant count.
+- Every level folds independently with a live descendant count. Nodes start
+  **collapsed** and their fold state is remembered across modal visits and app
+  restarts (`renderer/tree-collapse-state.ts` — expanded ids only, in
+  `localStorage`, namespaced per level so a project and a folder can share a key).
 - The search box filters across name / CLI / path and auto-hides emptied levels; the
   header count switches to **"N shown · last 30 days"**.
 - Rows show name + a plain-text CLI badge, the full working-dir path (tooltip +
@@ -212,6 +215,7 @@ list.
 | `src/electron/ipc/handlers.ts` | `session:removed` wiring (project + runtime-group resolution) |
 | `src/session/artifact-orphan-prune.ts` | `pruneOrphanArtifacts` at startup |
 | `renderer/recycle-bin-tree.ts` | Pure tree builder |
+| `renderer/tree-collapse-state.ts` | Persisted expand/collapse memory (reusable by any tree) |
 | `renderer/composables/useRecycleBin.ts` | Reactive state + the restore transaction |
 | `renderer/components/sidebar/RecycleBinModal.vue` | The tree UI |
 | `renderer/screens/sessions-spawn.ts` | `doSpawn` — shared with startup resume |

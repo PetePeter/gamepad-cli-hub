@@ -7,7 +7,8 @@
  *   Project ▸ Runtime Group ▸ Folder ▸ sessions
  * Ungrouped folders sit at the project's child level (no group wrapper). Every
  * level folds independently and shows a live descendant count. A search box
- * filters across name / CLI / path and hides emptied levels.
+ * filters across name / CLI / path and hides emptied levels. Nodes start
+ * collapsed and their fold state is remembered between visits.
  *
  * Restore re-spawns via the normal spawn-with-resume flow; Forget deletes a
  * single entry; per-folder bulk actions loop those same IPC calls; Empty clears
@@ -26,6 +27,7 @@ import {
   type RecycleFolderNode,
   type ResolveProject,
 } from '../../recycle-bin-tree.js';
+import { useTreeExpansion, type TreeNodeKind } from '../../tree-collapse-state.js';
 
 const MODAL_ID = 'recycle-bin';
 
@@ -58,6 +60,16 @@ const resolveProject: ResolveProject = (entry: RecycleBinEntry) => {
 };
 
 const tree = computed(() => buildRecycleTree(entries.value, resolveProject, query.value));
+
+/**
+ * Fold state persists across modal open/close (and restarts). Nodes start
+ * collapsed, so the bin opens compact and only what the user opened stays open.
+ */
+const expansion = useTreeExpansion('recycle-bin');
+
+function onToggle(kind: TreeNodeKind, key: string, event: Event): void {
+  expansion.setExpanded(kind, key, (event.target as HTMLDetailsElement).open);
+}
 const shownCount = computed(() => tree.value.reduce((sum, p) => sum + p.count, 0));
 const countLabel = computed(() =>
   query.value.trim()
@@ -170,7 +182,13 @@ defineExpose({ handleButton });
           <div v-if="entries.length === 0" class="rb-empty">No closed sessions to restore</div>
           <div v-else-if="tree.length === 0" class="rb-empty">No matches</div>
 
-          <details v-for="project in tree" :key="project.id" class="rb-tree rb-project" open>
+          <details
+            v-for="project in tree"
+            :key="project.id"
+            class="rb-tree rb-project"
+            :open="expansion.isExpanded('project', project.id)"
+            @toggle="onToggle('project', project.id, $event)"
+          >
             <summary>
               <span class="rb-tw" aria-hidden="true">▶</span>
               <span class="rb-p-icon" aria-hidden="true">📁</span>
@@ -180,13 +198,24 @@ defineExpose({ handleButton });
 
             <template v-for="child in project.children" :key="project.id + ':' + (child.kind === 'group' ? child.id : child.key)">
               <!-- Runtime group → contains one or more folders. -->
-              <details v-if="child.kind === 'group'" class="rb-tree rb-group" open>
+              <details
+                v-if="child.kind === 'group'"
+                class="rb-tree rb-group"
+                :open="expansion.isExpanded('group', child.id)"
+                @toggle="onToggle('group', child.id, $event)"
+              >
                 <summary>
                   <span class="rb-tw" aria-hidden="true">▶</span>
                   <span class="rb-g-label">🗂️ {{ child.name }}</span>
                   <span class="rb-node-count">{{ child.count }}</span>
                 </summary>
-                <details v-for="folder in child.folders" :key="folder.key" class="rb-tree rb-dir" open>
+                <details
+                  v-for="folder in child.folders"
+                  :key="folder.key"
+                  class="rb-tree rb-dir"
+                  :open="expansion.isExpanded('folder', folder.key)"
+                  @toggle="onToggle('folder', folder.key, $event)"
+                >
                   <summary>
                     <span class="rb-tw" aria-hidden="true">▶</span>
                     <span class="rb-d-label" :title="folder.fullPath">{{ folder.label }}</span>
@@ -219,7 +248,12 @@ defineExpose({ handleButton });
               </details>
 
               <!-- Ungrouped folder → sits directly under the project (no group wrapper). -->
-              <details v-else-if="child.kind === 'folder'" class="rb-tree rb-dir rb-dir--ungrouped" open>
+              <details
+                v-else-if="child.kind === 'folder'"
+                class="rb-tree rb-dir rb-dir--ungrouped"
+                :open="expansion.isExpanded('folder', child.key)"
+                @toggle="onToggle('folder', child.key, $event)"
+              >
                 <summary>
                   <span class="rb-tw" aria-hidden="true">▶</span>
                   <span class="rb-d-label" :title="child.fullPath">{{ child.label }}</span>

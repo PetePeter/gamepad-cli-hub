@@ -1111,6 +1111,10 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   artifactRename: (artifactId: string, newTitle: string): Promise<boolean> =>
     ipcRenderer.invoke('artifact:rename', artifactId, newTitle),
 
+  /** Save an edited artifact body as a new version. Null when refused/unknown. */
+  artifactUpdate: (artifactId: string, content: string): Promise<Artifact | null> =>
+    ipcRenderer.invoke('artifact:update', artifactId, content),
+
   /** Open an attachment file in the system's default app */
   artifactOpenAttachment: (artifactId: string, attachmentId: string): Promise<boolean> =>
     ipcRenderer.invoke('artifact:openAttachment', artifactId, attachmentId),

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
-import { buildArtifactDocument } from './build-artifact-document.js';
+import { buildArtifactDocument, READY_MESSAGE } from './build-artifact-document.js';
 import { ARTIFACT_BASE_CSS } from './artifact-base-css.js';
 
 /** A marker unique enough that a substring match proves the base CSS was injected. */
@@ -112,5 +112,12 @@ describe('buildArtifactDocument — document shape', () => {
   it('injects the link bridge so anchors still open externally', () => {
     const out = buildArtifactDocument('<a href="https://example.com">go</a>');
     expect(out).toContain('helm-artifact-open-url');
+  });
+
+  // The viewer treats a missing ready ping as "this document did not render"
+  // and offers Open externally instead, so the ping must always be emitted.
+  it('injects the ready ping the viewer waits for', () => {
+    const out = buildArtifactDocument('<p>hello</p>');
+    expect(out).toContain(READY_MESSAGE);
   });
 });

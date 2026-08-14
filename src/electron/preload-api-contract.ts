@@ -223,6 +223,7 @@ export const PRELOAD_API_DOMAINS = {
     'artifactCreateWithFile',
     'artifactPickAndReadFile',
     'artifactRename',
+    'artifactUpdate',
     'artifactOpenAttachment',
   ],
   peers: [

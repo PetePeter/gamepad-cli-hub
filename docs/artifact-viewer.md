@@ -66,7 +66,17 @@ Right-hand, resizable dock (width persisted). Master/detail so it scales to many
 artifacts:
 
 - **Index rail** (master): scrollable list, live search, sort (newest / recently-updated / A–Z), `Today` / `Earlier` group headers, unread dots, hover-delete, collapse handle.
-- **Detail pane**: sanitized render (see below), version bar (‹ › + dropdown + older-version banner + *Jump to latest*), footer with **Open externally / Export… / Copy reference / Delete**.
+- **Detail pane**: sanitized render (see below), version bar (title + ✎ rename + ‹ › + dropdown + older-version banner + *Jump to latest*), footer with **Edit / Open externally / Export… / Copy reference / Delete**.
+
+**Rename** is inline in the version bar — the ✎ button or a double-click on the
+title (`artifact:rename`, title-only, no new version).
+
+**Edit** opens the raw source of the shown version in place and saves it through
+`artifact:update`, i.e. as a **new version** — history is never rewritten. It is
+therefore offered on the latest version only; while an older one is on screen the
+button is disabled ("Jump to the latest version to edit"). Blank content is
+refused in the main process rather than stored, so a stray Save can never blank
+an artifact. Markdown and HTML both edit as source.
 
 **Open externally** writes the version *currently on screen* to a read-only temp
 file under `<appData>/Helm/tmp` (`helm-artifact-<sessionId>--<title>-<stamp>.md|.html`)
@@ -223,6 +233,19 @@ Links in the frame are inert by design, so an injected capture listener posts
 URLs via the same `shell.openExternal` route the markdown path uses. The parent
 gates on **`event.source === frame.contentWindow`** — the frame's opaque origin
 makes `event.origin` the useless string `"null"`.
+
+### When the frame renders nothing
+
+A document that fails to come up is *silent*: an iframe fires no error event, and
+a document carrying its own restrictive CSP can kill the injected bridge script
+while still "loading" fine. So the same injected script posts
+`{ type: 'helm-artifact-ready' }` once it runs, and the viewer treats **the
+absence of that ping within 1.5 s** as failure — it overlays the frame with a
+centred card offering **⧉ Open externally**, which routes through exactly the
+same handler as the footer button. Selecting another artifact resets the watch.
+
+Without this the user sees a blank panel and a footer button whose relevance is
+not obvious; the same document usually renders fine in a real browser.
 
 ### Limitations
 

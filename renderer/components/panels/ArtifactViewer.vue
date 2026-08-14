@@ -5,7 +5,9 @@
  * Master: a collapsible index rail (search + sort + Today/Earlier groups,
  * unread dots, hover-delete). Detail: the selected artifact rendered to
  * sanitized HTML with a version bar (‹ › + dropdown + older-version banner).
- * Footer: Open externally / Export… / Copy reference / Delete.
+ * Footer: Edit / Open externally / Export… / Copy reference / Delete. Editing
+ * is in-situ over the raw source and saves as a NEW version, so it is offered
+ * on the latest version only.
  * Header: title + count + pop-out + close.
  *
  * Supports manual artifact creation: text notes, file attachments via
@@ -20,7 +22,7 @@ import { computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useArtifactViewer } from '../../composables/useArtifactViewer.js';
 import { useToast } from '../../composables/useToast.js';
 import { renderArtifact } from '../../artifacts/render-artifact.js';
-import { buildArtifactDocument, OPEN_URL_MESSAGE } from '../../artifacts/build-artifact-document.js';
+import { buildArtifactDocument, OPEN_URL_MESSAGE, READY_MESSAGE } from '../../artifacts/build-artifact-document.js';
 import { formatHelmRef } from '../../lib/helm-ref.js';
 import { artifactsClient, systemClient } from '../../ipc/clients.js';
 import { clipboardFileInput } from '../../artifacts/clipboard-file.js';
@@ -92,6 +94,27 @@ const frameSrc = ref('');
 const frameRef = ref<HTMLIFrameElement | null>(null);
 let frameRequest = 0;
 
+/**
+ * A frame that never reports itself ready is a blank panel with nothing to
+ * click — the document's own CSP can kill the injected script, and an iframe
+ * gives no error event for that. So we wait for the ping and, failing it,
+ * surface the escape hatch (open externally) right where the content should be.
+ */
+const FRAME_READY_TIMEOUT_MS = 1500;
+const frameFailed = ref(false);
+let readyTimer: ReturnType<typeof setTimeout> | null = null;
+
+function stopReadyWatch(): void {
+  if (readyTimer !== null) clearTimeout(readyTimer);
+  readyTimer = null;
+}
+
+function startReadyWatch(): void {
+  stopReadyWatch();
+  frameFailed.value = false;
+  readyTimer = setTimeout(() => { frameFailed.value = true; }, FRAME_READY_TIMEOUT_MS);
+}
+
 watch(() => {
   const artifact = selected.value;
   const version = shownVersion.value;
@@ -103,6 +126,8 @@ watch(() => {
 }, async (documentIdentity) => {
   const request = ++frameRequest;
   if (!documentIdentity) {
+    stopReadyWatch();
+    frameFailed.value = false;
     frameSrc.value = '';
     return;
   }
@@ -110,6 +135,7 @@ watch(() => {
   const nonce = await artifactsClient.artifactPrepareRender(doc);
   if (request !== frameRequest) return;
   frameSrc.value = `helm-artifact://doc/?k=${encodeURIComponent(nonce)}`;
+  startReadyWatch();
 }, { immediate: true });
 
 /**
@@ -123,6 +149,11 @@ watch(() => {
 function onFrameMessage(e: MessageEvent): void {
   if (e.source !== frameRef.value?.contentWindow) return;
   const data = e.data as { type?: string; url?: string } | null;
+  if (data?.type === READY_MESSAGE) {
+    stopReadyWatch();
+    frameFailed.value = false;
+    return;
+  }
   if (data?.type !== OPEN_URL_MESSAGE) return;
   const url = data.url ?? '';
   if (/^https?:\/\//i.test(url)) void systemClient.systemOpenExternalUrl(url);
@@ -255,7 +286,12 @@ function onConfirmDelete(): void {
   confirmDelete.value = false;
   if (id) void viewer.remove(id);
 }
-watch(selectedId, () => { confirmDelete.value = false; openError.value = null; });
+watch(selectedId, () => {
+  confirmDelete.value = false;
+  openError.value = null;
+  isEditing.value = false;
+  isRenaming.value = false;
+});
 
 async function onCopyRef(): Promise<void> {
   const a = selected.value;
@@ -456,6 +492,38 @@ async function onCommitRename(): Promise<void> {
   if (!success) addToast({ message: 'Rename failed', type: 'error' });
 }
 
+// ── In-situ content edit ───────────────────────────────────────────────────
+
+// Editing appends a version rather than rewriting one, so only the latest can
+// be edited — otherwise "edit v2 of 5" would silently produce v6.
+const isEditing = ref(false);
+const editContent = ref('');
+const canEdit = computed(() => Boolean(selected.value) && !isViewingOlder.value);
+
+function onStartEdit(): void {
+  const version = shownVersion.value;
+  if (!version || !canEdit.value) return;
+  editContent.value = version.content;
+  isEditing.value = true;
+}
+
+async function onSaveEdit(): Promise<void> {
+  const id = selectedId.value;
+  if (!id || !editContent.value.trim()) return;
+  if (!await viewer.updateArtifact(id, editContent.value)) {
+    addToast({ message: 'Save failed', type: 'error' });
+    return;
+  }
+  isEditing.value = false;
+  editContent.value = '';
+  addToast({ message: 'Saved as a new version', type: 'success' });
+}
+
+function onCancelEdit(): void {
+  isEditing.value = false;
+  editContent.value = '';
+}
+
 // ── Session binding / lifecycle ────────────────────────────────────────────
 
 onMounted(() => {
@@ -467,6 +535,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('message', onFrameMessage);
+  stopReadyWatch();
 });
 
 watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
@@ -591,7 +660,10 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
               @keydown.escape="isRenaming = false"
               autofocus
             />
-            <span v-else class="ap-d-name ap-d-name--renameable" title="Double-click to rename" @dblclick="onStartRename">{{ selected.title }}</span>
+            <template v-else>
+              <span class="ap-d-name ap-d-name--renameable" title="Double-click to rename" @dblclick="onStartRename">{{ selected.title }}</span>
+              <button class="ap-v-step ap-rename-btn" title="Rename" @click="onStartRename">✎</button>
+            </template>
             <span class="ap-v-spacer"></span>
             <button class="ap-v-step" title="Older" @click="stepVersion(-1)">‹</button>
             <label class="ap-v-sel" title="Version">
@@ -612,17 +684,38 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
             <button class="ap-restore" @click="viewer.jumpToLatest()">Jump to latest ›</button>
           </div>
 
-          <div class="ap-body" :class="{ 'ap-body--frame': isHtml }">
+          <div class="ap-body" :class="{ 'ap-body--frame': isHtml && !isEditing, 'ap-body--edit': isEditing }">
+            <!-- In-situ edit: raw source of the shown version; Save appends a version. -->
+            <textarea
+              v-if="isEditing"
+              v-model="editContent"
+              class="ap-create-body"
+              aria-label="Artifact content"
+              @keydown.escape="onCancelEdit"
+            ></textarea>
+
             <!-- HTML artifacts: opaque-origin document, sandboxed on top. Scripts
                  run but cannot reach the app DOM, the preload bridge, or the network. -->
-            <iframe
-              v-if="isHtml"
-              ref="frameRef"
-              class="ap-frame"
-              :src="frameSrc"
-              sandbox="allow-scripts"
-              referrerpolicy="no-referrer"
-            ></iframe>
+            <template v-else-if="isHtml">
+              <iframe
+                ref="frameRef"
+                class="ap-frame"
+                :src="frameSrc"
+                sandbox="allow-scripts"
+                referrerpolicy="no-referrer"
+              ></iframe>
+              <!-- The frame never reported itself ready, so it is showing nothing.
+                   Put the escape hatch where the content should have been. -->
+              <div v-if="frameFailed" class="ap-frame-fallback">
+                <div class="ap-ff-card">
+                  <span class="ap-ff-icon" aria-hidden="true">⧉</span>
+                  <p class="ap-ff-title">This document can't be displayed here</p>
+                  <p class="ap-ff-sub">Open it in your default app to see the full version.</p>
+                  <button class="ap-btn ap-btn--primary ap-ff-btn" @click="onOpenExternal">⧉ Open externally</button>
+                </div>
+              </div>
+            </template>
+
             <div v-else class="ap-doc" ref="docRef" v-html="renderedHtml" @click="onDocClick"></div>
           </div>
         </template>
@@ -638,7 +731,19 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
         </div>
 
         <!-- Footer -->
-        <div v-if="!isCreatingText" class="ap-foot">
+        <div v-if="isEditing" class="ap-foot">
+          <span class="ap-foot-note">Saving adds a new version — earlier ones are kept.</span>
+          <span class="ap-grow"></span>
+          <button class="ap-btn" @click="onCancelEdit">Cancel</button>
+          <button class="ap-btn ap-btn--primary" :disabled="!editContent.trim()" @click="onSaveEdit">💾 Save</button>
+        </div>
+        <div v-else-if="!isCreatingText" class="ap-foot">
+          <button
+            class="ap-btn"
+            :title="canEdit ? 'Edit content — saves as a new version' : 'Jump to the latest version to edit'"
+            :disabled="!canEdit"
+            @click="onStartEdit"
+          >✎ Edit</button>
           <button class="ap-btn" title="Open this version in your default app" :disabled="!selected" @click="onOpenExternal">⧉ Open externally</button>
           <button class="ap-btn" title="Save to a location you pick" :disabled="!selected" @click="onExport">⭳ Export…</button>
           <button class="ap-btn" title="Copy a reference an AI can resolve" :disabled="!selected" @click="onCopyRef">📋 Copy reference</button>
@@ -746,7 +851,25 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
 .ap-body { flex: 1; overflow: auto; padding: 16px 18px; }
 /* HTML artifacts own their whole viewport and scroll inside the frame. */
 .ap-body--frame { overflow: hidden; padding: 0; }
+.ap-body--frame { position: relative; }
+/* in-situ editor fills the body, like the creation editor does */
+.ap-body--edit { overflow: hidden; padding: 0; display: flex; }
 .ap-frame { width: 100%; height: 100%; border: 0; display: block; background: var(--bg-primary); }
+
+/* Shown only when the frame never reported itself ready — see startReadyWatch. */
+.ap-frame-fallback {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  padding: 24px; background: var(--bg-primary);
+}
+.ap-ff-card {
+  display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
+  max-width: 320px; padding: 22px 26px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--bg-secondary);
+}
+.ap-ff-icon { font-size: 1.6rem; color: var(--accent); }
+.ap-ff-title { margin: 0; font-size: 0.88rem; color: var(--text-primary); }
+.ap-ff-sub { margin: 0; font-size: 0.76rem; color: var(--text-dim); line-height: 1.5; }
+.ap-ff-btn { margin-top: 4px; padding: 7px 14px; font-size: 0.82rem; }
 .ap-detail-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
 .ap-detail-empty-sub { color: var(--text-dim); font-size: 0.74rem; text-align: center; line-height: 1.5; }
 
@@ -792,5 +915,7 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
 .ap-btn { cursor: pointer; font-family: inherit; }
 .ap-foot-confirm { font-size: 0.74rem; color: var(--text-primary); }
 .ap-foot-error { font-size: 0.74rem; color: var(--red, #ff6666); }
+.ap-foot-note { font-size: 0.74rem; color: var(--text-dim); }
+.ap-rename-btn { font-size: 0.78rem; }
 .ap-grow { flex: 1; }
 </style>

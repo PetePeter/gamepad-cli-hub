@@ -27,6 +27,14 @@ import { ARTIFACT_BASE_CSS } from './artifact-base-css.js';
 export const OPEN_URL_MESSAGE = 'helm-artifact-open-url';
 
 /**
+ * Message the frame posts once its document is alive. The parent uses its
+ * ABSENCE as the signal that the artifact could not render — a document whose
+ * own CSP kills our injected script, or one that never loads, stays silently
+ * blank otherwise, with no error event to hook.
+ */
+export const READY_MESSAGE = 'helm-artifact-ready';
+
+/**
  * Links inside the frame are inert by design — the sandbox blocks navigation
  * and `default-src 'none'` blocks loads — so without this they would silently
  * do nothing, unlike the markdown path which routes https? through
@@ -39,6 +47,7 @@ document.addEventListener('click', function (e) {
   e.preventDefault();
   parent.postMessage({ type: '${OPEN_URL_MESSAGE}', url: a.href }, '*');
 }, true);
+parent.postMessage({ type: '${READY_MESSAGE}' }, '*');
 `.trim();
 
 /** True when the author styled the document in any way at all. */

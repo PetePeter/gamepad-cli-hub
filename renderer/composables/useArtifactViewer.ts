@@ -225,6 +225,18 @@ async function renameArtifact(id: string, newTitle: string): Promise<boolean> {
   } catch { return false; }
 }
 
+/**
+ * Save an edited body as a new version. Returns true on success; false when the
+ * main process refused it (blank content) or the id is unknown.
+ */
+async function updateArtifact(id: string, content: string): Promise<boolean> {
+  try {
+    const updated = await artifactsClient.artifactUpdate(id, content);
+    if (updated) void refresh();
+    return updated !== null;
+  } catch { return false; }
+}
+
 /** Open an attachment in the system's default app. */
 async function openAttachment(artifactId: string, attachmentId: string): Promise<boolean> {
   try { return await artifactsClient.artifactOpenAttachment(artifactId, attachmentId); } catch { return false; }
@@ -294,6 +306,7 @@ export function useArtifactViewer() {
     createFileArtifact,
     attachFile,
     renameArtifact,
+    updateArtifact,
     openAttachment,
   };
 }
