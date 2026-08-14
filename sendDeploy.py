@@ -36,6 +36,69 @@ def run(cmd, check=True, capture=False):
     return result
 
 
+def previous_tag(current_tag):
+    """The newest version tag that is not this release, or None for a first release."""
+    result = run("git tag --list \"v*\" --sort=-v:refname", check=False, capture=True)
+    if result.returncode != 0:
+        return None
+    tags = [t.strip() for t in result.stdout.splitlines() if t.strip()]
+    return next((t for t in tags if t != current_tag), None)
+
+
+# "feat(scope): subject" -> ("feat", "scope", "subject")
+CONVENTIONAL = re.compile(r"^(?P<type>\w+)(?:\((?P<scope>[^)]*)\))?!?:\s*(?P<subject>.+)$")
+
+# Conventional-commit type -> release-note heading. Types absent here are
+# housekeeping (chore, docs, test, refactor...) and are left out of the notes.
+NOTE_SECTIONS = [("feat", "Features"), ("fix", "Fixes"), ("perf", "Performance")]
+
+
+def build_release_notes(tag):
+    """
+    Compose notes from the commits since the previous tag.
+
+    Hand-written notes always win (RELEASE_NOTES.md in the release folder);
+    this is what fills the gap when there are none, so a release page never
+    ships as a bare "Release vX.Y.Z" again. Returns None when there is nothing
+    to say, leaving the caller to fall back.
+    """
+    prev = previous_tag(tag)
+    if not prev:
+        return None
+
+    result = run(f'git log --pretty=format:%s {prev}..HEAD', check=False, capture=True)
+    if result.returncode != 0:
+        return None
+
+    grouped = {}
+    for subject in (line.strip() for line in result.stdout.splitlines()):
+        # The version bump is an artifact of releasing, not a change in it.
+        if not subject or subject.startswith("bump: v"):
+            continue
+        match = CONVENTIONAL.match(subject)
+        if not match:
+            continue
+        scope = match.group("scope")
+        text = match.group("subject")
+        grouped.setdefault(match.group("type"), []).append(
+            f"**{scope}:** {text}" if scope else text
+        )
+
+    lines = []
+    for commit_type, heading in NOTE_SECTIONS:
+        entries = grouped.get(commit_type)
+        if not entries:
+            continue
+        lines.append(f"### {heading}")
+        lines.extend(f"- {entry}" for entry in entries)
+        lines.append("")
+
+    if not lines:
+        return None
+    lines.append(f"**Full changelog:** {prev}...{tag}")
+    return "\n".join(lines)
+
+
 def find_latest_release():
     """Find the latest dated release folder."""
     release_root = Path("release")
@@ -137,10 +200,17 @@ def main():
     tag = f"v{version}"
     asset_args = " ".join(f'"{exe}"' for exe in exes)
     notes_file = release_path / "RELEASE_NOTES.md"
+    if not notes_file.exists():
+        generated = build_release_notes(tag)
+        if generated:
+            notes_file.write_text(generated, encoding="utf-8")
+            print("  NOTES: Generated from the commit range since the previous tag")
+
     if notes_file.exists():
         print(f"  NOTES: Using release notes from {notes_file.name}")
         run(f'gh release create {tag} --title "{tag}" --notes-file "{notes_file}" {asset_args}')
     else:
+        print("  NOTES: No conventional commits to summarise — using a bare title")
         run(f'gh release create {tag} --title "{tag}" --notes "Release {tag}" {asset_args}')
 
     print()
