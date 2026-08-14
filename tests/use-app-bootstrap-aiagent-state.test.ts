@@ -264,3 +264,51 @@ describe('useAppBootstrap aiagentState display ownership', () => {
     mod.teardown();
   });
 });
+
+/**
+ * Regression: refreshSessions rebuilds each renderer Session from an explicit
+ * field list. `locked` was missing from it, so a locked session read back as
+ * unlocked on every refresh — the card showed 🔓 and its toggle could then only
+ * ever ask to LOCK, making the session impossible to unlock from the UI.
+ */
+describe('useAppBootstrap session hydration', () => {
+  beforeEach(() => {
+    state.sessions = [];
+  });
+
+  async function initBootstrap() {
+    const mod = await import('../renderer/composables/useAppBootstrap.js');
+    await mod.bootstrap({
+      terminalContainer: document.createElement('div'),
+      handleButton: vi.fn(),
+      handleRelease: vi.fn(),
+    });
+    return mod;
+  }
+
+  it('carries the closure lock through a refresh', async () => {
+    const mod = await initBootstrap();
+    mockTerminalManager.hydrateFromStore.mockResolvedValueOnce([
+      { id: 'sess-lock', name: 'worker', cliType: 'claude', processId: 1, workingDir: '/tmp', locked: true },
+    ] as never);
+
+    await mod.refreshSessions();
+
+    expect(state.sessions.find(s => s.id === 'sess-lock')?.locked).toBe(true);
+
+    mod.teardown();
+  });
+
+  it('leaves an unlocked session unlocked', async () => {
+    const mod = await initBootstrap();
+    mockTerminalManager.hydrateFromStore.mockResolvedValueOnce([
+      { id: 'sess-open', name: 'worker', cliType: 'claude', processId: 1, workingDir: '/tmp' },
+    ] as never);
+
+    await mod.refreshSessions();
+
+    expect(state.sessions.find(s => s.id === 'sess-open')?.locked).toBeFalsy();
+
+    mod.teardown();
+  });
+});

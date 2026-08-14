@@ -8,6 +8,18 @@ export function asString(value: unknown, errorMessage: string): string {
   return value;
 }
 
+/**
+ * Parse a required boolean ARGUMENT. Distinct from requireBooleanResult, which
+ * asserts a truthy *result* and so rejects `false` — using that on an argument
+ * makes `false` unsendable, which is how unlocking a session became impossible.
+ */
+export function asBoolean(value: unknown, errorMessage: string): boolean {
+  if (typeof value !== 'boolean') {
+    throw new Error(errorMessage);
+  }
+  return value;
+}
+
 export function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>

@@ -5,6 +5,7 @@ import { isFleetSessionId, parseFleetSessionId } from '../peer/fleet-session-id.
 import {
   asAiagentState,
   asArtifactKind,
+  asBoolean,
   asContextBindingTargetType,
   asPlanFilter,
   asPlanStatus,
@@ -528,7 +529,7 @@ export async function callMcpTool(
       case 'session_set_locked':
         return service.setSessionLocked(
           asString(args.sessionId ?? args.name, 'sessionId or name is required'),
-          requireBooleanResult(args.locked, 'locked is required'),
+          asBoolean(args.locked, 'locked must be true or false'),
         );
       case 'session_rename':
         return service.renameSession(

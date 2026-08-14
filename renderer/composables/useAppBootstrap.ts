@@ -185,6 +185,9 @@ export async function refreshSessions(): Promise<void> {
       createdAt: managed.createdAt,
       lastActiveAt: managed.lastActiveAt,
       createdByPeerId: managed.createdByPeerId,
+      // Without this the card falls back to "unlocked" on every refresh, and
+      // its toggle can then only ever ask to lock.
+      locked: managed.locked,
     } as Session);
 
     const displayState = managed.aiagentState ?? managed.state;
