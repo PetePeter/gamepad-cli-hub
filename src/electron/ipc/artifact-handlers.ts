@@ -16,7 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { basename, join } from 'node:path';
 import type { ArtifactManager } from '../../session/artifact-manager.js';
 import type { ArtifactAttachmentManager } from '../../session/artifact-attachment-manager.js';
-import type { ArtifactAttachment } from '../../types/artifact-attachment.js';
+import { buildAttachmentHref, type ArtifactAttachment } from '../../types/artifact-attachment.js';
 import type { WindowManager } from '../window-manager.js';
 import { mimeForPath } from '../helm-img-protocol.js';
 import { setPendingDocument } from '../helm-artifact-protocol.js';
@@ -199,7 +199,12 @@ export function setupArtifactHandlers(
       if (isImage) {
         mdContent = `![${input.filename}](${absPath})\n`;
       } else {
-        mdContent = `**${input.filename}** — ${formatBytes(buffer.length)} — ${input.contentType ?? 'application/octet-stream'}\n\n📎 [Open in system viewer](${absPath})\n`;
+        // An app-internal href, NOT a filesystem path: the renderer's sanitizer
+        // strips file paths from <a href>, so the old absolute-path link was
+        // always dead on click. ArtifactViewer intercepts this scheme and calls
+        // artifact:openAttachment, which shell-opens the real stored file.
+        const href = buildAttachmentHref(artifactId, attachment.id);
+        mdContent = `**${input.filename}** — ${formatBytes(buffer.length)} — ${input.contentType ?? 'application/octet-stream'}\n\n📎 [Open in system viewer](${href})\n`;
       }
     } catch (err) {
       // No artifact exists yet, so nothing is stranded in the store — but a

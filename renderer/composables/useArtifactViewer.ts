@@ -14,6 +14,7 @@
 import { ref, computed } from 'vue';
 import { artifactsClient, eventsClient } from '../ipc/clients.js';
 import type { Artifact } from '../../src/types/artifact.js';
+import { buildTextArtifact, decodeBase64Text, isTextLikeFile } from '../artifacts/text-file-drop.js';
 
 const PANEL_VISIBLE_KEY = 'helm:artifact-panel-visible';
 const RAIL_COLLAPSED_KEY = 'helm:artifact-rail-collapsed';
@@ -207,11 +208,19 @@ async function createFileArtifact(input: {
   } catch { return null; }
 }
 
-/** Open a native file picker, read the file, and create an artifact from it. */
+/**
+ * Open a native file picker, read the file, and create an artifact from it.
+ * Readable files become readable content (same extension-first rule as drop
+ * and paste); only real binaries become attachments.
+ */
 async function attachFile(): Promise<Artifact | null> {
   try {
     const fileData = await artifactsClient.artifactPickAndReadFile();
     if (!fileData) return null;
+    if (isTextLikeFile(fileData.filename, fileData.contentType)) {
+      const draft = buildTextArtifact(fileData.filename, decodeBase64Text(fileData.contentBase64));
+      return createTextArtifact(draft.title, draft.content);
+    }
     return createFileArtifact(fileData);
   } catch { return null; }
 }

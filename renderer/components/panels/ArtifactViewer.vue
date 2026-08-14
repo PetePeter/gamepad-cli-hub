@@ -26,7 +26,9 @@ import { buildArtifactDocument, OPEN_URL_MESSAGE, READY_MESSAGE } from '../../ar
 import { formatHelmRef } from '../../lib/helm-ref.js';
 import { artifactsClient, systemClient } from '../../ipc/clients.js';
 import { clipboardFileInput } from '../../artifacts/clipboard-file.js';
+import { buildTextArtifact, isTextLikeFile, TEXT_INLINE_MAX_BYTES } from '../../artifacts/text-file-drop.js';
 import type { Artifact } from '../../../src/types/artifact.js';
+import { parseAttachmentHref } from '../../../src/types/artifact-attachment.js';
 
 const props = defineProps<{ sessionId: string }>();
 const emit = defineEmits<{
@@ -314,7 +316,21 @@ function onDocClick(e: MouseEvent): void {
   if (!anchor) return;
   e.preventDefault();
   const href = anchor.getAttribute('href') ?? '';
+
+  // Attachment links are app-internal ids, not URLs — open the stored file.
+  const attachment = parseAttachmentHref(href);
+  if (attachment) {
+    void openAttachmentLink(attachment.artifactId, attachment.attachmentId);
+    return;
+  }
+
   if (/^https?:\/\//i.test(href)) void systemClient.systemOpenExternalUrl(href);
+}
+
+async function openAttachmentLink(artifactId: string, attachmentId: string): Promise<void> {
+  if (!await viewer.openAttachment(artifactId, attachmentId)) {
+    addToast({ message: 'Could not open the attached file', type: 'error' });
+  }
 }
 
 // ── Manual creation: New button + dropdown ─────────────────────────────────
@@ -420,17 +436,32 @@ function isEditablePasteTarget(target: EventTarget | null): boolean {
     && Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
 }
 
+/**
+ * The single entry point for turning a file into an artifact — shared by paste,
+ * drag-drop and the file picker so all three behave identically. Returns false
+ * when nothing was created; the caller owns the toast.
+ *
+ * A readable file becomes readable CONTENT. Identification is by extension
+ * (Chromium reports an empty blob.type for .md and most source files), so
+ * dropping notes.md gives you the document, not a binary metadata card.
+ */
+async function addBlobAsArtifact(blob: Blob, filename?: string): Promise<boolean> {
+  const name = filename ?? '';
+  if (blob.size <= TEXT_INLINE_MAX_BYTES && isTextLikeFile(name, blob.type)) {
+    const draft = buildTextArtifact(name, await blob.text());
+    return Boolean(await viewer.createTextArtifact(draft.title, draft.content));
+  }
+  return Boolean(await viewer.createFileArtifact(await clipboardFileInput(blob, filename)));
+}
+
 async function createArtifactFromBlob(blob: Blob, filename?: string): Promise<void> {
   try {
-    const input = await clipboardFileInput(blob, filename);
-    const artifact = await viewer.createFileArtifact(input);
-    if (artifact) {
-      addToast({ message: input.contentType.startsWith('image/') ? 'Image pasted' : 'Clipboard file added', type: 'success' });
-    } else {
-      addToast({ message: 'Failed to add clipboard file', type: 'error' });
-    }
+    const created = await addBlobAsArtifact(blob, filename);
+    addToast(created
+      ? { message: blob.type.startsWith('image/') ? 'Image pasted' : 'File added', type: 'success' }
+      : { message: 'Failed to add file', type: 'error' });
   } catch {
-    addToast({ message: 'Failed to process clipboard file', type: 'error' });
+    addToast({ message: 'Failed to process file', type: 'error' });
   }
 }
 
@@ -458,7 +489,7 @@ async function onDrop(e: DragEvent): Promise<void> {
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     try {
-      await viewer.createFileArtifact(await clipboardFileInput(file, file.name));
+      await addBlobAsArtifact(file, file.name);
     } catch {
       addToast({ message: `Failed to drop ${file.name}`, type: 'error' });
     }

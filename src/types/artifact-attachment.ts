@@ -7,6 +7,31 @@
  * path that the existing helm-img:// protocol serves to the renderer.
  */
 
+/**
+ * Scheme for the in-artifact "open this attachment" link.
+ *
+ * It is an app-internal identifier, never a filesystem path and never
+ * navigable: main writes it into the artifact markdown, the renderer's
+ * sanitizer allows it on <a href> only, and ArtifactViewer intercepts the
+ * click and routes it to artifact:openAttachment. Absolute paths cannot be
+ * used here — the sanitizer strips them, which is why the original link was
+ * dead on click.
+ */
+export const ATTACHMENT_LINK_SCHEME = 'helm-attachment:';
+
+/** Build the link main embeds in an attachment artifact's markdown. */
+export function buildAttachmentHref(artifactId: string, attachmentId: string): string {
+  return `${ATTACHMENT_LINK_SCHEME}//${artifactId}/${attachmentId}`;
+}
+
+/** Parse an attachment link back to its ids, or null when it is not one. */
+export function parseAttachmentHref(href: string): { artifactId: string; attachmentId: string } | null {
+  if (!href.toLowerCase().startsWith(ATTACHMENT_LINK_SCHEME)) return null;
+  const [artifactId, attachmentId, ...rest] = href.slice(ATTACHMENT_LINK_SCHEME.length + 2).split('/');
+  if (!artifactId || !attachmentId || rest.length > 0) return null;
+  return { artifactId, attachmentId };
+}
+
 /** A binary file attached to an artifact. */
 export interface ArtifactAttachment {
   /** Unique attachment identifier (UUID v4). */

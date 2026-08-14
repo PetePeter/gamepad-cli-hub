@@ -27,6 +27,7 @@ import { Marked } from 'marked';
 import DOMPurify from 'dompurify';
 import type { ArtifactKind } from '../../src/types/artifact.js';
 import { DATA_IMAGE_SAFE, resolveImageSrc } from '../../src/electron/helm-img-protocol.js';
+import { ATTACHMENT_LINK_SCHEME } from '../../src/types/artifact-attachment.js';
 
 // Re-exported for the existing render-artifact tests and any renderer caller
 // that already imports it from here.
@@ -99,6 +100,14 @@ DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
     return;
   }
 
+  // Mirror image of the rule above for the attachment link: it is meaningful
+  // only as an <a href> the viewer intercepts, so drop it anywhere else.
+  if (data.attrValue.toLowerCase().startsWith(ATTACHMENT_LINK_SCHEME)
+    && !(node.nodeName === 'A' && data.attrName === 'href')) {
+    data.keepAttr = false;
+    return;
+  }
+
   // Rewrite img src for raw-HTML artifacts AND for already-resolved helm-img URLs
   // produced by the marked image renderer (which runs before DOMPurify).
   // If the resolved src is null, drop the attribute — DOMPurify will then remove
@@ -156,7 +165,9 @@ const SANITIZE_OPTIONS = {
   // <a href> URI allowlist: https/mailto only. img src is controlled by the hook
   // (helm-img: and safe data: are whitelisted there, not here, to avoid loosening
   // the global URI policy for non-img attributes).
-  ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|helm-img:|data:image\/(?:png|jpe?g|gif|webp|bmp|avif);)/i,
+  // helm-attachment: is confined to <a href> by the hook above; it is inert
+  // markup that ArtifactViewer turns into an artifact:openAttachment call.
+  ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|helm-img:|helm-attachment:|data:image\/(?:png|jpe?g|gif|webp|bmp|avif);)/i,
 };
 
 // ---------------------------------------------------------------------------

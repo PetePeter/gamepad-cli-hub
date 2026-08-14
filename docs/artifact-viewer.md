@@ -40,6 +40,30 @@ writes the newest version:
 The user can read any prior version in the viewer (‹ › steppers + a version
 dropdown, with a "viewing older version" banner and *Jump to latest*).
 
+## Adding a file — readable vs binary
+
+Drag-drop, clipboard paste, and the 📎 picker all funnel through one decision
+(`renderer/artifacts/text-file-drop.ts`), so they cannot drift:
+
+| Input | Result |
+|---|---|
+| `.md` / `.markdown` | markdown artifact holding the file's text — it renders |
+| `.txt`, `.json`, `.csv`, `.log`, source files, or any `text/*` | artifact holding the text in a fence long enough to contain it |
+| anything else, or over 1 MB | attachment: bytes on disk + a metadata card |
+
+**Identification is by file EXTENSION first.** Chromium reports an empty
+`blob.type` for `.md` and most source files, so a mime-only rule filed
+documents as `application/octet-stream` and handed the user a binary card
+instead of their notes.
+
+**The attachment card's link.** It is `helm-attachment://<artifactId>/<attachmentId>`,
+not a filesystem path — the markdown sanitizer's href allowlist is
+https/mailto, so an absolute path is stripped and the link was dead on click
+however valid the stored file was. The scheme is allowed on `<a href>` only
+(never navigated), and `ArtifactViewer.onDocClick` turns it into
+`artifact:openAttachment`, which shell-opens the real stored file. Build and
+parse it with the helpers in `src/types/artifact-attachment.ts`.
+
 ## MCP surface (AI-driven)
 
 The calling session is resolved from the MCP auth context (`authContext.sessionId`),
