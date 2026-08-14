@@ -74,6 +74,7 @@ import {
   toolEditor,
   isAnyBridgeModalVisible,
   showAppCloseConfirm,
+  showFolderCloseConfirm,
   openRuntimeGroupMoveSubmenu,
 } from './stores/modal-bridge.js';
 import { showEditorPopup } from './editor/editor-popup.js';
@@ -842,12 +843,16 @@ function onGroupClose(groupId: string): void {
     runtimeGroupActions.requestClose(group);
     return;
   }
-  // Directory group — close all sessions in that folder.
+  // Directory group — closing it closes every session in that folder, so it
+  // asks first. Runtime groups get their own 3-way dialog above.
   const dirGroup = sessionsState.groups.find(g => g.dirPath === groupId);
   if (dirGroup && dirGroup.sessions.length > 0) {
-    for (const session of dirGroup.sessions) {
-      void doCloseSession(session.id);
-    }
+    const sessionIds = dirGroup.sessions.map(session => session.id);
+    showFolderCloseConfirm(dirGroup.displayName || dirGroup.dirPath, sessionIds.length, () => {
+      for (const sessionId of sessionIds) {
+        void doCloseSession(sessionId);
+      }
+    });
   }
 }
 function onGroupAddSession(groupId: string, sessionId: string): void {

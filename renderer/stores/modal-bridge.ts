@@ -20,7 +20,9 @@ export const closeConfirm = reactive({
   sessionId: '',
   sessionName: '',
   draftCount: 0,
-  mode: 'session' as 'session' | 'app',
+  /** Sessions about to be closed together (folder mode only). */
+  count: 0,
+  mode: 'session' as 'session' | 'app' | 'folder',
 });
 
 let _closeConfirmOnConfirm: ((sessionId: string) => void) | null = null;
@@ -33,6 +35,24 @@ export function showAppCloseConfirm(onConfirm: () => void, onCancel?: () => void
   closeConfirm.sessionName = 'Helm';
   closeConfirm.draftCount = 0;
   closeConfirm.mode = 'app';
+  setCloseConfirmCallback(() => onConfirm());
+  _closeConfirmOnCancel = onCancel ?? null;
+}
+
+/**
+ * Confirm closing every session in a directory (project/folder) group.
+ *
+ * Runtime groups have their own 3-way dialog; a directory group has no entity
+ * to keep, so this is a plain yes/no — but it must exist, because the header's
+ * ✕ otherwise kills every session in the folder on a single click.
+ */
+export function showFolderCloseConfirm(folderName: string, count: number, onConfirm: () => void, onCancel?: () => void): void {
+  closeConfirm.visible = true;
+  closeConfirm.sessionId = '';
+  closeConfirm.sessionName = folderName;
+  closeConfirm.draftCount = 0;
+  closeConfirm.count = count;
+  closeConfirm.mode = 'folder';
   setCloseConfirmCallback(() => onConfirm());
   _closeConfirmOnCancel = onCancel ?? null;
 }

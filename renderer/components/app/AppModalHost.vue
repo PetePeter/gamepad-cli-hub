@@ -215,6 +215,7 @@ function onRuntimeGroupMoveCancel(): void {
     v-model:visible="closeConfirm.visible"
     :session-name="closeConfirm.sessionName"
     :draft-count="closeConfirm.draftCount"
+    :count="closeConfirm.count"
     :mode="closeConfirm.mode"
     @confirm="onConfirmClose"
     @cancel="onCancelClose"
