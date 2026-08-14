@@ -21,6 +21,28 @@ Gamepad button and keyboard shortcut mappings.
 | Back/Start | Switch profile (previous/next) |
 | Sandwich/Guide | Focus hub window + show sessions screen |
 
+### Session card columns
+
+D-pad Right walks a focused session card's buttons; **A** activates the one you
+are on.
+
+| Column | Button | A does |
+|--------|--------|--------|
+| 0 | the card itself | falls through to the configured binding |
+| 1 | state | open the state dropdown |
+| 2 | ✎ | start rename |
+| 3 | 👁 | toggle overview visibility |
+| 4 | ✕ | close (confirmation) |
+| 5 | 🔓 / 🔒 | lock or unlock against closure |
+
+The padlock sits to the LEFT of ✕ on screen — beside the button it guards — but
+holds the highest column index deliberately, so columns 1-4 keep the numbering
+they have always had.
+
+A locked session shows 🔒 and its ✕ is disabled; closing is refused in the main
+process too, so MCP, Telegram, group close, and force restart all bounce off it.
+The same flag the `session_set_locked` MCP tool writes.
+
 ## Keyboard
 
 | Input | Action |

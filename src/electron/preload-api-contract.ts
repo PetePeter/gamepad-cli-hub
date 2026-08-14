@@ -20,6 +20,7 @@ export const PRELOAD_API_DOMAINS = {
     'sessionSnapOut',
     'sessionSnapBack',
     'sessionRename',
+    'sessionSetLocked',
     'sessionSetState',
     'sessionRequestFocusSlot',
     'sessionFocusWindow',

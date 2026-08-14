@@ -118,6 +118,21 @@ export function setupSessionHandlers(
     }
   });
 
+  /**
+   * Set or clear the closure lock from the UI. The same durable flag the MCP
+   * `session_set_locked` tool writes — this is the user-facing way in, which
+   * until now did not exist.
+   */
+  ipcMain.handle('session:setLocked', (_event, id: string, locked: boolean) => {
+    try {
+      const session = sessionManager.setSessionLocked(id, locked);
+      return { success: true, locked: Boolean(session.locked) };
+    } catch (error) {
+      logger.error(`[Session] Set locked failed: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
   ipcMain.handle('session:close', async (_event, id: string) => {
     try {
       const session = sessionManager.getSession(id);

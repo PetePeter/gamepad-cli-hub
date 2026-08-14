@@ -322,6 +322,7 @@ const {
   onShowOverview,
   onShowGlobalOverview,
   onToggleOverview,
+  onToggleLock,
   onCancelSchedule,
   onSessionSnapOut,
   onSessionSnapBack,
@@ -1105,6 +1106,7 @@ onUnmounted(() => {
             @request-close="onRequestClose"
             @session-state-change="onSessionStateChange"
             @toggle-overview="onToggleOverview"
+            @toggle-lock="onToggleLock"
             @show-artifacts="onShowArtifactsForSession"
             @cancel-schedule="onCancelSchedule"
             @dismiss-notification="llmNotificationsStore.dismiss"

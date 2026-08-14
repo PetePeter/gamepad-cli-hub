@@ -39,7 +39,7 @@ interface SessionListGroupSession {
   cliSessionName?: string;
 }
 
-type SessionListFocusColumn = 0 | 1 | 2 | 3 | 4;
+type SessionListFocusColumn = 0 | 1 | 2 | 3 | 4 | 5;
 
 interface SessionListGroup {
   dirPath: string;
@@ -95,6 +95,7 @@ const emit = defineEmits<{
   requestClose: [sessionId: string, displayName: string];
   sessionStateChange: [sessionId: string, newState: string];
   toggleOverview: [sessionId: string];
+  toggleLock: [sessionId: string, locked: boolean];
   showArtifacts: [sessionId: string];
   cancelSchedule: [sessionId: string];
   dismissNotification: [notificationId: string];
@@ -234,6 +235,7 @@ function onNewGroupDrop(e: DragEvent): void {
               @close="onRequestClose"
               @state-change="onSessionStateChange"
               @toggle-overview="emit('toggleOverview', $event)"
+              @toggle-lock="(id: string, locked: boolean) => emit('toggleLock', id, locked)"
               @show-artifacts="emit('showArtifacts', $event)"
               @cancel-schedule="emit('cancelSchedule', $event)"
               @dismiss-notification="emit('dismissNotification', $event)"

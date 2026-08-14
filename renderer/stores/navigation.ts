@@ -51,7 +51,7 @@ export const useNavigationStore = defineStore('navigation', () => {
   // ── Identity-based sidebar focus ─────────────────────────────────────
   // Store { id, type } not index — survives navList rebuilds.
   const focusedNavItem = ref<{ id: string; type: string } | null>(null);
-  const focusColumn = ref<0 | 1 | 2 | 3 | 4>(0);
+  const focusColumn = ref<0 | 1 | 2 | 3 | 4 | 5>(0);
 
   // ── Initialization ───────────────────────────────────────────────────
   let initialized = false;

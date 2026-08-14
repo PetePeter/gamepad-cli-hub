@@ -20,7 +20,7 @@ export interface SessionsScreenState {
   activeFocus: SessionsFocus;
   sessionsFocusIndex: number;
   spawnFocusIndex: number;
-  cardColumn: 0 | 1 | 2 | 3 | 4;
+  cardColumn: 0 | 1 | 2 | 3 | 4 | 5;
   cliTypes: string[];
   directories: ProjectDirectoryItem[];
   editingSessionId: string | null;

@@ -1404,10 +1404,16 @@ describe('Sessions Screen', () => {
       expect(sessionsState.cardColumn).toBe(2);
     });
 
-    it('RIGHT does not exceed 4', () => {
+    it('RIGHT reaches the lock toggle at column 5', () => {
       sessionsState.cardColumn = 4;
       sessions.handleSessionsScreenButton('DPadRight');
-      expect(sessionsState.cardColumn).toBe(4);
+      expect(sessionsState.cardColumn).toBe(5);
+    });
+
+    it('RIGHT does not exceed 5', () => {
+      sessionsState.cardColumn = 5;
+      sessions.handleSessionsScreenButton('DPadRight');
+      expect(sessionsState.cardColumn).toBe(5);
     });
 
     it('LEFT moves cardColumn from 2 to 1', () => {

@@ -217,6 +217,26 @@ async function saveGroupPrefs(): Promise<void> {
   }
 }
 
+/**
+ * Set or clear a session's closure lock. Shared by the card button and the
+ * gamepad column so the two cannot diverge; the resulting state arrives back
+ * through session:updated, so nothing is mirrored locally.
+ */
+export async function setSessionLocked(sessionId: string, locked: boolean): Promise<void> {
+  try {
+    await sessionsClient.sessionSetLocked?.(sessionId, locked);
+  } catch (e) {
+    console.error('[Sessions] Failed to set session lock:', e);
+  }
+}
+
+/** Flip the lock of the session under the gamepad cursor. */
+export function toggleLockForFocused(sessionId: string): void {
+  const session = state.sessions.find(item => item.id === sessionId);
+  if (!session) return;
+  void setSessionLocked(sessionId, !session.locked);
+}
+
 export async function toggleSessionOverviewVisibility(sessionId: string): Promise<void> {
   const session = state.sessions.find(item => item.id === sessionId);
   if (!session) return;
@@ -686,12 +706,18 @@ function handleSessionsZoneButton(button: string): boolean {
       confirmCloseSession();
       return true;
     }
+    // The lock sits left of ✕ on screen but keeps the highest column index, so
+    // the existing 1-4 column numbering (and its muscle memory) is untouched.
+    if (sessionsState.cardColumn === 5) {
+      toggleLockForFocused(navItem.id);
+      return true;
+    }
     // col=0: fall through to config bindings
     return false;
   }
   if (button === 'B') {
     if (sessionsState.cardColumn > 0) {
-      sessionsState.cardColumn = (sessionsState.cardColumn - 1) as 0 | 1 | 2 | 3 | 4;
+      sessionsState.cardColumn = (sessionsState.cardColumn - 1) as 0 | 1 | 2 | 3 | 4 | 5;
       updateSessionsFocus();
       return true;
     }

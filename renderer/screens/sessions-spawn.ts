@@ -240,19 +240,19 @@ export function handleSessionsZone(button: string, dir: string | null): void {
       return;
     }
     const maxColumn = currentItem?.type === 'session-card'
-      ? 4
+      ? 5
       : currentItem?.type === 'group-header'
         ? 0
         : 0;
     if (sessionsState.cardColumn < maxColumn) {
-      sessionsState.cardColumn = (sessionsState.cardColumn + 1) as 0 | 1 | 2 | 3 | 4;
+      sessionsState.cardColumn = (sessionsState.cardColumn + 1) as 0 | 1 | 2 | 3 | 4 | 5;
       updateSessionsFocus();
     }
     return;
   }
   if (dir === 'left') {
     if (sessionsState.cardColumn > 0) {
-      sessionsState.cardColumn = (sessionsState.cardColumn - 1) as 0 | 1 | 2 | 3 | 4;
+      sessionsState.cardColumn = (sessionsState.cardColumn - 1) as 0 | 1 | 2 | 3 | 4 | 5;
       updateSessionsFocus();
     }
     return;

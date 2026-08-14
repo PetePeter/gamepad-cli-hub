@@ -50,6 +50,10 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
    */
   sessionRename: (id: string, newName: string) => ipcRenderer.invoke('session:rename', id, newName),
 
+  /** Set or clear the closure lock. Returns the resulting lock state. */
+  sessionSetLocked: (id: string, locked: boolean): Promise<{ success: boolean; locked?: boolean; error?: string }> =>
+    ipcRenderer.invoke('session:setLocked', id, locked),
+
   /**
    * From a snapped-out window: ask the main window to resolve a Ctrl+<n>
    * display slot and focus the owning session's window.

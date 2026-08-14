@@ -869,6 +869,7 @@ button {
 .session-state-btn,
 .session-overview-toggle,
 .session-close,
+.session-lock,
 .session-copy-id {
   background: none;
   border: none;
@@ -894,6 +895,17 @@ button {
   background: var(--accent);
   color: #fff;
   border-color: var(--accent);
+}
+
+/* Lock toggle — quiet when off (it is the resting state), lit when armed */
+.session-lock { opacity: 0.55; }
+.session-lock:hover { color: var(--accent); background: rgba(100, 150, 255, 0.1); opacity: 1; }
+.session-lock--on { opacity: 1; }
+.session-lock.card-col-focused {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  opacity: 1;
 }
 
 /* Session close button specific styles */
@@ -969,6 +981,7 @@ button {
 .session-top-row .session-state-btn,
 .session-top-row .session-rename,
 .session-top-row .session-close,
+.session-top-row .session-lock,
 .session-top-row .session-copy-id {
   font-size: var(--font-size-sm);
   padding: 1px 4px;

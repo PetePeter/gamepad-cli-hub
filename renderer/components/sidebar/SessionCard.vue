@@ -30,7 +30,7 @@ export interface SessionCardSession {
   locked?: boolean;
 }
 
-export type SessionCardFocusColumn = 0 | 1 | 2 | 3 | 4;
+export type SessionCardFocusColumn = 0 | 1 | 2 | 3 | 4 | 5;
 
 export interface SessionCardProps {
   session: SessionCardSession;
@@ -79,6 +79,7 @@ const emit = defineEmits<{
   close: [sessionId: string, displayName: string];
   stateChange: [sessionId: string, newState: string];
   toggleOverview: [sessionId: string];
+  toggleLock: [sessionId: string, locked: boolean];
   showArtifacts: [sessionId: string];
   cancelSchedule: [sessionId: string];
   dismissNotification: [notificationId: string];
@@ -258,7 +259,6 @@ function onCardClick(e: MouseEvent): void {
     <div class="session-top-row">
       <span class="session-activity-dot" :style="{ background: dotColor }" />
       <span v-if="isSnappedOut" class="snap-indicator" title="Snapped out">📤</span>
-      <span v-if="session.locked" class="snap-indicator" title="Session locked against closure">🔒</span>
 
       <button
         class="session-state-btn"
@@ -325,6 +325,16 @@ function onCardClick(e: MouseEvent): void {
         @click.stop="emit('toggleOverview', session.id)"
       >
         {{ eyeIcon }}
+      </button>
+
+      <!-- Lock toggle — sits beside the button it guards. -->
+      <button
+        class="session-lock"
+        :class="[colClass(5), { 'session-lock--on': session.locked }]"
+        :title="session.locked ? `${displayName} is locked — click to unlock` : `Lock ${displayName} against closure`"
+        @click.stop="emit('toggleLock', session.id, !session.locked)"
+      >
+        {{ session.locked ? '🔒' : '🔓' }}
       </button>
 
       <!-- Close button -->
