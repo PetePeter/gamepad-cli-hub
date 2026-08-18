@@ -1,4 +1,4 @@
-import { existsSync, statSync } from 'node:fs';
+import { validateProjectDirectory } from '../../session/validation.js';
 import type { ProjectStore } from '../../session/project-store.js';
 
 /**
@@ -14,12 +14,7 @@ export class HelmProjectService {
    * exists on disk and is not already registered.
    */
   createProject(dirPath: string, name?: string): { id: string; name: string; canonicalPath: string } {
-    if (!existsSync(dirPath)) {
-      throw new Error(`Directory does not exist: ${dirPath}`);
-    }
-    if (!statSync(dirPath).isDirectory()) {
-      throw new Error(`Path is not a directory: ${dirPath}`);
-    }
+    validateProjectDirectory(dirPath);
     const record = this.projectStore.createProject(dirPath, name);
     this.projectStore.save();
     return { id: record.id, name: record.name, canonicalPath: record.canonicalPath };
@@ -59,12 +54,14 @@ export class HelmProjectService {
   }
 
   addProjectDir(projectId: string, dirPath: string): { ok: true } {
+    validateProjectDirectory(dirPath);
     this.projectStore.addDirectory(projectId, dirPath);
     this.projectStore.save();
     return { ok: true };
   }
 
   removeProjectDir(projectId: string, dirPath: string): { ok: true } {
+    validateProjectDirectory(dirPath);
     this.projectStore.removeDirectory(projectId, dirPath);
     this.projectStore.save();
     return { ok: true };

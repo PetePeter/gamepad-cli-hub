@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { createRequire } from 'node:module';
 import { logger } from '../utils/logger.js';
+import { validateProjectDirectory } from './validation.js';
 import type { TextDeliveryOptions } from './delivery-context.js';
 import { TerminalOutputBuffer, type TerminalOutputMode, type TerminalTail } from './terminal-output-buffer.js';
 
@@ -118,11 +119,23 @@ export class PtyManager extends EventEmitter {
     }
 
     const { file: shell, args: shellArgs } = resolvePtyShell();
+
+    const safeCwd = process.env.USERPROFILE || process.env.HOME || process.cwd();
+    let resolvedCwd = safeCwd;
+    if (cwd) {
+      try {
+        validateProjectDirectory(cwd);
+        resolvedCwd = cwd;
+      } catch {
+        logger.warn(`[PTY] Invalid cwd "${cwd}" for session ${sessionId}, falling back to "${resolvedCwd}"`);
+      }
+    }
+
     const ptyProcess = this.factory.spawn(shell, shellArgs, {
       name: 'xterm-256color',
       cols,
       rows,
-      cwd: cwd || process.env.USERPROFILE || process.env.HOME || process.cwd(),
+      cwd: resolvedCwd,
       env: { ...process.env, ...env } as Record<string, string>,
     });
 

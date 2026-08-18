@@ -10,6 +10,7 @@ import type { ProjectStore } from '../../session/project-store.js';
 import type { PlanManager } from '../../session/plan-manager.js';
 import type { ContextManager } from '../../session/context-manager.js';
 import { PlanAttachmentManager } from '../../session/plan-attachment-manager.js';
+import { validateProjectDirectory } from '../../session/validation.js';
 import { logger } from '../../utils/logger.js';
 
 export function setupProjectHandlers(projectStore: ProjectStore, planManager?: PlanManager, contextManager?: ContextManager): void {
@@ -47,6 +48,7 @@ export function setupProjectHandlers(projectStore: ProjectStore, planManager?: P
 
   ipcMain.handle('project:create', (_event, dirPath: string, name?: string) => {
     try {
+      validateProjectDirectory(dirPath);
       const project = projectStore.resolveForPath(dirPath);
       if (name?.trim()) {
         projectStore.rename(project.id, name);
@@ -86,6 +88,7 @@ export function setupProjectHandlers(projectStore: ProjectStore, planManager?: P
 
   ipcMain.handle('project:addDir', (_event, id: string, dirPath: string) => {
     try {
+      validateProjectDirectory(dirPath);
       projectStore.addDirectory(id, dirPath);
       projectStore.save();
       logger.info(`[IPC] Added directory "${dirPath}" to project ${id}`);
@@ -98,6 +101,7 @@ export function setupProjectHandlers(projectStore: ProjectStore, planManager?: P
 
   ipcMain.handle('project:removeDir', (_event, id: string, dirPath: string) => {
     try {
+      validateProjectDirectory(dirPath);
       projectStore.removeDirectory(id, dirPath);
       projectStore.save();
       logger.info(`[IPC] Removed directory "${dirPath}" from project ${id}`);
@@ -110,6 +114,7 @@ export function setupProjectHandlers(projectStore: ProjectStore, planManager?: P
 
   ipcMain.handle('project:setMainDir', (_event, id: string, dirPath: string) => {
     try {
+      validateProjectDirectory(dirPath);
       projectStore.setMainDirectory(id, dirPath);
       projectStore.save();
       logger.info(`[IPC] Set main directory "${dirPath}" for project ${id}`);
