@@ -107,7 +107,7 @@ describe('HelmControlService.sendTextToSession', () => {
     expect(callArg).toMatch(/^\[HELM_MSG: expectsResponse=true\. To reply, call MCP tool mcp__helm__session_send_text with: sessionId="sender1"/);
     expect(callArg).toContain('senderSessionId=<your env $HELM_SESSION_ID>');
 
-    const envelopeMatch = callArg.match(/^\[HELM_MSG[^\]]*\](\{[^\n]+\})$/);
+    const envelopeMatch = callArg.match(/^\[HELM_MSG[^\]]*\](\{[^\n}]*\})/);
     expect(envelopeMatch).toBeTruthy();
 
     const envelope = JSON.parse(envelopeMatch![1]);
@@ -129,7 +129,7 @@ describe('HelmControlService.sendTextToSession', () => {
 
     const callArg = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0][1] as string;
     expect(callArg).toMatch(/^\[HELM_MSG\]\{/);
-    const envelopeMatch = callArg.match(/^\[HELM_MSG\](\{[^\n]+\})$/);
+    const envelopeMatch = callArg.match(/^\[HELM_MSG\](\{[^\n}]*\})/);
     const envelope = JSON.parse(envelopeMatch![1]);
     expect(envelope.expectsResponse).toBe(false);
   });
@@ -1431,7 +1431,7 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
     const message = deliverCall[1] as string;
     expect(message).toMatch(/^\[HELM_MSG\]/);
     expect(message).toContain('"type":"inter_llm_message"');
-    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', 'hello');
+    expect(message).toContain('hello');
   });
 
   it('sendTextToSession with preamble enabled (explicit true)', async () => {
@@ -1453,7 +1453,7 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
     const message = deliverCall[1] as string;
     expect(message).toMatch(/^\[HELM_MSG\]/);
     expect(message).toContain('"type":"inter_llm_message"');
-    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', 'hello');
+    expect(message).toContain('hello');
   });
 
   it('sendTextToSession with preamble disabled', async () => {
@@ -1515,7 +1515,7 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
 
     const deliverCall = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0];
     const message = deliverCall[1] as string;
-    const envelopeMatch = message.match(/^\[HELM_MSG[^\]]*\](\{[^\n]+\})$/);
+    const envelopeMatch = message.match(/^\[HELM_MSG[^\]]*\](\{[^\n}]*\})/);
     expect(envelopeMatch).toBeTruthy();
     const envelope = JSON.parse(envelopeMatch![1]);
     expect(envelope.fromSessionId).toBe('agent-1');

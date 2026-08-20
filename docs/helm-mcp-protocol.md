@@ -106,8 +106,15 @@ address routes questions home the same way a local session id does.
 Recipients configured with `helmPreambleForInterSession: false` receive plain text
 with no envelope and therefore no directive — that opt-out is unchanged.
 
-The directive is delivered as its own chunk after the payload, so the `[HELM_MSG]{json}`
-first line and the instruction text remain byte-exact for existing parsers.
+The directive follows the payload in the same write, appended with no separator, so the
+`[HELM_MSG]{json}` opening and the instruction text remain byte-exact for existing parsers.
+
+Frame, payload and directive go out as a **single** PTY write. They were once separated by
+`{Wait 80}` tokens, but a wait makes the sequence executor flush — turning one message into
+three writes, and therefore three bracketed pastes into the recipient's composer. Full-screen
+TUIs ingest a paste asynchronously, so each extra paste was another chance for the trailing
+submit to land mid-ingest and leave the message sitting unsent on the prompt. The bytes are
+identical either way; one write means one race instead of three.
 
 ### When Envelope Is Added
 

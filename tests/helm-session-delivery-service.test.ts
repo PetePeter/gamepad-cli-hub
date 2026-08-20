@@ -38,7 +38,8 @@ function makeDeps(opts?: { helmPreambleForInterSession?: boolean; largeTextAsTem
   const ptyManager = {
     has: vi.fn(() => opts?.ptyRunning ?? true),
     write: vi.fn(),
-    deliverText: vi.fn(async () => {}),
+    // Parameters are spelled out so assertions on mock.calls stay typed.
+    deliverText: vi.fn(async (_sessionId: string, _text: string, _options?: unknown) => {}),
     nudgeResize: vi.fn(async () => {}),
   };
 
@@ -69,7 +70,15 @@ function getSentText(ptyManager: ReturnType<typeof makeDeps>['ptyManager']): str
 
 describe('HelmSessionDeliveryService', () => {
   describe('envelope framing (preamble=true)', () => {
-    it('separates the [HELM_MSG] tag+envelope from user text with a controlled wait', async () => {
+    /**
+     * The envelope, the user text and the directive used to be separated by
+     * {Wait 80} tokens, which the sequence executor turns into three separate
+     * PTY writes — three bracketed pastes into the recipient's composer, and
+     * three chances for a full-screen TUI to still be mid-ingest when the Enter
+     * arrives. The bytes were always glued together anyway, so one write says
+     * the same thing with one race instead of three.
+     */
+    it('delivers tag, envelope, user text and directive as a single write', async () => {
       const { service, ptyManager, receiver, sender } = makeDeps();
 
       await service.sendTextToSession(receiver.id, 'hello world', {
@@ -78,22 +87,16 @@ describe('HelmSessionDeliveryService', () => {
         expectsResponse: false,
       });
 
-      const calls = ptyManager.deliverText.mock.calls;
-      const sent = calls.find((c: any[]) => c[1]?.startsWith('[HELM_MSG]') && c[2] === undefined)?.[1] as string;
-      const userText = calls.find((c: any[]) => c[1] === 'hello world' && c[2] === undefined)?.[1] as string;
-      // Message must start with the tag, then envelope JSON, then a space, then user text
-      // No \n should appear between the envelope JSON and the user text
-      const tagStart = sent.indexOf('[HELM_MSG]');
-      expect(tagStart).toBe(0);
+      const textCalls = ptyManager.deliverText.mock.calls.filter((c: any[]) => c[1]);
+      expect(textCalls).toHaveLength(1);
 
-      // Find where the envelope JSON ends (after the closing })
-      const envelopeEnd = sent.indexOf('}') + 1; // first } closes the envelope JSON
-      // Everything from tag to the user text should not contain \n before the user text starts
-      const frameSection = sent.slice(0, envelopeEnd);
-      expect(frameSection).not.toContain('\n');
-
-      expect(sent.endsWith('}')).toBe(true);
-      expect(userText).toBe('hello world');
+      const sent = textCalls[0][1] as string;
+      expect(sent.indexOf('[HELM_MSG]')).toBe(0);
+      // Envelope JSON, then the user text, then the directive — in that order.
+      const envelopeEnd = sent.indexOf('}') + 1;
+      expect(sent.slice(0, envelopeEnd)).not.toContain('\n');
+      expect(sent.indexOf('hello world')).toBe(envelopeEnd);
+      expect(sent.indexOf('[HELM_MSG_RULES]')).toBeGreaterThan(sent.indexOf('hello world'));
     });
 
     it('user text containing a literal \\n is preserved unchanged', async () => {
@@ -106,9 +109,9 @@ describe('HelmSessionDeliveryService', () => {
         expectsResponse: false,
       });
 
-      const sent = ptyManager.deliverText.mock.calls.find((c: any[]) => c[1] === userText && c[2] === undefined)?.[1] as string;
+      const sent = ptyManager.deliverText.mock.calls.find((c: any[]) => c[1])?.[1] as string;
       // The payload newline must survive intact
-      expect(sent).toBe('line one\nline two');
+      expect(sent).toContain('line one\nline two');
     });
   });
 
@@ -230,8 +233,11 @@ describe('HelmSessionDeliveryService', () => {
         expect(result.ok).toBe(true);
         // payloadRef removed from envelope — path lives only in the preamble notice
         const envelopeCall = ptyManager.deliverText.mock.calls.find((c: any[]) => String(c[1]).startsWith('[HELM_MSG]'));
+        // The envelope opens the single delivered chunk; the payload and the
+        // directive follow it, so parse only up to the object's closing brace
+        // (the envelope is a flat object — its first '}' is its last).
         const envelopeText = String(envelopeCall?.[1] ?? '').slice('[HELM_MSG]'.length);
-        const envelope = JSON.parse(envelopeText);
+        const envelope = JSON.parse(envelopeText.slice(0, envelopeText.indexOf('}') + 1));
         expect(envelope.payloadRef).toBeUndefined();
         const noticeCall = ptyManager.deliverText.mock.calls.find((c: any[]) => String(c[1]).includes('Read the full file at:'));
         const noticeText = String(noticeCall?.[1] ?? '');

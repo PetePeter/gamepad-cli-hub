@@ -147,11 +147,17 @@ export class HelmSessionDeliveryService {
       // (unrecognized brace groups get {{/}}), while user text tokens like {Send}
       // are preserved since they are recognized tokens.
       //
-      // The directive trails the payload as its own chunk so the documented
-      // "[HELM_MSG]{json}" first line and the user text both stay byte-exact for
-      // existing envelope parsers.
+      // Frame, payload and directive are concatenated with no separator, so the
+      // documented "[HELM_MSG]{json}" opening and the user text stay byte-exact
+      // for existing envelope parsers.
+      //
+      // They are deliberately NOT split with {Wait} tokens: a wait forces the
+      // sequence executor to flush, turning one message into three PTY writes —
+      // three bracketed pastes into the recipient's composer, each one a chance
+      // for a full-screen TUI to still be ingesting when the submit lands. Same
+      // bytes, one race instead of three.
       const directive = buildNonBlockingDirective(options.senderSessionId);
-      const message = `${tag}${envelope}{Wait 80}${deliveryText}{Wait 80}${directive}`;
+      const message = `${tag}${envelope}${deliveryText}${directive}`;
 
       deliveryVerification = await deliverPromptSequenceToSession({
         sessionId: session.id,
