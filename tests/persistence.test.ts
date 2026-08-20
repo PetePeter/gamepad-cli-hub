@@ -63,6 +63,7 @@ describe('persistence', () => {
         name: 'Claude Code 1',
         cliType: 'claude-code',
         processId: 1001,
+        locked: false,
       });
     });
 

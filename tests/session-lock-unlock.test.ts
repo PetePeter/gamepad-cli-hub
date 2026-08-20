@@ -12,8 +12,13 @@
  *    and its click always asked to LOCK — never to unlock.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { asBoolean } from '../src/mcp/tools/validation.js';
+import { saveSessions, loadSessions } from '../src/session/session-persistence.js';
+import type { SessionInfo } from '../src/types/session.js';
 
 describe('asBoolean', () => {
   it('accepts false — the whole point, since false is what unlocks', () => {
@@ -31,5 +36,57 @@ describe('asBoolean', () => {
   it('rejects a non-boolean rather than coercing it', () => {
     expect(() => asBoolean('false', 'locked is required')).toThrow('locked is required');
     expect(() => asBoolean(0, 'locked is required')).toThrow('locked is required');
+  });
+});
+
+/**
+ * The third route, and the one that survived the first two fixes.
+ *
+ * The persisted snapshot omitted `locked` entirely when false, and the renderer
+ * folds that snapshot into its cached session records with a spread merge. A
+ * missing key cannot overwrite anything, so a stale `locked: true` outlived
+ * every unlock and the card reverted to 🔒 on the next refresh.
+ *
+ * Absence must therefore never be the way "unlocked" is expressed.
+ */
+describe('session persistence — lock state', () => {
+  const dirs: string[] = [];
+
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+
+  function sessionsFile(): string {
+    const dir = mkdtempSync(join(tmpdir(), 'helm-lock-'));
+    dirs.push(dir);
+    return join(dir, 'sessions.yaml');
+  }
+
+  const base: SessionInfo = {
+    id: 'session-1',
+    name: 'copilot',
+    cliType: 'copilot-cli',
+    processId: 1001,
+  };
+
+  it('persists locked: false for an unlocked session rather than omitting it', () => {
+    const file = sessionsFile();
+    saveSessions([{ ...base, locked: false }], file);
+
+    expect(loadSessions(file)[0].locked).toBe(false);
+  });
+
+  it('persists locked: true for a locked session', () => {
+    const file = sessionsFile();
+    saveSessions([{ ...base, locked: true }], file);
+
+    expect(loadSessions(file)[0].locked).toBe(true);
+  });
+
+  it('reports a never-locked session as explicitly unlocked', () => {
+    const file = sessionsFile();
+    saveSessions([base], file);
+
+    expect(loadSessions(file)[0].locked).toBe(false);
   });
 });
