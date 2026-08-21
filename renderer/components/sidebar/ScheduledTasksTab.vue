@@ -12,7 +12,7 @@ import PromptTextarea from '../common/PromptTextarea.vue';
 import { useFocusTrap } from '../../composables/useFocusTrap.js';
 import { FORM_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { loadStoredSessions } from '../../session-store.js';
-import { getCliDisplayName } from '../../utils.js';
+import { getCliDisplayName, normalizeDirPath } from '../../utils.js';
 import { getBackgroundDeliveryWarning, type PasteMode } from '../../../src/session/delivery-context.js';
 
 const emit = defineEmits<{
@@ -69,7 +69,8 @@ const modalStack = useModalStack();
 
 const sessionsForDir = computed(() => {
   if (formMode.value !== 'direct' || !selectedDirPath.value) return [];
-  const inDirectory = availableSessions.value.filter(s => s.workingDir === selectedDirPath.value);
+  const wantedDir = normalizeDirPath(selectedDirPath.value);
+  const inDirectory = availableSessions.value.filter(s => normalizeDirPath(s.workingDir ?? '') === wantedDir);
   // A stored direct target is authoritative. Keep it visible in the editor even
   // if its directory metadata later differs, so the schedule info/edit popup
   // always shows the session this task will actually target.
@@ -312,7 +313,9 @@ onMounted(async () => {
     showCreateForm.value = true;
     startCreateForm();
   }
-  refreshTimer = setInterval(loadTasks, 10000);
+  // Sessions refresh alongside tasks: a direct-mode target that closes while the
+  // form is open must stop being selectable.
+  refreshTimer = setInterval(() => { void loadTasks(); void loadSessions(); }, 10000);
   if (props.popup) modalStack.push({ id: 'scheduler-popup', handler: () => true, interceptKeys: FORM_KEYS });
 });
 
@@ -338,7 +341,7 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer); modalStack.po
       </div>
       <div class="st-form-row st-form-row--picker"><label class="st-label">Working Directory *</label><button class="st-picker-btn focusable" @click="openDirPickerModal">{{ selectedDirPath ? shortenPath(selectedDirPath) : 'Select Directory...' }}</button></div>
       <div class="st-form-row"><label class="st-label">Mode</label><select v-model="formMode" class="st-input focusable" @change="onModeChange"><option value="spawn">Spawn new session</option><option value="direct">Send to existing session</option></select></div>
-      <div v-if="formMode !== 'direct'" class="st-form-row st-form-row--picker"><label class="st-label">CLI Type *</label><button class="st-picker-btn focusable" @click="openCliPicker">{{ selectedCliType || 'Select CLI...' }}</button></div>
+      <div v-if="formMode !== 'direct'" class="st-form-row st-form-row--picker"><label class="st-label">CLI Type *</label><button class="st-picker-btn focusable" @click="openCliPicker">{{ selectedCliType ? getCliDisplayName(selectedCliType) : 'Select CLI...' }}</button></div>
       <div v-if="formMode === 'direct'" class="st-form-row"><label class="st-label">Target Session *</label><select v-model="selectedTargetSessionId" class="st-input focusable" :disabled="sessionsForDir.length === 0"><option value="" disabled>{{ sessionsForDir.length === 0 ? 'No sessions in this directory' : 'Select session...' }}</option><option v-for="s in sessionsForDir" :key="s.id" :value="s.id">{{ s.name }} ({{ getCliDisplayName(s.cliType) }})</option></select></div>
       <div v-if="schedulerDeliveryWarning" class="st-warning">{{ schedulerDeliveryWarning }}</div>
       <div v-if="formMode !== 'direct'" class="st-form-row"><label class="st-label">CLI Params (optional)</label><input v-model="formCliParams" type="text" class="st-input focusable" placeholder="Additional CLI arguments" /></div>

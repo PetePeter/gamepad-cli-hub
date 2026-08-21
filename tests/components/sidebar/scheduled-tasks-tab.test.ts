@@ -9,6 +9,10 @@ import ScheduledTasksTab from '../../../renderer/components/sidebar/ScheduledTas
 import QuickSpawnModal from '../../../renderer/components/modals/QuickSpawnModal.vue';
 import DirPickerModal from '../../../renderer/components/modals/DirPickerModal.vue';
 import { FORM_KEYS, useModalStack } from '../../../renderer/composables/useModalStack.js';
+import { state } from '../../../renderer/state.js';
+
+/** A cliType id in the post-migration uuid shape. */
+const CODEX_UUID = '1f2e3d4c-5b6a-4798-8a9b-0c1d2e3f4a5b';
 
 const mockScheduledTaskList = vi.fn();
 const mockScheduledTaskCreate = vi.fn();
@@ -68,6 +72,10 @@ describe('ScheduledTasksTab', () => {
       { id: 'sess-2', name: 'other', cliType: 'codex', workingDir: 'X:\\other\\project' },
     ]);
 
+    // Path normalization is platform-sensitive and every fixture path here is
+    // a Windows path, so pin the platform the renderer sees.
+    (window as any).helmPlatform = 'win32';
+    state.cliToolsCache = {};
     (window as any).sessionStore = {
       load: mockSessionGetAll,
     };
@@ -85,6 +93,66 @@ describe('ScheduledTasksTab', () => {
   afterEach(() => {
     vi.useRealTimers();
     modalStack.clear();
+  });
+
+  it('shows the CLI display name on the picker button, never the raw uuid', async () => {
+    state.cliToolsCache = { [CODEX_UUID]: { displayName: 'Codex CLI' } } as typeof state.cliToolsCache;
+    mockConfigGetCliTypes.mockResolvedValue([CODEX_UUID]);
+
+    const wrapper = mountTab();
+    await flushPromises();
+    await wrapper.find('.st-create-btn').trigger('click');
+    await wrapper.findAll('.st-picker-btn')[1].trigger('click');
+    await flushPromises();
+    wrapper.findComponent(QuickSpawnModal).vm.$emit('select', CODEX_UUID);
+    await wrapper.vm.$nextTick();
+
+    const label = wrapper.findAll('.st-picker-btn')[1].text();
+    expect(label).toBe('Codex CLI');
+    expect(label).not.toContain(CODEX_UUID);
+  });
+
+  it('lists target sessions whose workingDir differs only by case or trailing slash', async () => {
+    mockSessionGetAll.mockResolvedValue([
+      { id: 'sess-1', name: 'main', cliType: 'claude-code', workingDir: 'x:\\coding\\gamepad-cli-hub' },
+    ]);
+
+    const wrapper = mountTab();
+    await flushPromises();
+    await wrapper.find('.st-create-btn').trigger('click');
+    await wrapper.findAll('.st-picker-btn')[0].trigger('click');
+    await flushPromises();
+    wrapper.findComponent(DirPickerModal).vm.$emit('select', 'X:\\coding\\gamepad-cli-hub\\');
+    await wrapper.vm.$nextTick();
+
+    const modeSelect = wrapper.findAll('select')[0];
+    await modeSelect.setValue('direct');
+    await flushPromises();
+
+    const options = wrapper.findAll('option').filter((o) => o.attributes('value') === 'sess-1');
+    expect(options).toHaveLength(1);
+    expect(options[0].text()).toContain('main');
+  });
+
+  it('drops a target session that closes while the form is open', async () => {
+    const wrapper = mountTab();
+    await flushPromises();
+    await wrapper.find('.st-create-btn').trigger('click');
+    await wrapper.findAll('.st-picker-btn')[0].trigger('click');
+    await flushPromises();
+    wrapper.findComponent(DirPickerModal).vm.$emit('select', 'X:\\coding\\gamepad-cli-hub');
+    await wrapper.vm.$nextTick();
+    await wrapper.findAll('select')[0].setValue('direct');
+    await flushPromises();
+    expect(wrapper.findAll('option').some((o) => o.attributes('value') === 'sess-1')).toBe(true);
+
+    mockSessionGetAll.mockResolvedValue([
+      { id: 'sess-2', name: 'other', cliType: 'codex', workingDir: 'X:\\other\\project' },
+    ]);
+    await vi.advanceTimersByTimeAsync(10_000);
+    await flushPromises();
+
+    expect(wrapper.findAll('option').some((o) => o.attributes('value') === 'sess-1')).toBe(false);
   });
 
   it('uses configured CLI string keys and a local next-hour datetime default', async () => {

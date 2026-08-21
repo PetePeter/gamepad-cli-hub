@@ -22,6 +22,8 @@ export interface ConfiguredSessionSpawnParams {
   sessionName?: string;
   command?: string;
   args?: string[];
+  /** Extra arguments appended to the resolved command, e.g. a scheduled task's cliParams. */
+  extraArgs?: string;
   cwd?: string;
   resumeSessionName?: string;
   contextText?: string;
@@ -59,7 +61,7 @@ export function spawnConfiguredSession(params: ConfiguredSessionSpawnParams): Co
     || 'unknown';
   const isResume = Boolean(params.resumeSessionName);
   const cliSessionName = params.resumeSessionName || randomUUID();
-  const { rawCommand, command, args } = resolveSpawnCommand({
+  let { rawCommand, command, args } = resolveSpawnCommand({
     cfg,
     cliType: params.cliType ?? 'unknown',
     cliSessionName,
@@ -67,6 +69,13 @@ export function spawnConfiguredSession(params: ConfiguredSessionSpawnParams): Co
     fallbackCommand: params.command,
     fallbackArgs: params.args,
   });
+  // Appended after template resolution so extra args land at the end of the
+  // command line regardless of which branch produced it.
+  const extraArgs = params.extraArgs?.trim();
+  if (extraArgs) {
+    if (rawCommand) rawCommand = `${rawCommand} ${extraArgs}`;
+    else args = [...(args ?? []), ...extraArgs.split(/\s+/)];
+  }
   const env = resolveConfiguredSpawnEnv(params.configLoader, params.cliType, {
     sessionId,
     sessionName,

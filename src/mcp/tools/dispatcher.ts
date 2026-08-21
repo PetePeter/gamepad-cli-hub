@@ -603,7 +603,9 @@ export async function callMcpTool(
           title: asString(args.title, 'title is required'),
           description: args.description as string | undefined,
           initialPrompt: asString(args.initialPrompt, 'initialPrompt is required'),
-          cliType: asString(args.cliType, 'cliType is required'),
+          // Direct mode derives the CLI type from the target session, so it is
+          // optional here; the manager rejects a spawn task without one.
+          cliType: (args.cliType as string | undefined) ?? '',
           dirPath: asString(args.dirPath, 'dirPath is required'),
           scheduledTime: asString(args.scheduledTime, 'scheduledTime is required'),
           scheduleKind: args.scheduleKind as 'once' | 'interval' | 'cron' | undefined,

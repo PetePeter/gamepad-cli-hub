@@ -8,7 +8,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'events';
 import { ScheduledTaskManager } from './scheduled-task-manager.js';
+import { normalizeProjectPath } from './project-identity.js';
 import { saveScheduledTasks } from './persistence.js';
+
+/** The raw directory the tests schedule into, and the shape it is stored in. */
+const TEST_DIR = 'X:\\\\coding\\\\test';
+const TEST_DIR_NORMALIZED = normalizeProjectPath(TEST_DIR);
 
 /**
  * Scheduled-task persistence resolves to one process-wide config path — the
@@ -30,7 +35,7 @@ import type { ScheduledTask, ScheduledTaskHistoryEntry, CreateScheduledTaskParam
 // ─── Fakes for dependencies ─────────────────────────────────────────────────────
 
 class FakeSessionManager {
-  private sessions = new Map<string, { id: string; cliType: string; workingDir: string }>();
+  private sessions = new Map<string, Record<string, unknown> & { id: string; cliType: string; workingDir: string }>();
   private activeSessionId: string | null = null;
 
   spawn(cliType: string, workingDir: string, env?: Record<string, string>): string {
@@ -39,9 +44,11 @@ class FakeSessionManager {
     return id;
   }
 
+  hasSession(id: string) { return this.sessions.has(id); }
+  updateSession(id: string, patch: Record<string, unknown>) { Object.assign(this.sessions.get(id)!, patch); }
   getSession(id: string) { return this.sessions.get(id); }
   getActiveSession() { return this.activeSessionId ? this.sessions.get(this.activeSessionId) ?? null : null; }
-  addSession(session: { id: string; cliType: string; workingDir: string }) {
+  addSession(session: Record<string, unknown> & { id: string; cliType: string; workingDir: string }) {
     this.sessions.set(session.id, session);
     if (!this.activeSessionId) this.activeSessionId = session.id;
   }
@@ -111,9 +118,15 @@ class FakePlanManager {
 
 class FakeConfigLoader {
   submitSuffixByCli = new Map<string, string>();
+  envByCli = new Map<string, Array<{ name: string; value: string }>>();
+  /** CLI refs that resolve to nothing, as a deleted or misspelled type would. */
+  unknownCliTypes = new Set<string>();
+  /** CLI refs whose display name maps to more than one type. */
+  ambiguousCliTypes = new Set<string>();
 
   getCliTypeEntry(cliType: string) {
     return {
+      env: this.envByCli.get(cliType) ?? [],
       cliType,
       displayName: cliType,
       icon: cliType,
@@ -130,10 +143,13 @@ class FakeConfigLoader {
     };
   }
 
-  /** Mirrors ConfigLoader's single resolution choke point. */
+  /** Mirrors ConfigLoader's single resolution choke point, throw included. */
   resolveCliType(ref: string) {
-    const config = this.getCliTypeEntry(ref);
-    return config ? { id: ref, config } : null;
+    if (this.ambiguousCliTypes.has(ref)) {
+      throw new Error(`Ambiguous CLI type display name: ${ref}`);
+    }
+    if (!ref || this.unknownCliTypes.has(ref)) return null;
+    return { id: ref, config: this.getCliTypeEntry(ref) };
   }
 
   getWorkingDirectories() { return [{ path: 'X:\\\\coding\\\\test', name: 'test' }]; }
@@ -201,6 +217,58 @@ describe('ScheduledTaskManager', () => {
       expect(task.createdAt).toBeGreaterThan(0);
       expect(task.sessionId).toBeUndefined();
       expect(task.completedAt).toBeUndefined();
+    });
+
+    it('rejects an unknown cliType instead of persisting a task that cannot run', () => {
+      configLoader.unknownCliTypes.add('deleted-cli');
+
+      expect(() => manager.createTask({
+        title: 'Doomed',
+        planIds: [],
+        initialPrompt: 'Test',
+        cliType: 'deleted-cli',
+        scheduledTime: new Date(Date.now() + 10000),
+        dirPath: TEST_DIR,
+      })).toThrow(/Unknown CLI type/);
+
+      expect(manager.listTasks()).toHaveLength(0);
+    });
+
+    it('rejects a spawn task with no cliType', () => {
+      expect(() => manager.createTask({
+        title: 'No CLI',
+        planIds: [],
+        initialPrompt: 'Test',
+        cliType: '   ',
+        scheduledTime: new Date(Date.now() + 10000),
+        dirPath: TEST_DIR,
+      })).toThrow(/require a cliType/);
+    });
+
+    it('surfaces an ambiguous display name to the caller rather than at fire time', () => {
+      configLoader.ambiguousCliTypes.add('Claude Code');
+
+      expect(() => manager.createTask({
+        title: 'Ambiguous',
+        planIds: [],
+        initialPrompt: 'Test',
+        cliType: 'Claude Code',
+        scheduledTime: new Date(Date.now() + 10000),
+        dirPath: TEST_DIR,
+      })).toThrow(/Ambiguous/);
+    });
+
+    it('normalizes dirPath so it matches how sessions store workingDir', () => {
+      const task = manager.createTask({
+        title: 'Messy Path',
+        planIds: [],
+        initialPrompt: 'Test',
+        cliType: 'claude-code',
+        scheduledTime: new Date(Date.now() + 10000),
+        dirPath: 'X:\\\\Coding\\\\TEST\\\\',
+      });
+
+      expect(task.dirPath).toBe(TEST_DIR_NORMALIZED);
     });
 
     it('should emit task:changed event after creation', () => {
@@ -422,6 +490,66 @@ describe('ScheduledTaskManager', () => {
       newManager.stop();
     });
 
+    it('heals a legacy task whose dirPath and cliType predate normalization', () => {
+      // Written straight to the store in the pre-migration shape, bypassing
+      // createTask — that is exactly how these tasks exist on disk today.
+      saveScheduledTasks([{
+        id: 'legacy-1',
+        title: 'Legacy',
+        planIds: [],
+        initialPrompt: 'Test',
+        cliType: 'Claude Code',
+        scheduledTime: new Date(Date.now() + 10000),
+        scheduleKind: 'once',
+        dirPath: 'X:\\\\Coding\\\\TEST\\\\',
+        status: 'pending',
+        createdAt: Date.now(),
+      } as ScheduledTask]);
+
+      const newManager = new ScheduledTaskManager(
+        sessionManager as any,
+        ptyManager as any,
+        planManager as any,
+        configLoader as any,
+      );
+      newManager.start();
+
+      const loaded = newManager.listTasks()[0];
+      expect(loaded.dirPath).toBe(TEST_DIR_NORMALIZED);
+      expect(loaded.cliType).toBe('Claude Code'); // resolved id; the fake echoes the ref back
+
+      newManager.stop();
+    });
+
+    it('keeps a legacy task loadable when its CLI type no longer resolves', () => {
+      configLoader.unknownCliTypes.add('deleted-cli');
+      saveScheduledTasks([{
+        id: 'legacy-2',
+        title: 'Legacy Broken',
+        planIds: [],
+        initialPrompt: 'Test',
+        cliType: 'deleted-cli',
+        scheduledTime: new Date(Date.now() + 10000),
+        scheduleKind: 'once',
+        dirPath: TEST_DIR,
+        status: 'pending',
+        createdAt: Date.now(),
+      } as ScheduledTask]);
+
+      const newManager = new ScheduledTaskManager(
+        sessionManager as any,
+        ptyManager as any,
+        planManager as any,
+        configLoader as any,
+      );
+      newManager.start();
+
+      expect(newManager.listTasks()).toHaveLength(1);
+      expect(newManager.listTasks()[0].cliType).toBe('deleted-cli');
+
+      newManager.stop();
+    });
+
     it('should execute tasks with past scheduledTime immediately', async () => {
       const params: CreateScheduledTaskParams = {
         title: 'Past Task',
@@ -484,7 +612,7 @@ describe('ScheduledTaskManager', () => {
 
       expect(spawnSpy).toHaveBeenCalledWith(expect.objectContaining({
         rawCommand: 'echo claude-code',
-        cwd: 'X:\\\\coding\\\\test',
+        cwd: TEST_DIR_NORMALIZED,
       }));
     });
 
@@ -548,6 +676,26 @@ describe('ScheduledTaskManager', () => {
 
       const sessionId = manager.listTasks().find(t => t.status === 'executing')?.sessionId;
       expect(spawned[0].env?.HELM_SESSION_ID).toBe(sessionId);
+    });
+
+    it('applies the CLI type\'s configured env to the spawned session', async () => {
+      configLoader.envByCli.set('claude-code', [{ name: 'MY_CLI_FLAG', value: 'on' }]);
+      const spawnSpy = vi.spyOn(ptyManager, 'spawn');
+
+      manager.createTask({
+        title: 'Configured Env',
+        planIds: [],
+        initialPrompt: 'Test',
+        cliType: 'claude-code',
+        scheduledTime: new Date(Date.now() - 1000),
+        dirPath: TEST_DIR,
+      });
+      manager.start();
+      await vi.runOnlyPendingTimersAsync();
+
+      const env = (spawnSpy.mock.calls[0][0] as { env?: Record<string, string> }).env;
+      expect(env?.MY_CLI_FLAG).toBe('on');
+      expect(env?.HELM_MCP_TOKEN).toBeTruthy();
     });
 
     it('delivers task prompt as onComplete callback after CLI init sequences', async () => {
@@ -678,38 +826,69 @@ describe('ScheduledTaskManager', () => {
   });
 
   describe('direct mode', () => {
-    it('should fail with clear error when targetSessionId is missing', async () => {
-      manager.createTask({
+    it('rejects a direct task with no targetSessionId at create time', () => {
+      expect(() => manager.createTask({
         title: 'Orphan Direct',
         planIds: [],
         initialPrompt: 'hello',
         cliType: '',
         scheduledTime: new Date(Date.now() - 1000),
-        dirPath: 'X:\\\\coding\\\\test',
+        dirPath: TEST_DIR,
         mode: 'direct',
-      });
+      })).toThrow(/targetSessionId/);
 
-      manager.start();
-      await vi.runOnlyPendingTimersAsync();
-
-      const failed = manager.listTasks()[0];
-      expect(failed.status).toBe('failed');
-      expect(failed.error).toContain('Target session ID is missing');
+      expect(manager.listTasks()).toHaveLength(0);
     });
 
-    it('should fail when target session has been removed', async () => {
-      const deadSessionId = 'session-dead-gone';
-
-      manager.createTask({
+    it('rejects a direct task pointed at a session that does not exist', () => {
+      expect(() => manager.createTask({
         title: 'Ghost Direct',
         planIds: [],
         initialPrompt: 'hello',
         cliType: 'claude-code',
         scheduledTime: new Date(Date.now() - 1000),
-        dirPath: 'X:\\\\coding\\\\test',
+        dirPath: TEST_DIR,
         mode: 'direct',
-        targetSessionId: deadSessionId,
+        targetSessionId: 'session-dead-gone',
+      })).toThrow(/Target session not found/);
+
+      expect(manager.listTasks()).toHaveLength(0);
+    });
+
+    it('derives cliType from the target session when none is supplied', () => {
+      const targetId = 'session-derive-cli';
+      sessionManager.addSession({ id: targetId, cliType: 'codex', workingDir: TEST_DIR });
+
+      const task = manager.createTask({
+        title: 'Derived',
+        planIds: [],
+        initialPrompt: 'hello',
+        cliType: '',
+        scheduledTime: new Date(Date.now() + 10000),
+        dirPath: TEST_DIR,
+        mode: 'direct',
+        targetSessionId: targetId,
       });
+
+      expect(task.cliType).toBe('codex');
+    });
+
+    it('still fails at fire time when the target session dies after creation', async () => {
+      const targetId = 'session-dies-later';
+      sessionManager.addSession({ id: targetId, cliType: 'claude-code', workingDir: TEST_DIR });
+      ptyManager.spawn({ sessionId: targetId });
+
+      manager.createTask({
+        title: 'Dies Later',
+        planIds: [],
+        initialPrompt: 'hello',
+        cliType: 'claude-code',
+        scheduledTime: new Date(Date.now() - 1000),
+        dirPath: TEST_DIR,
+        mode: 'direct',
+        targetSessionId: targetId,
+      });
+      sessionManager.removeSession(targetId);
 
       manager.start();
       await vi.runOnlyPendingTimersAsync();
@@ -833,28 +1012,33 @@ describe('ScheduledTaskManager', () => {
       expect(entry.title).toBe('Spawn Run');
       expect(entry.initialPrompt).toBe('do the thing');
       expect(entry.cliType).toBe('claude-code');
-      expect(entry.dirPath).toBe('X:\\\\coding\\\\test');
+      expect(entry.dirPath).toBe(TEST_DIR_NORMALIZED);
       expect(entry.planIds).toEqual(['plan-a']);
       expect(entry.ranAt).toBeGreaterThan(0);
       expect(entry).not.toHaveProperty('stdout');
     });
 
-    it('appends a failed entry with error for a direct task with missing target', async () => {
+    it('appends a failed entry when a direct task target disappears before firing', async () => {
+      const targetId = 'session-history-gone';
+      sessionManager.addSession({ id: targetId, cliType: 'claude-code', workingDir: TEST_DIR });
+
       historyManager.createTask({
         title: 'Orphan Direct',
         planIds: [],
         initialPrompt: 'hello',
-        cliType: '',
+        cliType: 'claude-code',
         scheduledTime: new Date(Date.now() - 1000),
-        dirPath: 'X:\\\\coding\\\\test',
+        dirPath: TEST_DIR,
         mode: 'direct',
+        targetSessionId: targetId,
       });
+      sessionManager.removeSession(targetId);
       historyManager.start();
       await vi.runOnlyPendingTimersAsync();
 
       expect(history.entries).toHaveLength(1);
       expect(history.entries[0].outcome).toBe('failed');
-      expect(history.entries[0].error).toContain('Target session ID is missing');
+      expect(history.entries[0].error).toContain('not found');
     });
 
     it('appends one entry per fire for a recurring interval task', async () => {

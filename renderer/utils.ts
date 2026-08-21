@@ -81,6 +81,24 @@ export function resolveCliTypeRecord(cliType: string): Record<string, any> | nul
   return byName ? byName[1] : null;
 }
 
+/**
+ * Renderer-side mirror of the main process's normalizeProjectPath: collapse
+ * repeated separators, drop trailing ones, lowercase on Windows. Session
+ * workingDir and plan/project paths are stored in this shape, so any renderer
+ * comparison against a configured directory path must go through here — a bare
+ * `===` silently never matches on Windows.
+ *
+ * Unlike the main-process version this does not resolve relative paths; every
+ * path reaching the renderer is already absolute.
+ */
+export function normalizeDirPath(input: string): string {
+  if (typeof input !== 'string') return '';
+  const isWindows = (window as { helmPlatform?: string }).helmPlatform === 'win32';
+  const sep = isWindows ? '\\' : '/';
+  const collapsed = input.trim().replace(/[\\/]+/g, sep).replace(/[\\/]+$/, '');
+  return isWindows ? collapsed.toLowerCase() : collapsed;
+}
+
 export function getCliDisplayName(cliType: string): string {
   const record = resolveCliTypeRecord(cliType);
   const label = record?.displayName ?? record?.name;

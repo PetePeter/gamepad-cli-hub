@@ -10,16 +10,15 @@ import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { logger } from '../utils/logger.js';
 import { saveScheduledTasks, loadScheduledTasks } from './persistence.js';
-import type { ScheduledTask, ScheduledTaskStatus, ScheduledTaskHistoryEntry, CreateScheduledTaskParams, UpdateScheduledTaskParams } from '../types/scheduled-task.js';
+import type { ScheduledTask, ScheduledTaskMode, ScheduledTaskStatus, ScheduledTaskHistoryEntry, CreateScheduledTaskParams, UpdateScheduledTaskParams } from '../types/scheduled-task.js';
 import type { ScheduledTaskHistoryManager } from './scheduled-task-history-manager.js';
 import type { SessionManager } from './manager.js';
 import type { PtyManager } from './pty-manager.js';
 import type { PlanManager } from './plan-manager.js';
 import type { ConfigLoader } from '../config/loader.js';
-import { scheduleInitialPrompt } from './initial-prompt.js';
-import { mintSessionAuthToken } from '../mcp/session-auth.js';
 import { CronEngine } from '../utils/cron-engine.js';
-import { toHeaderSafeName } from '../utils/header-safe-name.js';
+import { spawnConfiguredSession } from './configured-session-spawn.js';
+import { normalizeProjectPath } from './project-identity.js';
 import { deliverPromptSequenceToSession } from './sequence-delivery.js';
 
 const PENDING_STATUSES = new Set<ScheduledTaskStatus>(['pending', 'executing']);
@@ -70,9 +69,55 @@ export class ScheduledTaskManager extends EventEmitter {
     });
   }
 
+  /**
+   * Resolve and validate the CLI type a task will run under, at create/update
+   * time rather than at fire time — a schedule that cannot possibly run should
+   * fail the person setting it up, not silently fail at 3am.
+   *
+   * Spawn tasks store the canonical uuid. Direct tasks inherit their target
+   * session's type, so the caller need not supply one at all.
+   */
+  private resolveTaskCliType(
+    mode: ScheduledTaskMode | undefined,
+    cliType: string | undefined,
+    targetSessionId: string | undefined,
+  ): string {
+    if (mode === 'direct') {
+      if (!targetSessionId?.trim()) {
+        throw new Error('Direct-mode scheduled tasks require a targetSessionId');
+      }
+      const session = this.sessionManager.getSession(targetSessionId);
+      if (!session) {
+        throw new Error(`Target session not found: ${targetSessionId}`);
+      }
+      return session.cliType ?? '';
+    }
+
+    const ref = cliType?.trim();
+    if (!ref) throw new Error('Spawn-mode scheduled tasks require a cliType');
+    // resolveCliType throws on an ambiguous display name — let that surface.
+    const resolved = this.configLoader.resolveCliType(ref);
+    if (!resolved) throw new Error(`Unknown CLI type: ${ref}`);
+    return resolved.id;
+  }
+
+  /**
+   * Best-effort canonicalisation for tasks loaded from disk. A legacy entry that
+   * no longer resolves (deleted or ambiguous CLI type) is left untouched so a
+   * single bad task cannot break startup; it fails loudly when it next fires.
+   */
+  private canonicalCliTypeOrKeep(cliType: string): string {
+    try {
+      return this.configLoader.resolveCliType(cliType)?.id ?? cliType;
+    } catch {
+      return cliType;
+    }
+  }
+
   /** Create a new scheduled task. */
   createTask(params: CreateScheduledTaskParams): ScheduledTask {
     const now = Date.now();
+    const cliType = this.resolveTaskCliType(params.mode, params.cliType, params.targetSessionId);
     const scheduleKind = params.scheduleKind ?? 'once';
     const nextRunAt = this.computeInitialNextRunAt(scheduleKind, params.scheduledTime, params.cronExpression, params.endDate);
     const task: ScheduledTask = {
@@ -81,7 +126,7 @@ export class ScheduledTaskManager extends EventEmitter {
       description: params.description,
       planIds: params.planIds,
       initialPrompt: params.initialPrompt,
-      cliType: params.cliType,
+      cliType,
       cliParams: params.cliParams,
       scheduledTime: params.scheduledTime,
       scheduleKind,
@@ -89,7 +134,9 @@ export class ScheduledTaskManager extends EventEmitter {
       ...(params.cronExpression !== undefined ? { cronExpression: params.cronExpression } : {}),
       ...(params.endDate !== undefined ? { endDate: params.endDate } : {}),
       nextRunAt,
-      dirPath: params.dirPath,
+      // Stored normalized so it compares equal to a session's workingDir, which
+      // SessionManager also stores normalized.
+      dirPath: normalizeProjectPath(params.dirPath),
       mode: params.mode,
       targetSessionId: params.targetSessionId,
       status: 'pending',
@@ -119,18 +166,26 @@ export class ScheduledTaskManager extends EventEmitter {
     const task = this.tasks.get(id);
     if (!task || task.status !== 'pending') return null;
 
+    // Validate against the post-merge shape before mutating, so a rejected
+    // update leaves the task exactly as it was.
+    const mode = updates.mode ?? task.mode;
+    const targetSessionId = Object.prototype.hasOwnProperty.call(updates, 'targetSessionId')
+      ? updates.targetSessionId
+      : task.targetSessionId;
+    const cliType = this.resolveTaskCliType(mode, updates.cliType ?? task.cliType, targetSessionId);
+
     if (updates.title !== undefined) task.title = updates.title;
     if (Object.prototype.hasOwnProperty.call(updates, 'description')) task.description = updates.description;
     if (updates.planIds !== undefined) task.planIds = updates.planIds;
     if (updates.initialPrompt !== undefined) task.initialPrompt = updates.initialPrompt;
-    if (updates.cliType !== undefined) task.cliType = updates.cliType;
+    task.cliType = cliType;
     if (Object.prototype.hasOwnProperty.call(updates, 'cliParams')) task.cliParams = updates.cliParams;
     if (updates.scheduledTime !== undefined) task.scheduledTime = updates.scheduledTime;
     if (updates.scheduleKind !== undefined) task.scheduleKind = updates.scheduleKind;
     if (Object.prototype.hasOwnProperty.call(updates, 'intervalMs')) task.intervalMs = updates.intervalMs;
     if (Object.prototype.hasOwnProperty.call(updates, 'cronExpression')) task.cronExpression = updates.cronExpression;
     if (Object.prototype.hasOwnProperty.call(updates, 'endDate')) task.endDate = updates.endDate;
-    if (updates.dirPath !== undefined) task.dirPath = updates.dirPath;
+    if (updates.dirPath !== undefined) task.dirPath = normalizeProjectPath(updates.dirPath);
     if (updates.mode !== undefined) task.mode = updates.mode;
     if (Object.prototype.hasOwnProperty.call(updates, 'targetSessionId')) task.targetSessionId = updates.targetSessionId;
     task.nextRunAt = this.computeInitialNextRunAt(task.scheduleKind ?? 'once', task.scheduledTime, task.cronExpression, task.endDate);
@@ -181,6 +236,12 @@ export class ScheduledTaskManager extends EventEmitter {
       // Only restore tasks that were still pending
       if (PENDING_STATUSES.has(task.status)) {
         task.scheduleKind ??= 'once';
+        // Tasks written before dirPath normalization / the cliType UUID
+        // migration are healed here, once, instead of every comparison site.
+        if (task.dirPath) task.dirPath = normalizeProjectPath(task.dirPath);
+        if (task.mode !== 'direct' && task.cliType) {
+          task.cliType = this.canonicalCliTypeOrKeep(task.cliType);
+        }
         task.nextRunAt ??= this.computeInitialNextRunAt(task.scheduleKind, task.scheduledTime, task.cronExpression, task.endDate);
         this.tasks.set(task.id, task);
       }
@@ -248,16 +309,6 @@ export class ScheduledTaskManager extends EventEmitter {
     logger.info(`[ScheduledTaskManager] Executing task "${task.title}" (${task.id}) mode=${task.mode ?? 'spawn'}`);
 
     if (task.mode === 'direct') {
-      if (!task.targetSessionId) {
-        const err = new Error('Target session ID is missing');
-        task.status = 'failed';
-        task.error = err.message;
-        task.completedAt = Date.now();
-        this.recordHistory(task, 'failed', err.message);
-        this.saveTasks();
-        this.emit('task:changed', task);
-        return;
-      }
       await this.executeDirectTask(task);
     } else {
       await this.executeSpawnTask(task);
@@ -267,7 +318,12 @@ export class ScheduledTaskManager extends EventEmitter {
   /** Direct mode: send prompt to an existing session. */
   private async executeDirectTask(task: ScheduledTask): Promise<void> {
     try {
-      const targetId = task.targetSessionId!;
+      // Validated at create time, but a task persisted before that existed —
+      // or whose target has since closed — must still fail cleanly here.
+      const targetId = task.targetSessionId;
+      if (!targetId) {
+        throw new Error('Target session ID is missing');
+      }
       const session = this.sessionManager.getSession(targetId);
       if (!session) {
         throw new Error(`Target session ${targetId} not found`);
@@ -281,20 +337,9 @@ export class ScheduledTaskManager extends EventEmitter {
       this.saveTasks();
       this.emit('task:changed', task);
 
-      if (task.planIds.length > 0 && this.planManager) {
-        const firstPlanId = task.planIds[0];
-        const plan = this.planManager.getItem(firstPlanId);
-        if (plan) {
-          this.planManager.setState(firstPlanId, 'coding', '');
-        }
-      }
+      this.startWorkingPlan(task, targetId);
 
-      let prompt = task.initialPrompt;
-      if (task.planIds.length > 0) {
-        const planRefs = task.planIds.map(id => `- ${id}`).join('\n');
-        prompt = `${task.initialPrompt}\n\nPlan references:\n${planRefs}`;
-      }
-
+      const prompt = this.buildTaskPrompt(task);
       if (prompt.length > 0) {
         await this.deliverScheduledPrompt(targetId, prompt);
       }
@@ -320,19 +365,9 @@ export class ScheduledTaskManager extends EventEmitter {
   /** Spawn mode: create a new PTY session and deliver prompt. */
   private async executeSpawnTask(task: ScheduledTask): Promise<void> {
     let exitListener: ((sessionId: string) => void) | null = null;
+    const sessionId = randomUUID();
     try {
       const previousActiveSessionId = this.sessionManager.getActiveSession()?.id ?? null;
-      const sessionId = randomUUID();
-      const cliSessionName = randomUUID();
-      const mcpConfig = this.configLoader.getMcpConfig?.() ?? { authToken: '', port: 47373 };
-      const mcpToken = mintSessionAuthToken(mcpConfig.authToken, sessionId, `[scheduled] ${task.title}`);
-      const env: Record<string, string> = {
-        HELM_SESSION_ID: sessionId,
-        // Task titles are free text and this reaches an MCP request header.
-        HELM_SESSION_NAME: toHeaderSafeName(`[scheduled] ${task.title}`),
-        HELM_MCP_TOKEN: mcpToken,
-        HELM_MCP_URL: `http://127.0.0.1:${mcpConfig.port}/mcp`,
-      };
 
       this.configLoader.reloadActiveProfileIfChanged();
       // A task's stored cliType may predate the UUID migration, or be a display
@@ -342,22 +377,7 @@ export class ScheduledTaskManager extends EventEmitter {
       if (!cli) {
         throw new Error(`Unknown CLI type: ${task.cliType}`);
       }
-      const cliConfig = cli.config;
 
-      let rawCommand = cliConfig.spawnCommand?.replaceAll('{cliSessionName}', cliSessionName);
-      if (rawCommand && task.cliParams?.trim()) {
-        rawCommand = `${rawCommand} ${task.cliParams.trim()}`;
-      }
-      if (!rawCommand) {
-        // The old fallback executed the cliType itself, which is now a UUID.
-        throw new Error(`Scheduled task "${task.title}" cannot spawn: CLI type "${cliConfig.displayName ?? cliConfig.name}" has no spawnCommand configured.`);
-      }
-      const pty = this.ptyManager.spawn({
-        sessionId,
-        rawCommand,
-        cwd: task.dirPath,
-        env,
-      });
       exitListener = (exitedSessionId: string) => {
         if (exitedSessionId !== sessionId) return;
         this.ptyManager.off('exit', exitListener!);
@@ -365,14 +385,28 @@ export class ScheduledTaskManager extends EventEmitter {
       };
       this.ptyManager.on('exit', exitListener);
 
-      this.sessionManager.addSession({
-        id: sessionId,
-        name: `[scheduled] ${task.title}`,
+      const prompt = this.buildTaskPrompt(task);
+      // The scheduler spawns through the same path as every other session, so
+      // per-CLI env, the spawn/resume command chain, submit suffixes and
+      // activity-dot seeding all behave identically here.
+      spawnConfiguredSession({
+        ptyManager: this.ptyManager,
+        sessionManager: this.sessionManager,
+        configLoader: this.configLoader,
+        sessionId,
         cliType: cli.id,
-        processId: pty.pid,
-        workingDir: task.dirPath,
-        cliSessionName,
+        sessionName: `[scheduled] ${task.title}`,
+        cwd: task.dirPath,
+        extraArgs: task.cliParams,
+        // Delivered via onPromptComplete rather than contextText so the prompt
+        // goes out under the background delivery context, as direct mode does.
+        ...(prompt.length > 0
+          ? { onPromptComplete: () => { void this.deliverScheduledPrompt(sessionId, prompt); } }
+          : {}),
+        onPromptCancel: (cancel) => this.promptCancellers.set(sessionId, cancel),
+        fallbackCompleteDelayMs: cli.config.initialPromptDelay ?? 2000,
       });
+
       if (previousActiveSessionId && this.sessionManager.getSession(previousActiveSessionId)) {
         this.sessionManager.setActiveSession(previousActiveSessionId);
       }
@@ -381,53 +415,7 @@ export class ScheduledTaskManager extends EventEmitter {
       this.saveTasks();
       this.emit('task:changed', task);
 
-      // Set working plan if planIds provided
-      if (task.planIds.length > 0 && this.planManager) {
-        const firstPlanId = task.planIds[0];
-        const plan = this.planManager.getItem(firstPlanId);
-        if (plan) {
-          this.planManager.setState(firstPlanId, 'coding', '');
-          logger.info(`[ScheduledTaskManager] Set working plan ${firstPlanId} for session ${sessionId}`);
-        }
-      }
-
-      // Build task prompt (with optional plan references)
-      let prompt = task.initialPrompt;
-      if (task.planIds.length > 0) {
-        const planRefs = task.planIds.map(id => `- ${id}`).join('\n');
-        prompt = `${task.initialPrompt}\n\nPlan references:\n${planRefs}`;
-      }
-
-      // CLI init sequences (profile initialPrompt + rename) fire first.
-      // Task user prompt fires as onComplete callback — after CLI is ready.
-      const renameCommand = cliConfig.renameCommand
-        ? cliConfig.renameCommand.replaceAll('{cliSessionName}', cliSessionName)
-        : undefined;
-
-      const deliverTaskPrompt = prompt.length > 0
-        ? () => {
-          void this.deliverScheduledPrompt(sessionId, prompt);
-        }
-        : undefined;
-
-      const cancel = scheduleInitialPrompt(
-        sessionId,
-        {
-          initialPrompt: cliConfig.initialPrompt,
-          initialPromptDelay: cliConfig.initialPromptDelay,
-          renameCommand,
-        },
-        (sid, data) => this.ptyManager.write(sid, data),
-        (sid, text) => this.ptyManager.deliverText(sid, text),
-        deliverTaskPrompt,
-      );
-      if (cancel) {
-        this.promptCancellers.set(sessionId, cancel);
-      } else if (deliverTaskPrompt) {
-        // No CLI init sequences — deliver task prompt directly after delay
-        const fallbackTimer = setTimeout(deliverTaskPrompt, cliConfig.initialPromptDelay ?? 2000);
-        this.promptCancellers.set(sessionId, () => clearTimeout(fallbackTimer));
-      }
+      this.startWorkingPlan(task, sessionId);
 
       task.lastRunAt = Date.now();
       this.saveTasks();
@@ -447,6 +435,22 @@ export class ScheduledTaskManager extends EventEmitter {
       this.saveTasks();
       this.emit('task:changed', task);
     }
+  }
+
+  /** The task prompt, with plan references appended when the task carries any. */
+  private buildTaskPrompt(task: ScheduledTask): string {
+    if (task.planIds.length === 0) return task.initialPrompt;
+    const planRefs = task.planIds.map(id => `- ${id}`).join('\n');
+    return `${task.initialPrompt}\n\nPlan references:\n${planRefs}`;
+  }
+
+  /** Move the task's first plan into 'coding' as the session's working plan. */
+  private startWorkingPlan(task: ScheduledTask, sessionId: string): void {
+    const firstPlanId = task.planIds[0];
+    if (!firstPlanId || !this.planManager) return;
+    if (!this.planManager.getItem(firstPlanId)) return;
+    this.planManager.setState(firstPlanId, 'coding', '');
+    logger.info(`[ScheduledTaskManager] Set working plan ${firstPlanId} for session ${sessionId}`);
   }
 
   /** Clear the timer for a task if it exists. */

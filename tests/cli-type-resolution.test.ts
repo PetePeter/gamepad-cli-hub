@@ -336,7 +336,7 @@ describe('ScheduledTaskManager — cliType resolution', () => {
     expect(sessionManager.added[0].cliType).toBe(id);
   });
 
-  it('fails the task instead of executing a uuid when the CLI type is unknown', async () => {
+  it('rejects an unknown CLI type at create time rather than executing a uuid', async () => {
     const loader = loadedLoader();
     const sessionManager = new FakeSessionManager();
     const ptyManager = new FakePtyManager();
@@ -345,19 +345,19 @@ describe('ScheduledTaskManager — cliType resolution', () => {
       { getItem: () => undefined } as any, loader as any,
     );
 
-    const task = manager.createTask({
+    expect(() => manager!.createTask({
       title: 'Broken',
       planIds: [],
       initialPrompt: 'go',
       cliType: 'deleted-cli',
       scheduledTime: new Date(Date.now() - 1000),
       dirPath: TEST_DIR,
-    });
+    })).toThrow(/Unknown CLI type/);
 
     manager.start();
     await vi.runOnlyPendingTimersAsync();
 
+    expect(manager.listTasks()).toHaveLength(0);
     expect(ptyManager.spawned).toHaveLength(0);
-    expect(manager.getTask(task.id)?.status).toBe('failed');
   });
 });

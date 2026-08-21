@@ -52,6 +52,8 @@ graph LR
 
 An ambiguous `displayName` throws `AmbiguousCliTypeError` naming the conflicting ids rather than silently picking one — the settings UI blocks duplicate names on add, clone and rename, so this only fires on a hand-edited YAML. An unknown reference returns `null`; nothing falls back to treating the reference as an executable name.
 
+**Resolve when the reference is accepted, not when it is used.** A scheduled task can sit pending for weeks, so `ScheduledTaskManager` resolves `cliType` in `createTask`/`updateTask` and stores the canonical uuid — an unknown or ambiguous reference fails the person or agent setting the schedule up, instead of failing unattended at 3am. Tasks written before this (or before the uuid migration) are healed once in `start()`; one that still will not resolve is left alone rather than blocking startup, and fails loudly when it next fires.
+
 `ConfigLoader.getCliTypeLabel(ref)` is the display counterpart: never throws, never returns a uuid. Telegram gets it via `setCliLabelResolver` (wired once in `initTelegramModules`) because the notifier, topic manager and keyboard builders hold no `ConfigLoader`.
 
 ### Migration
