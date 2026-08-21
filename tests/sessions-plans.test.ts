@@ -195,9 +195,8 @@ describe('Sessions Plans Grid', () => {
       cliTypes: [],
       directories: [],
       editingSessionId: null,
-      navList: [],
-      groups: [],
-      groupPrefs: { order: [], collapsed: [] },
+      // navList/groups derive from state.sessions — nothing to reset here.
+      groupPrefs: { order: [], collapsed: [], overviewHidden: [], bookmarked: [] },
       plansFocusIndex: 0,
     });
     document.body.innerHTML = '';

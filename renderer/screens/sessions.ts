@@ -14,7 +14,6 @@ import { closeConfirm, setCloseConfirmCallback } from '../stores/modal-bridge.js
 import { sortSessions, type SessionSortField, type SortDirection } from '../sort-logic.js';
 import { getOrderedSessionIds } from '../utils/session-shortcut-map.js';
 import {
-  buildSessionGroups, buildFlatNavList,
   toggleCollapse,
   findNavIndexBySessionId, getSessionOverviewAliases, getSessionOverviewKey,
 } from '../session-groups.js';
@@ -585,13 +584,8 @@ export async function loadSessionsData(): Promise<void> {
     getSessionActivity,
   );
 
-  // Build groups and flat navigation list. Runtime groups render first, then
-  // directory groups; runtime groups take exclusive ownership of their members.
-  sessionsState.groups = buildSessionGroups(
-    state.sessions, getSessionCwd, sessionsState.groupPrefs, useRuntimeGroups().groups.value,
-  );
-  sessionsState.navList = buildFlatNavList(sessionsState.groups);
-  useNavigationStore().onNavListRebuilt();
+  // groups and navList derive from state.sessions (stores/sessions-screen.ts);
+  // assigning state.sessions above is what rebuilds them.
 
   try {
     sessionsState.cliTypes = await configClient.configGetCliTypes();

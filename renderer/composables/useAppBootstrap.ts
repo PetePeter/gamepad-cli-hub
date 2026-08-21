@@ -6,8 +6,10 @@
  * react to state changes automatically via the reactive() singletons.
  */
 
+import { watch } from 'vue';
 import { state, type Session } from '../state.js';
 import { sessionsState } from '../screens/sessions-state.js';
+import { setSessionCwdResolver } from '../stores/sessions-screen.js';
 import { initConfigCache } from '../bindings.js';
 import { browserGamepad } from '../gamepad.js';
 import { setupGamepad, teardownGamepad } from './useGamepadBootstrap.js';
@@ -19,10 +21,7 @@ import { setTerminalManager, getTerminalManager } from '../runtime/terminal-prov
 import { setupKeyboardRelay } from '../paste-handler.js';
 import { resolveNextTerminalId } from '../tab-cycling.js';
 import { sortSessions, type SessionSortField, type SortDirection } from '../sort-logic.js';
-import {
-  buildSessionGroups, buildFlatNavList, findNavIndexBySessionId,
-} from '../session-groups.js';
-import { useRuntimeGroups } from './useRuntimeGroups.js';
+import { findNavIndexBySessionId } from '../session-groups.js';
 
 // Side-effect imports — modules that call registerView() at top level
 import '../screens/group-overview.js';
@@ -144,6 +143,29 @@ function logEvent(event: string): void {
 // Session data loading (data-only, no DOM manipulation)
 // ============================================================================
 
+let stopNavListWatch: (() => void) | null = null;
+
+/**
+ * Restore sidebar focus whenever the derived nav list changes shape.
+ *
+ * navList is a derivation now, so a rebuild can happen without any call site
+ * knowing — this watcher is the single place focus is re-anchored, replacing
+ * the hand-placed onNavListRebuilt() calls that each rebuild site used to own.
+ */
+export function watchNavListRebuild(
+  onRebuilt: () => void = () => useNavigationStore().onNavListRebuilt(),
+): () => void {
+  // Keyed on the nav item sequence, not the array: the derivation produces a
+  // fresh array on every session field change, and focus only moves when the
+  // order or membership of the list actually changes.
+  return watch(
+    () => sessionsState.navList.map(item => `${item.type}:${item.id}`).join('|'),
+    () => {
+      try { onRebuilt(); } catch { /* store may not be initialized yet */ }
+    },
+  );
+}
+
 export async function refreshSessions(): Promise<void> {
 
   await initGroupPrefs();
@@ -214,11 +236,7 @@ export async function refreshSessions(): Promise<void> {
     nextSessions, sortField, sortDirection, getSessionState, getSessionCwd, getSessionActivity,
   );
 
-  sessionsState.groups = buildSessionGroups(
-    state.sessions, getSessionCwd, sessionsState.groupPrefs, useRuntimeGroups().groups.value,
-  );
-  sessionsState.navList = buildFlatNavList(sessionsState.groups);
-  try { useNavigationStore().onNavListRebuilt(); } catch { /* store may not be initialized yet */ }
+  // groups/navList derive from state.sessions — see stores/sessions-screen.ts.
 
   try {
     sessionsState.cliTypes = await configClient.configGetCliTypes();
@@ -706,6 +724,11 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
     onTerminalSwitch, onTerminalEmpty, onTerminalTitleChange,
   } = opts;
 
+  // Group resolution follows the live terminal cwd, not just the stored one.
+  setSessionCwdResolver(getSessionCwd);
+  stopNavListWatch?.();
+  stopNavListWatch = watchNavListRebuild();
+
   // Config warmup
   try {
     await configClient.configGetAll();
@@ -852,6 +875,8 @@ async function autoResumeSessions(tm: TerminalManager): Promise<void> {
 
 // Cleanup
 export function teardown(): void {
+  stopNavListWatch?.();
+  stopNavListWatch = null;
   stopTimerRefresh();
   const tm = getTerminalManager();
   tm?.dispose();

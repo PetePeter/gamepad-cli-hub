@@ -321,8 +321,7 @@ describe('Sessions Screen', () => {
       cliTypes: [],
       directories: [],
       editingSessionId: null,
-      navList: [],
-      groups: [],
+      // navList/groups are derived from state.sessions — reset below.
       groupPrefs: { order: [], collapsed: [], overviewHidden: [], bookmarked: [] },
       overviewGroup: null,
       overviewIsGlobal: false,

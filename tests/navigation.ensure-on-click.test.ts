@@ -42,7 +42,9 @@ vi.mock('../renderer/runtime/terminal-provider.js', () => ({
   getTerminalManager: vi.fn(() => mockTm),
 }));
 
-vi.mock('../renderer/session-groups.js', () => ({
+// Real builders — the nav list derives from them; only the lookup is spied.
+vi.mock('../renderer/session-groups.js', async (importActual) => ({
+  ...(await importActual<typeof import('../renderer/session-groups.js')>()),
   findNavIndexBySessionId: vi.fn((navList: Array<{ type: string; id: string }>, id: string) =>
     navList.findIndex(item => item.type === 'session-card' && item.id === id),
   ),
@@ -121,7 +123,7 @@ function resetSingletons() {
   sessionsState.sessionsFocusIndex = 0;
   sessionsState.cardColumn = 0;
   sessionsState.activeFocus = 'sessions';
-  sessionsState.navList = [];
+  sessionsState.groupPrefs = { order: [], collapsed: [], overviewHidden: [], bookmarked: [] };
   sessionsState.overviewGroup = null;
   sessionsState.overviewIsGlobal = false;
 }

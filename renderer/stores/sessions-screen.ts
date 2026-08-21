@@ -9,9 +9,10 @@
 import { defineStore } from 'pinia';
 import { reactive, computed } from 'vue';
 import type { NavItem, SessionGroup, SessionGroupPrefs } from '../session-groups.js';
-import { isSessionHiddenFromOverview } from '../session-groups.js';
+import { isSessionHiddenFromOverview, buildSessionGroups, buildFlatNavList } from '../session-groups.js';
 import { buildSessionShortcutMap } from '../utils/session-shortcut-map.js';
 import { state } from '../state.js';
+import { useRuntimeGroups } from '../composables/useRuntimeGroups.js';
 import type { ProjectDirectoryItem } from '../screens/planner-directories.js';
 
 export type SessionsFocus = 'sessions' | 'spawn' | 'plans';
@@ -24,10 +25,10 @@ export interface SessionsScreenState {
   cliTypes: string[];
   directories: ProjectDirectoryItem[];
   editingSessionId: string | null;
-  /** Flat navigation list (group headers + session cards). */
-  navList: NavItem[];
-  /** Grouped session data for rendering. */
-  groups: SessionGroup[];
+  /** Flat navigation list (group headers + session cards) — derived, read-only. */
+  readonly navList: NavItem[];
+  /** Grouped session data for rendering — derived, read-only. */
+  readonly groups: SessionGroup[];
   /** Persisted group preferences (order + collapse). */
   groupPrefs: SessionGroupPrefs;
   /** Directory path of the group currently shown in overview (null = hidden). */
@@ -40,6 +41,37 @@ export interface SessionsScreenState {
   plansFocusIndex: number;
 }
 
+/**
+ * Resolve a session id to the working directory it groups under.
+ *
+ * The store cannot import the screen-level resolver (screens/* already import
+ * this store), so the app injects it at bootstrap. The default reads the
+ * session's own workingDir, which keeps the store usable standalone.
+ */
+let resolveSessionCwd: (sessionId: string) => string =
+  sessionId => state.sessions.find(session => session.id === sessionId)?.workingDir ?? '';
+
+/** Point group resolution at the live terminal cwd. Called once, at bootstrap. */
+export function setSessionCwdResolver(resolver: (sessionId: string) => string): void {
+  resolveSessionCwd = resolver;
+}
+
+/**
+ * The sidebar's grouped view of state.sessions.
+ *
+ * Derived, never assigned. Sidebar cards used to render from a hand-rebuilt
+ * snapshot, so any session change that skipped a full refresh — a lock toggle,
+ * a snap-out, an MCP/peer spawn — left the cards showing stale data.
+ */
+const derivedGroups = computed<SessionGroup[]>(() => buildSessionGroups(
+  state.sessions,
+  sessionId => resolveSessionCwd(sessionId),
+  sessionsState.groupPrefs,
+  useRuntimeGroups().groups.value,
+));
+
+const derivedNavList = computed<NavItem[]>(() => buildFlatNavList(derivedGroups.value));
+
 export const sessionsState: SessionsScreenState = reactive({
   activeFocus: 'sessions',
   sessionsFocusIndex: 0,
@@ -48,8 +80,8 @@ export const sessionsState: SessionsScreenState = reactive({
   cliTypes: [],
   directories: [],
   editingSessionId: null,
-  navList: [],
-  groups: [],
+  get navList() { return derivedNavList.value; },
+  get groups() { return derivedGroups.value; },
   groupPrefs: { order: [], collapsed: [], overviewHidden: [], bookmarked: [] },
   overviewGroup: null,
   overviewIsGlobal: false,

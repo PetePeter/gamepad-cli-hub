@@ -50,8 +50,10 @@ vi.mock('../renderer/runtime/terminal-provider.js', () => ({
   getTerminalManager: vi.fn(() => mockTm),
 }));
 
-// session-groups
-vi.mock('../renderer/session-groups.js', () => ({
+// session-groups — real builders (the nav list is derived from them now); only
+// the lookup helper is spied so call counts stay observable.
+vi.mock('../renderer/session-groups.js', async (importActual) => ({
+  ...(await importActual<typeof import('../renderer/session-groups.js')>()),
   findNavIndexBySessionId: vi.fn((navList: Array<{ type: string; id: string }>, sessionId: string) => {
     return navList.findIndex(item => item.type === 'session-card' && item.id === sessionId);
   }),
@@ -126,11 +128,31 @@ import { showView, currentView } from '../renderer/main-view/main-view-manager.j
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
+/**
+ * Seed real session state so the derived nav list takes the requested shape.
+ *
+ * Group headers become directories (bookmarked, so empty ones still render);
+ * session cards become sessions inside the directory that precedes them. The
+ * nav list is a derivation now, so it cannot be assigned directly.
+ */
 function buildNavList(...items: Array<{ type: string; id: string }>): void {
-  sessionsState.navList = items.map((item, i) => ({
-    ...item,
-    groupIndex: 0,
-  })) as any;
+  const sessions: any[] = [];
+  const dirs: string[] = [];
+  let dir = '/a';
+  for (const item of items) {
+    if (item.type === 'group-header') dir = item.id;
+    if (!dirs.includes(dir)) dirs.push(dir);
+    if (item.type === 'session-card') {
+      sessions.push({ id: item.id, name: item.id, cliType: 'claude', processId: 0, workingDir: dir });
+    }
+  }
+  sessionsState.groupPrefs = { order: [...dirs], collapsed: [], overviewHidden: [], bookmarked: [...dirs] };
+  state.sessions = sessions;
+}
+
+/** Position of a nav item in the derived list. */
+function navIndex(type: string, id: string): number {
+  return sessionsState.navList.findIndex(item => item.type === type && item.id === id);
 }
 
 function resetSingletons(): void {
@@ -143,7 +165,7 @@ function resetSingletons(): void {
   sessionsState.sessionsFocusIndex = 0;
   sessionsState.cardColumn = 0;
   sessionsState.activeFocus = 'sessions';
-  sessionsState.navList = [];
+  sessionsState.groupPrefs = { order: [], collapsed: [], overviewHidden: [], bookmarked: [] };
   sessionsState.overviewGroup = null;
   sessionsState.overviewIsGlobal = false;
 }
@@ -191,7 +213,7 @@ describe('useNavigationStore', () => {
         { type: 'group-header', id: '/projects' },
         { type: 'session-card', id: 'sess-1' },
       );
-      sessionsState.sessionsFocusIndex = 1;
+      sessionsState.sessionsFocusIndex = navIndex('session-card', 'sess-1');
       sessionsState.cardColumn = 2 as any;
 
       store.init();
@@ -243,7 +265,7 @@ describe('useNavigationStore', () => {
         { type: 'session-card', id: 'sess-2' },
       );
       store.focusedNavItem = { id: 'sess-2', type: 'session-card' };
-      expect(store.resolveFocusIndex()).toBe(2);
+      expect(store.resolveFocusIndex()).toBe(navIndex('session-card', 'sess-2'));
     });
 
     it('falls back to sessionsState index when item not found', () => {
@@ -265,7 +287,7 @@ describe('useNavigationStore', () => {
 
       store.syncFocusIndex();
 
-      expect(sessionsState.sessionsFocusIndex).toBe(1);
+      expect(sessionsState.sessionsFocusIndex).toBe(navIndex('session-card', 'sess-1'));
       expect(sessionsState.cardColumn).toBe(2);
     });
   });
@@ -282,7 +304,7 @@ describe('useNavigationStore', () => {
 
       expect(store.focusedNavItem).toEqual({ id: 'sess-2', type: 'session-card' });
       expect(store.focusColumn).toBe(0);
-      expect(sessionsState.sessionsFocusIndex).toBe(2);
+      expect(sessionsState.sessionsFocusIndex).toBe(navIndex('session-card', 'sess-2'));
       expect(sessionsState.cardColumn).toBe(0);
     });
   });
@@ -311,7 +333,7 @@ describe('useNavigationStore', () => {
       await store.navigateToSession('sess-2');
 
       expect(store.focusedNavItem).toEqual({ id: 'sess-2', type: 'session-card' });
-      expect(sessionsState.sessionsFocusIndex).toBe(2);
+      expect(sessionsState.sessionsFocusIndex).toBe(navIndex('session-card', 'sess-2'));
     });
 
     it('cleans up draft editor and chip bar', async () => {
@@ -512,7 +534,7 @@ describe('useNavigationStore', () => {
         { type: 'group-header', id: '/a' },
         { type: 'session-card', id: 'sess-1' },
       );
-      sessionsState.sessionsFocusIndex = 1;
+      sessionsState.sessionsFocusIndex = navIndex('session-card', 'sess-1');
 
       await store.closeOverview();
 
@@ -593,14 +615,14 @@ describe('useNavigationStore', () => {
         { type: 'session-card', id: 'sess-2' },
       );
       store.focusedNavItem = { id: 'sess-2', type: 'session-card' };
-      sessionsState.sessionsFocusIndex = 2;
+      sessionsState.sessionsFocusIndex = navIndex('session-card', 'sess-2');
       state.activeSessionId = 'sess-2';
       await store.openPlan('/projects');
 
       await store.closePlan();
 
       expect(store.focusedNavItem).toEqual({ id: 'sess-2', type: 'session-card' });
-      expect(sessionsState.sessionsFocusIndex).toBe(2);
+      expect(sessionsState.sessionsFocusIndex).toBe(navIndex('session-card', 'sess-2'));
     });
 
     it('refreshes chip bar for restored session', async () => {
@@ -670,7 +692,7 @@ describe('useNavigationStore', () => {
 
       store.onNavListRebuilt();
 
-      expect(sessionsState.sessionsFocusIndex).toBe(2);
+      expect(sessionsState.sessionsFocusIndex).toBe(navIndex('session-card', 'sess-2'));
     });
 
     it('falls back to active session when focused item is gone', () => {
@@ -684,7 +706,7 @@ describe('useNavigationStore', () => {
 
       store.onNavListRebuilt();
 
-      expect(sessionsState.sessionsFocusIndex).toBe(1);
+      expect(sessionsState.sessionsFocusIndex).toBe(navIndex('session-card', 'sess-1'));
       expect(store.focusedNavItem).toEqual({ id: 'sess-1', type: 'session-card' });
     });
 
@@ -700,7 +722,7 @@ describe('useNavigationStore', () => {
 
       store.onNavListRebuilt();
 
-      expect(sessionsState.sessionsFocusIndex).toBe(1); // clamped to max
+      expect(sessionsState.sessionsFocusIndex).toBe(navIndex('session-card', 'sess-only')); // clamped to max
       expect(store.focusedNavItem).toEqual({ id: 'sess-only', type: 'session-card' });
     });
 
@@ -716,7 +738,7 @@ describe('useNavigationStore', () => {
     it('handles empty navList without crashing', () => {
       store.focusedNavItem = { id: 'sess-1', type: 'session-card' };
       sessionsState.sessionsFocusIndex = 5;
-      sessionsState.navList = [];
+      buildNavList();
 
       store.onNavListRebuilt();
 
@@ -831,7 +853,7 @@ describe('useNavigationStore', () => {
       expect(mockTm.switchTo).toHaveBeenCalledWith('sess-2');
       expect(state.activeSessionId).toBe('sess-2');
       expect(store.focusedNavItem).toEqual({ id: 'sess-2', type: 'session-card' });
-      expect(sessionsState.sessionsFocusIndex).toBe(1);
+      expect(sessionsState.sessionsFocusIndex).toBe(navIndex('session-card', 'sess-2'));
       const ctx = store.__getRestoreContext();
       expect(ctx.previousSessionId).toBeNull();
       expect(ctx.savedFocusItem).toBeNull();
@@ -845,7 +867,7 @@ describe('useNavigationStore', () => {
       );
       state.activeSessionId = 'sess-1';
       store.focusedNavItem = { id: 'sess-1', type: 'session-card' };
-      sessionsState.sessionsFocusIndex = 0;
+      sessionsState.sessionsFocusIndex = navIndex('session-card', 'sess-1');
 
       await store.openPlan('/projects');
       expect(store.panelView).toBe('plan');
@@ -872,7 +894,7 @@ describe('useNavigationStore', () => {
       );
       state.activeSessionId = 'sess-1';
       store.focusedNavItem = { id: 'sess-1', type: 'session-card' };
-      sessionsState.sessionsFocusIndex = 0;
+      sessionsState.sessionsFocusIndex = navIndex('session-card', 'sess-1');
 
       // Open overview, then chain into plan
       await store.openOverview('/projects');
@@ -900,7 +922,7 @@ describe('useNavigationStore', () => {
 
       expect(state.activeSessionId).toBe('sess-2');
       expect(store.focusedNavItem).toEqual({ id: 'sess-2', type: 'session-card' });
-      expect(sessionsState.sessionsFocusIndex).toBe(1);
+      expect(sessionsState.sessionsFocusIndex).toBe(navIndex('session-card', 'sess-2'));
     });
 
     it('notification click during overview → overview dismissed + correct session shown', async () => {
@@ -926,7 +948,7 @@ describe('useNavigationStore', () => {
       expect(state.activeSessionId).toBe('sess-3');
       // Sidebar synced to sess-3
       expect(store.focusedNavItem).toEqual({ id: 'sess-3', type: 'session-card' });
-      expect(sessionsState.sessionsFocusIndex).toBe(2);
+      expect(sessionsState.sessionsFocusIndex).toBe(navIndex('session-card', 'sess-3'));
       // Restore context cleared
       const ctx = store.__getRestoreContext();
       expect(ctx.previousSessionId).toBeNull();
@@ -941,9 +963,9 @@ describe('useNavigationStore', () => {
         { type: 'session-card', id: 'sess-2' },
       );
       store.focusedNavItem = { id: 'sess-2', type: 'session-card' };
-      sessionsState.sessionsFocusIndex = 2;
+      sessionsState.sessionsFocusIndex = navIndex('session-card', 'sess-2');
 
-      // Rebuild with different order — sess-2 is now at index 1
+      // Rebuild with different order — sess-2 moves up one slot
       buildNavList(
         { type: 'group-header', id: '/b' },
         { type: 'session-card', id: 'sess-2' },
@@ -952,7 +974,7 @@ describe('useNavigationStore', () => {
 
       store.onNavListRebuilt();
 
-      expect(sessionsState.sessionsFocusIndex).toBe(1);
+      expect(sessionsState.sessionsFocusIndex).toBe(navIndex('session-card', 'sess-2'));
       expect(store.focusedNavItem).toEqual({ id: 'sess-2', type: 'session-card' });
     });
 
@@ -963,7 +985,7 @@ describe('useNavigationStore', () => {
         { type: 'session-card', id: 'sess-2' },
       );
       store.focusedNavItem = { id: 'sess-2', type: 'session-card' };
-      sessionsState.sessionsFocusIndex = 1;
+      sessionsState.sessionsFocusIndex = navIndex('session-card', 'sess-2');
       state.activeSessionId = 'sess-1';
 
       // Rebuild WITHOUT sess-2
@@ -974,7 +996,7 @@ describe('useNavigationStore', () => {
 
       store.onNavListRebuilt();
 
-      expect(sessionsState.sessionsFocusIndex).toBe(0);
+      expect(sessionsState.sessionsFocusIndex).toBe(navIndex('session-card', 'sess-1'));
       expect(store.focusedNavItem).toEqual({ id: 'sess-1', type: 'session-card' });
     });
 
@@ -990,7 +1012,7 @@ describe('useNavigationStore', () => {
 
       expect(state.activeSessionId).toBe('sess-2');
       expect(store.focusedNavItem).toEqual({ id: 'sess-2', type: 'session-card' });
-      expect(sessionsState.sessionsFocusIndex).toBe(1);
+      expect(sessionsState.sessionsFocusIndex).toBe(navIndex('session-card', 'sess-2'));
       expect(mockChipBarRefresh).toHaveBeenCalledWith('sess-2');
     });
 

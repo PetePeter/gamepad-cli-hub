@@ -11,16 +11,12 @@ import { configClient, sessionsClient } from '../ipc/clients.js';
 import { logEvent } from '../utils.js';
 import { sortSessions, SESSION_SORT_LABELS, type SessionSortField, type SortDirection } from '../sort-logic.js';
 import { createSortControl, type SortControlHandle } from '../components/sort-control.js';
-import {
-  groupSessionsByDirectory, buildFlatNavList,
-} from '../session-groups.js';
 import { refreshOverview, isOverviewVisible } from '../screens/group-overview.js';
 import {
   getSessionState, getSessionActivity,
   loadSessionsData, updateSessionsFocus,
   getSessionCwd, getTerminalManager,
 } from '../screens/sessions.js';
-import { useNavigationStore } from '../stores/navigation.js';
 
 let sessionsSortControl: SortControlHandle | null = null;
 export let sessionsSortField: SessionSortField = 'state';
@@ -72,9 +68,9 @@ export async function initSessionsSortControl(): Promise<void> {
           getSessionCwd,
           getSessionActivity,
         );
-        sessionsState.groups = groupSessionsByDirectory(state.sessions, getSessionCwd, sessionsState.groupPrefs);
-        sessionsState.navList = buildFlatNavList(sessionsState.groups);
-        useNavigationStore().onNavListRebuilt();
+        // Reassigning state.sessions above rebuilds the derived groups/navList.
+        // (This site used to rebuild by hand with groupSessionsByDirectory,
+        // which dropped runtime groups until the next full refresh.)
         updateSessionsFocus();
         if (isOverviewVisible()) refreshOverview();
         try {
