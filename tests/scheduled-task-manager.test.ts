@@ -16,6 +16,15 @@ const TEST_DIR = 'X:\\\\coding\\\\test';
 const TEST_DIR_NORMALIZED = normalizeProjectPath(TEST_DIR);
 
 /**
+ * The same directory written the way a careless caller would: trailing separator
+ * everywhere, plus mixed case on Windows only — case folding is a win32-only part
+ * of normalizeProjectPath, so asserting it elsewhere would fail on a case-sensitive
+ * filesystem for reasons that have nothing to do with the code under test.
+ */
+const TEST_DIR_MESSY =
+  process.platform === 'win32' ? 'X:\\\\Coding\\\\TEST\\\\' : `${TEST_DIR}\\\\`;
+
+/**
  * Scheduled-task persistence resolves to one process-wide config path — the
  * real user config dir. Reading it makes these tests depend on whatever the
  * running app happens to have scheduled, and writing it races the other suite
@@ -265,7 +274,7 @@ describe('ScheduledTaskManager', () => {
         initialPrompt: 'Test',
         cliType: 'claude-code',
         scheduledTime: new Date(Date.now() + 10000),
-        dirPath: 'X:\\\\Coding\\\\TEST\\\\',
+        dirPath: TEST_DIR_MESSY,
       });
 
       expect(task.dirPath).toBe(TEST_DIR_NORMALIZED);
@@ -501,7 +510,7 @@ describe('ScheduledTaskManager', () => {
         cliType: 'Claude Code',
         scheduledTime: new Date(Date.now() + 10000),
         scheduleKind: 'once',
-        dirPath: 'X:\\\\Coding\\\\TEST\\\\',
+        dirPath: TEST_DIR_MESSY,
         status: 'pending',
         createdAt: Date.now(),
       } as ScheduledTask]);

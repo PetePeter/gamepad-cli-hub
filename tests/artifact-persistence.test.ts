@@ -5,7 +5,7 @@ import type { Artifact } from '../src/types/artifact.js';
 const files = new Map<string, string>();
 
 vi.mock('../src/session/persistence-utils.js', async () => {
-  const actual = await vi.importActual<typeof import('../src/session/persistence-utils.js')>('./persistence-utils.js');
+  const actual = await vi.importActual<typeof import('../src/session/persistence-utils.js')>('../src/session/persistence-utils.js');
   return {
     ...actual,
     atomicWriteFileSync: (filePath: string, content: string) => {
