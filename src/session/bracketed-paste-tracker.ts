@@ -48,6 +48,27 @@ export class BracketedPasteTracker {
     return this.enabled.get(sessionId) ?? false;
   }
 
+  /**
+   * Wait, up to a budget, for the session's CLI to announce bracketed paste.
+   *
+   * Resolves early the moment the mode goes on, and bails out as soon as
+   * `isAlive` reports the session gone so a wait can never outlive its PTY.
+   * Returns the mode as it stands when the wait ends — a CLI that never
+   * announces it (cmd.exe) simply costs the full budget and returns false.
+   */
+  async waitUntilEnabled(
+    sessionId: string,
+    options: { budgetMs: number; pollMs: number; isAlive: () => boolean },
+  ): Promise<boolean> {
+    const deadline = Date.now() + options.budgetMs;
+    while (!this.isEnabled(sessionId)) {
+      if (!options.isAlive()) return false;
+      if (Date.now() >= deadline) break;
+      await new Promise<void>(resolve => setTimeout(resolve, options.pollMs));
+    }
+    return this.isEnabled(sessionId);
+  }
+
   /** Forget a session — its id may be reused by a fresh spawn. */
   clear(sessionId: string): void {
     this.enabled.delete(sessionId);

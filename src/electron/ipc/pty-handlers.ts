@@ -68,12 +68,16 @@ export function setupPtyHandlers(
     }
   });
 
+  // Activity marking belongs to the write itself, not to this IPC hop: bytes
+  // delivered from the main process (MCP, Telegram, pattern-matcher) must move
+  // the dots too. See PtyManager.write.
+  ptyManager.setActivityMarker(sessionId => stateDetector.markActive(sessionId));
+
   // pty:write - Write data to a session's PTY stdin
   ipcMain.handle('pty:write', (_event, sessionId: string, data: string, options?: PtyWriteOptions) => {
     try {
       const inputOrigin = options?.inputOrigin === 'programmatic' ? 'programmatic' : 'user';
       ptyManager.write(sessionId, data);
-      stateDetector.markActive(sessionId);
       if (inputOrigin === 'user') {
         // Switch to desktop channel when the user types in terminal.
         const session = sessionManager.getSession(sessionId);
@@ -91,7 +95,7 @@ export function setupPtyHandlers(
   // Screen redraws from scroll can contain stale agent-visible text.
   ipcMain.handle('pty:scrollInput', (_event, sessionId: string, data: string) => {
     try {
-      ptyManager.write(sessionId, data);
+      ptyManager.write(sessionId, data, 'scroll');
       stateDetector.markScrolling(sessionId);
     } catch (error) {
       logger.error(`[PTY IPC] pty:scrollInput failed for session=${sessionId}: ${error}`);

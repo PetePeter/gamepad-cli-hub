@@ -1,17 +1,23 @@
 /**
- * PtyManager.deliverText fallback — the path taken by a session that has never
- * been rendered, so RendererTextDeliverer throws and there is no xterm to ask
- * about DEC 2004. The main process must make the same framing decision itself,
- * from the PTY output stream.
+ * PtyManager.deliverText framing — the DEC 2004 decision the main process makes
+ * from the PTY output stream, with no xterm to ask. Once the fallback for a
+ * never-rendered session; now the default `pty` delivery path for every session.
  *
- * Real PtyManager and a fake PTY that records the exact write calls; the
- * assertions are about bytes and ordering, which is what the bug was about.
+ * Routing between this path and the renderer lives in
+ * pty-manager.direct-delivery.test.ts; this file stays on bytes and ordering,
+ * which is what the head-loss bug was about.
+ *
+ * Real PtyManager and a fake PTY that records the exact write calls.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { PtyManager } from '../src/session/pty-manager.js';
 import type { PtyProcess, PtyFactory } from '../src/session/pty-manager.js';
-import { SUBMIT_SETTLE_DELAY_MS } from '../src/session/delivery-context.js';
+import {
+  BRACKETED_PASTE_POLL_MS,
+  BRACKETED_PASTE_READY_BUDGET_MS,
+  SUBMIT_SETTLE_DELAY_MS,
+} from '../src/session/delivery-context.js';
 
 const ENABLE = '\x1b[?2004h';
 const DISABLE = '\x1b[?2004l';
@@ -47,7 +53,7 @@ function createRecordingPty(): {
   };
 }
 
-describe('PtyManager.deliverText — no-renderer fallback', () => {
+describe('PtyManager.deliverText — main-process framing', () => {
   let mock: ReturnType<typeof createRecordingPty>;
   let manager: PtyManager;
   /** PTYs handed out by later spawns; empty means "the default mock". */
@@ -68,10 +74,17 @@ describe('PtyManager.deliverText — no-renderer fallback', () => {
     vi.useRealTimers();
   });
 
-  /** Run a delivery to completion, driving the settle delay off the fake clock. */
+  /**
+   * Run a delivery to completion off the fake clock. Covers the readiness budget
+   * (spent in full whenever multi-line text meets a CLI that has not announced
+   * the mode), the poll interval the deadline check can overshoot by, and the
+   * settle delay before the submit suffix.
+   */
   async function deliver(text: string, options?: Parameters<PtyManager['deliverText']>[2]): Promise<void> {
     const done = manager.deliverText('s1', text, options);
-    await vi.advanceTimersByTimeAsync(SUBMIT_SETTLE_DELAY_MS * 2);
+    await vi.advanceTimersByTimeAsync(
+      BRACKETED_PASTE_READY_BUDGET_MS + BRACKETED_PASTE_POLL_MS + SUBMIT_SETTLE_DELAY_MS * 2,
+    );
     await done;
   }
 
@@ -127,7 +140,9 @@ describe('PtyManager.deliverText — no-renderer fallback', () => {
 
   it('keeps the suffix separate for the unframed case too', async () => {
     const done = manager.deliverText('s1', MULTILINE, { submitSuffix: '\r' });
-    await vi.advanceTimersByTimeAsync(0);
+    // Multi-line into a CLI that never announces the mode spends the whole
+    // readiness budget before conceding and writing raw.
+    await vi.advanceTimersByTimeAsync(BRACKETED_PASTE_READY_BUDGET_MS + BRACKETED_PASTE_POLL_MS);
 
     expect(mock.writes).toEqual([MULTILINE]);
 
@@ -174,17 +189,6 @@ describe('PtyManager.deliverText — no-renderer fallback', () => {
     expect(mock.writes).toEqual([`${PASTE_START}hello${PASTE_END}`, '\r']);
   });
 
-  it('falls back after the preferred handler fails, using the tracked mode', async () => {
-    mock.triggerData(ENABLE);
-    manager.setTextDeliveryHandler(async () => {
-      throw new Error('Renderer delivery unavailable');
-    });
-
-    await deliver(MULTILINE, { withReturn: true });
-
-    expect(mock.writes).toEqual([`${PASTE_START}${MULTILINE}${PASTE_END}`, '\r']);
-  });
-
   it('does not leak the mode into a new session reusing the id after exit', async () => {
     mock.triggerData(ENABLE);
     mock.triggerExit(0);
@@ -193,9 +197,7 @@ describe('PtyManager.deliverText — no-renderer fallback', () => {
     respawnQueue.push(respawn.pty);
     manager.spawn({ sessionId: 's1', command: '' });
 
-    const done = manager.deliverText('s1', MULTILINE, { withReturn: true });
-    await vi.advanceTimersByTimeAsync(SUBMIT_SETTLE_DELAY_MS * 2);
-    await done;
+    await deliver(MULTILINE, { withReturn: true });
 
     expect(respawn.writes).toEqual([MULTILINE, '\r']);
   });
@@ -208,9 +210,7 @@ describe('PtyManager.deliverText — no-renderer fallback', () => {
     respawnQueue.push(respawn.pty);
     manager.spawn({ sessionId: 's1', command: '' });
 
-    const done = manager.deliverText('s1', MULTILINE, { withReturn: true });
-    await vi.advanceTimersByTimeAsync(SUBMIT_SETTLE_DELAY_MS * 2);
-    await done;
+    await deliver(MULTILINE, { withReturn: true });
 
     expect(respawn.writes).toEqual([MULTILINE, '\r']);
   });
@@ -223,9 +223,7 @@ describe('PtyManager.deliverText — no-renderer fallback', () => {
     respawnQueue.push(respawn.pty);
     manager.spawn({ sessionId: 's1', command: '' });
 
-    const done = manager.deliverText('s1', MULTILINE, { withReturn: true });
-    await vi.advanceTimersByTimeAsync(SUBMIT_SETTLE_DELAY_MS * 2);
-    await done;
+    await deliver(MULTILINE, { withReturn: true });
 
     expect(respawn.writes).toEqual([MULTILINE, '\r']);
   });

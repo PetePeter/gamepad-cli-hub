@@ -23,6 +23,7 @@ import { setupPtyHandlers } from '../src/electron/ipc/pty-handlers.js';
 
 class MockPtyManager extends EventEmitter {
   write = vi.fn();
+  setActivityMarker = vi.fn();
   kill = vi.fn();
   resize = vi.fn();
   on = vi.fn((event: string, listener: Function) => {
@@ -88,7 +89,9 @@ describe('pty:write input origin', () => {
     await handlers.get('pty:write')?.({}, 's1', 'hello', { inputOrigin: 'programmatic' });
 
     expect(ptyManager.write).toHaveBeenCalledWith('s1', 'hello');
-    expect(stateDetector.markActive).toHaveBeenCalledWith('s1');
+    // Activity marking moved into PtyManager.write, so it is not the handler's
+    // job any more — proven against a real manager in pty-write-activity.test.ts.
+    expect(stateDetector.markActive).not.toHaveBeenCalled();
     expect(sessionManager.updateSession).not.toHaveBeenCalledWith('s1', { interactionChannel: 'desktop' });
     expect(onPtyInput).not.toHaveBeenCalled();
   });

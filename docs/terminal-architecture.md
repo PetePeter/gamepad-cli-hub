@@ -106,15 +106,26 @@ the message sits on the prompt looking sent but never running. `SUBMIT_SETTLE_DE
 (`src/session/delivery-context.ts`) is the shared pause both halves of the pipeline wait before
 submitting — the main-process sequence executor and the renderer paste path.
 
+**Who writes the bytes.** Default `pasteMode: pty` delivery is written entirely in the main process.
+The bytes used to travel main → IPC → renderer → IPC → main and be written by the class they started
+in; the renderer's only contributions were the DEC 2004 bit and the readiness wait, both of which
+main now owns. Removing the round trip removed its request timeout, its raw fallback, and the
+duplicate-write ambiguity those created. The other paste modes still route through
+`RendererTextDeliverer` because they genuinely need a window — per-character pacing, robotjs typing,
+clipboard focus — and the focus-sensitive ones still refuse background delivery.
+
+| `pasteMode` | Delivery path |
+|-------------|---------------|
+| `pty` (default) or unset | `PtyManager.deliverText` → PTY, in-process |
+| `ptyindividual`, `sendkeys`, `sendkeysindividual`, `clippaste` | `text:deliver-request` → renderer `deliverBulkText` |
+
 **Framing.** Multi-line text is wrapped in DEC 2004 bracketed-paste markers so a TUI line editor
 takes the whole block as one paste instead of reading every embedded newline as Enter and submitting
 line-by-line — which left the recipient only the final fragment. The decision depends solely on
-whether the CLI announced the mode, never on the delivery context:
-
-| Path | Source of truth for DEC 2004 |
-|------|------------------------------|
-| Session with a renderer view | `view.isBracketedPasteEnabled()` (xterm.js), briefly awaited for a just-spawned CLI |
-| Session that was never rendered | `BracketedPasteTracker` — the main process scans PTY output for `ESC[?2004h` / `ESC[?2004l` |
+whether the CLI announced the mode, never on the delivery context. `BracketedPasteTracker` is the
+main process's source of truth: it scans PTY output for `ESC[?2004h` / `ESC[?2004l`, so it sees the
+announcement at least as early as xterm.js does and works for a session that was never rendered.
+The renderer path (non-default modes, and manual Ctrl+V) reads the same state off its xterm view.
 
 `buildPastePayload` (`src/session/delivery-context.ts`) is shared by both so they cannot drift. A CLI
 that never announces the mode — `cmd.exe` — gets raw bytes, because there line-by-line execution is
@@ -123,6 +134,20 @@ exactly what pasting a block of commands should do.
 The tracker scans incrementally: node-pty splits output arbitrarily, so `ESC[?2004h` can arrive as
 `ESC[?20` then `04h`. It carries a bounded tail of the previous chunk (one byte short of a full
 sequence, so no transition is counted twice) and takes the last transition it sees.
+
+**Readiness budget.** A freshly spawned CLI turns DEC 2004 on a beat *after* its first prompt
+renders, and initial prompts and context deliveries land in exactly that window. Multi-line text
+aimed at a session whose mode is still off waits up to `BRACKETED_PASTE_READY_BUDGET_MS`
+(`src/session/delivery-context.ts`, shared with the renderer) for the announcement before conceding
+and writing raw. The wait aborts as soon as the PTY exits, and single-line text never spends it —
+there is no embedded newline to protect. A CLI that never announces the mode pays the full budget;
+that is the accepted cost of not silently losing the head of a message to a fresh session.
+
+**Activity marking.** `PtyManager.write` marks the session active, not the `pty:write` IPC handler.
+Bytes that originate in main — MCP, Telegram, pattern-matcher send-text — must move the dots too
+(invariant 8). Scroll writes pass `'scroll'` and are exempt: a scrollback redraw is not new work.
+The IPC handler keeps only the user-origin concerns, the Telegram→desktop `interactionChannel`
+switch and the `onPtyInput` hook.
 
 **Verification.** After delivery, `verifyDeliveryAfterDelay` polls the terminal tail's `lastOutputAt`.
 One advance means the CLI emitted something (usually the echo); a second advance means it moved past
@@ -156,8 +181,8 @@ flowchart TD
 
 | Module | File | Role |
 |--------|------|------|
-| PtyManager | `src/session/pty-manager.ts` | Spawns node-pty processes (cmd.exe), routes stdin/stdout, handles resize/kill. `deliverText()` prefers the renderer delivery handler and falls back to a main-process write — framing via `BracketedPasteTracker`, suffix as a separate write after the settle delay |
-| BracketedPasteTracker | `src/session/bracketed-paste-tracker.ts` | Per-session DEC 2004 state scanned incrementally from PTY output, so a never-rendered session can still be framed correctly. Cleared on exit/kill/killAll so a reused session id starts disabled |
+| PtyManager | `src/session/pty-manager.ts` | Spawns node-pty processes (cmd.exe), routes stdin/stdout, handles resize/kill. `deliverText()` writes default `pty` delivery itself — framing via `BracketedPasteTracker`, suffix as a separate write after the settle delay — and routes only the non-default paste modes to the renderer handler. `write()` marks session activity for every caller |
+| BracketedPasteTracker | `src/session/bracketed-paste-tracker.ts` | Per-session DEC 2004 state scanned incrementally from PTY output — the main process's source of truth for framing. `waitUntilEnabled()` spends the readiness budget for a just-spawned CLI and bails out if the PTY dies. Cleared on exit/kill/killAll so a reused session id starts disabled |
 | StateDetector | `src/session/state-detector.ts` | Tracks PTY I/O activity (active/inactive/idle levels via `activity-change` events) and question markers. `processOutput()` handles PTY stdout (marker + activity); printed AIAGENT phase tags do not mutate session state. `markActive()` handles PTY stdin (activity only, no keyword scan). `markScrolling(sessionId)` handles scroll input — sets per-session flag that makes `processOutput()` skip marker scanning (still tracks activity); auto-clears after 2s; `markActive()` clears it immediately. `markResizing(sessionId)` handles resize — sets per-session flag that makes `processOutput()` skip activity promotion for 1s; prevents false green dots from tab-switch redraws. `markRestored(sessionId)` handles session restore — suppresses activity promotion for 3s grace period; prevents shell startup output from promoting restored sessions to green |
 | PipelineQueue | `src/session/pipeline-queue.ts` | Auto-handoff: routes queued tasks to waiting sessions. Handoff triggers on completed or idle state transitions |
 | InitialPrompt | `src/session/initial-prompt.ts` | Converts sequence parser syntax to PTY escape codes, sends after configurable delay. `onComplete` callback signals when all items are done |

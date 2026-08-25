@@ -23,7 +23,15 @@ import { getTerminalManager } from './runtime/terminal-provider.js';
 import { state } from './state.js';
 import { resolveCliTypeRecord } from './utils.js';
 import { keyboardClient, terminalClient } from './ipc/clients.js';
-import { buildPastePayload, isForegroundOnlyPasteMode, SUBMIT_SETTLE_DELAY_MS, type DeliveryContext, type PtyWriteOptions } from '../src/session/delivery-context.js';
+import {
+  buildPastePayload,
+  BRACKETED_PASTE_POLL_MS,
+  BRACKETED_PASTE_READY_BUDGET_MS,
+  isForegroundOnlyPasteMode,
+  SUBMIT_SETTLE_DELAY_MS,
+  type DeliveryContext,
+  type PtyWriteOptions,
+} from '../src/session/delivery-context.js';
 
 /**
  * Convert escape notation strings to actual characters.
@@ -79,20 +87,6 @@ const ptyIndividualLock = new Set<string>();
 
 const SENDKEYS_INDIVIDUAL_DELAY_MS = 20;
 const PTY_INDIVIDUAL_DELAY_MS = 30;
-
-/**
- * Freshly spawned CLIs enable bracketed paste mode (DEC 2004) a beat AFTER their
- * prompt first appears. Multi-line text delivered in that window is not wrapped,
- * so each embedded newline reads as Enter and the CLI submits line-by-line —
- * dropping all but the last line (the "new session with selection shows only
- * partial content" bug). For interactive multi-line delivery we briefly wait for
- * the CLI to turn bracketed paste on, matching the manual copy/paste path.
- *
- * The budget stays comfortably under RendererTextDeliverer's request timeout so
- * the wait completes before the main process would fall back to a raw PTY write.
- */
-const BRACKETED_PASTE_READY_BUDGET_MS = 1500;
-const BRACKETED_PASTE_POLL_MS = 40;
 
 interface BracketedPasteReadable {
   isBracketedPasteEnabled: () => boolean;

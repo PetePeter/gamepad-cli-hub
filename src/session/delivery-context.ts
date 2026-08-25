@@ -24,6 +24,20 @@ export interface TextDeliveryOptions {
 export const SUBMIT_SETTLE_DELAY_MS = 400;
 
 /**
+ * How long to wait for a CLI to turn bracketed paste on before delivering
+ * multi-line text to it.
+ *
+ * A freshly spawned CLI enables DEC 2004 a beat AFTER its prompt first appears.
+ * Text delivered inside that window is written unframed, so a line editor reads
+ * each embedded newline as Enter and submits line-by-line — leaving the
+ * recipient only the final fragment. Shared by the renderer paste path (polling
+ * xterm) and the main-process delivery (polling BracketedPasteTracker) so the
+ * two halves cannot drift to different budgets.
+ */
+export const BRACKETED_PASTE_READY_BUDGET_MS = 1500;
+export const BRACKETED_PASTE_POLL_MS = 40;
+
+/**
  * Frame text in DEC 2004 markers when the CLI has bracketed paste enabled, so
  * the whole block lands in the composer as one paste. Without the framing a
  * line editor reads each embedded newline as Enter and submits line-by-line,

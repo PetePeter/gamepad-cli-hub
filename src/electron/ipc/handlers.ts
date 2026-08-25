@@ -234,6 +234,12 @@ export function registerIPCHandlers(
   const incomingWatcher = new IncomingPlansWatcher(planManager);
   const textDeliverer = new RendererTextDeliverer(windowManager, sessionManager, configLoader);
   ptyManager.setTextDeliveryHandler((sessionId, text, options) => textDeliverer.deliver(sessionId, text, options));
+  // Only the non-default paste modes are routed to the renderer; default `pty`
+  // delivery is written here in main. See PtyManager.needsRendererDelivery.
+  ptyManager.setPasteModeResolver(sessionId => {
+    const session = sessionManager.getSession(sessionId);
+    return session ? configLoader.getCliTypeEntry(session.cliType)?.pasteMode : undefined;
+  });
   const localhostMcpServer = new LocalhostMcpServer(helmControlService, {
     enabled: configLoader.getMcpConfig().enabled,
     port: configLoader.getMcpConfig().port,
