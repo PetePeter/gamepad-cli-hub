@@ -455,7 +455,7 @@ See [fleet.md](docs/fleet.md) for the transport, pairing protocol and security m
 
 | Tab | What it configures |
 |-----|-------------------|
-| Tools | CLI commands, paste modes, env vars, initial prompts, per-CLI pattern rules |
+| Tools | CLI commands, env vars, initial prompts, per-CLI pattern rules |
 | Directories | Working directories with bookmarks and auto-bookmarking |
 | Bindings | Per-CLI gamepad button and keyboard bindings |
 | Profiles | Named configuration sets that swap tools, directories, and bindings |
@@ -478,7 +478,6 @@ Each CLI tool has an advanced editor (accessible from Settings → Tools) with o
 
 | Option | Description |
 |--------|-------------|
-| Paste mode | How clipboard content is delivered: `pty` (direct write), `ptyindividual` (character-by-character), `sendkeys` (OS simulation), `sendkeysindividual`, or `clippaste` |
 | Large text as temp file | Writes pasted text above the size threshold to a temp file instead of inline |
 | Helm initial prompt | Whether Helm handles the initial prompt delivery sequence |
 | Environment variables | Per-CLI env vars with `replace`, `append`, or `prepend` modes |

@@ -24,7 +24,7 @@ export const useConfigStore = defineStore('config', () => {
   }
 
 /** Get tool config for a specific CLI type. */
-  function getToolConfig(cliType: string): { pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste'; [k: string]: any } {
+  function getToolConfig(cliType: string): { [k: string]: any } {
     // Route through the resolver so a legacy slug or a display name finds the
     // uuid-keyed record, exactly as the main-process choke point does.
     return resolveCliTypeRecord(cliType) ?? {};
@@ -35,7 +35,7 @@ export const useConfigStore = defineStore('config', () => {
     state.cliBindingsCache = cache;
   }
 
-function setToolsCache(cache: Record<string, { pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste'; [k: string]: any }>) {
+function setToolsCache(cache: Record<string, { [k: string]: any }>) {
     state.cliToolsCache = cache;
   }
 

@@ -34,8 +34,6 @@ export const PRELOAD_API_DOMAINS = {
     'ptyKill',
   ],
   delivery: [
-    'textDeliverResponse',
-    'textDeliverReady',
     'pipelineEnqueue',
     'pipelineDequeue',
     'pipelineGetQueue',
@@ -271,7 +269,6 @@ export const PRELOAD_API_DOMAINS = {
     'keyboardSendKeyCombo',
     'keyboardComboDown',
     'keyboardComboUp',
-    'keyboardTypeString',
   ],
   dialog: [
     'dialogOpenFolder',
@@ -292,7 +289,6 @@ export const PRELOAD_API_DOMAINS = {
     'onPtyQuestionDetected',
     'onPtyQuestionCleared',
     'onPtyActivityChange',
-    'onTextDeliverRequest',
     'onPtyHandoff',
     'onNotificationClick',
     'onLlmNotify',

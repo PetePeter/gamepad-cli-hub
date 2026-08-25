@@ -274,7 +274,6 @@ export function useSettingsController(options: {
         ? value.env.map((i: any) => ({ name: i.name || '', value: i.value || '', mode: i.mode }))
         : [],
       initialPromptDelay: value?.initialPromptDelay ?? 0,
-      pasteMode: value?.pasteMode || 'pty',
       spawnCommand: value?.spawnCommand || '',
       resumeCommand: value?.resumeCommand || '',
       continueCommand: value?.continueCommand || '',
@@ -429,7 +428,6 @@ export function useSettingsController(options: {
       name: '',
       env: [],
       initialPromptDelay: 0,
-      pasteMode: 'pty',
       spawnCommand: '',
       resumeCommand: '',
       continueCommand: '',

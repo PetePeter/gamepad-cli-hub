@@ -36,7 +36,6 @@ export type CliTypeOptions = {
   continueCommand?: string;
   helmPreambleForInterSession?: boolean;
   largeTextAsTempFile?: boolean;
-  pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
   submitSuffix?: string;
   helmActions?: HelmActionMap;
 };

@@ -286,7 +286,6 @@ export interface ToolEditorBridgeData {
   name: string;
   env: Array<ToolEditorEnvEntry>;
   initialPromptDelay: number;
-  pasteMode: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
   spawnCommand: string;
   resumeCommand: string;
   continueCommand: string;
@@ -301,7 +300,7 @@ export interface ToolEditorBridgeData {
 
 const EMPTY_TOOL_DATA: ToolEditorBridgeData = {
   name: '', env: [], initialPromptDelay: 2000,
-  pasteMode: 'pty', spawnCommand: '', resumeCommand: '', continueCommand: '',
+  spawnCommand: '', resumeCommand: '', continueCommand: '',
   renameCommand: '', handoffCommand: '', helmPreambleForInterSession: true,
   largeTextAsTempFile: false,
   submitSuffix: '\\r', helmActions: { clear: '', compact: '', export: '' }, initialPrompt: [],
@@ -334,7 +333,6 @@ export function buildToolEditorOptions(values: Record<string, any>): {
   continueCommand?: string;
   helmPreambleForInterSession?: boolean;
   largeTextAsTempFile?: boolean;
-  pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
   submitSuffix?: string;
   helmActions?: { clear?: string; compact?: string; export?: string };
 } {
@@ -358,7 +356,6 @@ export function buildToolEditorOptions(values: Record<string, any>): {
         }))
         .filter((item: ToolEditorEnvEntry) => item.name.length > 0)
     : [];
-  const pasteMode = values.pasteMode;
   return {
     ...options,
     env,
@@ -366,9 +363,6 @@ export function buildToolEditorOptions(values: Record<string, any>): {
     largeTextAsTempFile: Boolean(values.largeTextAsTempFile),
     submitSuffix: typeof values.submitSuffix === 'string' ? values.submitSuffix : '\\r',
     helmActions,
-    ...(pasteMode === 'pty' || pasteMode === 'ptyindividual' || pasteMode === 'sendkeys' || pasteMode === 'sendkeysindividual' || pasteMode === 'clippaste'
-      ? { pasteMode }
-      : {}),
   };
 }
 

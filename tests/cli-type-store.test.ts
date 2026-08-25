@@ -88,4 +88,23 @@ describe('CliTypeStore', () => {
     expect(fresh.get('cc')?.name).toBe('Claude');
     expect(fresh.get('cp')?.name).toBe('Copilot');
   });
+
+  /**
+   * `pasteMode` was removed along with the four non-pty delivery modes. A user
+   * config written before that removal still carries the key, sometimes with a
+   * value that no longer means anything. Loading must treat it as inert data,
+   * never as a parse error — there is no schema validation here by design, and
+   * this pins that guarantee rather than leaving it to be true by accident.
+   */
+  it('loads a config carrying a removed pasteMode key without throwing', () => {
+    fs.writeFileSync(
+      path.join(TEST_DIR, 'cli-types.yaml'),
+      'cc:\n  name: Claude\n  pasteMode: sendkeys\n  initialPrompt: []\n',
+      'utf8',
+    );
+
+    const store = new CliTypeStore(TEST_DIR);
+    expect(() => store.load()).not.toThrow();
+    expect(store.get('cc')?.name).toBe('Claude');
+  });
 });

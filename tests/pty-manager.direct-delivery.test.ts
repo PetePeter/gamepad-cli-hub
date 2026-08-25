@@ -1,14 +1,11 @@
 /**
- * PtyManager.deliverText — default `pty` delivery, written in the main process.
+ * PtyManager.deliverText — the one text delivery path, written in the main process.
  *
  * The bytes used to go main -> IPC -> renderer -> IPC -> main and be written by
- * the class they started in. The renderer's only contributions were the DEC 2004
- * bit (BracketedPasteTracker now derives that from the PTY output stream) and the
- * readiness budget (ported here). Removing the trip removes the 3s request
- * timeout, the raw fallback, and the duplicate-write ambiguity with it.
- *
- * Modes other than the default still need the renderer — per-character pacing,
- * robotjs typing, clipboard focus — so they keep routing through the handler.
+ * the class they started in, purely to borrow xterm's DEC 2004 bit and to honour
+ * four paste modes nothing ever configured. BracketedPasteTracker supplies the
+ * bit and the modes are gone, so the trip went with them — and so did its request
+ * timeout, its raw fallback and its duplicate-write ambiguity.
  *
  * Real PtyManager, fake PTY recording exact writes. The assertions are about
  * bytes and ordering, which is what the head-loss bug was about.
@@ -52,8 +49,6 @@ function createRecordingPty() {
 describe('PtyManager.deliverText — default pty delivery stays in main', () => {
   let mock: ReturnType<typeof createRecordingPty>;
   let manager: PtyManager;
-  /** Every call the renderer delivery handler received. Must stay empty for default pty. */
-  let handlerCalls: Array<{ sessionId: string; text: string }>;
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -61,11 +56,6 @@ describe('PtyManager.deliverText — default pty delivery stays in main', () => 
     const factory: PtyFactory = { spawn: () => mock.pty };
     manager = new PtyManager(factory);
     manager.spawn({ sessionId: 's1', command: '' });
-
-    handlerCalls = [];
-    manager.setTextDeliveryHandler(async (sessionId, text) => {
-      handlerCalls.push({ sessionId, text });
-    });
   });
 
   afterEach(() => {
@@ -79,22 +69,14 @@ describe('PtyManager.deliverText — default pty delivery stays in main', () => 
     await done;
   }
 
-  it('never asks the renderer when no paste mode is configured', async () => {
+  it('writes framed text and a separate suffix with no IPC of any kind', async () => {
     mock.triggerData(ENABLE);
 
     await deliver(MULTILINE, { withReturn: true });
 
-    expect(handlerCalls).toEqual([]);
-    expect(mock.writes).toEqual([`${PASTE_START}${MULTILINE}${PASTE_END}`, '\r']);
-  });
-
-  it('never asks the renderer when the configured mode is the default pty', async () => {
-    manager.setPasteModeResolver(() => 'pty');
-    mock.triggerData(ENABLE);
-
-    await deliver(MULTILINE, { withReturn: true });
-
-    expect(handlerCalls).toEqual([]);
+    // The manager is built with nothing but a PTY factory. If delivery still
+    // needed a renderer there would be nothing here to answer it, so reaching
+    // the child at all is the assertion.
     expect(mock.writes).toEqual([`${PASTE_START}${MULTILINE}${PASTE_END}`, '\r']);
   });
 
@@ -116,65 +98,13 @@ describe('PtyManager.deliverText — default pty delivery stays in main', () => 
     expect(mock.writes.join('')).toBe(`${PASTE_START}${MULTILINE}${PASTE_END}\r`);
   });
 
-  it('writes raw when the CLI never announced the mode, even with a handler present', async () => {
+  it('writes raw when the CLI never announced the mode', async () => {
     // cmd.exe is a configured CLI type and never announces DEC 2004. Framing
     // would type the markers out literally, and line-by-line execution is the
     // point of pasting a block of shell commands.
     await deliver(MULTILINE, { withReturn: true });
 
-    expect(handlerCalls).toEqual([]);
     expect(mock.writes).toEqual([MULTILINE, '\r']);
-  });
-});
-
-describe('PtyManager.deliverText — non-default paste modes still need the renderer', () => {
-  let mock: ReturnType<typeof createRecordingPty>;
-  let manager: PtyManager;
-  let handlerCalls: Array<{ sessionId: string; text: string }>;
-
-  beforeEach(() => {
-    vi.useFakeTimers();
-    mock = createRecordingPty();
-    const factory: PtyFactory = { spawn: () => mock.pty };
-    manager = new PtyManager(factory);
-    manager.spawn({ sessionId: 's1', command: '' });
-    handlerCalls = [];
-    manager.setTextDeliveryHandler(async (sessionId, text) => {
-      handlerCalls.push({ sessionId, text });
-    });
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it.each(['ptyindividual', 'sendkeys', 'sendkeysindividual', 'clippaste'])(
-    'routes %s through the renderer handler and writes nothing itself',
-    async (mode) => {
-      manager.setPasteModeResolver(() => mode);
-
-      await manager.deliverText('s1', MULTILINE, { withReturn: true });
-
-      expect(handlerCalls).toEqual([{ sessionId: 's1', text: MULTILINE }]);
-      expect(mock.writes).toEqual([]);
-    },
-  );
-
-  it('still falls back to a tracked-mode write when the renderer refuses', async () => {
-    // Focus-sensitive modes reject background delivery in RendererTextDeliverer.
-    // That rejection reaching the fallback is pre-existing behaviour and is left
-    // alone here; what matters is that the attempt went to the renderer first.
-    manager.setPasteModeResolver(() => 'clippaste');
-    manager.setTextDeliveryHandler(async () => {
-      throw new Error('Background delivery cannot use focus-sensitive pasteMode=clippaste');
-    });
-    mock.triggerData(ENABLE);
-
-    const done = manager.deliverText('s1', MULTILINE, { withReturn: true });
-    await vi.advanceTimersByTimeAsync(BRACKETED_PASTE_READY_BUDGET_MS + SUBMIT_SETTLE_DELAY_MS * 2);
-    await done;
-
-    expect(mock.writes).toEqual([`${PASTE_START}${MULTILINE}${PASTE_END}`, '\r']);
   });
 });
 

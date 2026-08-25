@@ -222,7 +222,6 @@ const {
   saveContext: (id, updates, pendingUnbinds) => onPlanContextSave(id, updates, pendingUnbinds),
   refreshDraftSession: (sessionId) => chipBarStore.refresh(sessionId),
 });
-let offTextDeliver: (() => void) | null = null;
 let unsubSnapOut: (() => void) | null = null;
 let unsubSnapBack: (() => void) | null = null;
 let unsubFocusSlot: (() => void) | null = null;
@@ -883,17 +882,6 @@ onMounted(async () => {
   }
 
   try {
-    offTextDeliver = eventsClient.onTextDeliverRequest(async ({ requestId, sessionId, text, withReturn, submitSuffix, deliveryContext }) => {
-      try {
-        await deliverBulkText(sessionId, text, { withReturn, submitSuffix, deliveryContext: deliveryContext ?? 'background' });
-        await deliveryClient.textDeliverResponse(requestId, true);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        await deliveryClient.textDeliverResponse(requestId, false, message);
-      }
-    });
-    await deliveryClient.textDeliverReady();
-
     await bootstrap({
       terminalContainer: terminalContainerRef.value,
       handleButton,
@@ -1016,8 +1004,6 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onArtifactShortcut, true);
   window.removeEventListener('rename-session-request', handleRenameRequest);
   window.removeEventListener('clear-session-notifications', handleClearSessionNotifications);
-  offTextDeliver?.();
-  offTextDeliver = null;
   unsubSnapOut?.();
   unsubSnapOut = null;
   unsubSnapBack?.();

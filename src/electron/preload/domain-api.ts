@@ -329,20 +329,6 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     return () => ipcRenderer.removeListener('pty:activity-change', listener);
   },
 
-  /** Subscribe to main-process requests to deliver text through the renderer terminal path. */
-  onTextDeliverRequest: (callback: (event: { requestId: string; sessionId: string; text: string; withReturn?: boolean; submitSuffix?: string; deliveryContext?: 'background' | 'interactive' }) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, data: { requestId: string; sessionId: string; text: string; withReturn?: boolean; submitSuffix?: string; deliveryContext?: 'background' | 'interactive' }) => callback(data);
-    ipcRenderer.on('text:deliver-request', listener);
-    return () => ipcRenderer.removeListener('text:deliver-request', listener);
-  },
-
-  /** Acknowledge a main-process text delivery request. */
-  textDeliverResponse: (requestId: string, success: boolean, error?: string) =>
-    ipcRenderer.invoke('text:deliver-response', requestId, success, error),
-
-  /** Notify the main process that the renderer is ready to service text delivery requests. */
-  textDeliverReady: () => ipcRenderer.invoke('text:deliver-ready'),
-
   // ========================================================================
   // Pipeline Queue
   // ========================================================================
@@ -499,7 +485,6 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
       continueCommand?: string;
       helmPreambleForInterSession?: boolean;
       largeTextAsTempFile?: boolean;
-      pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
       submitSuffix?: string;
       helmActions?: { clear?: string; compact?: string; export?: string };
     },
@@ -516,7 +501,6 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
       continueCommand?: string;
       helmPreambleForInterSession?: boolean;
       largeTextAsTempFile?: boolean;
-      pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
       submitSuffix?: string;
       helmActions?: { clear?: string; compact?: string; export?: string };
     },
@@ -553,11 +537,6 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
    * Release held keys
    */
   keyboardComboUp: (keys: string[]) => ipcRenderer.invoke('keyboard:comboUp', keys),
-
-  /**
-   * Type a string as OS-level keystrokes (per-CLI sendkeys paste mode)
-   */
-  keyboardTypeString: (text: string) => ipcRenderer.invoke('keyboard:typeString', text),
 
   // ========================================================================
   // System

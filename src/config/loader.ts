@@ -146,17 +146,6 @@ export interface CliTypeConfig {
   resumeCommand?: string;
   /** CLI command to resume most recent session (fallback when resumeCommand is not configured). */
   continueCommand?: string;
-  /** How to deliver clipboard paste (Ctrl+V) and bulk text (Ctrl+G editor) to this CLI.
-   *  - 'pty'                — write directly to PTY stdin (default, works for most terminals)
-   *  - 'ptyindividual'      — write one character at a time to PTY stdin with 10ms delay
-   *    (for Ink-based CLIs like GitHub Copilot whose form inputs need per-char delivery)
-   *  - 'sendkeys'           — simulate OS keystrokes via robotjs (useful for CLIs that
-   *    strip or reformat bracketed-paste input, e.g. some IDE-embedded shells)
-   *  - 'sendkeysindividual' — send one character at a time via robotjs with 20ms delay
-   *    (for interactive CLIs that don't accept bulk paste via OS keystrokes)
-   *  - 'clippaste'          — use xterm.js terminal paste handling (Ctrl+V-style paste
-   *    semantics routed through the embedded terminal/PTTY path, not OS-level keys) */
-  pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
   /** Escape sequence sent after text delivery (e.g. '\r', '\n', or '\r\n'). Empty string clears/uses default. */
   submitSuffix?: string;
   /** Command pasted into the PTY by session_clear to reset the CLI's context. Default: '/clear'.
@@ -985,7 +974,6 @@ export class ConfigLoader {
     if (options?.continueCommand) tool.continueCommand = options.continueCommand;
     if (options?.helmPreambleForInterSession !== undefined) tool.helmPreambleForInterSession = options.helmPreambleForInterSession;
     if (options?.largeTextAsTempFile === true) tool.largeTextAsTempFile = true;
-    if (options?.pasteMode) tool.pasteMode = options.pasteMode;
     const helmActions = this.cleanHelmActions(options?.helmActions);
     if (helmActions) tool.helmActions = helmActions;
     this.cliTypeStore.add(id, tool);
@@ -1039,7 +1027,7 @@ export class ConfigLoader {
         if (options.env.length === 0) delete existing.env;
         else existing.env = options.env;
       }
-      for (const field of ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand', 'pasteMode', 'submitSuffix'] as const) {
+      for (const field of ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand', 'submitSuffix'] as const) {
         const val = options[field];
         if (val === undefined) continue;
         if (val === '') { delete (existing as any)[field]; }

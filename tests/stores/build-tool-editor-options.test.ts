@@ -11,7 +11,6 @@ describe('buildToolEditorOptions', () => {
       handoffCommand: '  handoff ',
       env: [],
       helmPreambleForInterSession: true,
-      pasteMode: 'pty',
     };
     const result = buildToolEditorOptions(values);
     expect(result.spawnCommand).toBe('claude');
@@ -100,15 +99,6 @@ describe('buildToolEditorOptions', () => {
     expect(buildToolEditorOptions({ submitSuffix: '' }).submitSuffix).toBe('');   // empty string is valid, not treated as falsy
   });
 
-  it('includes valid pasteMode values, omits invalid ones', () => {
-    const validModes = ['pty', 'ptyindividual', 'sendkeys', 'sendkeysindividual', 'clippaste'] as const;
-    for (const mode of validModes) {
-      expect(buildToolEditorOptions({ pasteMode: mode }).pasteMode).toBe(mode);
-    }
-    expect(buildToolEditorOptions({ pasteMode: 'invalid' }).pasteMode).toBeUndefined();
-    expect(buildToolEditorOptions({ pasteMode: undefined }).pasteMode).toBeUndefined();
-  });
-
   it('returns complete options with all fields populated', () => {
     const values = {
       spawnCommand: 'claude --dangerously-skip-permissions',
@@ -119,7 +109,6 @@ describe('buildToolEditorOptions', () => {
       env: [{ name: 'API_KEY', value: 'secret', mode: 'append' }],
       helmPreambleForInterSession: false,
       largeTextAsTempFile: true,
-      pasteMode: 'sendkeysindividual',
       submitSuffix: '\\r',
     };
     const result = buildToolEditorOptions(values);
@@ -132,7 +121,6 @@ describe('buildToolEditorOptions', () => {
       env: [{ name: 'API_KEY', value: 'secret', mode: 'append' }],
       helmPreambleForInterSession: false,
       largeTextAsTempFile: true,
-      pasteMode: 'sendkeysindividual',
       submitSuffix: '\\r',
       helmActions: { clear: '', compact: '', export: '' },
     });

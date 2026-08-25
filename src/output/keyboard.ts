@@ -135,14 +135,6 @@ export class KeyboardSimulator {
             this.keyUp(key);
         }
     }
-
-    /** Type a string of text as OS-level keystrokes via robotjs.
-     *  Used for per-CLI pasteMode: 'sendkeys' (clipboard paste / editor send)
-     *  when a CLI doesn't handle PTY-level paste well. */
-    typeString(text: string): void {
-        if (!text) return;
-        robot.typeString(text);
-    }
 }
 
 /** Default singleton instance. */

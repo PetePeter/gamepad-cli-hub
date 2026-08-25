@@ -27,7 +27,6 @@ import {
   buildPastePayload,
   BRACKETED_PASTE_POLL_MS,
   BRACKETED_PASTE_READY_BUDGET_MS,
-  isForegroundOnlyPasteMode,
   SUBMIT_SETTLE_DELAY_MS,
   type DeliveryContext,
   type PtyWriteOptions,
@@ -83,10 +82,6 @@ let pasteInFlight = false;
 let editorInFlight = false;
 let clipboardPasteInFlight = false;
 let getEscProtectionEnabled: GetEscProtectionEnabled = async () => true;
-const ptyIndividualLock = new Set<string>();
-
-const SENDKEYS_INDIVIDUAL_DELAY_MS = 20;
-const PTY_INDIVIDUAL_DELAY_MS = 30;
 
 interface BracketedPasteReadable {
   isBracketedPasteEnabled: () => boolean;
@@ -155,17 +150,12 @@ async function settleBeforeSubmit(suffix: string): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, SUBMIT_SETTLE_DELAY_MS));
 }
 
-async function sendKeyboardSubmitSuffix(suffix: string): Promise<void> {
-  if (!suffix) return;
-
-  if (suffix === '\r' || suffix === '\n' || suffix === '\r\n') {
-    await keyboardClient.keyboardKeyTap('enter');
-    return;
-  }
-
-  await keyboardClient.keyboardTypeString(suffix);
-}
-
+/**
+ * Put text on the clipboard and press Ctrl+V at the OS level.
+ *
+ * Not a delivery mode — this is how the user's own paste reaches a terminal that
+ * does not hold DOM focus. See deliverViaClipboardPaste.
+ */
 async function simulateClipboardPaste(text: string): Promise<void> {
   await navigator.clipboard.writeText(text);
   await keyboardClient.keyboardSendKeyCombo(['ctrl', 'v']);
@@ -184,84 +174,31 @@ export async function deliverViaClipboardPaste(text: string): Promise<void> {
   }
 }
 
-/** Deliver bulk text to the active session — either via PTY write, clipboard paste,
- *  or OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode. */
+/**
+ * Deliver bulk text from the renderer to a session's PTY — the user's Ctrl+V,
+ * the prompt editor, gamepad bindings and sequence delivery.
+ *
+ * Text is written to PTY stdin, framed in DEC 2004 markers when the CLI has
+ * bracketed paste on, with the submit suffix as a separate later write. There is
+ * one way to deliver text; the four alternative paste modes were removed once it
+ * became clear nothing configured them and each was a slower, focus-sensitive
+ * path to the same PTY.
+ */
 export async function deliverBulkText(sessionId: string, text: string, options?: { withReturn?: boolean; submitSuffix?: string; deliveryContext?: DeliveryContext }): Promise<void> {
   const session = state.sessions.find(s => s.id === sessionId);
-  const tool = session ? resolveCliTypeRecord(session.cliType) : undefined;
   const suffix = getConfiguredSubmitSuffix(sessionId, options?.withReturn, options?.submitSuffix);
   const deliveryContext = options?.deliveryContext ?? 'interactive';
   const ptyWriteOptions = getPtyWriteOptions(deliveryContext);
 
-  if (deliveryContext === 'background' && isForegroundOnlyPasteMode(tool?.pasteMode)) {
-    throw new Error(`Background delivery cannot use focus-sensitive pasteMode=${tool?.pasteMode}`);
-  }
-
-  // Submit-only: no text but submitSuffix present — route through paste-mode-appropriate submit
+  // Submit-only: no text but submitSuffix present.
   if (!text && suffix) {
-    if (tool?.pasteMode === 'clippaste' || tool?.pasteMode === 'sendkeys' || tool?.pasteMode === 'sendkeysindividual') {
-      await sendKeyboardSubmitSuffix(suffix);
-    } else {
-      await writePtySubmitSuffix(sessionId, suffix, ptyWriteOptions);
-    }
+    await writePtySubmitSuffix(sessionId, suffix, ptyWriteOptions);
     return;
   }
 
   if (!text) return;
 
-  console.log(`[Paste] mode=${tool?.pasteMode ?? 'pty(default)'} cliType=${session?.cliType} chars=${text.length}`);
-
-  if (tool?.pasteMode === 'ptyindividual') {
-    if (ptyIndividualLock.has(sessionId)) return;
-    ptyIndividualLock.add(sessionId);
-    try {
-      for (const char of text) {
-        if (!state.sessions.find(s => s.id === sessionId)) break;
-        await writePty(sessionId, char, ptyWriteOptions);
-        await new Promise(resolve => setTimeout(resolve, PTY_INDIVIDUAL_DELAY_MS));
-      }
-      await settleBeforeSubmit(suffix);
-      await writePtySubmitSuffix(sessionId, suffix, ptyWriteOptions);
-      console.log(`[Paste] ptyindividual complete: ${text.length} chars sent`);
-    } finally {
-      ptyIndividualLock.delete(sessionId);
-    }
-    return;
-  }
-
-  if (tool?.pasteMode === 'sendkeysindividual' && keyboardClient.keyboardTypeString) {
-    for (const char of text) {
-      await keyboardClient.keyboardTypeString(char);
-      await new Promise(resolve => setTimeout(resolve, SENDKEYS_INDIVIDUAL_DELAY_MS));
-    }
-    await settleBeforeSubmit(suffix);
-    await sendKeyboardSubmitSuffix(suffix);
-    return;
-  }
-
-  if (tool?.pasteMode === 'sendkeys' && keyboardClient.keyboardTypeString) {
-    await keyboardClient.keyboardTypeString(text);
-    await settleBeforeSubmit(suffix);
-    await sendKeyboardSubmitSuffix(suffix);
-    return;
-  }
-
-  if (tool?.pasteMode === 'clippaste') {
-    const tm = getTerminalManager();
-    const termSession = tm?.getSession?.(sessionId);
-
-    if (!termSession) {
-      console.warn(`[Paste] clippaste: session not found or terminal manager unavailable`);
-      return;
-    }
-
-    termSession.view.focus();
-    await simulateClipboardPaste(text);
-    await settleBeforeSubmit(suffix);
-    await writePtySubmitSuffix(sessionId, suffix, ptyWriteOptions);
-    console.log(`[Paste] clippaste complete: ${text.length} chars pasted via clipboard, suffix via PTY`);
-    return;
-  }
+  console.log(`[Paste] cliType=${session?.cliType} chars=${text.length}`);
 
   const tm = getTerminalManager();
   const view = tm?.getSession?.(sessionId)?.view;
@@ -394,13 +331,12 @@ export function setupKeyboardRelay(
         modalNavigationSelectors: MODAL_NAVIGATION_SELECTOR,
       });
       if (activeContext === 'editable-field') return;
-      const session = state.sessions.find(s => s.id === sessionId);
-      const tool = session ? resolveCliTypeRecord(session.cliType) : undefined;
       if (document.querySelector('.scheduler-popup-backdrop')) {
         e.stopPropagation();
         return;
       }
-      if (document.querySelector('.modal-overlay.modal--visible') && tool?.pasteMode !== 'clippaste') {
+      // A visible selection-mode modal owns all keyboard input, paste included.
+      if (document.querySelector('.modal-overlay.modal--visible')) {
         e.stopPropagation();
         return;
       }

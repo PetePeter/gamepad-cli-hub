@@ -33,10 +33,4 @@ export function setupKeyboardHandlers(keyboard: KeyboardSimulator): void {
     keyboard.comboUp(keys);
     return { success: true };
   });
-
-  /** Type a string as OS-level keystrokes (per-CLI sendkeys paste mode) */
-  ipcMain.handle('keyboard:typeString', (_event, text: string) => {
-    keyboard.typeString(text);
-    return { success: true };
-  });
 }

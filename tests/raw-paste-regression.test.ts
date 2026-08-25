@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const { mockState, mockGetTerminalManager } = vi.hoisted(() => ({
   mockState: {
     sessions: [] as Array<{ id: string; cliType: string }>,
-    cliToolsCache: {} as Record<string, { pasteMode?: string }>,
+    cliToolsCache: {} as Record<string, { submitSuffix?: string }>,
   },
   mockGetTerminalManager: vi.fn().mockReturnValue(null),
 }));
@@ -85,86 +85,6 @@ describe('deliverBulkText sends text literally (no sequence parsing)', () => {
     const text = 'function() { return {Enter}; }';
     await deliverBulkText('sess-1', text);
     expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', text);
-  });
-});
-
-describe('deliverBulkText preserves literal text in ptyindividual mode', () => {
-  let mockPtyWrite: ReturnType<typeof vi.fn>;
-
-  beforeEach(() => {
-    vi.useFakeTimers();
-    mockPtyWrite = vi.fn().mockResolvedValue({ success: true });
-    (window as any).gamepadCli = { ptyWrite: mockPtyWrite };
-    mockState.sessions = [{ id: 'sess-1', cliType: 'claude-code' }];
-    mockState.cliToolsCache = { 'claude-code': { pasteMode: 'ptyindividual' } };
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('sends each character of {Enter} individually — proving no token parsing', async () => {
-    const promise = deliverBulkText('sess-1', '{Enter}');
-    // Advance through all the setTimeout delays for each character
-    await vi.runAllTimersAsync();
-    await promise;
-
-    // 7 chars: { E n t e r }
-    expect(mockPtyWrite).toHaveBeenCalledTimes(7);
-    expect(mockPtyWrite).toHaveBeenNthCalledWith(1, 'sess-1', '{');
-    expect(mockPtyWrite).toHaveBeenNthCalledWith(2, 'sess-1', 'E');
-    expect(mockPtyWrite).toHaveBeenNthCalledWith(3, 'sess-1', 'n');
-    expect(mockPtyWrite).toHaveBeenNthCalledWith(4, 'sess-1', 't');
-    expect(mockPtyWrite).toHaveBeenNthCalledWith(5, 'sess-1', 'e');
-    expect(mockPtyWrite).toHaveBeenNthCalledWith(6, 'sess-1', 'r');
-    expect(mockPtyWrite).toHaveBeenNthCalledWith(7, 'sess-1', '}');
-  });
-});
-
-describe('deliverBulkText preserves literal text in clippaste mode', () => {
-  let mockPtyWrite: ReturnType<typeof vi.fn>;
-  let mockFocus: ReturnType<typeof vi.fn>;
-  let mockPaste: ReturnType<typeof vi.fn>;
-  let mockKeyboardSendKeyCombo: ReturnType<typeof vi.fn>;
-
-  beforeEach(() => {
-    mockPtyWrite = vi.fn().mockResolvedValue({ success: true });
-    mockFocus = vi.fn();
-    mockPaste = vi.fn();
-    mockKeyboardSendKeyCombo = vi.fn().mockResolvedValue(undefined);
-    (window as any).gamepadCli = { ptyWrite: mockPtyWrite, keyboardSendKeyCombo: mockKeyboardSendKeyCombo };
-    mockState.sessions = [{ id: 'sess-1', cliType: 'claude-code' }];
-    mockState.cliToolsCache = { 'claude-code': { pasteMode: 'clippaste' } };
-    mockGetTerminalManager.mockReturnValue({
-      getSession: (id: string) => ({
-        view: {
-          focus: mockFocus,
-          paste: mockPaste,
-          isBracketedPasteEnabled: () => false,
-        },
-      }),
-    });
-    // clippaste uses simulateClipboardPaste which calls navigator.clipboard.writeText
-    Object.defineProperty(navigator, 'clipboard', {
-      value: { writeText: vi.fn().mockResolvedValue(undefined) },
-      writable: true,
-      configurable: true,
-    });
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('sends literal text through clipboard paste path in clippaste mode', async () => {
-    await deliverBulkText('sess-1', 'hello{Enter}');
-
-    expect(mockFocus).toHaveBeenCalled();
-    // clippaste routes text through clipboard.writeText + keyboardSendKeyCombo, not ptyWrite
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('hello{Enter}');
-    expect(mockKeyboardSendKeyCombo).toHaveBeenCalledWith(['ctrl', 'v']);
-    expect(mockPtyWrite).not.toHaveBeenCalled();
-    expect(mockPaste).not.toHaveBeenCalled();
   });
 });
 

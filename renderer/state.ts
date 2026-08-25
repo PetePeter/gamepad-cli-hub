@@ -57,7 +57,7 @@ export interface AppState {
   availableSpawnTypes: string[];
   cliBindingsCache: Record<string, Record<string, any>>;
 /** Per-CLI tool config (paste mode, commands, etc.) — populated by initConfigCache. */
-  cliToolsCache: Record<string, { pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste'; submitSuffix?: string; [k: string]: any }>;
+  cliToolsCache: Record<string, { submitSuffix?: string; [k: string]: any }>;
   /** Project registry shared by sidebar, settings, and planner surfaces. */
   projects: ProjectSummary[];
   settingsTab: string;

@@ -15,7 +15,6 @@ interface ToolEditorData {
   name: string;
   env: Array<{ name: string; value: string }>;
   initialPromptDelay: number;
-  pasteMode: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
   spawnCommand: string;
   resumeCommand: string;
   continueCommand: string;
@@ -31,7 +30,6 @@ const DEFAULT_DATA: ToolEditorData = {
   name: '',
   env: [],
   initialPromptDelay: 2000,
-  pasteMode: 'pty',
   spawnCommand: '',
   resumeCommand: '',
   continueCommand: '',
@@ -147,7 +145,6 @@ describe('ToolEditorModal.vue', () => {
         spawnCommand: 'test-cmd --arg',
         env: [{ name: 'COPILOT_MODEL', value: 'qwen' }],
         initialPromptDelay: 3000,
-        pasteMode: 'sendkeys',
         largeTextAsTempFile: true,
         initialPrompt: [{ label: 'greet', sequence: 'hello' }],
       },
@@ -162,22 +159,8 @@ describe('ToolEditorModal.vue', () => {
     expect(values.spawnCommand).toBe('test-cmd --arg');
     expect(values.env).toEqual([{ name: 'COPILOT_MODEL', value: 'qwen' }]);
     expect(values.initialPromptDelay).toBe(3000);
-    expect(values.pasteMode).toBe('sendkeys');
     expect(values.largeTextAsTempFile).toBe(true);
     expect(values._promptItems).toEqual([{ label: 'greet', sequence: 'hello' }]);
-    w.unmount();
-  });
-
-  it('warns when the selected paste mode is not plain PTY', async () => {
-    const w = factory({
-      initialData: {
-        ...DEFAULT_DATA,
-        pasteMode: 'ptyindividual',
-      },
-    });
-
-    expect(w.find('.te-warning').text()).toContain('Use pty unless this CLI specifically needs another mode');
-
     w.unmount();
   });
 

@@ -14,8 +14,6 @@ import { TerminalOutputBuffer, type TerminalOutputMode, type TerminalTail } from
 
 const esmRequire = createRequire(import.meta.url);
 
-const DELIVER_TEXT_TIMEOUT_MS = 10_000;
-
 /**
  * How a PTY write registers on the activity dots.
  *
@@ -105,11 +103,8 @@ export function resolvePtyShell(
 export class PtyManager extends EventEmitter {
   private ptys: Map<string, PtyProcess> = new Map();
   private factory: PtyFactory;
-  private textDeliveryHandler?: (sessionId: string, text: string, options?: TextDeliveryOptions) => Promise<void>;
   /** Marks a session active on stdin. Injected so PtyManager stays free of StateDetector. */
   private activityMarker?: (sessionId: string) => void;
-  /** Resolves a session's configured pasteMode. Injected so PtyManager stays free of ConfigLoader. */
-  private pasteModeResolver?: (sessionId: string) => string | undefined;
   private terminalOutputBuffer = new TerminalOutputBuffer();
   /** Main-process view of each CLI's DEC 2004 state, for sessions with no renderer. */
   private bracketedPaste = new BracketedPasteTracker();
@@ -245,54 +240,19 @@ export class PtyManager extends EventEmitter {
     return this.writeCounts.get(sessionId) ?? 0;
   }
 
-  /** Configure a higher-level text delivery path that can honor per-CLI insertion modes. */
-  setTextDeliveryHandler(handler: ((sessionId: string, text: string, options?: TextDeliveryOptions) => Promise<void>) | undefined): void {
-    this.textDeliveryHandler = handler;
-  }
-
-  /** Configure how a session's pasteMode is looked up, so delivery can route by it. */
-  setPasteModeResolver(resolver: ((sessionId: string) => string | undefined) | undefined): void {
-    this.pasteModeResolver = resolver;
-  }
-
   /**
-   * Whether delivery for this session has to go through the renderer.
+   * Deliver bulk text to a session's PTY, framing it per the tracked DEC 2004
+   * state and sending the submit suffix as a separate later write.
    *
-   * Only the non-default paste modes do: per-character pacing, robotjs typing
-   * and clipboard focus all need a window. Default `pty` is a plain stdin write
-   * plus a DEC 2004 decision, both of which this class owns.
+   * There is one delivery path. Text used to make a round trip through the
+   * renderer to be written by this same class, purely to borrow xterm's DEC 2004
+   * bit and to honour four paste modes nothing ever configured. The tracker
+   * supplies the bit and the modes are gone, so the trip — along with its
+   * request timeout, its raw fallback and its duplicate-write ambiguity — went
+   * with them.
    */
-  private needsRendererDelivery(sessionId: string): boolean {
-    const pasteMode = this.pasteModeResolver?.(sessionId);
-    return !!pasteMode && pasteMode !== 'pty';
-  }
-
-  /** Deliver bulk text using the preferred insertion mode when available. */
   async deliverText(sessionId: string, text: string, options?: TextDeliveryOptions): Promise<void> {
     if (!text && !options?.submitSuffix) return;
-    if (this.textDeliveryHandler && this.needsRendererDelivery(sessionId)) {
-      try {
-        await Promise.race([
-          this.textDeliveryHandler(sessionId, text, options),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('deliverText handler timed out')), DELIVER_TEXT_TIMEOUT_MS),
-          ),
-        ]);
-        return;
-      } catch (error) {
-        logger.warn(`[PTY] Preferred text delivery failed for ${sessionId}, falling back to PTY write: ${error}`);
-      }
-    }
-    await this.writeDeliveredText(sessionId, text, options);
-  }
-
-  /**
-   * Write delivered text straight to the PTY, framing it per the tracked DEC 2004
-   * state. This is the whole of default `pty` delivery — the renderer used to be
-   * asked purely for the mode bit, and a round trip that ends in the same class
-   * it started in only bought a request timeout and a duplicate-write ambiguity.
-   */
-  private async writeDeliveredText(sessionId: string, text: string, options?: TextDeliveryOptions): Promise<void> {
     const suffix = options?.submitSuffix ?? (options?.withReturn ? '\r' : '');
 
     if (text) {

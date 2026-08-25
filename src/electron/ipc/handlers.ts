@@ -58,7 +58,6 @@ import { setupBackupPlanHandlers } from './plan-backup-handlers.js';
 import { setupProjectHandlers } from './project-handlers.js';
 import { setupSkillHandlers } from './skill-handlers.js';
 import { setupPromptTemplateHandlers } from './prompt-template-handlers.js';
-import { RendererTextDeliverer } from './text-delivery.js';
 import { loadDrafts, saveDrafts } from '../../session/persistence.js';
 import { IncomingPlansWatcher } from '../../session/incoming-plans-watcher.js';
 import { WindowManager } from '../window-manager.js';
@@ -232,14 +231,6 @@ export function registerIPCHandlers(
   }
 
   const incomingWatcher = new IncomingPlansWatcher(planManager);
-  const textDeliverer = new RendererTextDeliverer(windowManager, sessionManager, configLoader);
-  ptyManager.setTextDeliveryHandler((sessionId, text, options) => textDeliverer.deliver(sessionId, text, options));
-  // Only the non-default paste modes are routed to the renderer; default `pty`
-  // delivery is written here in main. See PtyManager.needsRendererDelivery.
-  ptyManager.setPasteModeResolver(sessionId => {
-    const session = sessionManager.getSession(sessionId);
-    return session ? configLoader.getCliTypeEntry(session.cliType)?.pasteMode : undefined;
-  });
   const localhostMcpServer = new LocalhostMcpServer(helmControlService, {
     enabled: configLoader.getMcpConfig().enabled,
     port: configLoader.getMcpConfig().port,
@@ -547,7 +538,6 @@ export function registerIPCHandlers(
       cancelAllPrompts();
       stateDetector.dispose();
       patternMatcher.dispose();
-      textDeliverer.dispose();
       notificationManager.dispose();
       ptyManager.killAll();
       await incomingWatcher.close();

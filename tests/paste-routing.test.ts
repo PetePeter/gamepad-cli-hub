@@ -6,7 +6,7 @@ const { mockShowEditorPopup, mockState, mockGetTerminalManager } = vi.hoisted(()
   mockShowEditorPopup: vi.fn(),
   mockState: {
     sessions: [] as Array<{ id: string; cliType: string }>,
-    cliToolsCache: {} as Record<string, { pasteMode?: string }>,
+    cliToolsCache: {} as Record<string, { submitSuffix?: string }>,
   },
   mockGetTerminalManager: vi.fn().mockReturnValue(null),
 }));
@@ -451,31 +451,6 @@ describe('keyboard relay', () => {
       expect(mockPtyWrite).not.toHaveBeenCalled();
     });
 
-    it('allows Ctrl+V paste for clippaste mode when a modal overlay is visible', async () => {
-      const mockFocus = vi.fn();
-      const paste = vi.fn();
-      getActiveSessionId.mockReturnValue('sess-1');
-      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
-      mockState.cliToolsCache = { copilot: { pasteMode: 'clippaste' } };
-      mockGetTerminalManager.mockReturnValue({
-        getSession: vi.fn().mockReturnValue({
-          view: { focus: mockFocus, paste },
-        }),
-      });
-      navigator.clipboard.readText.mockResolvedValue('hello');
-      (window as any).gamepadCli.keyboardSendKeyCombo = vi.fn().mockResolvedValue(undefined);
-
-      fireKey('v', { ctrlKey: true });
-      await new Promise(r => setTimeout(r, 10));
-
-      expect(navigator.clipboard.readText).toHaveBeenCalled();
-      expect(mockFocus).toHaveBeenCalled();
-      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('hello');
-      expect((window as any).gamepadCli.keyboardSendKeyCombo).toHaveBeenCalledWith(['ctrl', 'v']);
-      expect(mockPtyWrite).not.toHaveBeenCalled();
-      expect(paste).not.toHaveBeenCalled();
-    });
-
     it('does not intercept Ctrl+V when a modal input has focus', async () => {
       getActiveSessionId.mockReturnValue('sess-1');
       mockState.sessions = [{ id: 'sess-1', cliType: 'codex' }];
@@ -595,17 +570,14 @@ describe('keyboard relay', () => {
 
 describe('deliverBulkText', () => {
   let mockPtyWrite: ReturnType<typeof vi.fn>;
-  let mockKeyboardTypeString: ReturnType<typeof vi.fn>;
   let restoreRequestAnimationFrame: (() => void) | null = null;
 
   beforeEach(() => {
     vi.useFakeTimers();
     mockPtyWrite = vi.fn();
-    mockKeyboardTypeString = vi.fn().mockResolvedValue(undefined);
 
     (window as any).gamepadCli = {
       ptyWrite: mockPtyWrite,
-      keyboardTypeString: mockKeyboardTypeString,
     };
 
     // Reset shared mockState between tests
@@ -630,62 +602,18 @@ describe('deliverBulkText', () => {
     vi.restoreAllMocks();
   });
 
-  it('pasteMode pty — calls ptyWrite once with full text, never keyboardTypeString', async () => {
+  it('writes the full text to the PTY in one call', async () => {
     mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
-    mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
 
     const promise = deliverBulkText('sess-1', 'hello');
     await promise;
 
     expect(mockPtyWrite).toHaveBeenCalledOnce();
     expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'hello');
-    expect(mockKeyboardTypeString).not.toHaveBeenCalled();
-  });
-
-  it('pasteMode sendkeys — calls keyboardTypeString once with full text, never ptyWrite', async () => {
-    mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
-    mockState.cliToolsCache = { copilot: { pasteMode: 'sendkeys' } };
-
-    const promise = deliverBulkText('sess-1', 'hello');
-    await promise;
-
-    expect(mockKeyboardTypeString).toHaveBeenCalledOnce();
-    expect(mockKeyboardTypeString).toHaveBeenCalledWith('hello');
-    expect(mockPtyWrite).not.toHaveBeenCalled();
-  });
-
-  it('pasteMode sendkeysindividual — calls keyboardTypeString once per char, never ptyWrite', async () => {
-    mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
-    mockState.cliToolsCache = { copilot: { pasteMode: 'sendkeysindividual' } };
-
-    // Run the async loop; advance timers to unblock each 20ms delay
-    const promise = deliverBulkText('sess-1', 'abc');
-    // Advance past all three 20ms delays (3 chars × 20ms = 60ms)
-    await vi.runAllTimersAsync();
-    await promise;
-
-    expect(mockKeyboardTypeString).toHaveBeenCalledTimes(3);
-    expect(mockKeyboardTypeString).toHaveBeenNthCalledWith(1, 'a');
-    expect(mockKeyboardTypeString).toHaveBeenNthCalledWith(2, 'b');
-    expect(mockKeyboardTypeString).toHaveBeenNthCalledWith(3, 'c');
-    expect(mockPtyWrite).not.toHaveBeenCalled();
-  });
-
-  it('rejects focus-sensitive modes for background delivery', async () => {
-    mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
-    mockState.cliToolsCache = { copilot: { pasteMode: 'sendkeys' } };
-
-    await expect(deliverBulkText('sess-1', 'hello', { deliveryContext: 'background' })).rejects.toThrow(
-      'Background delivery cannot use focus-sensitive pasteMode=sendkeys',
-    );
-
-    expect(mockKeyboardTypeString).not.toHaveBeenCalled();
-    expect(mockPtyWrite).not.toHaveBeenCalled();
   });
 
   it('marks background PTY writes as programmatic and settles before submitting', async () => {
     mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
-    mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
 
     const promise = deliverBulkText('sess-1', 'hello', { deliveryContext: 'background', submitSuffix: '\n' });
     await vi.runAllTimersAsync();
@@ -706,7 +634,6 @@ describe('deliverBulkText', () => {
   // recipient keeps only the final fragment.
   it('bracket-pastes background multi-line text so it is not submitted line-by-line', async () => {
     mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
-    mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
     mockGetTerminalManager.mockReturnValue({
       getSession: () => ({
         view: { isBracketedPasteEnabled: () => true },
@@ -725,7 +652,6 @@ describe('deliverBulkText', () => {
 
   it('leaves background text raw when the CLI has not enabled bracketed paste', async () => {
     mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
-    mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
     mockGetTerminalManager.mockReturnValue({
       getSession: () => ({
         view: { isBracketedPasteEnabled: () => false },
@@ -744,7 +670,6 @@ describe('deliverBulkText', () => {
   // TUIs (Copilot CLI) need a beat to ingest a paste before they honour Enter.
   it('waits the settle delay between the text write and the submit suffix', async () => {
     mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
-    mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
 
     const promise = deliverBulkText('sess-1', 'hello', { submitSuffix: '\r' });
     await vi.advanceTimersByTimeAsync(0);
@@ -762,27 +687,11 @@ describe('deliverBulkText', () => {
 
   it('does not delay a submit-only delivery', async () => {
     mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
-    mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
 
     await deliverBulkText('sess-1', '', { submitSuffix: '\r' });
 
     expect(mockPtyWrite).toHaveBeenCalledOnce();
     expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', '\r');
-  });
-
-  it('marks background ptyindividual writes as programmatic', async () => {
-    mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
-    mockState.cliToolsCache = { copilot: { pasteMode: 'ptyindividual' } };
-
-    const promise = deliverBulkText('sess-1', 'ab', { deliveryContext: 'background', submitSuffix: '\n' });
-    await vi.runAllTimersAsync();
-    await promise;
-
-    expect(mockPtyWrite.mock.calls).toEqual([
-      ['sess-1', 'a', { inputOrigin: 'programmatic' }],
-      ['sess-1', 'b', { inputOrigin: 'programmatic' }],
-      ['sess-1', '\n', { inputOrigin: 'programmatic' }],
-    ]);
   });
 
   it('no session found — falls back to ptyWrite', async () => {
@@ -795,17 +704,14 @@ describe('deliverBulkText', () => {
 
     expect(mockPtyWrite).toHaveBeenCalledOnce();
     expect(mockPtyWrite).toHaveBeenCalledWith('unknown', 'hello');
-    expect(mockKeyboardTypeString).not.toHaveBeenCalled();
   });
 
   it('empty text — does nothing', async () => {
     mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
-    mockState.cliToolsCache = { copilot: { pasteMode: 'sendkeysindividual' } };
 
     await deliverBulkText('sess-1', '');
 
     expect(mockPtyWrite).not.toHaveBeenCalled();
-    expect(mockKeyboardTypeString).not.toHaveBeenCalled();
   });
 
   // ---------------------------------------------------------------------------
@@ -815,7 +721,6 @@ describe('deliverBulkText', () => {
   describe('bracketed paste wrapping', () => {
     it('wraps text in bracketed paste markers when terminal has bracketedPasteMode enabled', async () => {
       mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
-      mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
       mockGetTerminalManager.mockReturnValue({
         getSession: (id: string) => id === 'sess-1' ? {
           view: { isBracketedPasteEnabled: () => true },
@@ -826,12 +731,10 @@ describe('deliverBulkText', () => {
 
       expect(mockPtyWrite).toHaveBeenCalledOnce();
       expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', '\x1b[200~hello\x1b[201~');
-      expect(mockKeyboardTypeString).not.toHaveBeenCalled();
     });
 
     it('sends raw text when bracketedPasteMode is disabled', async () => {
       mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
-      mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
       mockGetTerminalManager.mockReturnValue({
         getSession: (id: string) => id === 'sess-1' ? {
           view: { isBracketedPasteEnabled: () => false },
@@ -846,7 +749,6 @@ describe('deliverBulkText', () => {
 
     it('sends raw text when terminal manager is unavailable (fallback)', async () => {
       mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
-      mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
       mockGetTerminalManager.mockReturnValue(null);
 
       await deliverBulkText('sess-1', 'hello');
@@ -857,7 +759,6 @@ describe('deliverBulkText', () => {
 
     it('sends raw text when session view is not found', async () => {
       mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
-      mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
       mockGetTerminalManager.mockReturnValue({
         getSession: () => undefined,
       });
@@ -868,42 +769,8 @@ describe('deliverBulkText', () => {
       expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'hello');
     });
 
-    it('does NOT wrap sendkeys mode even when bracketedPasteMode is enabled', async () => {
-      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
-      mockState.cliToolsCache = { copilot: { pasteMode: 'sendkeys' } };
-      mockGetTerminalManager.mockReturnValue({
-        getSession: () => ({
-          view: { isBracketedPasteEnabled: () => true },
-        }),
-      });
-
-      await deliverBulkText('sess-1', 'hello');
-
-      expect(mockKeyboardTypeString).toHaveBeenCalledOnce();
-      expect(mockKeyboardTypeString).toHaveBeenCalledWith('hello');
-      expect(mockPtyWrite).not.toHaveBeenCalled();
-    });
-
-    it('does NOT wrap sendkeysindividual mode even when bracketedPasteMode is enabled', async () => {
-      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
-      mockState.cliToolsCache = { copilot: { pasteMode: 'sendkeysindividual' } };
-      mockGetTerminalManager.mockReturnValue({
-        getSession: () => ({
-          view: { isBracketedPasteEnabled: () => true },
-        }),
-      });
-
-      const promise = deliverBulkText('sess-1', 'ab');
-      await vi.runAllTimersAsync();
-      await promise;
-
-      expect(mockKeyboardTypeString).toHaveBeenCalledTimes(2);
-      expect(mockPtyWrite).not.toHaveBeenCalled();
-    });
-
     it('wraps multiline text correctly in brackets', async () => {
       mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
-      mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
       mockGetTerminalManager.mockReturnValue({
         getSession: (id: string) => id === 'sess-1' ? {
           view: { isBracketedPasteEnabled: () => true },
@@ -925,7 +792,6 @@ describe('deliverBulkText', () => {
   describe('bracketed paste readiness wait (multi-line)', () => {
     it('waits for bracketed paste to turn on, then wraps multi-line text', async () => {
       mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
-      mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
       let enabled = false;
       mockGetTerminalManager.mockReturnValue({
         getSession: (id: string) => id === 'sess-1' ? {
@@ -946,7 +812,6 @@ describe('deliverBulkText', () => {
 
     it('gives up after the budget and delivers multi-line text raw', async () => {
       mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
-      mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
       mockGetTerminalManager.mockReturnValue({
         getSession: (id: string) => id === 'sess-1' ? {
           view: { isBracketedPasteEnabled: () => false },
@@ -962,7 +827,6 @@ describe('deliverBulkText', () => {
 
     it('does not wait for single-line text', async () => {
       mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
-      mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
       const isEnabled = vi.fn().mockReturnValue(false);
       mockGetTerminalManager.mockReturnValue({
         getSession: (id: string) => id === 'sess-1' ? { view: { isBracketedPasteEnabled: isEnabled } } : undefined,
@@ -979,190 +843,6 @@ describe('deliverBulkText', () => {
   // ---------------------------------------------------------------------------
   // PTY individual mode (char-by-char PTY writes for Ink-based CLIs)
   // ---------------------------------------------------------------------------
-
-  describe('ptyindividual mode', () => {
-    it('writes each character individually to ptyWrite with delay', async () => {
-      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
-      mockState.cliToolsCache = { copilot: { pasteMode: 'ptyindividual' } };
-
-      const promise = deliverBulkText('sess-1', 'abc');
-      await vi.runAllTimersAsync();
-      await promise;
-
-      expect(mockPtyWrite).toHaveBeenCalledTimes(3);
-      expect(mockPtyWrite).toHaveBeenNthCalledWith(1, 'sess-1', 'a');
-      expect(mockPtyWrite).toHaveBeenNthCalledWith(2, 'sess-1', 'b');
-      expect(mockPtyWrite).toHaveBeenNthCalledWith(3, 'sess-1', 'c');
-      expect(mockKeyboardTypeString).not.toHaveBeenCalled();
-    });
-
-    it('never uses keyboardTypeString', async () => {
-      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
-      mockState.cliToolsCache = { copilot: { pasteMode: 'ptyindividual' } };
-
-      const promise = deliverBulkText('sess-1', 'xy');
-      await vi.runAllTimersAsync();
-      await promise;
-
-      expect(mockKeyboardTypeString).not.toHaveBeenCalled();
-    });
-
-    it('per-session lock prevents interleaved pastes', async () => {
-      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
-      mockState.cliToolsCache = { copilot: { pasteMode: 'ptyindividual' } };
-
-      const p1 = deliverBulkText('sess-1', 'ab');
-      const p2 = deliverBulkText('sess-1', 'xy');
-
-      await vi.runAllTimersAsync();
-      await Promise.all([p1, p2]);
-
-      // Only the first paste should have written (lock blocks second)
-      expect(mockPtyWrite).toHaveBeenCalledTimes(2);
-      expect(mockPtyWrite).toHaveBeenNthCalledWith(1, 'sess-1', 'a');
-      expect(mockPtyWrite).toHaveBeenNthCalledWith(2, 'sess-1', 'b');
-    });
-
-    it('different sessions can paste concurrently', async () => {
-      mockState.sessions = [
-        { id: 'sess-1', cliType: 'copilot' },
-        { id: 'sess-2', cliType: 'copilot' },
-      ];
-      mockState.cliToolsCache = { copilot: { pasteMode: 'ptyindividual' } };
-
-      const p1 = deliverBulkText('sess-1', 'ab');
-      const p2 = deliverBulkText('sess-2', 'xy');
-
-      await vi.runAllTimersAsync();
-      await Promise.all([p1, p2]);
-
-      // Both sessions should have received their characters
-      const calls = mockPtyWrite.mock.calls;
-      const sess1Calls = calls.filter((c: any[]) => c[0] === 'sess-1');
-      const sess2Calls = calls.filter((c: any[]) => c[0] === 'sess-2');
-      expect(sess1Calls).toHaveLength(2);
-      expect(sess2Calls).toHaveLength(2);
-    });
-
-    it('stops writing if session is removed mid-paste', async () => {
-      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
-      mockState.cliToolsCache = { copilot: { pasteMode: 'ptyindividual' } };
-
-      const promise = deliverBulkText('sess-1', 'abcdef');
-      // Let 2 chars write, then remove the session
-      await vi.advanceTimersByTimeAsync(25);
-      mockState.sessions = [];
-      await vi.runAllTimersAsync();
-      await promise;
-
-      // Should have written fewer than 6 characters
-      expect(mockPtyWrite.mock.calls.length).toBeLessThan(6);
-    });
-  });
-
-  describe('clippaste mode', () => {
-    let mockFocus: ReturnType<typeof vi.fn>;
-    let mockPaste: ReturnType<typeof vi.fn>;
-    let mockKeyboardSendKeyCombo: ReturnType<typeof vi.fn>;
-    let mockSession: any;
-
-    beforeEach(() => {
-      mockFocus = vi.fn();
-      mockPaste = vi.fn();
-      mockKeyboardSendKeyCombo = vi.fn().mockResolvedValue(undefined);
-
-      mockSession = {
-        id: 'sess-1',
-        view: {
-          focus: mockFocus,
-          paste: mockPaste,
-        }
-      };
-
-      const mockTerminalManager = {
-        getSession: vi.fn().mockReturnValue(mockSession)
-      };
-
-      mockGetTerminalManager.mockReturnValue(mockTerminalManager);
-
-      // clippaste uses simulateClipboardPaste which calls navigator.clipboard.writeText
-      Object.defineProperty(navigator, 'clipboard', {
-        value: { readText: vi.fn().mockResolvedValue(''), writeText: vi.fn().mockResolvedValue(undefined) },
-        writable: true,
-        configurable: true,
-      });
-
-      // Add keyboardSendKeyCombo to the gamepadCli mock for clippaste
-      (window as any).gamepadCli.keyboardSendKeyCombo = mockKeyboardSendKeyCombo;
-    });
-
-    afterEach(() => {
-      vi.restoreAllMocks();
-    });
-
-    it('pasteMode clippaste — focuses terminal and pastes via clipboard', async () => {
-      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
-      mockState.cliToolsCache = { copilot: { pasteMode: 'clippaste' } };
-
-      await deliverBulkText('sess-1', 'test123');
-
-      expect(mockFocus).toHaveBeenCalledOnce();
-      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('test123');
-      expect(mockKeyboardSendKeyCombo).toHaveBeenCalledWith(['ctrl', 'v']);
-      expect(mockPtyWrite).not.toHaveBeenCalled();
-      expect(mockPaste).not.toHaveBeenCalled();
-    });
-
-    it('pasteMode clippaste — returns early when session view is not found', async () => {
-      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
-      mockState.cliToolsCache = { copilot: { pasteMode: 'clippaste' } };
-      mockGetTerminalManager.mockReturnValue({ getSession: vi.fn().mockReturnValue(undefined) });
-
-      await deliverBulkText('sess-1', 'test123');
-
-      expect(mockFocus).not.toHaveBeenCalled();
-      expect(mockPaste).not.toHaveBeenCalled();
-      expect(mockPtyWrite).not.toHaveBeenCalled();
-    });
-
-    it('pasteMode clippaste — works with special characters', async () => {
-      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
-      mockState.cliToolsCache = { copilot: { pasteMode: 'clippaste' } };
-
-      const specialText = 'Hello\nWorld\t"Special" & chars 🚀';
-      await deliverBulkText('sess-1', specialText);
-
-      expect(mockFocus).toHaveBeenCalledOnce();
-      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(specialText);
-      expect(mockKeyboardSendKeyCombo).toHaveBeenCalledWith(['ctrl', 'v']);
-      expect(mockPtyWrite).not.toHaveBeenCalled();
-      expect(mockPaste).not.toHaveBeenCalled();
-    });
-
-    it('pasteMode clippaste — does nothing with empty text', async () => {
-      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
-      mockState.cliToolsCache = { copilot: { pasteMode: 'clippaste' } };
-
-      await deliverBulkText('sess-1', '');
-
-      expect(mockFocus).not.toHaveBeenCalled();
-      expect(mockPtyWrite).not.toHaveBeenCalled();
-    });
-
-    it('pasteMode clippaste — does not add bracketed paste markers', async () => {
-      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
-      mockState.cliToolsCache = { copilot: { pasteMode: 'clippaste' } };
-      mockSession.view.isBracketedPasteEnabled = vi.fn().mockReturnValue(true);
-
-      await deliverBulkText('sess-1', 'test123');
-
-      expect(mockFocus).toHaveBeenCalledOnce();
-      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('test123');
-      expect(mockKeyboardSendKeyCombo).toHaveBeenCalledWith(['ctrl', 'v']);
-      expect(mockPtyWrite).not.toHaveBeenCalled();
-      expect(mockPaste).not.toHaveBeenCalled();
-    });
-  });
 
   // =========================================================================
   // submitSuffix — Helm inter-session messages auto-execution
@@ -1182,7 +862,6 @@ describe('deliverBulkText', () => {
       };
       mockGetTerminalManager.mockReturnValue(mockTerminalManager);
       mockState.sessions = [{ id: 'helm-test', cliType: 'claude-code' }];
-      mockState.cliToolsCache = { 'claude-code': { pasteMode: 'pty' } };
     });
 
     it('PTY mode: submitSuffix appended OUTSIDE bracketed paste markers', async () => {
@@ -1251,37 +930,6 @@ describe('deliverBulkText', () => {
       expect(mockPtyWrite).toHaveBeenNthCalledWith(2, 'helm-test', '\n');
     });
 
-    it('ptyindividual mode: submitSuffix appended after all characters', async () => {
-      mockState.cliToolsCache = { 'claude-code': { pasteMode: 'ptyindividual' } };
-      mockPtyWrite.mockClear();
-
-      const promise = deliverBulkText('helm-test', 'hi', { submitSuffix: '\n' });
-      await vi.runAllTimersAsync();
-      await promise;
-
-      // Should write: 'h', 'i', '\n'
-      expect(mockPtyWrite.mock.calls).toEqual([
-        ['helm-test', 'h'],
-        ['helm-test', 'i'],
-        ['helm-test', '\n'],
-      ]);
-    });
-
-    it('sendkeys mode: submitSuffix appended after text', async () => {
-      mockState.cliToolsCache = { 'claude-code': { pasteMode: 'sendkeys' } };
-      const mockKeyboardTypeString = vi.fn().mockResolvedValue(undefined);
-      const mockKeyboardKeyTap = vi.fn().mockResolvedValue(undefined);
-      (window as any).gamepadCli.keyboardTypeString = mockKeyboardTypeString;
-      (window as any).gamepadCli.keyboardKeyTap = mockKeyboardKeyTap;
-
-      const promise = deliverBulkText('helm-test', 'send', { submitSuffix: '\n' });
-      await vi.runAllTimersAsync();
-      await promise;
-
-      // sendKeyboardSubmitSuffix routes '\n' through keyboardKeyTap('enter')
-      expect(mockKeyboardTypeString).toHaveBeenCalledWith('send');
-      expect(mockKeyboardKeyTap).toHaveBeenCalledWith('enter');
-    });
   });
 
   // =========================================================================

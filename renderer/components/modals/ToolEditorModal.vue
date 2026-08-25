@@ -8,7 +8,6 @@ import { ref, watch, computed } from 'vue';
 import { FORM_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { useFocusTrap } from '../../composables/useFocusTrap.js';
 import PromptTextarea from '../common/PromptTextarea.vue';
-import { getNonPtyPasteModeWarning } from '../../../src/session/delivery-context.js';
 
 const MODAL_ID = 'tool-editor-modal';
 const HELM_AUTOFILLED_ENV_ITEMS = [
@@ -34,7 +33,6 @@ export interface ToolEditorData {
   name: string;
   env: Array<{ name: string; value: string; mode?: 'replace' | 'append' | 'prepend' }>;
   initialPromptDelay: number;
-  pasteMode: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
   spawnCommand: string;
   resumeCommand: string;
   continueCommand: string;
@@ -61,7 +59,6 @@ const emit = defineEmits<{
     name: string;
     env: Array<{ name: string; value: string; mode?: 'replace' | 'append' | 'prepend' }>;
     initialPromptDelay: number;
-    pasteMode: string;
     spawnCommand: string;
     resumeCommand: string;
     continueCommand: string;
@@ -82,7 +79,6 @@ const nameError = ref<string | null>(null);
 type EnvItem = { id: number; name: string; value: string; mode: 'replace' | 'append' | 'prepend' };
 const envItems = ref<EnvItem[]>([]);
 const initialPromptDelay = ref(2000);
-const pasteMode = ref<'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste'>('pty');
 const spawnCommand = ref('');
 const resumeCommand = ref('');
 const continueCommand = ref('');
@@ -108,7 +104,6 @@ const title = computed(() => {
   if (props.mode === 'add') return 'Add CLI Type';
   return props.mode === 'clone' ? `Clone CLI Type: ${handle}` : `Edit CLI Type: ${handle}`;
 });
-const pasteModeWarning = computed(() => getNonPtyPasteModeWarning(pasteMode.value));
 
 const modalStack = useModalStack();
 
@@ -144,7 +139,6 @@ function initForm(): void {
         .filter((item) => !HELM_AUTOFILLED_ENV_NAMES.has(item.name.trim()))
     : [];
   initialPromptDelay.value = d.initialPromptDelay ?? 2000;
-  pasteMode.value = d.pasteMode ?? 'pty';
   spawnCommand.value = d.spawnCommand ?? '';
   resumeCommand.value = d.resumeCommand ?? '';
   continueCommand.value = d.continueCommand ?? '';
@@ -203,7 +197,6 @@ function onSave(): void {
       ...(item.mode !== 'replace' ? { mode: item.mode } : {}),
     })),
     initialPromptDelay: initialPromptDelay.value,
-    pasteMode: pasteMode.value,
     spawnCommand: spawnCommand.value,
     resumeCommand: resumeCommand.value,
     continueCommand: continueCommand.value,
@@ -302,17 +295,6 @@ defineExpose({ handleButton });
             <legend class="te-section__legend">Behavior</legend>
             <div class="te-grid-2col">
               <div class="te-field">
-                <label for="te-paste-mode">Paste Mode</label>
-                <select id="te-paste-mode" v-model="pasteMode" class="te-select">
-                  <option value="pty">PTY — bulk write to stdin</option>
-                  <option value="ptyindividual">PTY Individual — char-by-char to stdin (for Ink/Copilot CLI)</option>
-                  <option value="sendkeys">SendKeys — OS-level batch keystrokes (robotjs)</option>
-                  <option value="sendkeysindividual">SendKeys Individual — OS-level char-by-char (robotjs)</option>
-                  <option value="clippaste">Terminal Paste — xterm/PTTY Ctrl+V-style paste (for Copilot CLI)</option>
-                </select>
-                <p v-if="pasteModeWarning" class="te-warning">{{ pasteModeWarning }}</p>
-              </div>
-              <div class="te-field">
                 <label for="te-delay">Initial Prompt Delay (ms)</label>
                 <input id="te-delay" v-model.number="initialPromptDelay" type="number" min="0" step="100" class="te-input" />
               </div>
@@ -404,7 +386,6 @@ defineExpose({ handleButton });
 .te-close-btn:hover { color: var(--text-primary); }
 .te-section { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--spacing-md); margin: 0; display: flex; flex-direction: column; gap: var(--spacing-sm); }
 .te-section__hint { margin: 0; font-size: var(--font-size-sm); color: var(--text-dim); line-height: 1.4; }
-.te-warning { margin: 0; padding: 8px 10px; border: 1px solid rgba(255, 159, 26, 0.45); border-radius: var(--radius-sm); color: #ffb347; background: rgba(255, 159, 26, 0.08); font-size: var(--font-size-sm); line-height: 1.35; }
 .te-section__legend { font-size: var(--font-size-sm); font-weight: 600; color: var(--accent); padding: 0 var(--spacing-xs); user-select: none; }
 .te-grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-sm); }
 .te-grid-3col { display: grid; grid-template-columns: 1fr 1fr auto; gap: var(--spacing-sm); align-items: center; }
