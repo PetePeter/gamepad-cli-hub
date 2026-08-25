@@ -46,7 +46,12 @@ def previous_tag(current_tag):
 
 
 # "feat(scope): subject" -> ("feat", "scope", "subject")
-CONVENTIONAL = re.compile(r"^(?P<type>\w+)(?:\((?P<scope>[^)]*)\))?!?:\s*(?P<subject>.+)$")
+#
+# Subjects sometimes carry a decoration before the type ("@ fix(sidebar): ...").
+# Anchoring hard on ^\w+ made those fail to match, and an unmatched subject is
+# dropped silently — a real fix vanished from the v2.4.5 notes that way. Skip a
+# short run of leading non-word characters so the decoration costs nothing.
+CONVENTIONAL = re.compile(r"^[^\w\n]{0,4}(?P<type>\w+)(?:\((?P<scope>[^)]*)\))?!?:\s*(?P<subject>.+)$")
 
 # Conventional-commit type -> release-note heading. Types absent here are
 # housekeeping (chore, docs, test, refactor...) and are left out of the notes.
