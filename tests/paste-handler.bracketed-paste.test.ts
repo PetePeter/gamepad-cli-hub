@@ -14,7 +14,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { shouldWaitForBracketedPaste, buildPastePayload } from '../renderer/paste-handler.js';
+import { shouldWaitForBracketedPaste } from '../renderer/paste-handler.js';
+// Framing is shared with the main-process fallback (PtyManager.deliverText),
+// so it lives next to the other delivery constants rather than in the renderer.
+import { buildPastePayload } from '../src/session/delivery-context.js';
 
 const PASTE_START = '\x1b[200~';
 const PASTE_END = '\x1b[201~';

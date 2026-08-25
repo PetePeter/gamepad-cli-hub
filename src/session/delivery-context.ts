@@ -23,6 +23,22 @@ export interface TextDeliveryOptions {
  */
 export const SUBMIT_SETTLE_DELAY_MS = 400;
 
+/**
+ * Frame text in DEC 2004 markers when the CLI has bracketed paste enabled, so
+ * the whole block lands in the composer as one paste. Without the framing a
+ * line editor reads each embedded newline as Enter and submits line-by-line,
+ * leaving the recipient only the final fragment.
+ *
+ * Never frame when the mode is off — the markers would be typed out literally,
+ * and for a line-oriented shell like cmd.exe line-by-line IS the wanted
+ * behaviour. Shared by the renderer paste path (mode read off xterm) and the
+ * main-process fallback (mode read off BracketedPasteTracker) so both halves
+ * make the same decision.
+ */
+export function buildPastePayload(text: string, bracketedPasteEnabled: boolean): string {
+  return bracketedPasteEnabled ? `\x1b[200~${text}\x1b[201~` : text;
+}
+
 const FOREGROUND_ONLY_PASTE_MODES = new Set<PasteMode>([
   'clippaste',
   'sendkeys',

@@ -29,6 +29,7 @@ src/
 │   ├── manager.ts              # Session tracking (EventEmitter), calls persistence on changes
 │   ├── persistence.ts          # Save/load/clear sessions to config/sessions.yaml + saveDrafts/loadDrafts to config/drafts.yaml + plan file I/O for config/plans/*.json + config/plan-dependencies.json
 │   ├── pty-manager.ts          # PTY process management (node-pty: cmd.exe on Windows, bash on Unix)
+│   ├── bracketed-paste-tracker.ts # Per-session DEC 2004 state scanned from PTY output (incremental, chunk-boundary safe)
 │   ├── state-detector.ts       # PTY activity tracking + question markers; AIAGENT phase state is MCP-owned + markRestored() grace period for restored sessions
 │   ├── pipeline-queue.ts       # Waiting→implementing auto-handoff queue (FIFO)
 │   ├── notification-manager.ts # Windows toast notifications (Electron Notification API, activity-change triggers for implementing/planning sessions, dedup, click-to-focus)

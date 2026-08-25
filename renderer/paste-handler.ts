@@ -23,7 +23,7 @@ import { getTerminalManager } from './runtime/terminal-provider.js';
 import { state } from './state.js';
 import { resolveCliTypeRecord } from './utils.js';
 import { keyboardClient, terminalClient } from './ipc/clients.js';
-import { isForegroundOnlyPasteMode, SUBMIT_SETTLE_DELAY_MS, type DeliveryContext, type PtyWriteOptions } from '../src/session/delivery-context.js';
+import { buildPastePayload, isForegroundOnlyPasteMode, SUBMIT_SETTLE_DELAY_MS, type DeliveryContext, type PtyWriteOptions } from '../src/session/delivery-context.js';
 
 /**
  * Convert escape notation strings to actual characters.
@@ -113,18 +113,6 @@ export function shouldWaitForBracketedPaste(input: {
   isMultiline: boolean;
 }): boolean {
   return input.readsBracketed && !input.bracketedPasteEnabled && input.isMultiline;
-}
-
-/**
- * Frame text in DEC 2004 markers when the CLI has bracketed paste enabled, so
- * the whole block lands in the composer as one paste. Without the framing a
- * line editor reads each embedded newline as Enter and submits line-by-line,
- * leaving the recipient only the final fragment.
- *
- * Never frame when the mode is off — the markers would be typed out literally.
- */
-export function buildPastePayload(text: string, bracketedPasteEnabled: boolean): string {
-  return bracketedPasteEnabled ? `\x1b[200~${text}\x1b[201~` : text;
 }
 
 async function waitForBracketedPasteReady(view: BracketedPasteReadable, budgetMs: number): Promise<boolean> {

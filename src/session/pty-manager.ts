@@ -2,7 +2,8 @@ import { EventEmitter } from 'events';
 import { createRequire } from 'node:module';
 import { logger } from '../utils/logger.js';
 import { validateProjectDirectory } from './validation.js';
-import type { TextDeliveryOptions } from './delivery-context.js';
+import { buildPastePayload, SUBMIT_SETTLE_DELAY_MS, type TextDeliveryOptions } from './delivery-context.js';
+import { BracketedPasteTracker } from './bracketed-paste-tracker.js';
 import { TerminalOutputBuffer, type TerminalOutputMode, type TerminalTail } from './terminal-output-buffer.js';
 
 const esmRequire = createRequire(import.meta.url);
@@ -91,6 +92,8 @@ export class PtyManager extends EventEmitter {
   private factory: PtyFactory;
   private textDeliveryHandler?: (sessionId: string, text: string, options?: TextDeliveryOptions) => Promise<void>;
   private terminalOutputBuffer = new TerminalOutputBuffer();
+  /** Main-process view of each CLI's DEC 2004 state, for sessions with no renderer. */
+  private bracketedPaste = new BracketedPasteTracker();
   private writeCounts: Map<string, number> = new Map();
   /** Last-known PTY dimensions per session (node-pty's PtyProcess does not expose cols/rows). */
   private sizes: Map<string, { cols: number; rows: number }> = new Map();
@@ -154,12 +157,14 @@ export class PtyManager extends EventEmitter {
 
     ptyProcess.onData((data: string) => {
       this.terminalOutputBuffer.append(sessionId, data);
+      this.bracketedPaste.observe(sessionId, data);
       this.emit('data', sessionId, data);
     });
 
     ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
       this.ptys.delete(sessionId);
       this.terminalOutputBuffer.clear(sessionId);
+      this.bracketedPaste.clear(sessionId);
       this.writeCounts.delete(sessionId);
       this.sizes.delete(sessionId);
       this.emit('exit', sessionId, exitCode);
@@ -229,7 +234,25 @@ export class PtyManager extends EventEmitter {
       }
     }
     const suffix = options?.submitSuffix ?? (options?.withReturn ? '\r' : '');
-    this.write(sessionId, text + suffix);
+
+    // No renderer to ask about DEC 2004, so use the mode the CLI announced on its
+    // own output stream. Framing keeps a multi-line payload as one paste; without
+    // it a TUI line editor submits line-by-line and only the last fragment
+    // survives. A CLI that never announced the mode (cmd.exe) still gets raw
+    // bytes — there line-by-line execution is the point.
+    if (text) {
+      this.write(sessionId, buildPastePayload(text, this.bracketedPaste.isEnabled(sessionId)));
+      // The suffix stays a SEPARATE write after a settle beat: a CR concatenated
+      // onto a paste block does not submit, it leaves the text sitting on the
+      // prompt (the bug 5a981b3 fixed).
+      if (suffix) await new Promise<void>(resolve => setTimeout(resolve, SUBMIT_SETTLE_DELAY_MS));
+    }
+    if (suffix) this.write(sessionId, suffix);
+  }
+
+  /** Whether the session's CLI has announced bracketed paste on its output stream. */
+  isBracketedPasteEnabled(sessionId: string): boolean {
+    return this.bracketedPaste.isEnabled(sessionId);
   }
 
   /** Resize a session's PTY. */
@@ -276,6 +299,7 @@ export class PtyManager extends EventEmitter {
     }
     this.ptys.delete(sessionId);
     this.terminalOutputBuffer.clear(sessionId);
+    this.bracketedPaste.clear(sessionId);
     this.writeCounts.delete(sessionId);
     this.sizes.delete(sessionId);
   }
@@ -291,6 +315,7 @@ export class PtyManager extends EventEmitter {
     }
     this.ptys.clear();
     this.terminalOutputBuffer.clearAll();
+    this.bracketedPaste.clearAll();
     this.writeCounts.clear();
     this.sizes.clear();
   }
