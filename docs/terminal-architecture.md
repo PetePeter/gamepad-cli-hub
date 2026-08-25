@@ -100,6 +100,55 @@ what makes "the next one down the list" resolvable rather than restarting from t
 Programmatic text (inter-session `session_send_text`, Telegram, scheduled tasks) is written to the
 PTY in two parts: the text, then the submit suffix. They are never coalesced.
 
+**One transaction per session.** Delivery is not a single write — it is nudge → payload → settle →
+submit, and any interleaving of two of those corrupts both messages. `DeliveryLock`
+(`src/session/delivery-lock.ts`) serializes the whole sequence per session.
+`deliverPromptSequenceToSession` is the gate, and it is the single choke point every programmatic
+sender funnels through. Locking the write alone would not have been enough: two senders could each
+nudge before either wrote, landing one message's resize between the other's payload and its submit.
+
+```mermaid
+sequenceDiagram
+    participant T as Telegram
+    participant I as Inter-session
+    participant L as DeliveryLock (s1)
+    participant P as PTY (s1)
+
+    T->>L: run(s1, transaction)
+    I->>L: run(s1, transaction)
+    Note over L: same session — the second sender queues
+    L->>P: resize 120x29 / 120x30 (nudge)
+    L->>P: write payload A
+    Note over L,P: settle SUBMIT_SETTLE_DELAY_MS
+    L->>P: write submit A
+    Note over L: A's transaction ends, gate released
+    L->>P: resize 120x29 / 120x30 (nudge)
+    L->>P: write payload B
+    Note over L,P: settle
+    L->>P: write submit B
+```
+
+Two things stay deliberately **outside** the gate, and both are load-bearing:
+
+- `PtyManager.write`, so the user's own keystrokes never queue behind a bulk delivery.
+- The delivery-verification polling window, which runs for seconds. Recovery re-sends re-acquire the
+  gate as a *fresh* acquisition; if verification held it, a resend would wait on a gate its own
+  caller still held and deadlock immediately. This is why "recovery must reacquire" and "do not hold
+  the lock across verification" are not in tension — do not "simplify" it by pulling verification in.
+
+The lock is per session, not global: delivering to one session never holds up another. Release is
+structural rather than `try`/`finally` — each queued task chains off a predecessor whose rejection
+has already been swallowed, so a thrown transaction can neither wedge the session nor leak its error
+into the next caller.
+
+**On the resize race.** `nudgeResize` stays fire-and-forget. The hypothesis that writing during the
+post-SIGWINCH repaint loses bytes was never reproduced: terminals buffer stdin while painting, and
+the head-loss that motivated it turned out to be unframed multi-line submission, fixed by bracketed
+paste. A quiescence wait keyed to `lastOutputAt` was considered and rejected — `TerminalOutputBuffer`
+stamps that field on *every* output chunk, so a mid-generation recipient never goes quiet and the
+wait would burn its full budget on the common case, degrading into the fixed sleep it was meant to
+replace. The readiness budget below already waits on a specific signal in the case that matters.
+
 **Why the gap matters.** Ink-based full-screen TUIs (Copilot CLI) ingest a paste asynchronously and
 only honour Enter once the composer has re-rendered. An Enter that lands mid-paste is swallowed, and
 the message sits on the prompt looking sent but never running. `SUBMIT_SETTLE_DELAY_MS`

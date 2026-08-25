@@ -5,6 +5,7 @@ import type { PtyManager } from './pty-manager.js';
 import type { SessionManager } from './manager.js';
 import { SUBMIT_SETTLE_DELAY_MS, type DeliveryContext, type TextDeliveryOptions } from './delivery-context.js';
 import { logger } from '../utils/logger.js';
+import { deliveryLock as sharedDeliveryLock, type DeliveryLock } from './delivery-lock.js';
 import {
   verifyDeliveryAfterDelay,
   type DeliveryVerificationResult,
@@ -103,6 +104,8 @@ export async function deliverPromptSequenceToSession(input: {
   configLoader: ConfigLoader;
   impliedSubmit?: boolean;
   deliveryContext?: DeliveryContext;
+  /** Overridable for tests; production uses the process-wide gate. */
+  deliveryLock?: DeliveryLock;
   verifyDelivery?: {
     label?: string;
     delayMs?: number;
@@ -119,12 +122,7 @@ export async function deliverPromptSequenceToSession(input: {
   const cliEntry = configLoader.getCliTypeEntry(session.cliType);
   const submitSuffix = parseSubmitSuffix(cliEntry?.submitSuffix);
 
-  // Nudge the recipient PTY with a transient resize before delivery. Full-screen
-  // TUIs (e.g. Copilot CLI) only redraw their input region on SIGWINCH; a hidden
-  // session that never received a fit keeps a stale size and drops the delivered
-  // text. Harmless for line-based CLIs (they ignore the size change).
-  await ptyManager.nudgeResize(sessionId);
-
+  const lock = input.deliveryLock ?? sharedDeliveryLock;
   const processedText = escapeUnrecognizedBraces(text);
   const textDeliveryOptions: TextDeliveryOptions | undefined = deliveryContext ? { deliveryContext } : undefined;
   const deliverText = (sid: string, chunk: string, options?: TextDeliveryOptions): Promise<void> => (
@@ -145,7 +143,25 @@ export async function deliverPromptSequenceToSession(input: {
     impliedSubmit: impliedSubmit ?? true,
   });
 
-  await runSequence();
+  /**
+   * One delivery, serialized against every other delivery to this session.
+   *
+   * The gate covers nudge through submit as a single transaction. Locking the
+   * write alone would not help: two senders could both nudge before either
+   * wrote, dropping one message's resize between the other's payload and its
+   * submit.
+   *
+   * The nudge is a transient resize. Full-screen TUIs (e.g. Copilot CLI) only
+   * redraw their input region on SIGWINCH; a hidden session that never received
+   * a fit keeps a stale size and renders the delivered text into a mis-sized
+   * buffer. Harmless for line-based CLIs, which ignore the size change.
+   */
+  const runTransaction = () => lock.run(sessionId, async () => {
+    await ptyManager.nudgeResize(sessionId);
+    await runSequence();
+  });
+
+  await runTransaction();
 
   if (!verifyDelivery) return undefined;
 
@@ -159,8 +175,17 @@ export async function deliverPromptSequenceToSession(input: {
     delayMs: verifyDelivery.delayMs,
     retrySubmit: verifyDelivery.retrySubmit ?? true,
     // Recovery must replay through the sequence executor: `text` still holds
-    // {Wait}/{Enter} tokens, which a raw write would type out literally.
-    resendPayload: runSequence,
+    // {Wait}/{Enter} tokens, which a raw write would type out literally. It
+    // re-acquires the gate so a resend cannot interleave with a fresh delivery,
+    // but does NOT nudge again — the geometry was already fixed moments ago by
+    // the original transaction, and a re-send is about the payload, not the size.
+    //
+    // This is also why verification runs OUTSIDE the transaction and must stay
+    // there. Its polling window is seconds long, so holding the gate across it
+    // would serialize every sender behind one message's diagnosis — and worse,
+    // this resend would be waiting on a gate its own caller still held. Pulling
+    // verification inside the lock deadlocks recovery outright.
+    resendPayload: () => lock.run(sessionId, runSequence),
   };
 
   if (verifyDelivery.background) {
