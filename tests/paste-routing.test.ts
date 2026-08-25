@@ -697,7 +697,14 @@ describe('deliverBulkText', () => {
     ]);
   });
 
-  it('does not bracket-paste background auto-submit text', async () => {
+  // Background delivery used to skip bracketed paste on purpose: it wrote the
+  // payload and its submit suffix as a SINGLE write, and a \r tacked onto the
+  // end of a paste block does not submit. That combined write is gone — the
+  // suffix is now its own write after a settle delay — so the exclusion only
+  // survived as a stale constraint, and it cost us the newline protection:
+  // an unwrapped multi-line envelope is submitted a line at a time and the
+  // recipient keeps only the final fragment.
+  it('bracket-pastes background multi-line text so it is not submitted line-by-line', async () => {
     mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
     mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
     mockGetTerminalManager.mockReturnValue({
@@ -706,15 +713,31 @@ describe('deliverBulkText', () => {
       }),
     });
 
-    const promise = deliverBulkText('sess-1', 'hello', { deliveryContext: 'background', submitSuffix: '\r' });
+    const promise = deliverBulkText('sess-1', 'first\nsecond', { deliveryContext: 'background', submitSuffix: '\r' });
     await vi.runAllTimersAsync();
     await promise;
 
     expect(mockPtyWrite.mock.calls).toEqual([
-      ['sess-1', 'hello', { inputOrigin: 'programmatic' }],
+      ['sess-1', '\x1b[200~first\nsecond\x1b[201~', { inputOrigin: 'programmatic' }],
       ['sess-1', '\r', { inputOrigin: 'programmatic' }],
     ]);
-    expect(mockPtyWrite.mock.calls[0][1]).not.toContain('\x1b[200~');
+  });
+
+  it('leaves background text raw when the CLI has not enabled bracketed paste', async () => {
+    mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
+    mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
+    mockGetTerminalManager.mockReturnValue({
+      getSession: () => ({
+        view: { isBracketedPasteEnabled: () => false },
+      }),
+    });
+
+    const promise = deliverBulkText('sess-1', 'first\nsecond', { deliveryContext: 'background', submitSuffix: '\r' });
+    await vi.runAllTimersAsync();
+    await promise;
+
+    // Markers would be typed out literally by a CLI that never enabled DEC 2004.
+    expect(mockPtyWrite.mock.calls[0][1]).toBe('first\nsecond');
   });
 
   // The root-cause fix for "text lands on the prompt but is never sent": Ink-based

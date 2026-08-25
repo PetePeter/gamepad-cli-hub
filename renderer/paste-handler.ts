@@ -98,6 +98,35 @@ interface BracketedPasteReadable {
   isBracketedPasteEnabled: () => boolean;
 }
 
+/**
+ * Whether to spend the readiness budget waiting for the CLI to turn bracketed
+ * paste on before delivering.
+ *
+ * Only worth waiting when the payload has newlines to protect and the view can
+ * actually report the mode — polling a session with no xterm view learns
+ * nothing. Deliberately independent of delivery context: a programmatic send
+ * needs the newline protection just as much as a typed one.
+ */
+export function shouldWaitForBracketedPaste(input: {
+  readsBracketed: boolean;
+  bracketedPasteEnabled: boolean;
+  isMultiline: boolean;
+}): boolean {
+  return input.readsBracketed && !input.bracketedPasteEnabled && input.isMultiline;
+}
+
+/**
+ * Frame text in DEC 2004 markers when the CLI has bracketed paste enabled, so
+ * the whole block lands in the composer as one paste. Without the framing a
+ * line editor reads each embedded newline as Enter and submits line-by-line,
+ * leaving the recipient only the final fragment.
+ *
+ * Never frame when the mode is off — the markers would be typed out literally.
+ */
+export function buildPastePayload(text: string, bracketedPasteEnabled: boolean): string {
+  return bracketedPasteEnabled ? `\x1b[200~${text}\x1b[201~` : text;
+}
+
 async function waitForBracketedPasteReady(view: BracketedPasteReadable, budgetMs: number): Promise<boolean> {
   const deadline = Date.now() + budgetMs;
   while (Date.now() < deadline) {
@@ -257,19 +286,17 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
   const readsBracketed = typeof view?.isBracketedPasteEnabled === 'function';
   let bracketedPasteEnabled = readsBracketed ? view!.isBracketedPasteEnabled() : false;
 
-  // Multi-line interactive delivery into a session that hasn't enabled bracketed
-  // paste yet (typically just-spawned) — wait briefly for it so the whole block
-  // is wrapped instead of submitted line-by-line.
-  if (readsBracketed && !bracketedPasteEnabled && deliveryContext !== 'background' && text.includes('\n')) {
+  // Multi-line delivery into a session that hasn't enabled bracketed paste yet
+  // (typically just-spawned) — wait briefly for it so the whole block is wrapped
+  // instead of submitted line-by-line. Background delivery needs this as much as
+  // interactive: inter-session and Telegram envelopes are multi-line, and an
+  // unwrapped one is submitted a line at a time, so only its last fragment
+  // survives as the recipient's prompt.
+  if (shouldWaitForBracketedPaste({ readsBracketed, bracketedPasteEnabled, isMultiline: text.includes('\n') })) {
     bracketedPasteEnabled = await waitForBracketedPasteReady(view!, BRACKETED_PASTE_READY_BUDGET_MS);
   }
 
-  const shouldUseBracketedPaste = deliveryContext !== 'background' && bracketedPasteEnabled;
-  const payload = shouldUseBracketedPaste
-    ? `\x1b[200~${text}\x1b[201~`
-    : text;
-
-  await writePty(sessionId, payload, ptyWriteOptions);
+  await writePty(sessionId, buildPastePayload(text, bracketedPasteEnabled), ptyWriteOptions);
   await settleBeforeSubmit(suffix);
   await writePtySubmitSuffix(sessionId, suffix, ptyWriteOptions);
 }
