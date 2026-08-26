@@ -103,9 +103,12 @@ PTY in two parts: the text, then the submit suffix. They are never coalesced.
 **One transaction per session.** Delivery is not a single write — it is nudge → payload → settle →
 submit, and any interleaving of two of those corrupts both messages. `DeliveryLock`
 (`src/session/delivery-lock.ts`) serializes the whole sequence per session.
-`deliverPromptSequenceToSession` is the gate, and it is the single choke point every programmatic
-sender funnels through. Locking the write alone would not have been enough: two senders could each
-nudge before either wrote, landing one message's resize between the other's payload and its submit.
+`deliverPromptSequenceToSession` is the gate for the senders that deliver in this shape — Telegram,
+scheduled tasks, inter-session sends, MCP. It is not a universal choke point: pattern-matcher
+send-text and spawn-time initial prompts are single atomic writes that bypass the gate, and
+renderer-origin delivery (below) runs outside it entirely. Locking the write alone would not have
+been enough: two senders could each nudge before either wrote, landing one message's resize between
+the other's payload and its submit.
 
 ```mermaid
 sequenceDiagram
@@ -165,7 +168,10 @@ and its duplicate-write ambiguity.
 
 Renderer-origin delivery is a separate concern that shares a file: `deliverBulkText` in
 `renderer/paste-handler.ts` serves the user's Ctrl+V, the prompt editor, gamepad bindings and
-sequence delivery. It makes the same framing decision against its own xterm view.
+sequence delivery. It makes the same framing decision against its own xterm view. Its
+payload → settle → suffix writes go through raw `pty:write` and do not hold the main-process
+`DeliveryLock`, so a renderer paste can still interleave with a gated delivery — a known gap,
+accepted because the overlap window is a single settle delay.
 
 **Framing.** Multi-line text is wrapped in DEC 2004 bracketed-paste markers so a TUI line editor
 takes the whole block as one paste instead of reading every embedded newline as Enter and submitting
@@ -173,7 +179,8 @@ line-by-line — which left the recipient only the final fragment. The decision 
 whether the CLI announced the mode, never on the delivery context. `BracketedPasteTracker` is the
 main process's source of truth: it scans PTY output for `ESC[?2004h` / `ESC[?2004l`, so it sees the
 announcement at least as early as xterm.js does and works for a session that was never rendered.
-The renderer path (non-default modes, and manual Ctrl+V) reads the same state off its xterm view.
+The renderer path (manual Ctrl+V, the prompt editor, gamepad bindings) reads the same state off its
+xterm view.
 
 `buildPastePayload` (`src/session/delivery-context.ts`) is shared by both so they cannot drift. A CLI
 that never announces the mode — `cmd.exe` — gets raw bytes, because there line-by-line execution is
