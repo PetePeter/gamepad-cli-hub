@@ -45,6 +45,24 @@ describe('SchedulerSection', () => {
     vi.useRealTimers();
   });
 
+  it('marks every acting control focusable so the gamepad can walk the pane', async () => {
+    const wrapper = mount(SchedulerSection, { props: { collapsed: false } });
+    await flushPromises();
+
+    const focusIds = wrapper.findAll('.focusable').map(el => el.attributes('data-focus-id'));
+    expect(focusIds).toEqual([
+      'scheduler:new',
+      'scheduler:history',
+      'scheduler:edit:task-1',
+      'scheduler:delete:task-1',
+    ]);
+    // The inert row body stays out of the focus walk — it has nothing to activate.
+    expect(wrapper.find('.scheduler-row').classes()).not.toContain('focusable');
+
+    wrapper.unmount();
+    vi.useRealTimers();
+  });
+
   it('opens edit only from the info action', async () => {
     const wrapper = mount(SchedulerSection, { props: { collapsed: false } });
     await flushPromises();

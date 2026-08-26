@@ -12,13 +12,13 @@ import {
   closePane,
   createDefaultLayout,
   findPaneGroup,
-  isPaneHidden,
   listFocusablePanes,
   listPanes,
   movePane,
   reorderTab,
   restorePane,
   resetLayout,
+  resizeSplit,
   setActiveTab,
   setDockMode,
   validateLayout,
@@ -36,6 +36,7 @@ import {
   PANE_TERMINAL,
   type DockMode,
   type DockWorkspaceLayout,
+  type DockNodePath,
   type DropTarget,
   type PaneId,
 } from '../dock-types';
@@ -47,8 +48,14 @@ export interface DockWorkspace {
   /** Pinned-pane order used by gamepad focus cycling; autohide/hidden docks are omitted. */
   focusablePaneOrder: Ref<PaneId[]>;
   closedPanes: Ref<PaneId[]>;
+  /** Autohide docks the user has opened; they render and take focus like pinned ones. */
+  revealedPanes: Ref<PaneId[]>;
   focusedPaneId: Ref<PaneId | null>;
   isVisible: (paneId: PaneId) => boolean;
+  /** Open an autohide/hidden dock and give it focus. */
+  reveal: (paneId: PaneId) => void;
+  /** Collapse a revealed dock back to its edge rail. */
+  unreveal: (paneId: PaneId) => void;
   focusPane: (paneId: PaneId, focusedItemId?: string) => void;
   getFocusedItemId: (paneId: PaneId) => string | null;
   setFocusedItemId: (paneId: PaneId, itemId: string | null) => void;
@@ -61,6 +68,7 @@ export interface DockWorkspace {
   close: (paneId: PaneId) => void;
   restore: (paneId: PaneId, target?: DropTarget) => void;
   reset: () => void;
+  resize: (path: DockNodePath, sizes: number[]) => void;
   /** Adopt an untrusted layout; falls back to Classic and returns false if invalid. */
   load: (raw: unknown) => boolean;
   /** Load from app-data and migrate legacy browser storage on first launch. */
@@ -95,15 +103,19 @@ export function useDockWorkspace(initial?: DockWorkspaceLayout, options: DockWor
   const layout = computed(() => readonly(layoutState.value));
   const focusedPaneId = ref<PaneId | null>(PANE_TERMINAL);
   const focusedItemIds = ref<Partial<Record<PaneId, string>>>({});
+  // Reveal is session state, not layout: an opened autohide dock re-collapses on
+  // the next launch, so it is deliberately outside the persisted tree.
+  const revealedPanes = ref<PaneId[]>([]);
 
   const paneOrder = computed(() => listPanes(layoutState.value.root));
-  const focusablePaneOrder = computed(() => listFocusablePanes(layoutState.value.root));
+  const focusablePaneOrder = computed(() =>
+    listFocusablePanes(layoutState.value.root, revealedPanes.value));
   const closedPanes = computed(() => [...layoutState.value.closed]);
   let persistQueue = Promise.resolve();
 
-  /** A pane is visible when it is the active tab of a group in a non-hidden dock. */
+  /** A pane is visible when it is the active tab of a group in an uncollapsed dock. */
   function isVisible(paneId: PaneId): boolean {
-    return !isPaneHidden(layoutState.value.root, paneId)
+    return focusablePaneOrder.value.includes(paneId)
       && findPaneGroup(layoutState.value.root, paneId)?.activeTab === paneId;
   }
 
@@ -120,11 +132,27 @@ export function useDockWorkspace(initial?: DockWorkspaceLayout, options: DockWor
 
   function apply(next: DockWorkspaceLayout, shouldPersist = true): void {
     layoutState.value = next;
-    const focusable = listFocusablePanes(next.root);
+    // A pane that left the tree (or slipped behind a collapsed rail) must hand
+    // focus back rather than strand gamepad input on something unreachable.
+    revealedPanes.value = revealedPanes.value.filter(paneId => !!findPaneGroup(next.root, paneId));
+    const focusable = listFocusablePanes(next.root, revealedPanes.value);
     if (!focusable.includes(focusedPaneId.value)) {
       focusedPaneId.value = focusable[0] ?? null;
     }
     if (shouldPersist) persist(next);
+  }
+
+  function reveal(paneId: PaneId): void {
+    if (!findPaneGroup(layoutState.value.root, paneId)) return;
+    if (!revealedPanes.value.includes(paneId)) revealedPanes.value = [...revealedPanes.value, paneId];
+    focusPane(paneId);
+  }
+
+  function unreveal(paneId: PaneId): void {
+    revealedPanes.value = revealedPanes.value.filter(id => id !== paneId);
+    if (!focusablePaneOrder.value.includes(focusedPaneId.value)) {
+      focusedPaneId.value = focusablePaneOrder.value[0] ?? null;
+    }
   }
 
   function getFocusedItemId(paneId: PaneId): string | null {
@@ -183,8 +211,11 @@ export function useDockWorkspace(initial?: DockWorkspaceLayout, options: DockWor
     paneOrder,
     focusablePaneOrder,
     closedPanes,
+    revealedPanes,
     focusedPaneId,
     isVisible,
+    reveal,
+    unreveal,
     focusPane,
     getFocusedItemId,
     setFocusedItemId,
@@ -196,6 +227,7 @@ export function useDockWorkspace(initial?: DockWorkspaceLayout, options: DockWor
     close: (paneId) => apply(closePane(layoutState.value, paneId)),
     restore: (paneId, target) => apply(restorePane(layoutState.value, paneId, target)),
     reset: () => apply(resetLayout()),
+    resize: (path, sizes) => apply(resizeSplit(layoutState.value, path, sizes)),
     load: (raw) => {
       try {
         apply(validateLayout(raw));

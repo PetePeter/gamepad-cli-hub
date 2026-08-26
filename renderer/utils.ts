@@ -110,12 +110,12 @@ export function getCliDisplayName(cliType: string): string {
   return ref;
 }
 
-export function getFocusableElements(): HTMLElement[] {
-  return Array.from(document.querySelectorAll('.focusable:not([hidden])'));
+export function getFocusableElements(root: ParentNode = document): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>('.focusable:not([hidden]):not([disabled])'));
 }
 
-export function navigateFocus(direction: number): void {
-  const focusable = getFocusableElements();
+export function navigateFocus(direction: number, root: ParentNode = document): void {
+  const focusable = getFocusableElements(root);
   if (focusable.length === 0) return;
   const currentIndex = focusable.findIndex(el => el === document.activeElement);
   let nextIndex = currentIndex + direction;

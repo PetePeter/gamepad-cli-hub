@@ -64,10 +64,67 @@ button {
 /* App Layout — horizontal split */
 #app {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   height: 100vh;
   width: 100%;
   overflow: hidden;
+}
+
+/* The app chrome is global; the recursive dock tree below owns all pane placement. */
+.helm-app-shell {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-primary);
+  position: relative;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  min-height: 48px;
+  padding: var(--spacing-sm);
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag;
+}
+.app-header .sidebar-btn,
+.app-header .sidebar-actions,
+.app-header .dock-view-menu {
+  -webkit-app-region: no-drag;
+}
+.app-header .sidebar-actions { display: flex; margin-left: auto; }
+.app-workspace {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.app-main-area {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+.app-main-area > .dock-workspace { flex: 1; }
+.settings-workspace-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--spacing-sm);
+  background: var(--bg-primary);
 }
 
 /* Left panel (sessions/settings sidebar) */
@@ -176,6 +233,106 @@ button {
 .dock-view-menu {
   position: relative;
 }
+
+/* Recursive Vue-native docking shell. Grid tracks keep every child non-zero while
+ * the split model remains normalized ratios rather than pixel state. */
+.dock-workspace,
+.dock-node,
+.dock-node__content,
+.dock-tab-group,
+.dock-pane {
+  min-width: 0;
+  min-height: 0;
+}
+.dock-workspace {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+.dock-node--split {
+  display: grid;
+  flex: 1;
+  overflow: hidden;
+  gap: 0;
+}
+.dock-node--horizontal { grid-auto-flow: column; }
+.dock-node--vertical { grid-auto-flow: row; }
+.dock-node--group,
+.dock-node--dock,
+.dock-node__content,
+.dock-tab-group,
+.dock-pane { display: flex; flex: 1; overflow: hidden; }
+.dock-node--dock { position: relative; flex-direction: column; background: var(--bg-primary); }
+.dock-node--side-left,
+.dock-node--side-right { flex-direction: column; }
+/* A collapsed dock is only its rail: it must not claim a share of its parent
+ * split (the parent already gives it an `auto` track) or stretch to fill one. */
+.dock-node--collapsed { flex: 0 0 auto; }
+.dock-node--side-top.dock-node--collapsed,
+.dock-node--side-bottom.dock-node--collapsed { flex-direction: row; }
+.dock-node__content { flex-direction: column; }
+.dock-pane { position: relative; flex-direction: column; background: var(--bg-primary); }
+.dock-pane[aria-hidden="true"] { pointer-events: none; }
+.dock-pane--focused { box-shadow: inset 0 0 0 1px var(--focus); }
+.dock-pane__missing { padding: var(--spacing-md); color: var(--text-secondary); }
+.dock-tabs {
+  display: flex;
+  flex-shrink: 0;
+  min-height: 32px;
+  overflow-x: auto;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+.dock-tab-entry { display: flex; flex-shrink: 0; align-items: stretch; border-right: 1px solid var(--border); }
+.dock-tab {
+  min-width: 84px;
+  padding: 5px 9px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-align: left;
+  border-bottom: 2px solid transparent;
+}
+.dock-tab:hover,
+.dock-tab:focus-visible,
+.dock-tab--focused { color: var(--text-primary); background: var(--bg-tertiary); }
+.dock-tab--active { color: var(--accent); border-bottom-color: var(--accent); }
+.dock-tab-close { padding: 0 6px; color: var(--text-dim); font-size: 15px; }
+.dock-tab-close:hover,
+.dock-tab-close:focus-visible { color: var(--text-primary); background: var(--bg-tertiary); }
+.dock-splitter {
+  z-index: 2;
+  width: 4px;
+  height: 100%;
+  padding: 0;
+  cursor: col-resize;
+  background: var(--border);
+}
+.dock-node--vertical > .dock-splitter { width: 100%; height: 4px; cursor: row-resize; }
+.dock-splitter:hover,
+.dock-splitter:focus-visible,
+.dock-splitter--dragging { background: var(--accent); outline: none; }
+.dock-rail {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 6px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+}
+.dock-rail:hover,
+.dock-rail:focus-visible { color: var(--text-primary); background: var(--bg-tertiary); outline: 2px solid var(--accent); outline-offset: -2px; }
+/* Left/right rails read bottom-to-top; top/bottom rails stay horizontal. */
+.dock-rail__label { font-size: 11px; }
+.dock-node--side-left > .dock-rail > .dock-rail__label,
+.dock-node--side-right > .dock-rail > .dock-rail__label { writing-mode: vertical-rl; transform: rotate(180deg); }
+.dock-node--side-top > .dock-rail,
+.dock-node--side-bottom > .dock-rail { min-height: 24px; }
+.dock-node--empty { display: grid; place-items: center; flex: 1; color: var(--text-dim); }
 .dock-view-menu__trigger {
   font-size: 11px;
   font-weight: 600;

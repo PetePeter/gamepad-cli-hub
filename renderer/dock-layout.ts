@@ -24,6 +24,7 @@ import {
   type DockGroupNode,
   type DockMode,
   type DockNode,
+  type DockNodePath,
   type DockSide,
   type DockSplitNode,
   type DockWorkspaceLayout,
@@ -107,14 +108,40 @@ export function listPanes(node: DockNode | null): PaneId[] {
   return node.children.flatMap(listPanes);
 }
 
-/** Pane ids eligible for gamepad focus cycling in deterministic tree order. */
-export function listFocusablePanes(node: DockNode | null): PaneId[] {
+/**
+ * Whether an edge dock currently occupies no space and renders only its rail.
+ *
+ * The single authority for collapse: the parent split uses it to drop the dock's
+ * `fr` track, and the dock itself uses it to hide its content. Deriving both
+ * from one predicate is what keeps a closed autohide dock from leaving a blank
+ * column behind.
+ */
+export function isDockCollapsed(
+  node: DockNode,
+  revealed: readonly PaneId[] = [],
+  focusedPaneId: PaneId | null = null,
+): boolean {
+  if (node.type !== 'dock' || node.mode === 'pinned') return false;
+  const panes = listPanes(node.child);
+  if (node.mode === 'hidden') return true;
+  if (panes.some(paneId => revealed.includes(paneId))) return false;
+  return !(focusedPaneId && panes.includes(focusedPaneId));
+}
+
+/**
+ * Pane ids eligible for gamepad focus cycling in deterministic tree order.
+ *
+ * Panes under a collapsed edge dock are excluded, but a revealed autohide dock
+ * participates like a pinned one — an opened pane the user can see must be a
+ * pane the user can focus.
+ */
+export function listFocusablePanes(node: DockNode | null, revealed: readonly PaneId[] = []): PaneId[] {
   if (!node || node.type === 'empty') return [];
   if (node.type === 'group') return [...node.tabs];
   if (node.type === 'dock') {
-    return node.mode === 'pinned' ? listFocusablePanes(node.child) : [];
+    return isDockCollapsed(node, revealed) ? [] : listFocusablePanes(node.child, revealed);
   }
-  return node.children.flatMap(listFocusablePanes);
+  return node.children.flatMap(child => listFocusablePanes(child, revealed));
 }
 
 export function findPaneGroup(node: DockNode | null, paneId: PaneId): DockGroupNode | null {
@@ -386,6 +413,38 @@ export function restorePane(
 
 export function resetLayout(): DockWorkspaceLayout {
   return createDefaultLayout();
+}
+
+function replaceNodeAtPath(node: DockNode, path: DockNodePath, replace: (node: DockNode) => DockNode): DockNode {
+  if (path.length === 0) return replace(node);
+  const [segment, ...rest] = path;
+  if (node.type === 'dock' && segment === -1) {
+    return { ...node, child: replaceNodeAtPath(node.child, rest, replace) };
+  }
+  if (node.type === 'split' && segment !== undefined && segment >= 0 && segment < node.children.length) {
+    return {
+      ...node,
+      children: node.children.map((child, index) =>
+        index === segment ? replaceNodeAtPath(child, rest, replace) : child),
+    };
+  }
+  throw new Error('dock layout: split path does not identify a node');
+}
+
+/** Replace one split's ratios without changing its recursive children. */
+export function resizeSplit(
+  layout: DockWorkspaceLayout,
+  path: DockNodePath,
+  sizes: number[],
+): DockWorkspaceLayout {
+  const root = replaceNodeAtPath(layout.root, path, node => {
+    if (node.type !== 'split') throw new Error('dock layout: resize path does not identify a split');
+    if (sizes.length !== node.children.length) {
+      throw new Error('dock layout: resized split sizes do not match its children');
+    }
+    return { ...node, sizes: scaleSizes(sizes, node.children.length) };
+  });
+  return withRoot(layout, root, layout.closed);
 }
 
 // ---------------------------------------------------------------------------

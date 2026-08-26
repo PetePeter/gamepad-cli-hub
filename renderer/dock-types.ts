@@ -47,6 +47,9 @@ export interface DockDockNode {
 
 export type DockNode = DockSplitNode | DockGroupNode | DockDockNode | DockEmptyNode;
 
+/** Child path used by the renderer when it reports a split resize. `-1` enters a dock child. */
+export type DockNodePath = number[];
+
 /** Where a dragged/restored pane lands relative to an existing pane. */
 export type DropZone = 'center' | 'left' | 'right' | 'top' | 'bottom';
 

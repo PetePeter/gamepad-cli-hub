@@ -239,8 +239,20 @@ describe('useInputRouter', () => {
     router.handleButton('Y');
     router.handleRelease('Y');
 
-    expect(mocks.processConfigBinding).toHaveBeenCalledWith('Y', 'codex');
-    expect(mocks.processConfigRelease).toHaveBeenCalledWith('Y', 'codex');
+    expect(mocks.processConfigBinding).toHaveBeenCalledWith('Y');
+    expect(mocks.processConfigRelease).toHaveBeenCalledWith('Y');
+  });
+
+  it('keeps a button release on the terminal only while the terminal owns pane focus', () => {
+    const focusedPaneId = ref<string | null>('scheduler');
+    const { router } = createRouter({ focusedPaneId });
+
+    router.handleRelease('Y');
+    expect(mocks.processConfigRelease).not.toHaveBeenCalled();
+
+    focusedPaneId.value = 'terminal';
+    router.handleRelease('Y');
+    expect(mocks.processConfigRelease).toHaveBeenCalledWith('Y');
   });
 
   it('keeps modal keyboard bridge keys on the modal stack', () => {

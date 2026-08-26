@@ -35,6 +35,65 @@ describe('useDockWorkspace', () => {
     expect(ws.focusedPaneId.value).toBe(PANE_SESSIONS);
   });
 
+  it('revealing an autohide pane makes it visible, focusable, and focused', () => {
+    const ws = useDockWorkspace();
+    expect(ws.focusablePaneOrder.value).not.toContain(PANE_ARTIFACTS);
+    expect(ws.isVisible(PANE_ARTIFACTS)).toBe(false);
+
+    ws.reveal(PANE_ARTIFACTS);
+
+    expect(ws.revealedPanes.value).toEqual([PANE_ARTIFACTS]);
+    expect(ws.focusablePaneOrder.value).toContain(PANE_ARTIFACTS);
+    expect(ws.isVisible(PANE_ARTIFACTS)).toBe(true);
+    expect(ws.focusedPaneId.value).toBe(PANE_ARTIFACTS);
+  });
+
+  it('collapsing a revealed pane hands focus back to a reachable pane', () => {
+    const ws = useDockWorkspace();
+    ws.reveal(PANE_ARTIFACTS);
+
+    ws.unreveal(PANE_ARTIFACTS);
+
+    expect(ws.revealedPanes.value).toEqual([]);
+    expect(ws.isVisible(PANE_ARTIFACTS)).toBe(false);
+    expect(ws.focusedPaneId.value).not.toBe(PANE_ARTIFACTS);
+    expect(ws.focusablePaneOrder.value).toContain(ws.focusedPaneId.value!);
+  });
+
+  it('closing a revealed pane drops the reveal so focus cannot strand on it', () => {
+    const ws = useDockWorkspace();
+    ws.reveal(PANE_ARTIFACTS);
+
+    ws.close(PANE_ARTIFACTS);
+
+    expect(ws.revealedPanes.value).toEqual([]);
+    expect(ws.focusedPaneId.value).not.toBe(PANE_ARTIFACTS);
+  });
+
+  it('restores a closed view pane and focuses it — the view-transition reconcile path', () => {
+    const ws = useDockWorkspace();
+    ws.close(PANE_OVERVIEW);
+    expect(ws.isOpen(PANE_OVERVIEW)).toBe(false);
+
+    ws.restore(PANE_OVERVIEW);
+    ws.activate(PANE_OVERVIEW);
+    ws.focusPane(PANE_OVERVIEW);
+
+    expect(ws.isOpen(PANE_OVERVIEW)).toBe(true);
+    expect(ws.isVisible(PANE_OVERVIEW)).toBe(true);
+    expect(ws.focusedPaneId.value).toBe(PANE_OVERVIEW);
+  });
+
+  it('resizes a recursive split through the workspace facade', () => {
+    const ws = useDockWorkspace();
+    ws.resize([], [0.3, 0.56, 0.14]);
+
+    expect(ws.layout.value.root).toMatchObject({
+      type: 'split',
+      sizes: [0.3, 0.56, 0.14],
+    });
+  });
+
   it('remembers pane-local focus identity while cycling between panes', () => {
     const ws = useDockWorkspace();
     ws.setFocusedItemId(PANE_SESSIONS, 'session:s1');

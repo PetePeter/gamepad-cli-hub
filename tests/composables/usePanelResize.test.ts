@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { defineComponent, nextTick, ref } from 'vue';
 import { mount } from '@vue/test-utils';
-import { usePanelResize } from '../../renderer/composables/usePanelResize.js';
+import { calculateSplitSizes, usePanelResize } from '../../renderer/composables/usePanelResize.js';
 
 const Harness = defineComponent({
   setup() {
@@ -31,6 +31,14 @@ const Harness = defineComponent({
 });
 
 describe('usePanelResize', () => {
+  it('keeps both panes above the minimum while preserving a normalized split', () => {
+    const sizes = calculateSplitSizes([0.5, 0.5], 0, -500, 1000, 240);
+
+    expect(sizes[0]).toBeCloseTo(0.24);
+    expect(sizes[1]).toBeCloseTo(0.76);
+    expect(sizes.reduce((sum, size) => sum + size, 0)).toBeCloseTo(1);
+  });
+
   it('binds the drag handler to a splitter that appears after mount', async () => {
     const wrapper = mount(Harness);
     // Splitter is absent initially (v-if false) — nothing to bind yet.

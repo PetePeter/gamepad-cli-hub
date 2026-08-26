@@ -9,6 +9,7 @@
  */
 
 import { ref, onMounted, onUnmounted, watch, type Ref } from 'vue';
+import type { SplitDirection } from '../dock-types.js';
 
 const PANEL_WIDTH_KEY = 'gamepad-hub:panel-width';
 const MIN_WIDTH = 0;
@@ -27,6 +28,131 @@ export interface PanelResizeOptions {
   fromRight?: boolean;
   /** Initial/default width when nothing is persisted (default 320). */
   defaultWidth?: number;
+}
+
+/** Clamp the two tracks adjacent to a splitter while keeping all ratios valid. */
+export function calculateSplitSizes(
+  sizes: readonly number[],
+  index: number,
+  deltaPixels: number,
+  totalPixels: number,
+  minSize = 120,
+): number[] {
+  const count = sizes.length;
+  if (count === 0) return [];
+  const safeSizes = sizes.map(value => Number.isFinite(value) && value > 0 ? value : 1);
+  const total = safeSizes.reduce((sum, value) => sum + value, 0);
+  const normalized = safeSizes.map(value => value / total);
+  if (index < 0 || index >= count - 1 || !Number.isFinite(totalPixels) || totalPixels <= 0) {
+    return normalized;
+  }
+
+  const pixels = normalized.map(value => value * totalPixels);
+  const effectiveMin = Math.min(
+    Math.max(0, Number.isFinite(minSize) ? minSize : 0),
+    totalPixels / 2,
+  );
+  const lowerDelta = effectiveMin - pixels[index];
+  const upperDelta = pixels[index + 1] - effectiveMin;
+  const delta = Math.max(lowerDelta, Math.min(upperDelta, Number.isFinite(deltaPixels) ? deltaPixels : 0));
+  pixels[index] += delta;
+  pixels[index + 1] -= delta;
+  return pixels.map(value => value / totalPixels);
+}
+
+export interface SplitResizeOptions {
+  containerRef: Ref<HTMLElement | null>;
+  direction: SplitDirection;
+  index: number;
+  getSizes: () => readonly number[];
+  minSize?: number;
+  onResized: (sizes: number[]) => void;
+}
+
+/** Generalized splitter behavior shared by every recursive split orientation. */
+export function useSplitResize(options: SplitResizeOptions) {
+  const splitterRef: Ref<HTMLElement | null> = ref(null);
+  const isDragging = ref(false);
+  let startPosition = 0;
+  let startSizes: number[] = [];
+
+  function axisPosition(event: MouseEvent): number {
+    return options.direction === 'horizontal' ? event.clientX : event.clientY;
+  }
+
+  function totalPixels(): number {
+    const bounds = options.containerRef.value?.getBoundingClientRect();
+    const value = options.direction === 'horizontal' ? bounds?.width : bounds?.height;
+    // jsdom and a freshly mounted hidden split report zero bounds. A stable
+    // virtual viewport keeps keyboard resizing useful until a real drag supplies
+    // measured geometry, while the browser path always uses the actual bounds.
+    return value && value > 0 ? value : 1000;
+  }
+
+  function onMouseDown(event: MouseEvent): void {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    isDragging.value = true;
+    startPosition = axisPosition(event);
+    startSizes = [...options.getSizes()];
+    splitterRef.value?.classList.add('dock-splitter--dragging');
+    document.body.style.cursor = options.direction === 'horizontal' ? 'col-resize' : 'row-resize';
+    document.body.style.userSelect = 'none';
+  }
+
+  function onMouseMove(event: MouseEvent): void {
+    if (!isDragging.value) return;
+    const next = calculateSplitSizes(
+      startSizes,
+      options.index,
+      axisPosition(event) - startPosition,
+      totalPixels(),
+      options.minSize,
+    );
+    options.onResized(next);
+  }
+
+  function onMouseUp(): void {
+    if (!isDragging.value) return;
+    isDragging.value = false;
+    splitterRef.value?.classList.remove('dock-splitter--dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }
+
+  function onKeyDown(event: KeyboardEvent): void {
+    const positive = options.direction === 'horizontal'
+      ? event.key === 'ArrowRight'
+      : event.key === 'ArrowDown';
+    const negative = options.direction === 'horizontal'
+      ? event.key === 'ArrowLeft'
+      : event.key === 'ArrowUp';
+    if (!positive && !negative) return;
+    event.preventDefault();
+    const step = totalPixels() * (event.shiftKey ? 0.1 : 0.05) * (positive ? 1 : -1);
+    options.onResized(calculateSplitSizes(
+      options.getSizes(), options.index, step, totalPixels(), options.minSize,
+    ));
+  }
+
+  onMounted(() => {
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  });
+  watch(splitterRef, (element, previous) => {
+    previous?.removeEventListener('mousedown', onMouseDown);
+    element?.addEventListener('mousedown', onMouseDown);
+  }, { immediate: true });
+  onUnmounted(() => {
+    // A layout change can unmount a splitter mid-drag; without this the global
+    // col-resize cursor and user-select lock would outlive the component.
+    onMouseUp();
+    splitterRef.value?.removeEventListener('mousedown', onMouseDown);
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+  });
+
+  return { splitterRef, isDragging, onKeyDown };
 }
 
 export function usePanelResize(options: PanelResizeOptions = {}) {

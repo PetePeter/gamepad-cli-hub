@@ -62,21 +62,23 @@ onUnmounted(() => {
 <template>
   <div v-show="!props.collapsed" class="scheduler-section">
     <div class="scheduler-create-split">
-      <button class="scheduler-create scheduler-create--main focusable" @click.stop="emit('open', null)">New Schedule</button>
-      <button class="scheduler-create scheduler-create--hist focusable" type="button" title="Past Schedules" aria-label="Past Schedules" @click.stop="emit('history')">🕘</button>
+      <button class="scheduler-create scheduler-create--main focusable" data-focus-id="scheduler:new" @click.stop="emit('open', null)">New Schedule</button>
+      <button class="scheduler-create scheduler-create--hist focusable" data-focus-id="scheduler:history" type="button" title="Past Schedules" aria-label="Past Schedules" @click.stop="emit('history')">🕘</button>
     </div>
     <div v-if="visibleTasks.length === 0" class="scheduler-empty">No scheduled runs</div>
     <div
       v-for="task in visibleTasks"
       :key="task.id"
-      class="scheduler-row focusable"
+      class="scheduler-row"
       :class="{ 'scheduler-row--running': task.status === 'executing' }"
     >
       <span class="scheduler-title">{{ task.title }}</span>
       <span class="scheduler-time">{{ timeRemaining(task) }}</span>
+      <!-- The row body is deliberately inert; only these buttons act, so they —
+           not the row — carry the focus contract the gamepad walks. -->
       <div class="scheduler-actions">
-        <button class="scheduler-action" type="button" title="Edit schedule" aria-label="Edit schedule" @click.stop="emit('open', task.id)">i</button>
-        <button class="scheduler-action scheduler-action--danger" type="button" title="Delete schedule" aria-label="Delete schedule" @click.stop="emit('delete', task)">x</button>
+        <button class="scheduler-action focusable" :data-focus-id="`scheduler:edit:${task.id}`" type="button" title="Edit schedule" aria-label="Edit schedule" @click.stop="emit('open', task.id)">i</button>
+        <button class="scheduler-action scheduler-action--danger focusable" :data-focus-id="`scheduler:delete:${task.id}`" type="button" title="Delete schedule" aria-label="Delete schedule" @click.stop="emit('delete', task)">x</button>
       </div>
     </div>
   </div>

@@ -25,7 +25,6 @@ import { doSpawn, doSpawnShell, switchToSession, doCloseSession,
 } from './composables/useAppBootstrap.js';
 import { resolveGroupDisplayName } from './session-groups.js';
 import { onPlanContextSave } from './plans/plan-screen.js';
-import { usePanelResize } from './composables/usePanelResize.js';
 import { onViewChange, type MainView as ViewName } from './main-view/main-view-manager.js';
 import { useToast } from './composables/useToast.js';
 import { useSettingsController } from './composables/useSettingsController.js';
@@ -75,16 +74,11 @@ import { deliverBulkText } from './paste-handler.js';
 import { deliverPromptSequence } from './sequence-delivery.js';
 
 // Docking workspace — every view/tool window is resolved through the registry.
-import { getPaneComponent } from './dock-pane-registry.js';
 import { provideHelmPaneContext } from './dock-pane-context.js';
 import {
   PANE_ARTIFACTS,
   PANE_OVERVIEW,
-  PANE_PLAN_DIRECTORIES,
   PANE_PLAN_SCREEN,
-  PANE_QUICK_SPAWN,
-  PANE_SCHEDULER,
-  PANE_SESSIONS,
   PANE_TERMINAL,
 } from './dock-types.js';
 
@@ -124,6 +118,7 @@ import { useLlmNotificationsStore } from './stores/llmNotifications.js';
 import { useFlashAttention } from './composables/useFlashAttention.js';
 import { listRegisteredPanes, useDockWorkspace } from './composables/useDockWorkspace.js';
 import DockViewMenu from './components/dock/DockViewMenu.vue';
+import DockWorkspace from './components/dock/DockWorkspace.vue';
 import type { PaneId } from './dock-types.js';
 
 // ============================================================================
@@ -164,6 +159,13 @@ watch(terminalContainerRef, (container) => {
 }, { flush: 'post' });
 
 const dockViewItems = computed(() => listRegisteredPanes(dockWorkspace.layout.value));
+
+// The artifact panel can also be raised from outside the dock (shortcut, IPC).
+// The workspace stays the single reveal authority; this only mirrors into it.
+watch(() => artifactViewer.panelVisible.value, (visible) => {
+  if (visible) dockWorkspace.reveal(PANE_ARTIFACTS);
+  else dockWorkspace.unreveal(PANE_ARTIFACTS);
+});
 const viewPaneByName: Record<ViewName, PaneId> = {
   terminal: PANE_TERMINAL,
   overview: PANE_OVERVIEW,
@@ -174,10 +176,6 @@ const viewNameByPane = new Map<PaneId, ViewName>([
   [PANE_OVERVIEW, 'overview'],
   [PANE_PLAN_SCREEN, 'plan'],
 ]);
-
-function isDockPaneOpen(paneId: PaneId): boolean {
-  return dockWorkspace.isOpen(paneId);
-}
 
 function syncViewFromDockLayout(): void {
   const activePane = ([PANE_TERMINAL, PANE_OVERVIEW, PANE_PLAN_SCREEN] as const)
@@ -216,11 +214,65 @@ function onDockLayoutReset(): void {
   dockViewMenuOpen.value = false;
 }
 
+function onDockFocusPane(paneId: PaneId, focusedItemId?: string): void {
+  dockWorkspace.focusPane(paneId, focusedItemId);
+  const view = viewNameByPane.get(paneId);
+  if (view) activeView.value = view;
+}
+
+function onDockActivatePane(paneId: PaneId): void {
+  dockWorkspace.activate(paneId);
+  const view = viewNameByPane.get(paneId);
+  if (view) activeView.value = view;
+}
+
+function onDockClosePane(paneId: PaneId): void {
+  try {
+    dockWorkspace.close(paneId);
+    fallbackToOpenView();
+  } catch {
+    // The model rejects closing the last invalid pane; the View menu remains usable.
+  }
+}
+
+/**
+ * Opening an edge rail reveals the dock and hands it focus — an opened pane the
+ * user can see is a pane the gamepad can drive. The dock keeps its autohide
+ * mode, so leaving it re-collapses the rail instead of stealing layout space.
+ */
+function onDockRevealPane(paneId: PaneId): void {
+  dockWorkspace.reveal(paneId);
+  if (paneId === PANE_ARTIFACTS) artifactViewer.showPanel();
+  const view = viewNameByPane.get(paneId);
+  if (view) activeView.value = view;
+}
+
+function onDockAutohideClose(paneId: PaneId): void {
+  dockWorkspace.unreveal(paneId);
+  if (paneId === PANE_ARTIFACTS) artifactViewer.hidePanel();
+}
+
+function onDockResize(path: number[], sizes: number[]): void {
+  dockWorkspace.resize(path, sizes);
+  refitTerminalsSoon();
+}
+
+// main-view-manager stays the view transition authority; the dock mirrors it.
+// Reconciling here — rather than a second routing path — is what lets a normal
+// openOverview()/openPlan() bring back a view pane the user closed to the View
+// menu, instead of transitioning into a pane that is not in the tree.
 watch(() => activeView.value, (view) => {
   const paneId = viewPaneByName[view];
-  if (dockWorkspace.isOpen(paneId) && !dockWorkspace.isVisible(paneId)) {
-    dockWorkspace.activate(paneId);
+  if (!dockWorkspace.isOpen(paneId)) {
+    try {
+      dockWorkspace.restore(paneId);
+    } catch {
+      // Only an already-docked pane can throw here; nothing left to reconcile.
+      return;
+    }
   }
+  if (!dockWorkspace.isVisible(paneId)) dockWorkspace.activate(paneId);
+  dockWorkspace.focusPane(paneId);
 });
 
 // Bringing the window forward while viewing the active session means the user has
@@ -371,27 +423,6 @@ const {
   installDirPickerBridge,
 } = sidebarController;
 
-// Panel resize
-const { splitterRef, panelRef } = usePanelResize({
-  onResized: () => { getTerminalManager()?.fitActive(); },
-});
-
-// Artifact panel resize (right-docked). Own storage key so it never collides
-// with the sidebar width; drag comes from the panel's LEFT edge (fromRight).
-const { splitterRef: artifactSplitterRef, panelRef: artifactPanelRef } = usePanelResize({
-  onResized: () => { getTerminalManager()?.fitActive(); },
-  minWidth: 320,
-  // No max — the panel may grow to cover the whole terminal (the composable still
-  // clamps to the viewport; the terminal column has min-width:0 so it shrinks away).
-  defaultWidth: 480,
-  storageKey: 'helm:artifact-panel-width',
-  fromRight: true,
-});
-
-// Badge count for the ACTIVE session's artifact panel.
-const artifactBadge = computed(() => artifactViewer.artifacts.value.length);
-const artifactHasUnread = computed(() => artifactViewer.unreadCount.value > 0);
-
 // Re-fit terminals after the panel opens/closes/resizes — the terminal column
 // width changes, so xterm needs a fresh fit on the next frame.
 function refitTerminalsSoon(): void {
@@ -507,6 +538,8 @@ const { handleButton, handleRelease, handleModalKeyboardBridge } = useInputRoute
   overviewCollapsedIds,
   buildSettingsTabs,
   navStore,
+  focusedPaneId: dockWorkspace.focusedPaneId,
+  getFocusedItemId: dockWorkspace.getFocusedItemId,
 });
 
 function handleRenameRequest(e: Event): void {
@@ -979,47 +1012,104 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <!-- Left panel: sessions/settings -->
-    <div class="panel-left" id="sidePanel" ref="panelRef">
-      <header class="sidebar-header">
-        <span class="sidebar-logo">
-          <img src="./assets/helm-paper-boat.svg" alt="Helm logo" width="28" height="28">
-        </span>
-        <span class="sidebar-brand">
-          <span class="sidebar-title">Helm</span>
-          <span class="sidebar-tagline">steer your fleet of agents</span>
-        </span>
-        <div class="sidebar-actions">
-          <DockViewMenu
-            :open="dockViewMenuOpen"
-            :items="dockViewItems"
-            @open="dockViewMenuOpen = true"
-            @close="dockViewMenuOpen = false"
-            @toggle="onDockViewToggle"
-            @reset="onDockLayoutReset"
-          />
-          <button class="sidebar-btn" title="User Guide" @click="onOpenHelp">ℹ️</button>
-          <button class="sidebar-btn" title="Open Logs Folder" @click="onOpenLogsFolder">🐛</button>
-          <button class="sidebar-btn" title="Settings" @click="onOpenSettings">⚙</button>
-        </div>
-      </header>
-
-      <StatusStrip
-        :gamepad-count="state.gamepadCount"
-        :total-sessions="state.sessions.length"
-        :active-sessions="state.sessions.filter(s => (state.sessionActivityLevels.get(s.id) ?? 'idle') === 'active').length"
-      />
-
-      <!-- Sessions screen -->
-      <main class="sidebar-content">
-        <component
-          :is="getPaneComponent(PANE_SESSIONS)"
-          v-show="!settingsVisible && isDockPaneOpen(PANE_SESSIONS)"
+  <div class="helm-app-shell">
+    <header class="app-header">
+      <span class="sidebar-logo">
+        <img src="./assets/helm-paper-boat.svg" alt="Helm logo" width="28" height="28">
+      </span>
+      <span class="sidebar-brand">
+        <span class="sidebar-title">Helm</span>
+        <span class="sidebar-tagline">steer your fleet of agents</span>
+      </span>
+      <div class="sidebar-actions">
+        <DockViewMenu
+          :open="dockViewMenuOpen"
+          :items="dockViewItems"
+          @open="dockViewMenuOpen = true"
+          @close="dockViewMenuOpen = false"
+          @toggle="onDockViewToggle"
+          @reset="onDockLayoutReset"
         />
+        <button class="sidebar-btn" title="User Guide" @click="onOpenHelp">ℹ️</button>
+        <button class="sidebar-btn" title="Open Logs Folder" @click="onOpenLogsFolder">🐛</button>
+        <button class="sidebar-btn" title="Settings" @click="onOpenSettings">⚙</button>
+      </div>
+    </header>
+    <StatusStrip
+      :gamepad-count="state.gamepadCount"
+      :total-sessions="state.sessions.length"
+      :active-sessions="state.sessions.filter(s => (state.sessionActivityLevels.get(s.id) ?? 'idle') === 'active').length"
+    />
+    <div class="app-workspace">
+      <div class="app-main-area">
+        <ChipBar
+          id="draftStrip"
+          :plan-chips="chipBarPlans"
+          :actions="[]"
+          :visible="chipBarVisible && activeView !== 'overview'"
+          @plan-chip-click="onChipBarPlanClick"
+          @plan-chip-copy="copyPlanRef"
+          @action-click="onChipBarAction"
+        />
+        <DraftEditor
+          v-if="draftEditorVisible"
+          ref="draftEditorRef"
+          :visible="draftEditorVisible"
+          :mode="draftEditorMode"
+          :session-id="draftEditorSessionId"
+          :draft-id="draftEditorDraftId"
+          :initial-label="draftEditorLabel"
+          :initial-text="draftEditorText"
+          :plan-id="draftEditorPlanId"
+          :plan-status="draftEditorPlanStatus"
+          :plan-state-info="draftEditorPlanStateInfo"
+          :plan-type="draftEditorPlanType"
+          :plan-auto-implement="draftEditorPlanAutoImplement"
+          :plan-completion-recap="draftEditorPlanCompletionRecap"
+          :plan-human-id="draftEditorPlanHumanId"
+          :plan-created-at="draftEditorPlanCreatedAt"
+          :plan-state-updated-at="draftEditorPlanStateUpdatedAt"
+          :plan-callbacks="draftEditorPlanCallbacks"
+          :completion-notes="draftEditorCompletionNotes"
+          :context-id="draftEditorContextId"
+          :context-type="draftEditorContextType"
+          :context-permission="draftEditorContextPermission"
+          :context-callbacks="draftEditorContextCallbacks"
+          :context-bound-plans="draftEditorContextBoundPlans"
+          :context-bound-sequences="draftEditorContextBoundSequences"
+          :context-pending-unbind-count="draftEditorPendingContextUnbinds.length"
+          @save="onDraftSave"
+          @apply="onDraftApply"
+          @delete="onDraftDelete"
+          @close="onDraftClose"
+          @plan-save="onPlanSave"
+          @plan-apply="onPlanApply"
+          @plan-done="onPlanDone"
+          @plan-delete="onPlanDelete"
+          @context-save="(u) => draftEditorContextId && saveContextEditor(draftEditorContextId, u)"
+          @context-delete="onContextDelete"
+        />
+        <DockWorkspace
+          :layout="dockWorkspace.layout.value"
+          :focused-pane-id="dockWorkspace.focusedPaneId.value"
+          :revealed-pane-ids="dockWorkspace.revealedPanes.value"
+          @focus-pane="onDockFocusPane"
+          @activate-pane="onDockActivatePane"
+          @close-pane="onDockClosePane"
+          @resize-split="onDockResize"
+          @reveal-pane="onDockRevealPane"
+          @autohide-close="onDockAutohideClose"
+        />
+        <div v-if="chipActionBarVisible && activeView === 'terminal'" class="chip-action-dock">
+          <ChipActionBar
+            :actions="chipBarStore.actions"
+            @action-click="onChipBarAction"
+          />
+        </div>
+      </div>
 
-        <!-- Settings screen (Vue components) -->
+      <div v-if="settingsVisible" class="settings-workspace-overlay">
         <SettingsPanel
-          v-show="settingsVisible"
           ref="settingsPanelRef"
           :visible="settingsVisible"
           :tabs="buildSettingsTabs()"
@@ -1102,144 +1192,13 @@ onUnmounted(() => {
               @sort-change="onBindingSortChange"
             />
           </template>
-        </SettingsPanel>
-      </main>
+          </SettingsPanel>
+        </div>
 
-      <!-- Spawn sections pinned at bottom of sidebar -->
-      <component
-        :is="getPaneComponent(PANE_SCHEDULER)"
-        v-show="!settingsVisible && isDockPaneOpen(PANE_SCHEDULER)"
-      />
-      <RecycleBinModal v-model:visible="recycleBin.modalVisible.value" />
-      <PeerPairingDialog />
-
-      <component
-        :is="getPaneComponent(PANE_QUICK_SPAWN)"
-        v-show="!settingsVisible && isDockPaneOpen(PANE_QUICK_SPAWN)"
-      />
-
-      <component
-        :is="getPaneComponent(PANE_PLAN_DIRECTORIES)"
-        v-show="!settingsVisible && isDockPaneOpen(PANE_PLAN_DIRECTORIES)"
-      />
-
-      <!-- Recycle Bin pinned at bottom of sidebar — always visible -->
-      <button
-        v-show="!settingsVisible"
-        class="recycle-bin-btn"
-        type="button"
-        title="Recycle Bin — restore closed sessions"
-        @click="recycleBin.modalVisible.value = true"
-      >
-        <span class="recycle-bin-icon">🗑️</span>
-        <span class="recycle-bin-label">Recycle Bin</span>
-        <span v-if="recycleBin.count.value > 0" class="recycle-bin-badge">{{ recycleBin.count.value }}</span>
-      </button>
-    </div>
-
-    <!-- Resize handle -->
-    <div class="panel-splitter" id="panelSplitter" ref="splitterRef"></div>
-
-    <!-- Right panel: terminal / overview / plan -->
-    <div class="panel-right" id="mainArea">
-      <ChipBar
-        id="draftStrip"
-        :plan-chips="chipBarPlans"
-        :actions="[]"
-        :visible="chipBarVisible && activeView !== 'overview'"
-        @plan-chip-click="onChipBarPlanClick"
-        @plan-chip-copy="copyPlanRef"
-        @action-click="onChipBarAction"
-      />
-      <DraftEditor
-        v-if="draftEditorVisible"
-        ref="draftEditorRef"
-        :visible="draftEditorVisible"
-        :mode="draftEditorMode"
-        :session-id="draftEditorSessionId"
-        :draft-id="draftEditorDraftId"
-        :initial-label="draftEditorLabel"
-        :initial-text="draftEditorText"
-        :plan-id="draftEditorPlanId"
-        :plan-status="draftEditorPlanStatus"
-        :plan-state-info="draftEditorPlanStateInfo"
-        :plan-type="draftEditorPlanType"
-        :plan-auto-implement="draftEditorPlanAutoImplement"
-        :plan-completion-recap="draftEditorPlanCompletionRecap"
-        :plan-human-id="draftEditorPlanHumanId"
-        :plan-created-at="draftEditorPlanCreatedAt"
-        :plan-state-updated-at="draftEditorPlanStateUpdatedAt"
-        :plan-callbacks="draftEditorPlanCallbacks"
-        :completion-notes="draftEditorCompletionNotes"
-        :context-id="draftEditorContextId"
-        :context-type="draftEditorContextType"
-        :context-permission="draftEditorContextPermission"
-        :context-callbacks="draftEditorContextCallbacks"
-        :context-bound-plans="draftEditorContextBoundPlans"
-        :context-bound-sequences="draftEditorContextBoundSequences"
-        :context-pending-unbind-count="draftEditorPendingContextUnbinds.length"
-        @save="onDraftSave"
-        @apply="onDraftApply"
-        @delete="onDraftDelete"
-        @close="onDraftClose"
-        @plan-save="onPlanSave"
-        @plan-apply="onPlanApply"
-        @plan-done="onPlanDone"
-        @plan-delete="onPlanDelete"
-        @context-save="(u) => draftEditorContextId && saveContextEditor(draftEditorContextId, u)"
-        @context-delete="onContextDelete"
-      />
-      <component
-        :is="getPaneComponent(PANE_TERMINAL)"
-        v-show="activeView === 'terminal' && isDockPaneOpen(PANE_TERMINAL)"
-      />
-      <component
-        :is="getPaneComponent(PANE_OVERVIEW)"
-        v-if="activeView === 'overview' && isDockPaneOpen(PANE_OVERVIEW)"
-      />
-      <component
-        :is="getPaneComponent(PANE_PLAN_SCREEN)"
-        v-if="activeView === 'plan' && isDockPaneOpen(PANE_PLAN_SCREEN)"
-      />
-      <div v-if="chipActionBarVisible && activeView === 'terminal'" class="chip-action-dock">
-        <ChipActionBar
-          :actions="chipBarStore.actions"
-          @action-click="onChipBarAction"
-        />
-      </div>
-    </div>
-
-    <!-- Artifact panel: right-docked master/detail, bound to the active session. -->
-    <template v-if="hasActiveSession && isDockPaneOpen(PANE_ARTIFACTS)">
-      <div
-        v-show="artifactViewer.panelVisible.value"
-        class="artifact-splitter"
-        ref="artifactSplitterRef"
-        title="Drag to resize"
-      ></div>
-      <div
-        v-show="artifactViewer.panelVisible.value"
-        class="artifact-panel-dock"
-        ref="artifactPanelRef"
-      >
-        <component :is="getPaneComponent(PANE_ARTIFACTS)" />
       </div>
 
-      <!-- Collapsed edge tab — reopens the panel; pulses while unread. -->
-      <div
-        v-show="!artifactViewer.panelVisible.value"
-        class="artifact-edge"
-        title="Show artifacts"
-        @click="artifactViewer.showPanel()"
-      >
-        <span
-          v-if="artifactBadge > 0"
-          class="artifact-edge-badge"
-          :class="{ 'artifact-edge-badge--pulse': artifactHasUnread }"
-        >{{ artifactBadge }}</span>
-        <span class="artifact-edge-tab">📄 Artifacts</span>
-      </div>
-    </template>
+    <RecycleBinModal v-model:visible="recycleBin.modalVisible.value" />
+    <PeerPairingDialog />
 
     <AppModalHost
       :cli-types="state.cliTypes"
@@ -1272,4 +1231,5 @@ onUnmounted(() => {
       @task-updated="onScheduledTaskUpdated"
       @task-cancelled="onScheduledTaskCancelled"
     />
+  </div>
 </template>

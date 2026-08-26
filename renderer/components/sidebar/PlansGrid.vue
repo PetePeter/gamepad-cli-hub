@@ -32,9 +32,10 @@ const emit = defineEmits<{
     <button
       v-for="(dir, i) in directories"
       :key="dir.path"
-      class="spawn-btn plans-grid-btn"
+      class="spawn-btn plans-grid-btn focusable"
       :class="{ focused: isActive && focusIndex === i }"
       :data-dir="dir.path"
+      :data-focus-id="`plans:${dir.path}`"
       @click="emit('showPlans', dir.path)"
     >
       <div class="plans-btn-top">

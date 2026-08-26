@@ -26,8 +26,9 @@ const emit = defineEmits<{
     <button
       v-for="(item, i) in items"
       :key="item.cliType"
-      class="spawn-btn"
+      class="spawn-btn focusable"
       :class="{ focused: isActive && focusIndex === i }"
+      :data-focus-id="`spawn:${item.cliType}`"
       @click="emit('spawn', item.cliType)"
     >
       <span class="spawn-label">{{ item.displayName }}</span>

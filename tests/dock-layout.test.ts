@@ -3,6 +3,7 @@ import {
   createDefaultLayout,
   listPanes,
   listFocusablePanes,
+  isDockCollapsed,
   findPaneGroup,
   isPaneHidden,
   movePane,
@@ -12,6 +13,7 @@ import {
   closePane,
   restorePane,
   normalizeNode,
+  resizeSplit,
   validateLayout,
 } from '../renderer/dock-layout';
 import {
@@ -83,6 +85,34 @@ describe('default Classic layout', () => {
       PANE_OVERVIEW,
       PANE_PLAN_SCREEN,
     ]);
+  });
+
+  it('treats a revealed autohide dock as focusable and an unrevealed one as collapsed', () => {
+    const artifactsDockNode = (layout.root as { children: DockNode[] }).children
+      .find(child => child.type === 'dock' && listPanes(child).includes(PANE_ARTIFACTS))!;
+
+    expect(isDockCollapsed(artifactsDockNode)).toBe(true);
+    expect(listFocusablePanes(layout.root)).not.toContain(PANE_ARTIFACTS);
+
+    expect(isDockCollapsed(artifactsDockNode, [PANE_ARTIFACTS])).toBe(false);
+    expect(listFocusablePanes(layout.root, [PANE_ARTIFACTS])).toContain(PANE_ARTIFACTS);
+  });
+
+  it('keeps a dock uncollapsed while it holds the focused pane', () => {
+    const artifactsDockNode = (layout.root as { children: DockNode[] }).children
+      .find(child => child.type === 'dock' && listPanes(child).includes(PANE_ARTIFACTS))!;
+
+    expect(isDockCollapsed(artifactsDockNode, [], PANE_ARTIFACTS)).toBe(false);
+    expect(isDockCollapsed(artifactsDockNode, [], PANE_TERMINAL)).toBe(true);
+  });
+
+  it('collapses a hidden dock even when it is revealed or focused', () => {
+    const hidden = setDockMode(layout, PANE_ARTIFACTS, 'hidden');
+    const hiddenDock = (hidden.root as { children: DockNode[] }).children
+      .find(child => child.type === 'dock' && listPanes(child).includes(PANE_ARTIFACTS))!;
+
+    expect(isDockCollapsed(hiddenDock, [PANE_ARTIFACTS], PANE_ARTIFACTS)).toBe(true);
+    expect(listFocusablePanes(hidden.root, [PANE_ARTIFACTS])).not.toContain(PANE_ARTIFACTS);
   });
 });
 
@@ -255,6 +285,53 @@ describe('dock mode', () => {
 
   it('throws when the pane is not inside a dock node', () => {
     expect(() => setDockMode(createDefaultLayout(), PANE_TERMINAL, 'hidden')).toThrow(/not docked/i);
+  });
+});
+
+describe('split resizing', () => {
+  it('updates a split at a recursive path without changing its children', () => {
+    const layout = layoutOf({
+      type: 'split',
+      direction: 'horizontal',
+      sizes: [0.4, 0.6],
+      children: [
+        group([PANE_TERMINAL]),
+        {
+          type: 'split',
+          direction: 'vertical',
+          sizes: [0.25, 0.75],
+          children: [group([PANE_OVERVIEW]), group([PANE_PLAN_SCREEN])],
+        },
+      ],
+    }, DOCK_PANES.filter(pane => ![PANE_TERMINAL, PANE_OVERVIEW, PANE_PLAN_SCREEN].includes(pane.id)).map(pane => pane.id));
+
+    const next = resizeSplit(layout, [1], [0.7, 0.3]);
+
+    expect(next.root).toMatchObject({
+      type: 'split',
+      children: [group([PANE_TERMINAL]), {
+        type: 'split',
+        direction: 'vertical',
+        sizes: [0.7, 0.3],
+      }],
+    });
+    expect(layout.root).toMatchObject({ type: 'split', sizes: [0.4, 0.6] });
+  });
+
+  it('repairs invalid resize ratios to positive values summing to one', () => {
+    const layout = layoutOf({
+      type: 'split',
+      direction: 'horizontal',
+      sizes: [0.5, 0.5],
+      children: [group([PANE_TERMINAL]), group([PANE_OVERVIEW])],
+    }, DOCK_PANES.filter(pane => ![PANE_TERMINAL, PANE_OVERVIEW].includes(pane.id)).map(pane => pane.id));
+
+    const sizes = resizeSplit(layout, [], [0, Number.NaN]).root;
+    expect(sizes).toMatchObject({ type: 'split' });
+    if (sizes.type === 'split') {
+      expect(sizes.sizes.every(size => size > 0)).toBe(true);
+      expect(sizes.sizes.reduce((sum, size) => sum + size, 0)).toBeCloseTo(1);
+    }
   });
 });
 
