@@ -112,7 +112,7 @@ Before implementing drag-and-drop, prove that moving a terminal pane adopts the 
 - Gamepad tests proving pane cycling is deterministic and PTY targeting is unchanged.
 - Manual app gate: move each pane, split panes horizontally and vertically, tab panes, collapse/reopen, restart, reset layout, and verify terminal scrollback and session focus.
 - Run the normal build and focused Vitest suite.
-- Run `graphify update .` after code changes.
+- Record the final repository state, focused tests, build, and manual Electron evidence after code changes.
 
 ## Opinionated boundary
 

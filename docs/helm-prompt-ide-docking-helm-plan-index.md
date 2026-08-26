@@ -46,7 +46,7 @@ All plans are `autoImplement=false`. No production code was changed while creati
 7. `P-0699` — End-to-end docking acceptance, regression gates, and graph update
    - ID: `428d01cf-0d62-4f4f-aa55-9428e6f0ed3a`
    - State: planning
-   - Runs build, focused tests, manual Electron E2E, restart/reset persistence checks, terminal continuity, gamepad focus checks, and `graphify update .` after code changes.
+   - Runs build, focused tests, manual Electron E2E, restart/reset persistence checks, terminal continuity, and gamepad focus checks after code changes.
 
 ## Dependency graph
 
@@ -69,4 +69,4 @@ The final E2E plan also depends directly on P-0693, P-0694, P-0695, P-0696, and 
 - Layout survives restart, invalid persisted data falls back safely, and Reset Layout restores the default.
 - Terminal scrollback, DOM ownership, PTY routing, and session identity survive docking moves.
 - Gamepad focus follows pane identity rather than a stale column index.
-- Build, focused tests, manual Electron checks, and graphify update are recorded before completion.
+- Build, focused tests, and manual Electron checks are recorded before completion.
