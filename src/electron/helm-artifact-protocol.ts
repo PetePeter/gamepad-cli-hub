@@ -39,7 +39,10 @@ export const ARTIFACT_CSP = [
   "script-src 'unsafe-inline'",
   "form-action 'none'",
   "base-uri 'none'",
-  "frame-ancestors 'self'",
+  // The embedding Helm renderer is loaded from file://, not helm-artifact://.
+  // Keep same-origin framing allowed while explicitly permitting Helm's local
+  // privileged windows to embed the isolated artifact document.
+  "frame-ancestors 'self' file:",
 ].join('; ');
 
 /** Builds the iframe src for a nonce handed back by {@link setPendingDocument}. */

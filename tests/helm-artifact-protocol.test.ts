@@ -89,5 +89,14 @@ describe('helm-artifact:// protocol', () => {
       expect(ARTIFACT_CSP).toContain("form-action 'none'");
       expect(ARTIFACT_CSP).toContain("base-uri 'none'");
     });
+
+    it('allows the file-based Helm renderer to embed the artifact', () => {
+      const ancestors = /frame-ancestors ([^;]*)/.exec(ARTIFACT_CSP)?.[1] ?? '';
+      expect(ancestors).toContain("'self'");
+      expect(ancestors).toContain('file:');
+      expect(ancestors).not.toContain('*');
+      expect(ancestors).not.toContain('http:');
+      expect(ancestors).not.toContain('https:');
+    });
   });
 });

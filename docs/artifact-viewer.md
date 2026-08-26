@@ -230,7 +230,7 @@ document.
 ```
 default-src 'none'; img-src helm-img: data:; style-src 'unsafe-inline';
 font-src data:; script-src 'unsafe-inline'; form-action 'none';
-base-uri 'none'; frame-ancestors 'self'
+base-uri 'none'; frame-ancestors 'self' file:
 ```
 
 `script-src 'unsafe-inline'` carries **no** `'self'` and no host source: the
