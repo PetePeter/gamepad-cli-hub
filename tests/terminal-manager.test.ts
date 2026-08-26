@@ -150,6 +150,20 @@ describe('TerminalView', () => {
     expect(lastTerminal().open).toHaveBeenCalled();
   });
 
+  it('adopts the existing xterm DOM into a new host and fits without remounting', () => {
+    const nextContainer = createContainer();
+    const view = new TerminalView({ sessionId: 'tv-adopt', container });
+    const xtermDom = document.createElement('div');
+    xtermDom.className = 'xterm';
+    container.appendChild(xtermDom);
+
+    expect(view.adoptContainer(nextContainer)).toBe(true);
+    expect(nextContainer.firstChild).toBe(xtermDom);
+    expect(container.firstChild).toBeNull();
+    expect(lastFitAddon().fit).toHaveBeenCalledTimes(2); // construction + adoption
+    expect(terminalInstances).toHaveLength(1);
+  });
+
   it('loads fit, web-links, and search addons', () => {
     new TerminalView({ sessionId: 'tv2', container });
     expect(lastTerminal().loadAddon).toHaveBeenCalledTimes(3);
@@ -389,6 +403,35 @@ describe('TerminalManager', () => {
     expect(session1!.element.style.display).toBe('none');
     expect(session2!.element.style.display).toBe('block');
     expect(mgr.getActiveSessionId()).toBe('s2');
+
+    mgr.dispose();
+  });
+
+  it('adopts a new host without recreating terminals, losing scrollback, or changing PTY target', async () => {
+    const nextContainer = createContainer();
+    const mgr = new TerminalManager(container);
+    await mgr.createTerminal('adopt-1', 'claude', 'claude');
+
+    const session = mgr.getSession('adopt-1')!;
+    const terminalElement = session.element;
+    const xtermDom = document.createElement('div');
+    xtermDom.className = 'xterm';
+    terminalElement.appendChild(xtermDom);
+    mgr.writeToTerminal('adopt-1', 'scrollback line');
+    const terminalCount = terminalInstances.length;
+
+    expect(mgr.adoptHost(nextContainer)).toBe(true);
+
+    expect(mgr.getSession('adopt-1')?.element).toBe(terminalElement);
+    expect(nextContainer.firstChild).toBe(terminalElement);
+    expect(terminalElement.firstChild).toBe(xtermDom);
+    expect(mgr.getActiveSessionId()).toBe('adopt-1');
+    expect(terminalInstances).toHaveLength(terminalCount);
+    expect(terminalInstances[terminalInstances.length - 1].write).toHaveBeenCalledWith('scrollback line');
+
+    const onData = terminalInstances[terminalInstances.length - 1].onData.mock.calls[0][0];
+    onData('typed after adoption');
+    expect(mockGamepadCli.ptyWrite).toHaveBeenCalledWith('adopt-1', 'typed after adoption');
 
     mgr.dispose();
   });

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   createDefaultLayout,
   listPanes,
+  listFocusablePanes,
   findPaneGroup,
   isPaneHidden,
   movePane,
@@ -70,6 +71,18 @@ describe('default Classic layout', () => {
     expect(terminalGroup?.activeTab).toBe(PANE_TERMINAL);
     const artifactsDock = findDock(layout.root, PANE_ARTIFACTS);
     expect(artifactsDock).toMatchObject({ side: 'right', mode: 'autohide' });
+  });
+
+  it('walks only pinned panes for focus cycling', () => {
+    expect(listFocusablePanes(layout.root)).toEqual([
+      PANE_SESSIONS,
+      PANE_SCHEDULER,
+      PANE_QUICK_SPAWN,
+      PANE_PLAN_DIRECTORIES,
+      PANE_TERMINAL,
+      PANE_OVERVIEW,
+      PANE_PLAN_SCREEN,
+    ]);
   });
 });
 
@@ -312,6 +325,20 @@ describe('normalizeNode', () => {
     const node: DockNode = { type: 'dock', side: 'left', mode: 'hidden', child: group([PANE_TERMINAL]) };
     expect(isPaneHidden(node, PANE_TERMINAL)).toBe(true);
     expect(isPaneHidden(node, PANE_OVERVIEW)).toBe(false);
+  });
+
+  it('excludes both autohide and hidden descendants from the focus walk', () => {
+    const node: DockNode = {
+      type: 'split',
+      direction: 'horizontal',
+      sizes: [1 / 3, 1 / 3, 1 / 3],
+      children: [
+        group([PANE_TERMINAL]),
+        { type: 'dock', side: 'right', mode: 'autohide', child: group([PANE_ARTIFACTS]) },
+        { type: 'dock', side: 'left', mode: 'hidden', child: group([PANE_OVERVIEW]) },
+      ],
+    };
+    expect(listFocusablePanes(node)).toEqual([PANE_TERMINAL]);
   });
 });
 

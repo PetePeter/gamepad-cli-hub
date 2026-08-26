@@ -107,6 +107,16 @@ export function listPanes(node: DockNode | null): PaneId[] {
   return node.children.flatMap(listPanes);
 }
 
+/** Pane ids eligible for gamepad focus cycling in deterministic tree order. */
+export function listFocusablePanes(node: DockNode | null): PaneId[] {
+  if (!node || node.type === 'empty') return [];
+  if (node.type === 'group') return [...node.tabs];
+  if (node.type === 'dock') {
+    return node.mode === 'pinned' ? listFocusablePanes(node.child) : [];
+  }
+  return node.children.flatMap(listFocusablePanes);
+}
+
 export function findPaneGroup(node: DockNode | null, paneId: PaneId): DockGroupNode | null {
   if (!node) return null;
   if (node.type === 'empty') return null;

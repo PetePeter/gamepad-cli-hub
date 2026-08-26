@@ -315,6 +315,20 @@ export class TerminalManager {
     return this.terminals.get(this.activeSessionId)?.view ?? null;
   }
 
+  /** Move all existing terminal elements to a new host without remounting xterm. */
+  adoptHost(nextHost: HTMLElement | null): boolean {
+    if (!nextHost || nextHost === this.container) return false;
+    for (const session of this.terminals.values()) {
+      nextHost.appendChild(session.element);
+    }
+    this.container = nextHost;
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+    this.setupResizeObserver();
+    this.fitActive();
+    return true;
+  }
+
   /** Focus the currently active terminal */
   focusActive(): void {
     if (this.activeSessionId) {

@@ -4,6 +4,7 @@ import { createDefaultLayout, listPanes } from '../../renderer/dock-layout';
 import {
   PANE_ARTIFACTS,
   PANE_OVERVIEW,
+  PANE_PLAN_SCREEN,
   PANE_SESSIONS,
   PANE_TERMINAL,
 } from '../../renderer/dock-types';
@@ -29,9 +30,22 @@ describe('useDockWorkspace', () => {
     const ws = useDockWorkspace();
     ws.focusPane(PANE_SESSIONS);
     ws.cycleFocus(-1);
-    expect(ws.focusedPaneId.value).toBe(PANE_ARTIFACTS); // wrapped past the start
+    expect(ws.focusedPaneId.value).toBe(PANE_PLAN_SCREEN); // autohide panes are not focus targets
     ws.cycleFocus(1);
     expect(ws.focusedPaneId.value).toBe(PANE_SESSIONS);
+  });
+
+  it('remembers pane-local focus identity while cycling between panes', () => {
+    const ws = useDockWorkspace();
+    ws.setFocusedItemId(PANE_SESSIONS, 'session:s1');
+    ws.focusPane(PANE_OVERVIEW, 'card:s2');
+
+    expect(ws.getFocusedItemId(PANE_OVERVIEW)).toBe('card:s2');
+    expect(ws.getFocusedItemId(PANE_SESSIONS)).toBe('session:s1');
+
+    ws.focusPane(PANE_SESSIONS);
+    expect(ws.focusedPaneId.value).toBe(PANE_SESSIONS);
+    expect(ws.getFocusedItemId(PANE_SESSIONS)).toBe('session:s1');
   });
 
   it('moves focus off a pane that gets closed', () => {
@@ -71,6 +85,24 @@ describe('useDockWorkspace', () => {
     ws.cycleFocus(-1);
     expect(ws.focusedPaneId.value).not.toBe(PANE_ARTIFACTS);
     expect(ws.isVisible(PANE_ARTIFACTS)).toBe(false);
+  });
+
+  it('moves focus away when the focused pane becomes auto-hidden', () => {
+    const ws = useDockWorkspace();
+    ws.setMode(PANE_ARTIFACTS, 'pinned');
+    ws.focusPane(PANE_ARTIFACTS);
+    ws.setMode(PANE_ARTIFACTS, 'autohide');
+
+    expect(ws.focusedPaneId.value).not.toBe(PANE_ARTIFACTS);
+    expect(ws.focusedPaneId.value).toBe(PANE_SESSIONS);
+  });
+
+  it('does not focus a pane explicitly while it is auto-hidden', () => {
+    const ws = useDockWorkspace();
+
+    ws.focusPane(PANE_ARTIFACTS);
+
+    expect(ws.focusedPaneId.value).toBe(PANE_TERMINAL);
   });
 
   it('loads from app-data, persists a safe fallback, and preserves pane recovery', async () => {

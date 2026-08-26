@@ -16,7 +16,7 @@ declare global {
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { sessionsState } from './screens/sessions-state.js';
 import { useAppStore } from './stores/app.js';
-import { getTerminalManager } from './runtime/terminal-provider.js';
+import { adoptTerminalHost, getTerminalManager } from './runtime/terminal-provider.js';
 import { getCliDisplayName } from './utils.js';
 import { initConfigCache } from './bindings.js';
 import { doSpawn, doSpawnShell, switchToSession, doCloseSession,
@@ -155,6 +155,14 @@ const dockWorkspace = useDockWorkspace(undefined, {
   },
 });
 const dockViewMenuOpen = ref(false);
+
+// A recursive dock renderer may move the host while keeping the workspace
+// alive. TerminalManager adopts the existing DOM so xterm scrollback and PTY
+// ownership remain attached to the same session.
+watch(terminalContainerRef, (container) => {
+  adoptTerminalHost(container);
+}, { flush: 'post' });
+
 const dockViewItems = computed(() => listRegisteredPanes(dockWorkspace.layout.value));
 const viewPaneByName: Record<ViewName, PaneId> = {
   terminal: PANE_TERMINAL,

@@ -147,6 +147,17 @@ export class TerminalView {
     }
   }
 
+  /** Move the existing xterm DOM into a new host without recreating its buffer. */
+  adoptContainer(nextContainer: HTMLElement): boolean {
+    if (this.disposed || nextContainer === this.container) return false;
+    while (this.container.firstChild) {
+      nextContainer.appendChild(this.container.firstChild);
+    }
+    this.container = nextContainer;
+    this.fit();
+    return true;
+  }
+
   /** Get current terminal dimensions */
   getDimensions(): { cols: number; rows: number } {
     return { cols: this.terminal.cols, rows: this.terminal.rows };

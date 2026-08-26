@@ -13,6 +13,7 @@ import {
   createDefaultLayout,
   findPaneGroup,
   isPaneHidden,
+  listFocusablePanes,
   listPanes,
   movePane,
   reorderTab,
@@ -41,13 +42,17 @@ import {
 
 export interface DockWorkspace {
   layout: ComputedRef<DockWorkspaceLayout>;
-  /** Deterministic left-to-right, top-to-bottom pane order — the cycle order. */
+  /** Deterministic left-to-right, top-to-bottom order of every open pane. */
   paneOrder: Ref<PaneId[]>;
+  /** Pinned-pane order used by gamepad focus cycling; autohide/hidden docks are omitted. */
+  focusablePaneOrder: Ref<PaneId[]>;
   closedPanes: Ref<PaneId[]>;
-  focusedPaneId: Ref<PaneId>;
+  focusedPaneId: Ref<PaneId | null>;
   isVisible: (paneId: PaneId) => boolean;
-  focusPane: (paneId: PaneId) => void;
-  /** Cycle focus through docked, non-hidden panes. */
+  focusPane: (paneId: PaneId, focusedItemId?: string) => void;
+  getFocusedItemId: (paneId: PaneId) => string | null;
+  setFocusedItemId: (paneId: PaneId, itemId: string | null) => void;
+  /** Cycle focus through panes in pinned docks. */
   cycleFocus: (direction: 1 | -1) => void;
   move: (paneId: PaneId, target: DropTarget) => void;
   reorder: (paneId: PaneId, index: number) => void;
@@ -88,9 +93,11 @@ export function useDockWorkspace(initial?: DockWorkspaceLayout, options: DockWor
     }
   }
   const layout = computed(() => readonly(layoutState.value));
-  const focusedPaneId = ref<PaneId>(PANE_TERMINAL);
+  const focusedPaneId = ref<PaneId | null>(PANE_TERMINAL);
+  const focusedItemIds = ref<Partial<Record<PaneId, string>>>({});
 
   const paneOrder = computed(() => listPanes(layoutState.value.root));
+  const focusablePaneOrder = computed(() => listFocusablePanes(layoutState.value.root));
   const closedPanes = computed(() => [...layoutState.value.closed]);
   let persistQueue = Promise.resolve();
 
@@ -100,7 +107,7 @@ export function useDockWorkspace(initial?: DockWorkspaceLayout, options: DockWor
       && findPaneGroup(layoutState.value.root, paneId)?.activeTab === paneId;
   }
 
-  /** Apply a pure op, keeping focus on a pane that still exists. */
+  /** Apply a pure op, keeping focus on a pane that still participates in cycling. */
   function persist(next: DockWorkspaceLayout): void {
     const save = options.persistence?.save;
     if (!save) return;
@@ -113,20 +120,37 @@ export function useDockWorkspace(initial?: DockWorkspaceLayout, options: DockWor
 
   function apply(next: DockWorkspaceLayout, shouldPersist = true): void {
     layoutState.value = next;
-    if (!findPaneGroup(next.root, focusedPaneId.value)) {
-      focusedPaneId.value = listPanes(next.root)[0] ?? PANE_TERMINAL;
+    const focusable = listFocusablePanes(next.root);
+    if (!focusable.includes(focusedPaneId.value)) {
+      focusedPaneId.value = focusable[0] ?? null;
     }
     if (shouldPersist) persist(next);
   }
 
-  function focusPane(paneId: PaneId): void {
+  function getFocusedItemId(paneId: PaneId): string | null {
+    return focusedItemIds.value[paneId] ?? null;
+  }
+
+  function setFocusedItemId(paneId: PaneId, itemId: string | null): void {
+    if (!findPaneGroup(layoutState.value.root, paneId)) return;
+    if (itemId === null) {
+      delete focusedItemIds.value[paneId];
+    } else {
+      focusedItemIds.value[paneId] = itemId;
+    }
+  }
+
+  function focusPane(paneId: PaneId, focusedItemId?: string): void {
     if (!findPaneGroup(layoutState.value.root, paneId)) return;
     apply(setActiveTab(layoutState.value, paneId));
-    focusedPaneId.value = paneId;
+    if (focusablePaneOrder.value.includes(paneId)) {
+      focusedPaneId.value = paneId;
+      if (focusedItemId !== undefined) setFocusedItemId(paneId, focusedItemId);
+    }
   }
 
   function cycleFocus(direction: 1 | -1): void {
-    const order = paneOrder.value.filter(paneId => !isPaneHidden(layoutState.value.root, paneId));
+    const order = focusablePaneOrder.value;
     if (order.length <= 1) return;
     const current = order.indexOf(focusedPaneId.value);
     const start = current === -1 ? 0 : current;
@@ -157,10 +181,13 @@ export function useDockWorkspace(initial?: DockWorkspaceLayout, options: DockWor
   return {
     layout,
     paneOrder,
+    focusablePaneOrder,
     closedPanes,
     focusedPaneId,
     isVisible,
     focusPane,
+    getFocusedItemId,
+    setFocusedItemId,
     cycleFocus,
     move: (paneId, target) => apply(movePane(layoutState.value, paneId, target)),
     reorder: (paneId, index) => apply(reorderTab(layoutState.value, paneId, index)),

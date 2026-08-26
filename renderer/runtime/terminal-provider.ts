@@ -16,3 +16,7 @@ export function getTerminalManager(): TerminalManager | null {
 export function setTerminalManager(tm: TerminalManager | null): void {
   _terminalManager = tm;
 }
+
+export function adoptTerminalHost(host: HTMLElement | null): boolean {
+  return _terminalManager?.adoptHost(host) ?? false;
+}
