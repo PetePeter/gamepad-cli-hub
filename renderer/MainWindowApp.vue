@@ -23,37 +23,8 @@ import { doSpawn, doSpawnShell, switchToSession, doCloseSession,
   bootstrap, teardown, startTimerRefresh, stopTimerRefresh,
   setPendingContextText, restoreSnappedBackSession, refreshProjects, refreshSessions,
 } from './composables/useAppBootstrap.js';
-import { formatElapsed } from '../src/utils/time-parser.js';
-import { findNavIndexBySessionId, getVisibleSessions, isSessionHiddenFromOverview, resolveGroupDisplayName } from './session-groups.js';
-import { getOverviewSessions } from './screens/group-overview.js';
-import {
-  onPlanAddDependency,
-  onPlanAddContext,
-  onPlanAddNode,
-  onPlanClearDone,
-  onPlanAssignSequence,
-  onPlanContextBind,
-  onPlanContextBindTarget,
-  onPlanContextClick,
-  onPlanContextDelete,
-  onPlanContextMove,
-  onPlanContextSave,
-  onPlanContextSelectPlan,
-  onPlanContextUnbind,
-  onPlanCreateSequence,
-  onPlanExportDirectory,
-  onPlanOpenExternal,
-  onPlanNodeApply,
-  onPlanNodeClick,
-  onPlanNodeComplete,
-  onPlanNodeDelete,
-  onPlanNodeEdit,
-  onPlanRemoveDependency,
-  onPlanDeleteSequence,
-  onPlanDeleteSequenceWithPlans,
-  onPlanUpdateSequence,
-  planScreenState,
-} from './plans/plan-screen.js';
+import { resolveGroupDisplayName } from './session-groups.js';
+import { onPlanContextSave } from './plans/plan-screen.js';
 import { usePanelResize } from './composables/usePanelResize.js';
 import { onViewChange, type MainView as ViewName } from './main-view/main-view-manager.js';
 import { useToast } from './composables/useToast.js';
@@ -99,27 +70,27 @@ import {
   setPlanChangesChecker as setPlanScreenPlanChangesChecker,
   setBackupRestoreOpener as setPlanScreenBackupRestoreOpener,
   setPlanScreenContextEditorOpener,
-  onPlanContextEdit,
 } from './plans/plan-screen.js';
 import { deliverBulkText } from './paste-handler.js';
 import { deliverPromptSequence } from './sequence-delivery.js';
-import { buildPlannerDirectories } from './screens/planner-directories.js';
+
+// Docking workspace — every view/tool window is resolved through the registry.
+import { getPaneComponent } from './dock-pane-registry.js';
+import { provideHelmPaneContext } from './dock-pane-context.js';
+import {
+  PANE_ARTIFACTS,
+  PANE_OVERVIEW,
+  PANE_PLAN_DIRECTORIES,
+  PANE_PLAN_SCREEN,
+  PANE_QUICK_SPAWN,
+  PANE_SCHEDULER,
+  PANE_SESSIONS,
+  PANE_TERMINAL,
+} from './dock-types.js';
 
 // Sidebar components
 import StatusStrip from './components/sidebar/StatusStrip.vue';
-import SortBar from './components/sidebar/SortBar.vue';
-import SessionList from './components/sidebar/SessionList.vue';
-import SpawnGrid from './components/sidebar/SpawnGrid.vue';
-import PlansGrid from './components/sidebar/PlansGrid.vue';
-import SchedulerSection from './components/sidebar/SchedulerSection.vue';
-import ScheduledTaskHistoryModal from './components/sidebar/ScheduledTaskHistoryModal.vue';
 import RecycleBinModal from './components/sidebar/RecycleBinModal.vue';
-
-// Panel components
-import MainView from './components/panels/MainView.vue';
-import OverviewGrid from './components/panels/OverviewGrid.vue';
-import PlanScreen from './components/panels/PlanScreen.vue';
-import ArtifactViewer from './components/panels/ArtifactViewer.vue';
 import SettingsPanel from './components/sidebar/SettingsPanel.vue';
 
 // Settings tab components
@@ -295,55 +266,28 @@ const {
   openBindingEditor: (button, cliType, binding) => onEditBinding(button, cliType, binding),
 });
 
-const {
-  overviewCollapsedIds,
-  overviewGroupLabel,
-  spawnCollapsed,
-  plannerCollapsed,
-  schedulerCollapsed,
-  schedulerPopupVisible,
-  schedulerPopupTaskId,
-  historyModalVisible,
-  recreatePrefill,
-  openSchedulerHistory,
-  recreateFromHistory,
-  getSortField,
-  getSortDirection,
-  onSessionClick,
-  onSessionRename,
-  onCommitRename,
-  onCancelRename,
-  onRequestClose,
-  onSessionStateChange,
-  onOverviewSelect,
-  onOverviewToggleCollapse,
-  onGroupToggleCollapse,
-  onShowPlans,
-  onShowOverview,
-  onShowGlobalOverview,
-  onToggleOverview,
-  onToggleLock,
-  onCancelSchedule,
-  onSessionSnapOut,
-  onSessionSnapBack,
-  loadCollapsePrefs,
-  toggleSpawnCollapse,
-  togglePlannerCollapse,
-  toggleSchedulerCollapse,
-  openSchedulerPopup,
-  deleteScheduledTask,
-  onSpawn,
-  // (openSchedulerHistory, recreateFromHistory destructured above)
-  onDirPickerSelect,
-  onSortChange,
-  installDirPickerBridge,
-} = useSidebarController({
+const sidebarController = useSidebarController({
   activeView,
   navStore,
   refreshProjects,
   doSpawn,
   doCloseSession,
 });
+const {
+  overviewCollapsedIds,
+  overviewGroupLabel,
+  schedulerPopupVisible,
+  schedulerPopupTaskId,
+  recreatePrefill,
+  onSessionClick,
+  onSessionRename,
+  onSessionSnapOut,
+  onSessionSnapBack,
+  loadCollapsePrefs,
+  onSpawn,
+  onDirPickerSelect,
+  installDirPickerBridge,
+} = sidebarController;
 
 // Panel resize
 const { splitterRef, panelRef } = usePanelResize({
@@ -379,51 +323,19 @@ watch(() => state.activeSessionId, (id) => {
   void artifactViewer.setActiveSession(id ?? null);
 });
 const { addToast } = useToast();
+const planWorkspaceController = usePlanWorkspaceController({ addToast });
 const {
   backupRestore,
-  onPlanPopOut,
-  onToggleTypeFilter,
-  onToggleStatusFilter,
-  onResetFilters,
-  onToggleHasAttachmentFilter,
-  onToggleAutoFilter,
-  onToggleRelatedFocus,
   openBackupRestore,
   onBackupRestore,
   onBackupDelete,
   onBackupNow,
   onBackupClose,
-} = usePlanWorkspaceController({ addToast });
+} = planWorkspaceController;
 
 // ============================================================================
 // Computed props for components
 // ============================================================================
-
-const sortOptions = [
-  { value: 'name', label: 'Name' },
-  { value: 'cliType', label: 'CLI Type' },
-  { value: 'state', label: 'State' },
-  { value: 'activity', label: 'Activity' },
-];
-
-const spawnItems = computed(() =>
-  sessionsState.cliTypes.map(ct => ({
-    cliType: ct,
-    displayName: getCliDisplayName(ct),
-  })),
-);
-
-const plansDirItems = computed(() =>
-  buildPlannerDirectories(sessionsState.directories).map(d => ({
-    name: d.name,
-    path: d.path,
-    startableCount: state.planDirStartableCounts.get(d.path) ?? 0,
-    codingCount: state.planDirCodingCounts.get(d.path) ?? 0,
-    blockedCount: state.planDirBlockedCounts.get(d.path) ?? 0,
-    reviewCount: state.planDirReviewCounts.get(d.path) ?? 0,
-    planningCount: state.planDirPlanningCounts.get(d.path) ?? 0,
-  }))
-);
 
 const hasActiveSession = computed(() => !!state.activeSessionId);
 
@@ -455,49 +367,6 @@ const chipActionBarVisible = computed(() =>
   (chipBarHasPills.value || chipBarStore.actions.length > 0)
 );
 
-// Overview sessions with preview lines
-const overviewSessions = computed(() => {
-  const tm = getTerminalManager();
-  const mapSession = (session: typeof state.sessions[number]) => {
-    const lines = tm?.getTerminalLines(session.id, 10) ?? [];
-    // Trim leading blank lines
-    let start = 0;
-    while (start < lines.length && (lines[start] ?? '').trim() === '') start++;
-    const trimmedLines = lines.slice(start);
-    // Pad to bottom-align
-    const padCount = 10 - trimmedLines.length;
-    const previewLines = [
-      ...Array(padCount).fill('\u00A0'),
-      ...trimmedLines.map(l => l || '\u00A0'),
-    ];
-    return {
-      id: session.id,
-      name: session.name,
-      cliType: session.cliType,
-      title: session.title,
-      activityLevel: state.sessionActivityLevels.get(session.id) ?? 'idle',
-      sessionState: state.sessionStates.get(session.id) ?? 'idle',
-      previewLines,
-    };
-  };
-
-  if (sessionsState.overviewIsGlobal) {
-    return sessionsState.groups
-      .map((group) => ({
-        id: group.dirPath,
-        label: resolveGroupDisplayName(group.dirPath, sessionsState.directories, settingsProjects.value),
-        sessions: getVisibleSessions([group], sessionsState.groupPrefs).map(mapSession),
-      }))
-      .filter((section) => section.sessions.length > 0);
-  }
-
-  return [{
-    id: sessionsState.overviewGroup ?? 'current',
-    label: overviewGroupLabel.value || 'Sessions',
-    sessions: getOverviewSessions().map(mapSession),
-  }];
-});
-
 watch(() => activeView.value, (view) => {
   if (view === 'overview') {
     if (sessionsState.overviewIsGlobal) {
@@ -524,23 +393,6 @@ watch(() => state.activeSessionId, (next, prev) => {
   }
   state.recentSessionId = next;
 });
-
-// Maps each navList item's id → its index — fed to session cards/group headers as
-// data-nav-index so the legacy updateSessionsFocus() can find focused elements.
-const navIndexMap = computed(() => {
-  const map = new Map<string, number>();
-  sessionsState.navList.forEach((item, i) => { map.set(item.id, i); });
-  return map;
-});
-
-// Per-session computed helpers
-function sessionElapsedText(sessionId: string): string {
-  // Touch the __tick__ sentinel to re-evaluate reactively
-  state.lastOutputTimes.get('__tick__');
-  const ts = state.lastOutputTimes.get(sessionId);
-  if (ts === undefined) return '';
-  return formatElapsed(Date.now() - ts);
-}
 
 // Ctrl+<n> jumps to the Nth visible session; Alt+<n> fires the Nth chip action.
 useNumberAccelerator({
@@ -861,6 +713,24 @@ function onGroupRemoveSession(sessionId: string): void {
   void runtimeGroupActions.removeFromGroup(sessionId);
 }
 
+// The one seam panes read from. Everything here is shell-owned per-instance
+// state; panes take domain state from the existing singletons themselves.
+provideHelmPaneContext({
+  terminalContainerRef,
+  sidebar: sidebarController,
+  planWorkspace: planWorkspaceController,
+  groups: {
+    newGroup: onNewGroup,
+    newGroupWithSession: onNewGroupWithSession,
+    rename: onGroupRename,
+    close: onGroupClose,
+    addSession: onGroupAddSession,
+    removeSession: onGroupRemoveSession,
+  },
+  showArtifactsForSession: onShowArtifactsForSession,
+  popOutArtifacts: onArtifactPopOut,
+});
+
 // Rebuild the session list whenever runtime groups change (create/rename/close,
 // membership moves). buildSessionGroups reads the live groups ref, so a rebuild
 // re-partitions sessions between runtime and directory groups.
@@ -1048,62 +918,10 @@ onUnmounted(() => {
 
       <!-- Sessions screen -->
       <main class="sidebar-content">
-        <section v-show="!settingsVisible" class="sessions-screen-section">
-          <SortBar
-            :options="sortOptions"
-            :field="getSortField()"
-            :direction="getSortDirection()"
-            @change="onSortChange"
-          />
-          <SessionList
-            :has-sessions="state.sessions.length > 0"
-            :groups="sessionsState.groups"
-            :directories="sessionsState.directories"
-            :projects="settingsProjects"
-            :nav-index-map="navIndexMap"
-            :active-focus="sessionsState.activeFocus"
-            :focused-nav-item="navStore.focusedNavItem"
-            :focus-column="sessionsState.cardColumn"
-            :active-session-id="state.activeSessionId"
-            :editing-session-id="sessionsState.editingSessionId"
-            :session-states="state.sessionStates"
-            :session-activity-levels="state.sessionActivityLevels"
-            :draft-counts="state.draftCounts"
-            :artifact-counts="state.artifactCounts"
-            :working-plan-labels="state.workingPlanLabels"
-            :working-plan-tooltips="state.workingPlanTooltips"
-            :pending-schedules="state.pendingSchedules"
-            :snapped-out-sessions="state.snappedOutSessions"
-            :llm-notifications="llmNotificationsStore.bySession"
-            :flash-entries="flashAttention.entries"
-            :get-cli-display-name="getCliDisplayName"
-            :resolve-group-display-name="resolveGroupDisplayName"
-            :is-session-hidden-from-overview="(session) => isSessionHiddenFromOverview(session, sessionsState.groupPrefs)"
-            :session-elapsed-text="sessionElapsedText"
-            :session-shortcut-map="sessionsScreenStore.sessionShortcutMap"
-            @show-global-overview="onShowGlobalOverview"
-            @new-group="onNewGroup"
-            @new-group-with-session="onNewGroupWithSession"
-            @group-rename="onGroupRename"
-            @group-close="onGroupClose"
-            @group-add-session="onGroupAddSession"
-            @group-remove-session="onGroupRemoveSession"
-            @toggle-group-collapse="onGroupToggleCollapse"
-            @show-overview="onShowOverview"
-            @session-click="onSessionClick"
-            @session-rename="onSessionRename"
-            @commit-rename="onCommitRename"
-            @cancel-rename="onCancelRename"
-            @request-close="onRequestClose"
-            @session-state-change="onSessionStateChange"
-            @toggle-overview="onToggleOverview"
-            @toggle-lock="onToggleLock"
-            @show-artifacts="onShowArtifactsForSession"
-            @cancel-schedule="onCancelSchedule"
-            @dismiss-notification="llmNotificationsStore.dismiss"
-            @dismiss-session-notifications="llmNotificationsStore.dismissSession"
-          />
-        </section>
+        <component
+          :is="getPaneComponent(PANE_SESSIONS)"
+          v-show="!settingsVisible"
+        />
 
         <!-- Settings screen (Vue components) -->
         <SettingsPanel
@@ -1194,50 +1012,22 @@ onUnmounted(() => {
       </main>
 
       <!-- Spawn sections pinned at bottom of sidebar -->
-      <div id="schedulerSection" v-show="!settingsVisible" class="spawn-section" :class="{ 'spawn-section--collapsed': schedulerCollapsed }">
-        <div class="section-label" @click="toggleSchedulerCollapse">
-          <button class="section-toggle">{{ schedulerCollapsed ? '▲' : '▼' }}</button>
-          <span>Scheduler</span>
-        </div>
-        <SchedulerSection
-          :collapsed="schedulerCollapsed"
-          @open="openSchedulerPopup"
-          @delete="deleteScheduledTask"
-          @history="openSchedulerHistory"
-        />
-        <ScheduledTaskHistoryModal v-model:visible="historyModalVisible" @recreate="recreateFromHistory" />
-        <RecycleBinModal v-model:visible="recycleBin.modalVisible.value" />
-        <PeerPairingDialog />
-      </div>
+      <component
+        :is="getPaneComponent(PANE_SCHEDULER)"
+        v-show="!settingsVisible"
+      />
+      <RecycleBinModal v-model:visible="recycleBin.modalVisible.value" />
+      <PeerPairingDialog />
 
-      <div id="quickSpawnSection" v-show="!settingsVisible" class="spawn-section" :class="{ 'spawn-section--collapsed': spawnCollapsed }">
-        <div class="section-label" @click="toggleSpawnCollapse">
-          <button class="section-toggle">{{ spawnCollapsed ? '▲' : '▼' }}</button>
-          <span>Quick Spawn</span>
-          <span class="section-hint">Ctrl+Shift+N / Ctrl+Shift+W</span>
-        </div>
-        <SpawnGrid
-          v-show="!spawnCollapsed"
-          :items="spawnItems"
-          :focus-index="sessionsState.spawnFocusIndex"
-          :is-active="sessionsState.activeFocus === 'spawn'"
-          @spawn="onSpawn"
-        />
-      </div>
+      <component
+        :is="getPaneComponent(PANE_QUICK_SPAWN)"
+        v-show="!settingsVisible"
+      />
 
-      <div id="plannerSection" v-show="!settingsVisible" class="spawn-section" :class="{ 'spawn-section--collapsed': plannerCollapsed }">
-        <div class="section-label" @click="togglePlannerCollapse">
-          <button class="section-toggle">{{ plannerCollapsed ? '▲' : '▼' }}</button>
-          <span>Project Planner</span>
-        </div>
-        <PlansGrid
-          v-show="!plannerCollapsed"
-          :directories="plansDirItems"
-          :focus-index="sessionsState.plansFocusIndex"
-          :is-active="sessionsState.activeFocus === 'plans'"
-          @show-plans="onShowPlans"
-        />
-      </div>
+      <component
+        :is="getPaneComponent(PANE_PLAN_DIRECTORIES)"
+        v-show="!settingsVisible"
+      />
 
       <!-- Recycle Bin pinned at bottom of sidebar — always visible -->
       <button
@@ -1305,78 +1095,17 @@ onUnmounted(() => {
         @context-save="(u) => draftEditorContextId && saveContextEditor(draftEditorContextId, u)"
         @context-delete="onContextDelete"
       />
-      <div
+      <component
+        :is="getPaneComponent(PANE_TERMINAL)"
         v-show="activeView === 'terminal'"
-        class="terminal-container"
-        id="terminalContainer"
-        ref="terminalContainerRef"
-      >
-        <!-- xterm.js terminals rendered by TerminalManager -->
-      </div>
-      <OverviewGrid
-        v-if="activeView === 'overview'"
-        :sections="overviewSessions"
-        :focus-index="sessionsState.overviewFocusIndex"
-        :collapsed-ids="overviewCollapsedIds"
-        :active-session-id="state.activeSessionId"
-        :group-label="overviewGroupLabel"
-        :show-section-marks="sessionsState.overviewIsGlobal"
-        @select="onOverviewSelect"
-        @toggle-collapse="onOverviewToggleCollapse"
-        @close="navStore.closeOverview()"
       />
-      <PlanScreen
+      <component
+        :is="getPaneComponent(PANE_OVERVIEW)"
+        v-if="activeView === 'overview'"
+      />
+      <component
+        :is="getPaneComponent(PANE_PLAN_SCREEN)"
         v-if="activeView === 'plan'"
-        :visible="activeView === 'plan'"
-        :dir-path="planScreenState.currentDir"
-        :items="planScreenState.items"
-        :deps="planScreenState.deps"
-        :sequences="planScreenState.sequences"
-        :contexts="planScreenState.contexts"
-        :layout="planScreenState.layout"
-        :selected-id="planScreenState.selectedId"
-        :selected-context-id="planScreenState.selectedContextId"
-        :selected-ids="planScreenState.selectedIds"
-        :notice="planScreenState.notice"
-        :related-focus-root-id="planScreenState.relatedFocusRootId"
-        :related-focus-ids="planScreenState.relatedFocusIds"
-        :related-transient-ids="planScreenState.relatedTransientIds"
-        :filters="planScreenState.filters"
-        :attachment-has-any="planScreenState.attachmentHasAny"
-        @close="navStore.closePlan()"
-        @pop-out="onPlanPopOut()"
-        @add-node="onPlanAddNode()"
-        @add-context="onPlanAddContext()"
-        @export-dir="onPlanExportDirectory()"
-        @open-plan-external="onPlanOpenExternal()"
-        @clear-done="onPlanClearDone()"
-        @create-sequence="onPlanCreateSequence"
-        @assign-sequence="onPlanAssignSequence"
-        @update-sequence="onPlanUpdateSequence"
-        @delete-sequence="onPlanDeleteSequence"
-        @delete-sequence-with-plans="onPlanDeleteSequenceWithPlans"
-        @node-click="onPlanNodeClick"
-        @context-click="onPlanContextClick"
-        @context-move="onPlanContextMove"
-        @context-bind="onPlanContextBind"
-        @context-bind-target="onPlanContextBindTarget"
-        @context-unbind="onPlanContextUnbind"
-        @context-select-plan="onPlanContextSelectPlan"
-        @context-edit="onPlanContextEdit"
-        @context-delete="onPlanContextDelete"
-        @edit-node="onPlanNodeEdit"
-        @apply-node="onPlanNodeApply"
-        @complete-node="onPlanNodeComplete"
-        @delete-node="onPlanNodeDelete"
-        @add-dep="onPlanAddDependency"
-        @remove-dep="onPlanRemoveDependency"
-        @toggle-related-focus="onToggleRelatedFocus"
-        @toggle-type-filter="onToggleTypeFilter"
-        @toggle-status-filter="onToggleStatusFilter"
-        @reset-filters="onResetFilters"
-        @toggle-has-attachment-filter="onToggleHasAttachmentFilter"
-        @toggle-auto-filter="onToggleAutoFilter"
-        @open-backups="openBackupRestore()"
       />
       <div v-if="chipActionBarVisible && activeView === 'terminal'" class="chip-action-dock">
         <ChipActionBar
@@ -1399,11 +1128,7 @@ onUnmounted(() => {
         class="artifact-panel-dock"
         ref="artifactPanelRef"
       >
-        <ArtifactViewer
-          :session-id="state.activeSessionId!"
-          @close="artifactViewer.hidePanel()"
-          @pop-out="onArtifactPopOut"
-        />
+        <component :is="getPaneComponent(PANE_ARTIFACTS)" />
       </div>
 
       <!-- Collapsed edge tab — reopens the panel; pulses while unread. -->
