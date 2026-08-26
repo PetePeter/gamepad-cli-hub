@@ -1,0 +1,406 @@
+import { describe, it, expect } from 'vitest';
+import {
+  createDefaultLayout,
+  listPanes,
+  findPaneGroup,
+  isPaneHidden,
+  movePane,
+  reorderTab,
+  setActiveTab,
+  setDockMode,
+  closePane,
+  restorePane,
+  normalizeNode,
+  validateLayout,
+} from '../renderer/dock-layout';
+import {
+  DOCK_LAYOUT_VERSION,
+  DOCK_PANES,
+  PANE_ARTIFACTS,
+  PANE_OVERVIEW,
+  PANE_PLAN_DIRECTORIES,
+  PANE_PLAN_SCREEN,
+  PANE_QUICK_SPAWN,
+  PANE_SCHEDULER,
+  PANE_SESSIONS,
+  PANE_TERMINAL,
+  type DockNode,
+  type DockSplitNode,
+  type DockWorkspaceLayout,
+} from '../renderer/dock-types';
+
+function group(tabs: string[], activeTab = tabs[0]): DockNode {
+  return { type: 'group', tabs, activeTab };
+}
+
+function layoutOf(root: DockNode, closed: string[] = []): DockWorkspaceLayout {
+  return { version: DOCK_LAYOUT_VERSION, root, closed };
+}
+
+describe('default Classic layout', () => {
+  const layout = createDefaultLayout();
+
+  it('registers every pane exactly once', () => {
+    const panes = listPanes(layout.root);
+    expect([...panes].sort()).toEqual(DOCK_PANES.map(p => p.id).sort());
+    expect(layout.closed).toEqual([]);
+    expect(layout.version).toBe(DOCK_LAYOUT_VERSION);
+  });
+
+  it('validates as a well-formed layout', () => {
+    expect(() => validateLayout(JSON.parse(JSON.stringify(layout)))).not.toThrow();
+  });
+
+  it('places sessions/tools left, views centre, artifacts right', () => {
+    // Deterministic left-to-right, top-to-bottom order mirrors the current UI.
+    expect(listPanes(layout.root)).toEqual([
+      PANE_SESSIONS,
+      PANE_SCHEDULER,
+      PANE_QUICK_SPAWN,
+      PANE_PLAN_DIRECTORIES,
+      PANE_TERMINAL,
+      PANE_OVERVIEW,
+      PANE_PLAN_SCREEN,
+      PANE_ARTIFACTS,
+    ]);
+  });
+
+  it('keeps the terminal active and artifacts collapsed to an edge rail', () => {
+    const terminalGroup = findPaneGroup(layout.root, PANE_TERMINAL);
+    expect(terminalGroup?.activeTab).toBe(PANE_TERMINAL);
+    const artifactsDock = findDock(layout.root, PANE_ARTIFACTS);
+    expect(artifactsDock).toMatchObject({ side: 'right', mode: 'autohide' });
+  });
+});
+
+function findDock(node: DockNode, paneId: string): { side: string; mode: string } | null {
+  if (node.type === 'dock') {
+    if (listPanes(node.child).includes(paneId)) return { side: node.side, mode: node.mode };
+    return null;
+  }
+  if (node.type === 'split') {
+    for (const child of node.children) {
+      const hit = findDock(child, paneId);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
+describe('movePane', () => {
+  it('tabs a pane into the target group on a center drop', () => {
+    const layout = layoutOf({
+      type: 'split',
+      direction: 'horizontal',
+      sizes: [0.5, 0.5],
+      children: [group([PANE_TERMINAL]), group([PANE_OVERVIEW])],
+    });
+
+    const next = movePane(layout, PANE_OVERVIEW, { paneId: PANE_TERMINAL, zone: 'center' });
+
+    // The emptied group is cleaned up and the single-child split collapses.
+    expect(next.root).toEqual({ type: 'group', tabs: [PANE_TERMINAL, PANE_OVERVIEW], activeTab: PANE_OVERVIEW });
+    expect(layout.root.type).toBe('split'); // input untouched
+  });
+
+  it('splits a new group before/after the target for edge drops', () => {
+    const layout = layoutOf(group([PANE_TERMINAL, PANE_OVERVIEW]));
+
+    const right = movePane(layout, PANE_OVERVIEW, { paneId: PANE_TERMINAL, zone: 'right' });
+    expect(right.root).toEqual({
+      type: 'split',
+      direction: 'horizontal',
+      sizes: [0.5, 0.5],
+      children: [group([PANE_TERMINAL]), group([PANE_OVERVIEW])],
+    });
+
+    const top = movePane(layout, PANE_OVERVIEW, { paneId: PANE_TERMINAL, zone: 'top' });
+    expect(top.root).toMatchObject({
+      type: 'split',
+      direction: 'vertical',
+      children: [group([PANE_OVERVIEW]), group([PANE_TERMINAL])],
+    });
+  });
+
+  it('restores a closed pane by moving it back into the tree', () => {
+    const layout = layoutOf(group([PANE_TERMINAL]), [PANE_OVERVIEW]);
+
+    const next = movePane(layout, PANE_OVERVIEW, { paneId: PANE_TERMINAL, zone: 'center' });
+
+    expect(next.closed).toEqual([]);
+    expect(listPanes(next.root)).toEqual([PANE_TERMINAL, PANE_OVERVIEW]);
+  });
+
+  it('rejects unknown panes, unknown targets and self-drops', () => {
+    const layout = createDefaultLayout();
+    expect(() => movePane(layout, 'nope', { paneId: PANE_TERMINAL, zone: 'center' })).toThrow(/unknown pane/i);
+    expect(() => movePane(layout, PANE_TERMINAL, { paneId: 'nope', zone: 'center' })).toThrow(/unknown pane/i);
+    expect(() => movePane(layout, PANE_TERMINAL, { paneId: PANE_TERMINAL, zone: 'center' })).toThrow(/itself/i);
+  });
+
+  it('leaves the layout valid after a move out of a nested dock', () => {
+    const layout = createDefaultLayout();
+    const next = movePane(layout, PANE_ARTIFACTS, { paneId: PANE_TERMINAL, zone: 'center' });
+    expect(() => validateLayout(next)).not.toThrow();
+    expect(findPaneGroup(next.root, PANE_ARTIFACTS)?.tabs).toContain(PANE_TERMINAL);
+  });
+});
+
+describe('tab operations', () => {
+  it('reorders a tab within its group', () => {
+    const layout = layoutOf(group([PANE_TERMINAL, PANE_OVERVIEW, PANE_PLAN_SCREEN], PANE_TERMINAL));
+    const next = reorderTab(layout, PANE_PLAN_SCREEN, 0);
+    expect(findPaneGroup(next.root, PANE_TERMINAL)?.tabs)
+      .toEqual([PANE_PLAN_SCREEN, PANE_TERMINAL, PANE_OVERVIEW]);
+    expect(findPaneGroup(next.root, PANE_TERMINAL)?.activeTab).toBe(PANE_TERMINAL);
+  });
+
+  it('clamps a reorder index instead of dropping the tab', () => {
+    const layout = layoutOf(group([PANE_TERMINAL, PANE_OVERVIEW]));
+    expect(findPaneGroup(reorderTab(layout, PANE_TERMINAL, 99).root, PANE_TERMINAL)?.tabs)
+      .toEqual([PANE_OVERVIEW, PANE_TERMINAL]);
+  });
+
+  it('activates a tab only within its own group', () => {
+    const layout = layoutOf(group([PANE_TERMINAL, PANE_OVERVIEW], PANE_TERMINAL));
+    expect(findPaneGroup(setActiveTab(layout, PANE_OVERVIEW).root, PANE_OVERVIEW)?.activeTab).toBe(PANE_OVERVIEW);
+    expect(() => setActiveTab(layout, PANE_ARTIFACTS)).toThrow(/unknown pane/i);
+  });
+});
+
+describe('close and restore', () => {
+  it('closes a pane, picks a new active tab, and records it as recoverable', () => {
+    const layout = layoutOf(group([PANE_TERMINAL, PANE_OVERVIEW], PANE_OVERVIEW));
+    const next = closePane(layout, PANE_OVERVIEW);
+    expect(next.closed).toEqual([PANE_OVERVIEW]);
+    expect(next.root).toEqual(group([PANE_TERMINAL], PANE_TERMINAL));
+  });
+
+  it('selects the next tab, then the previous tab, when closing the active tab', () => {
+    const layout = layoutOf(group([PANE_TERMINAL, PANE_OVERVIEW, PANE_PLAN_SCREEN], PANE_OVERVIEW));
+    expect(findPaneGroup(closePane(layout, PANE_OVERVIEW).root, PANE_TERMINAL)?.activeTab).toBe(PANE_PLAN_SCREEN);
+    const lastActive = layoutOf(group([PANE_TERMINAL, PANE_OVERVIEW], PANE_OVERVIEW));
+    expect(findPaneGroup(closePane(lastActive, PANE_OVERVIEW).root, PANE_TERMINAL)?.activeTab).toBe(PANE_TERMINAL);
+  });
+
+  it('can close the final pane into the canonical empty root', () => {
+    const closed = DOCK_PANES.filter(pane => pane.id !== PANE_TERMINAL).map(pane => pane.id);
+    const next = closePane(layoutOf(group([PANE_TERMINAL]), closed), PANE_TERMINAL);
+    expect(next.root).toEqual({ type: 'empty' });
+    expect(next.closed).toEqual([...closed, PANE_TERMINAL]);
+    expect(() => validateLayout(next)).not.toThrow();
+  });
+
+  it('restores the first pane into an all-closed workspace', () => {
+    const layout = layoutOf({ type: 'empty' }, DOCK_PANES.map(pane => pane.id));
+    const next = restorePane(layout, PANE_TERMINAL);
+    expect(next.root).toEqual(group([PANE_TERMINAL], PANE_TERMINAL));
+    expect(next.closed).toEqual(DOCK_PANES.filter(pane => pane.id !== PANE_TERMINAL).map(pane => pane.id));
+    expect(() => validateLayout(next)).not.toThrow();
+  });
+
+  it('restores a closed pane to its default home', () => {
+    const layout = closePane(createDefaultLayout(), PANE_SCHEDULER);
+    const restored = restorePane(layout, PANE_SCHEDULER);
+    expect(restored.closed).toEqual([]);
+    expect(listPanes(restored.root)).toContain(PANE_SCHEDULER);
+    expect(() => validateLayout(restored)).not.toThrow();
+  });
+
+  it('refuses to restore or move a pane that is not closed', () => {
+    const layout = createDefaultLayout();
+    expect(() => restorePane(layout, PANE_ARTIFACTS)).toThrow(/not closed/i);
+    expect(() => movePane(layoutOf(group([PANE_TERMINAL])), PANE_OVERVIEW, {
+      paneId: PANE_TERMINAL,
+      zone: 'center',
+    })).toThrow(/neither docked nor closed/i);
+  });
+
+  it('restores into a caller-supplied target when given one', () => {
+    const layout = closePane(createDefaultLayout(), PANE_ARTIFACTS);
+    const restored = restorePane(layout, PANE_ARTIFACTS, { paneId: PANE_TERMINAL, zone: 'bottom' });
+    expect(findPaneGroup(restored.root, PANE_ARTIFACTS)?.tabs).toEqual([PANE_ARTIFACTS]);
+    expect(restored.closed).toEqual([]);
+  });
+
+  it('rejects an explicit restore target that is not live', () => {
+    const layout = closePane(closePane(createDefaultLayout(), PANE_ARTIFACTS), PANE_OVERVIEW);
+    expect(() => restorePane(layout, PANE_ARTIFACTS, { paneId: PANE_OVERVIEW, zone: 'center' })).toThrow(/not docked/i);
+    expect(() => restorePane(layout, PANE_ARTIFACTS, { paneId: 'nope', zone: 'center' })).toThrow(/unknown pane/i);
+  });
+
+  it('rejects restoring a pane that is not closed', () => {
+    expect(() => restorePane(createDefaultLayout(), PANE_ARTIFACTS)).toThrow(/not closed/i);
+  });
+});
+
+describe('dock mode', () => {
+  it('sets the mode of the dock containing a pane', () => {
+    const next = setDockMode(createDefaultLayout(), PANE_ARTIFACTS, 'pinned');
+    expect(findDock(next.root, PANE_ARTIFACTS)?.mode).toBe('pinned');
+  });
+
+  it('throws when the pane is not inside a dock node', () => {
+    expect(() => setDockMode(createDefaultLayout(), PANE_TERMINAL, 'hidden')).toThrow(/not docked/i);
+  });
+});
+
+describe('normalizeNode', () => {
+  it('drops empty groups and collapses single-child splits', () => {
+    const node: DockNode = {
+      type: 'split',
+      direction: 'horizontal',
+      sizes: [0.5, 0.5],
+      children: [group([]), group([PANE_TERMINAL])],
+    };
+    expect(normalizeNode(node)).toEqual(group([PANE_TERMINAL]));
+  });
+
+  it('flattens nested splits of the same direction and rescales their ratios', () => {
+    const node: DockSplitNode = {
+      type: 'split',
+      direction: 'horizontal',
+      sizes: [0.5, 0.5],
+      children: [
+        group([PANE_TERMINAL]),
+        {
+          type: 'split',
+          direction: 'horizontal',
+          sizes: [0.5, 0.5],
+          children: [group([PANE_OVERVIEW]), group([PANE_PLAN_SCREEN])],
+        },
+      ],
+    };
+    const flat = normalizeNode(node) as DockSplitNode;
+    expect(flat.children).toEqual([group([PANE_TERMINAL]), group([PANE_OVERVIEW]), group([PANE_PLAN_SCREEN])]);
+    expect(flat.sizes).toEqual([0.5, 0.25, 0.25]);
+  });
+
+  it('renormalizes sizes that are missing, negative, or do not sum to 1', () => {
+    const node: DockSplitNode = {
+      type: 'split',
+      direction: 'vertical',
+      sizes: [3, -1],
+      children: [group([PANE_TERMINAL]), group([PANE_OVERVIEW])],
+    };
+    const out = normalizeNode(node) as DockSplitNode;
+    expect(out.sizes.every(size => size > 0)).toBe(true);
+    expect(out.sizes.reduce((a, b) => a + b, 0)).toBeCloseTo(1);
+  });
+
+  it('repairs an activeTab that is not in the group', () => {
+    expect(normalizeNode(group([PANE_TERMINAL], PANE_OVERVIEW))).toEqual(group([PANE_TERMINAL], PANE_TERMINAL));
+  });
+
+  it('returns null when the whole subtree is empty', () => {
+    expect(normalizeNode({ type: 'dock', side: 'left', mode: 'pinned', child: group([]) })).toBeNull();
+  });
+
+  it('repairs every malformed ratio to a positive normalized value', () => {
+    const node: DockSplitNode = {
+      type: 'split',
+      direction: 'horizontal',
+      sizes: [Number.NaN, 0, -1],
+      children: [group([PANE_TERMINAL]), group([PANE_OVERVIEW]), group([PANE_PLAN_SCREEN])],
+    };
+    const out = normalizeNode(node) as DockSplitNode;
+    expect(out.sizes.every(size => size > 0)).toBe(true);
+    expect(out.sizes.reduce((a, b) => a + b, 0)).toBeCloseTo(1);
+  });
+
+  it('detects panes hidden by an ancestor dock', () => {
+    const node: DockNode = { type: 'dock', side: 'left', mode: 'hidden', child: group([PANE_TERMINAL]) };
+    expect(isPaneHidden(node, PANE_TERMINAL)).toBe(true);
+    expect(isPaneHidden(node, PANE_OVERVIEW)).toBe(false);
+  });
+});
+
+describe('validateLayout', () => {
+  it('accepts a round-tripped layout', () => {
+    const parsed = validateLayout(JSON.parse(JSON.stringify(createDefaultLayout())));
+    expect(listPanes(parsed.root)).toEqual(listPanes(createDefaultLayout().root));
+  });
+
+  it('accepts the canonical all-closed root', () => {
+    const closed = DOCK_PANES.map(pane => pane.id);
+    expect(validateLayout({ version: DOCK_LAYOUT_VERSION, root: { type: 'empty' }, closed })).toEqual({
+      version: DOCK_LAYOUT_VERSION,
+      root: { type: 'empty' },
+      closed,
+    });
+  });
+
+  it('rejects an empty root unless every registered pane is closed', () => {
+    expect(() => validateLayout({
+      version: DOCK_LAYOUT_VERSION,
+      root: { type: 'empty' },
+      closed: DOCK_PANES.slice(1).map(pane => pane.id),
+    })).toThrow(/missing pane/i);
+  });
+
+  it.each([
+    ['not an object', null],
+    ['wrong version', { version: 99, root: group([PANE_TERMINAL]), closed: [] }],
+    ['missing root', { version: DOCK_LAYOUT_VERSION, closed: [] }],
+    ['unknown node type', { version: DOCK_LAYOUT_VERSION, root: { type: 'floating' }, closed: [] }],
+    ['bad split arity', {
+      version: DOCK_LAYOUT_VERSION,
+      root: { type: 'split', direction: 'horizontal', sizes: [1], children: [group([PANE_TERMINAL]), group([PANE_OVERVIEW])] },
+      closed: [],
+    }],
+    ['bad dock side', {
+      version: DOCK_LAYOUT_VERSION,
+      root: { type: 'dock', side: 'sideways', mode: 'pinned', child: group([PANE_TERMINAL]) },
+      closed: [],
+    }],
+    ['negative split ratio', {
+      version: DOCK_LAYOUT_VERSION,
+      root: { type: 'split', direction: 'horizontal', sizes: [-0.1, 1.1], children: [group([PANE_TERMINAL]), group([PANE_OVERVIEW])] },
+      closed: DOCK_PANES.filter(p => ![PANE_TERMINAL, PANE_OVERVIEW].includes(p.id)).map(p => p.id),
+    }],
+    ['split ratios do not sum to one', {
+      version: DOCK_LAYOUT_VERSION,
+      root: { type: 'split', direction: 'horizontal', sizes: [0.4, 0.4], children: [group([PANE_TERMINAL]), group([PANE_OVERVIEW])] },
+      closed: DOCK_PANES.filter(p => ![PANE_TERMINAL, PANE_OVERVIEW].includes(p.id)).map(p => p.id),
+    }],
+  ])('rejects a malformed layout: %s', (_label, bad) => {
+    expect(() => validateLayout(bad)).toThrow();
+  });
+
+  it('rejects duplicate panes across the tree and the closed list', () => {
+    expect(() => validateLayout(layoutOf({
+      type: 'split',
+      direction: 'horizontal',
+      sizes: [0.5, 0.5],
+      children: [group([PANE_TERMINAL]), group([PANE_TERMINAL])],
+    }))).toThrow(/duplicate/i);
+
+    expect(() => validateLayout(layoutOf(group([PANE_TERMINAL]), [PANE_TERMINAL]))).toThrow(/duplicate/i);
+  });
+
+  it('rejects unknown pane ids', () => {
+    expect(() => validateLayout(layoutOf(group(['mystery-pane'])))).toThrow(/unknown pane/i);
+  });
+
+  it('rejects a layout that omits a registered pane entirely', () => {
+    expect(() => validateLayout(layoutOf(group([PANE_TERMINAL])))).toThrow(/missing pane/i);
+  });
+
+  it('clones parsed arrays instead of aliasing untrusted input', () => {
+    const raw = JSON.parse(JSON.stringify(createDefaultLayout())) as any;
+    const parsed = validateLayout(raw);
+    const parsedTerminalTabs = findPaneGroup(parsed.root, PANE_TERMINAL)?.tabs;
+    raw.closed.push(PANE_OVERVIEW);
+    raw.root.children[1].tabs.push(PANE_ARTIFACTS);
+    raw.root.children[1].tabs.splice(0, 1);
+    expect(parsed.closed).toEqual([]);
+    expect(findPaneGroup(parsed.root, PANE_TERMINAL)?.tabs).toEqual(parsedTerminalTabs);
+  });
+
+  it('returns detached group snapshots', () => {
+    const layout = createDefaultLayout();
+    const snapshot = findPaneGroup(layout.root, PANE_TERMINAL);
+    snapshot?.tabs.push(PANE_ARTIFACTS);
+    expect(findPaneGroup(layout.root, PANE_TERMINAL)?.tabs).not.toContain(PANE_ARTIFACTS);
+  });
+});

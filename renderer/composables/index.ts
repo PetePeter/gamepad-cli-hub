@@ -11,3 +11,4 @@ export { useKeyboardRelay, type KeyboardRelayOptions } from './useKeyboardRelay.
 export { useTerminals } from './useTerminals.js';
 export { useFocusTrap } from './useFocusTrap.js';
 export { useModalAutofocus } from './useModalAutofocus.js';
+export { useDockWorkspace, listRegisteredPanes, type DockWorkspace } from './useDockWorkspace.js';

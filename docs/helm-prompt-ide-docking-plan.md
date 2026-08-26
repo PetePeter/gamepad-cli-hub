@@ -27,10 +27,11 @@ The default layout should reproduce the current UI closely. The important change
 type DockNode =
   | { type: 'split'; direction: 'horizontal' | 'vertical'; sizes: number[]; children: DockNode[] }
   | { type: 'group'; tabs: PaneId[]; activeTab: PaneId }
-  | { type: 'dock'; side: 'left' | 'right' | 'top' | 'bottom'; mode: 'pinned' | 'autohide' | 'hidden'; child: DockNode };
+  | { type: 'dock'; side: 'left' | 'right' | 'top' | 'bottom'; mode: 'pinned' | 'autohide' | 'hidden'; child: DockNode }
+  | { type: 'empty' };
 ```
 
-Pane descriptors are id-keyed registrations. Views and tool windows have different defaults, but every pane can be moved and split:
+Pane descriptors are id-keyed registrations. Views and tool windows have different defaults, but every pane can be moved, split, or closed and later restored:
 
 - Views: session terminals, Overview, and PlanScreen. They default to the view workspace, but can be docked to any side, split horizontally or vertically, or tabbed with another view.
 - Tool windows: session list, Scheduler, Quick Spawn, planner-directory navigation, and Artifacts. They default to edge docks and support auto-hide, but can also be dragged into a view group.
@@ -63,7 +64,7 @@ Reuse and generalize `usePanelResize` for split-node sibling sizes. Keep `main-v
 - Tabs can reorder within a group, move to another group, or split into a new group.
 - Collapse/autohide leaves a labelled edge rail. Click or hover reveals the pane; focus loss collapses it.
 - Use the existing Artifact edge-tab visual language for all collapsed panes.
-- Provide a View menu listing every registered pane plus Reset Layout, so every pane can be recovered after a bad layout.
+- Provide a View menu listing every registered pane plus Reset Layout, so every pane can be recovered after a bad layout. An all-closed workspace uses the canonical empty root.
 - Add accessible `role=tablist`, `role=tab`, `role=tabpanel`, labels, keyboard movement, and a visible active-pane focus ring.
 
 ## Focus and terminal safety
