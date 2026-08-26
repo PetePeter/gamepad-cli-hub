@@ -111,6 +111,26 @@ describe('ArtifactViewer — dropping readable files', () => {
   });
 });
 
+describe('ArtifactViewer — drop isolation', () => {
+  /**
+   * A pane drag is pointer-driven and emits no drop event at all, but a session
+   * card drag still does. The panel must let any non-file drop pass through
+   * rather than swallow it.
+   */
+  it('ignores a drop that carries no files and leaves the event unclaimed', async () => {
+    const w = await mountViewer();
+    const event = new Event('drop', { bubbles: true, cancelable: true }) as Event & { dataTransfer: unknown };
+    Object.defineProperty(event, 'dataTransfer', { value: { files: [], types: ['text/plain'] } });
+
+    w.element.dispatchEvent(event);
+    await flushPromises();
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(artifactCreateText).not.toHaveBeenCalled();
+    expect(artifactCreateWithFile).not.toHaveBeenCalled();
+  });
+});
+
 describe('ArtifactViewer — attachment link', () => {
   it('opens the stored file when the attachment link is clicked', async () => {
     const href = buildAttachmentHref('a1', 'att-1');

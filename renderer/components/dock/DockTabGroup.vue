@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { nextTick, type Component } from 'vue';
-import type { PaneId } from '../../dock-types.js';
+import type { DockSide, PaneId } from '../../dock-types.js';
 import { getPaneDescriptor } from '../../dock-types.js';
 import DockPane from './DockPane.vue';
 
@@ -9,13 +9,25 @@ const props = defineProps<{
   activeTab: PaneId;
   focusedPaneId: PaneId | null;
   paneComponents: Readonly<Record<PaneId, Component>>;
+  draggedPaneId?: PaneId | null;
 }>();
 
 const emit = defineEmits<{
   focus: [paneId: PaneId, focusedItemId?: string];
   activate: [paneId: PaneId];
   close: [paneId: PaneId];
+  'drag-start': [paneId: PaneId, event: PointerEvent];
+  'dock-edge': [paneId: PaneId, side: DockSide];
+  reorder: [paneId: PaneId, index: number];
 }>();
+
+/** Keyboard equivalents of an outer-edge drag, for users who cannot drag. */
+const EDGE_KEYS: Record<string, DockSide> = {
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+  ArrowUp: 'top',
+  ArrowDown: 'bottom',
+};
 
 const tabRefs = new Map<PaneId, HTMLElement>();
 
@@ -39,6 +51,25 @@ function selectTab(paneId: PaneId): void {
 
 function onTabKey(event: KeyboardEvent, paneId: PaneId): void {
   const index = props.tabs.indexOf(paneId);
+
+  // Ctrl+Shift+Arrow docks the pane to a workspace edge and Ctrl+Shift+PageUp/Down
+  // reorders it — the keyboard equivalents of the two drag gestures. Checked
+  // before plain arrow navigation so the modifier changes the meaning, not the target.
+  if (event.ctrlKey && event.shiftKey) {
+    const side = EDGE_KEYS[event.key];
+    if (side) {
+      event.preventDefault();
+      emit('dock-edge', paneId, side);
+      return;
+    }
+    if (event.key === 'PageUp' || event.key === 'PageDown') {
+      event.preventDefault();
+      emit('reorder', paneId, index + (event.key === 'PageDown' ? 1 : -1));
+      focusTab(paneId);
+      return;
+    }
+  }
+
   let nextIndex = -1;
   if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = (index + 1) % props.tabs.length;
   if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = (index - 1 + props.tabs.length) % props.tabs.length;
@@ -64,18 +95,23 @@ function onPaneFocus(paneId: PaneId, focusedItemId?: string): void {
 
 <template>
   <section class="dock-tab-group" :data-dock-group-active="activeTab">
-    <div class="dock-tabs" role="tablist" :aria-label="`${activeTab} tab group`">
-      <div v-for="paneId in tabs" :key="paneId" class="dock-tab-entry">
+    <div class="dock-tabs" role="tablist" data-dock-tabs :aria-label="`${activeTab} tab group`">
+      <div v-for="paneId in tabs" :key="paneId" class="dock-tab-entry" :data-dock-tab-id="paneId">
         <button
           :ref="(element) => setTabRef(paneId, element)"
           class="dock-tab"
-          :class="{ 'dock-tab--active': paneId === activeTab, 'dock-tab--focused': paneId === focusedPaneId }"
+          :class="{
+            'dock-tab--active': paneId === activeTab,
+            'dock-tab--focused': paneId === focusedPaneId,
+            'dock-tab--dragging': paneId === draggedPaneId,
+          }"
           type="button"
           role="tab"
           :id="`dock-tab-${paneId}`"
           :aria-controls="`dock-pane-${paneId}`"
           :aria-selected="paneId === activeTab"
           :tabindex="paneId === activeTab ? 0 : -1"
+          @pointerdown="emit('drag-start', paneId, $event)"
           @click="selectTab(paneId)"
           @keydown="onTabKey($event, paneId)"
         >

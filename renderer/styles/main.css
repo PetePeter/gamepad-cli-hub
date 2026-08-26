@@ -245,6 +245,7 @@ button {
   min-height: 0;
 }
 .dock-workspace {
+  position: relative;
   display: flex;
   flex: 1;
   overflow: hidden;
@@ -300,6 +301,36 @@ button {
 .dock-tab-close { padding: 0 6px; color: var(--text-dim); font-size: 15px; }
 .dock-tab-close:hover,
 .dock-tab-close:focus-visible { color: var(--text-primary); background: var(--bg-tertiary); }
+.dock-tab--dragging { opacity: 0.5; }
+/* Drag overlay: the preview and ghost sit above every pane but must never
+ * intercept the pointer, or the drop target under the cursor would be the
+ * overlay itself. */
+.dock-preview-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+.dock-preview {
+  position: absolute;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border: 1px solid var(--accent);
+  transition: left 60ms ease, top 60ms ease, width 60ms ease, height 60ms ease;
+}
+.dock-preview--reorder { background: var(--accent); border: none; }
+.dock-drag-ghost {
+  position: absolute;
+  padding: 3px 8px;
+  color: var(--text-primary);
+  font-size: 11px;
+  white-space: nowrap;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm, 3px);
+  transform: translate(10px, 10px);
+  opacity: 0.92;
+}
+body.dock-dragging { cursor: grabbing; user-select: none; }
 .dock-splitter {
   z-index: 2;
   width: 4px;

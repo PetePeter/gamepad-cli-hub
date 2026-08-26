@@ -481,10 +481,14 @@ function onDragLeave(): void {
 }
 
 async function onDrop(e: DragEvent): Promise<void> {
-  e.preventDefault();
   isDragOver.value = false;
-  const files = e.dataTransfer?.files;
-  if (!files || files.length === 0) return;
+  // Only file drops belong to the artifact panel. Any other drag — a session
+  // card, a dock pane — must pass through untouched, so the panel never claims
+  // a drop it cannot handle.
+  if (!e.dataTransfer?.types.includes('Files')) return;
+  e.preventDefault();
+  const files = e.dataTransfer.files;
+  if (files.length === 0) return;
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];

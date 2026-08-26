@@ -10,7 +10,9 @@
 import { computed, readonly, ref, type ComputedRef, type Ref } from 'vue';
 import {
   closePane,
+  canReorderTab,
   createDefaultLayout,
+  dockPaneToEdge,
   findPaneGroup,
   listFocusablePanes,
   listPanes,
@@ -35,6 +37,7 @@ import {
   getPaneDescriptor,
   PANE_TERMINAL,
   type DockMode,
+  type DockSide,
   type DockWorkspaceLayout,
   type DockNodePath,
   type DropTarget,
@@ -62,6 +65,8 @@ export interface DockWorkspace {
   /** Cycle focus through panes in pinned docks. */
   cycleFocus: (direction: 1 | -1) => void;
   move: (paneId: PaneId, target: DropTarget) => void;
+  /** Dock a pane against an outer workspace edge; the rest of the tree moves aside. */
+  dockToEdge: (paneId: PaneId, side: DockSide) => void;
   reorder: (paneId: PaneId, index: number) => void;
   activate: (paneId: PaneId) => void;
   setMode: (paneId: PaneId, mode: DockMode) => void;
@@ -221,7 +226,12 @@ export function useDockWorkspace(initial?: DockWorkspaceLayout, options: DockWor
     setFocusedItemId,
     cycleFocus,
     move: (paneId, target) => apply(movePane(layoutState.value, paneId, target)),
-    reorder: (paneId, index) => apply(reorderTab(layoutState.value, paneId, index)),
+    dockToEdge: (paneId, side) => apply(dockPaneToEdge(layoutState.value, paneId, side)),
+    reorder: (paneId, index) => {
+      if (canReorderTab(layoutState.value, paneId, index)) {
+        apply(reorderTab(layoutState.value, paneId, index));
+      }
+    },
     activate: (paneId) => apply(setActiveTab(layoutState.value, paneId)),
     setMode: (paneId, mode) => apply(setDockMode(layoutState.value, paneId, mode)),
     close: (paneId) => apply(closePane(layoutState.value, paneId)),

@@ -12,6 +12,7 @@ import {
   DOCK_PANES,
   getPaneDescriptor,
   isKnownPane,
+  OUTER_EDGE_RATIO,
   PANE_ARTIFACTS,
   PANE_OVERVIEW,
   PANE_PLAN_DIRECTORIES,
@@ -336,6 +337,71 @@ export function movePane(layout: DockWorkspaceLayout, paneId: PaneId, target: Dr
   }
 
   return withRoot(layout, insertPane(detached, paneId, target), layout.closed.filter(id => id !== paneId));
+}
+
+/**
+ * Dock a pane against an outer workspace edge — the whole tree moves aside
+ * rather than one group splitting. Normalization flattens the new split into an
+ * existing same-direction root, so repeated edge docks stay shallow.
+ */
+export function dockPaneToEdge(
+  layout: DockWorkspaceLayout,
+  paneId: PaneId,
+  side: DockSide,
+): DockWorkspaceLayout {
+  assertKnown(paneId);
+  if (!DOCK_SIDES.includes(side)) throw new Error(`dock layout: unknown dock side "${side}"`);
+  if (!findPaneGroup(layout.root, paneId) && !layout.closed.includes(paneId)) {
+    throw new Error(`dock layout: pane "${paneId}" is neither docked nor closed`);
+  }
+
+  const detached = normalizeNode(removePane(layout.root, paneId));
+  if (!detached) throw new Error('dock layout: cannot move the last remaining pane');
+
+  // A side and its matching split zone are the same geometry, so they share one table.
+  const { direction, before } = ZONE_GEOMETRY[side];
+  const moved = group([paneId]);
+  const root = before
+    ? split(direction, [moved, detached], [OUTER_EDGE_RATIO, 1 - OUTER_EDGE_RATIO])
+    : split(direction, [detached, moved], [1 - OUTER_EDGE_RATIO, OUTER_EDGE_RATIO]);
+
+  return withRoot(layout, root, layout.closed.filter(id => id !== paneId));
+}
+
+/**
+ * Whether `movePane` would both succeed and change something. The drag layer
+ * asks before it highlights, so a preview is never drawn over a drop that would
+ * throw or silently do nothing.
+ */
+export function canDropPane(layout: DockWorkspaceLayout, paneId: PaneId, target: DropTarget): boolean {
+  if (!isKnownPane(paneId) || !isKnownPane(target.paneId)) return false;
+  if (!DROP_ZONES.includes(target.zone)) return false;
+  if (paneId === target.paneId) return false;
+  if (!findPaneGroup(layout.root, paneId) && !layout.closed.includes(paneId)) return false;
+
+  const targetGroup = findPaneGroup(layout.root, target.paneId);
+  if (!targetGroup) return false;
+  // Re-tabbing a pane into the group it already sits in is a no-op, not a move.
+  if (target.zone === 'center' && targetGroup.tabs.includes(paneId)) return false;
+  // Splitting a group off from itself would strand the target.
+  if (target.zone !== 'center' && targetGroup.tabs.length === 1 && targetGroup.tabs.includes(paneId)) return false;
+  return true;
+}
+
+/** Whether `dockPaneToEdge` would succeed — used to gate the outer-edge preview. */
+export function canDockPaneToEdge(layout: DockWorkspaceLayout, paneId: PaneId, side: DockSide): boolean {
+  if (!isKnownPane(paneId) || !DOCK_SIDES.includes(side)) return false;
+  if (!findPaneGroup(layout.root, paneId) && !layout.closed.includes(paneId)) return false;
+  return !!normalizeNode(removePane(layout.root, paneId));
+}
+
+/** Whether reordering a tab would change its group's tab sequence. */
+export function canReorderTab(layout: DockWorkspaceLayout, paneId: PaneId, index: number): boolean {
+  const groupNode = findPaneGroup(layout.root, paneId);
+  if (!groupNode) return false;
+  const current = groupNode.tabs.indexOf(paneId);
+  const clamped = Math.max(0, Math.min(index, groupNode.tabs.length - 1));
+  return clamped !== current;
 }
 
 /** Reorder a tab inside its own group. The index is clamped, never dropped. */

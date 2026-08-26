@@ -7,6 +7,10 @@ import {
   findPaneGroup,
   isPaneHidden,
   movePane,
+  dockPaneToEdge,
+  canDropPane,
+  canDockPaneToEdge,
+  canReorderTab,
   reorderTab,
   setActiveTab,
   setDockMode,
@@ -19,6 +23,7 @@ import {
 import {
   DOCK_LAYOUT_VERSION,
   DOCK_PANES,
+  OUTER_EDGE_RATIO,
   PANE_ARTIFACTS,
   PANE_OVERVIEW,
   PANE_PLAN_DIRECTORIES,
@@ -189,6 +194,84 @@ describe('movePane', () => {
   });
 });
 
+describe('dockPaneToEdge', () => {
+  it('moves the rest of the tree aside and gives the pane the outer-edge share', () => {
+    const layout = layoutOf(group([PANE_TERMINAL, PANE_OVERVIEW]));
+
+    const left = dockPaneToEdge(layout, PANE_OVERVIEW, 'left');
+    expect(left.root).toEqual({
+      type: 'split',
+      direction: 'horizontal',
+      sizes: [OUTER_EDGE_RATIO, 1 - OUTER_EDGE_RATIO],
+      children: [group([PANE_OVERVIEW]), group([PANE_TERMINAL])],
+    });
+
+    const bottom = dockPaneToEdge(layout, PANE_OVERVIEW, 'bottom');
+    expect(bottom.root).toMatchObject({
+      type: 'split',
+      direction: 'vertical',
+      children: [group([PANE_TERMINAL]), group([PANE_OVERVIEW])],
+    });
+    expect(layout.root).toEqual(group([PANE_TERMINAL, PANE_OVERVIEW])); // input untouched
+  });
+
+  it('flattens into an existing same-direction root instead of nesting', () => {
+    const layout = layoutOf({
+      type: 'split',
+      direction: 'horizontal',
+      sizes: [0.5, 0.5],
+      children: [group([PANE_TERMINAL]), group([PANE_OVERVIEW])],
+    });
+
+    const next = dockPaneToEdge(layout, PANE_OVERVIEW, 'right');
+    expect(next.root.type).toBe('split');
+    expect((next.root as DockSplitNode).children).toHaveLength(2);
+    expect(listPanes(next.root)).toEqual([PANE_TERMINAL, PANE_OVERVIEW]);
+  });
+
+  it('restores a closed pane straight to an edge', () => {
+    const layout = layoutOf(group([PANE_TERMINAL]), [PANE_OVERVIEW]);
+    const next = dockPaneToEdge(layout, PANE_OVERVIEW, 'top');
+    expect(next.closed).toEqual([]);
+    expect(listPanes(next.root)).toEqual([PANE_OVERVIEW, PANE_TERMINAL]);
+  });
+
+  it('rejects unknown panes, unknown sides and the last remaining pane', () => {
+    const layout = layoutOf(group([PANE_TERMINAL]));
+    expect(() => dockPaneToEdge(layout, 'nope', 'left')).toThrow(/unknown pane/i);
+    expect(() => dockPaneToEdge(layout, PANE_TERMINAL, 'middle' as never)).toThrow(/unknown dock side/i);
+    expect(() => dockPaneToEdge(layout, PANE_TERMINAL, 'left')).toThrow(/last remaining pane/i);
+  });
+});
+
+describe('drop validity', () => {
+  const layout = layoutOf({
+    type: 'split',
+    direction: 'horizontal',
+    sizes: [0.5, 0.5],
+    children: [group([PANE_TERMINAL, PANE_OVERVIEW]), group([PANE_ARTIFACTS])],
+  });
+
+  it('accepts a real move and rejects impossible or no-op drops', () => {
+    expect(canDropPane(layout, PANE_OVERVIEW, { paneId: PANE_ARTIFACTS, zone: 'center' })).toBe(true);
+    expect(canDropPane(layout, PANE_OVERVIEW, { paneId: PANE_TERMINAL, zone: 'right' })).toBe(true);
+    // Already tabbed with the target — re-tabbing changes nothing.
+    expect(canDropPane(layout, PANE_OVERVIEW, { paneId: PANE_TERMINAL, zone: 'center' })).toBe(false);
+    expect(canDropPane(layout, PANE_OVERVIEW, { paneId: PANE_OVERVIEW, zone: 'center' })).toBe(false);
+    expect(canDropPane(layout, 'nope', { paneId: PANE_TERMINAL, zone: 'center' })).toBe(false);
+    expect(canDropPane(layout, PANE_OVERVIEW, { paneId: PANE_TERMINAL, zone: 'middle' as never })).toBe(false);
+    expect(canDropPane(layout, PANE_SCHEDULER, { paneId: PANE_TERMINAL, zone: 'center' })).toBe(false);
+  });
+
+  it('rejects splitting a solitary group away from itself', () => {
+    const solo = layoutOf(group([PANE_TERMINAL]));
+    expect(canDropPane(solo, PANE_TERMINAL, { paneId: PANE_TERMINAL, zone: 'right' })).toBe(false);
+    expect(canDockPaneToEdge(solo, PANE_TERMINAL, 'left')).toBe(false);
+    expect(canDockPaneToEdge(layout, PANE_OVERVIEW, 'left')).toBe(true);
+    expect(canDockPaneToEdge(layout, PANE_OVERVIEW, 'middle' as never)).toBe(false);
+  });
+});
+
 describe('tab operations', () => {
   it('reorders a tab within its group', () => {
     const layout = layoutOf(group([PANE_TERMINAL, PANE_OVERVIEW, PANE_PLAN_SCREEN], PANE_TERMINAL));
@@ -202,6 +285,9 @@ describe('tab operations', () => {
     const layout = layoutOf(group([PANE_TERMINAL, PANE_OVERVIEW]));
     expect(findPaneGroup(reorderTab(layout, PANE_TERMINAL, 99).root, PANE_TERMINAL)?.tabs)
       .toEqual([PANE_OVERVIEW, PANE_TERMINAL]);
+    expect(canReorderTab(layout, PANE_TERMINAL, 99)).toBe(true);
+    expect(canReorderTab(layout, PANE_TERMINAL, 0)).toBe(false);
+    expect(canReorderTab(layout, 'missing', 0)).toBe(false);
   });
 
   it('activates a tab only within its own group', () => {

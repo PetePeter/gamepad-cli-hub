@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, type Component, type CSSProperties } from 'vue';
-import type { DockNodePath, DockNode, PaneId } from '../../dock-types.js';
+import type { DockNodePath, DockNode, DockSide, PaneId } from '../../dock-types.js';
+import { DOCK_MIN_TRACK_PX, DOCK_SPLITTER_PX } from '../../dock-types.js';
 import { isDockCollapsed, listPanes } from '../../dock-layout.js';
 import DockSplitter from './DockSplitter.vue';
 import DockTabGroup from './DockTabGroup.vue';
@@ -13,6 +14,7 @@ const props = defineProps<{
   focusedPaneId: PaneId | null;
   paneComponents: Readonly<Record<PaneId, Component>>;
   revealedPaneIds: readonly PaneId[];
+  draggedPaneId?: PaneId | null;
 }>();
 
 const emit = defineEmits<{
@@ -22,6 +24,9 @@ const emit = defineEmits<{
   'resize-split': [path: DockNodePath, sizes: number[]];
   'reveal-pane': [paneId: PaneId];
   'autohide-close': [paneId: PaneId];
+  'drag-start': [paneId: PaneId, event: PointerEvent];
+  'dock-edge': [paneId: PaneId, side: DockSide];
+  'reorder-tab': [paneId: PaneId, index: number];
 }>();
 
 const splitRef = ref<HTMLElement | null>(null);
@@ -42,10 +47,11 @@ function splitStyle(): CSSProperties {
   // A collapsed dock gets an auto (rail-sized) track instead of an `fr` share,
   // so closing it hands its space back to its siblings rather than leaving a gap.
   const tracks = node.children.map((child, index) =>
-    collapsed(child) ? 'auto' : `minmax(96px, ${node.sizes[index]}fr)`);
+    collapsed(child) ? 'auto' : `minmax(${DOCK_MIN_TRACK_PX}px, ${node.sizes[index]}fr)`);
+  const gap = ` ${DOCK_SPLITTER_PX}px `;
   return node.direction === 'horizontal'
-    ? { gridTemplateColumns: tracks.join(' 4px ') }
-    : { gridTemplateRows: tracks.join(' 4px ') };
+    ? { gridTemplateColumns: tracks.join(gap) }
+    : { gridTemplateRows: tracks.join(gap) };
 }
 
 function childPath(index: number): DockNodePath {
@@ -112,12 +118,16 @@ function onDockFocusOut(event: FocusEvent): void {
         :focused-pane-id="focusedPaneId"
         :pane-components="paneComponents"
         :revealed-pane-ids="revealedPaneIds"
+        :dragged-pane-id="draggedPaneId"
         @focus-pane="onFocusPane"
         @activate-pane="onActivatePane"
         @close-pane="onClosePane"
         @resize-split="(...args) => emit('resize-split', ...args)"
         @reveal-pane="(paneId) => emit('reveal-pane', paneId)"
         @autohide-close="(paneId) => emit('autohide-close', paneId)"
+        @drag-start="(...args) => emit('drag-start', ...args)"
+        @dock-edge="(...args) => emit('dock-edge', ...args)"
+        @reorder-tab="(...args) => emit('reorder-tab', ...args)"
       />
       <DockSplitter
         v-if="index < node.children.length - 1"
@@ -140,9 +150,13 @@ function onDockFocusOut(event: FocusEvent): void {
       :active-tab="node.activeTab"
       :focused-pane-id="focusedPaneId"
       :pane-components="paneComponents"
+      :dragged-pane-id="draggedPaneId"
       @focus="onFocusPane"
       @activate="onActivatePane"
       @close="onClosePane"
+      @drag-start="(...args) => emit('drag-start', ...args)"
+      @dock-edge="(...args) => emit('dock-edge', ...args)"
+      @reorder="(...args) => emit('reorder-tab', ...args)"
     />
   </div>
 
@@ -166,12 +180,16 @@ function onDockFocusOut(event: FocusEvent): void {
         :focused-pane-id="focusedPaneId"
         :pane-components="paneComponents"
         :revealed-pane-ids="revealedPaneIds"
+        :dragged-pane-id="draggedPaneId"
         @focus-pane="onFocusPane"
         @activate-pane="onActivatePane"
         @close-pane="onClosePane"
         @resize-split="(...args) => emit('resize-split', ...args)"
         @reveal-pane="(paneId) => emit('reveal-pane', paneId)"
         @autohide-close="(paneId) => emit('autohide-close', paneId)"
+        @drag-start="(...args) => emit('drag-start', ...args)"
+        @dock-edge="(...args) => emit('dock-edge', ...args)"
+        @reorder-tab="(...args) => emit('reorder-tab', ...args)"
       />
     </div>
     <button

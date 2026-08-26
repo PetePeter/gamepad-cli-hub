@@ -76,6 +76,36 @@ export interface DockWorkspaceLayout {
 
 export const DOCK_LAYOUT_VERSION = 1;
 
+// ---------------------------------------------------------------------------
+// Shared geometry
+//
+// The single source for the numbers the model, the drag preview and the CSS grid
+// must agree on. A preview rectangle is only honest if it is derived from the
+// same constants the committed tree and the rendered tracks use.
+// ---------------------------------------------------------------------------
+
+/** Share the moved pane receives when it docks to an outer workspace edge. */
+export const OUTER_EDGE_RATIO = 0.25;
+
+/** Width/height (px) of the splitter track rendered between two split children. */
+export const DOCK_SPLITTER_PX = 4;
+
+/** `minmax()` floor (px) of a non-collapsed split track. */
+export const DOCK_MIN_TRACK_PX = 96;
+
+/**
+ * Size of one track of a two-child split, as the grid actually resolves it.
+ *
+ * `minmax(96px, Nfr)` means the `fr` share is a request, not a promise: the
+ * floor wins for the small track, and the sibling's floor caps the large one.
+ * Below two floors the browser shrinks both equally.
+ */
+export function splitTrackSize(total: number, ratio: number): number {
+  const available = Math.max(0, total - DOCK_SPLITTER_PX);
+  if (available <= DOCK_MIN_TRACK_PX * 2) return available / 2;
+  return Math.min(Math.max(available * ratio, DOCK_MIN_TRACK_PX), available - DOCK_MIN_TRACK_PX);
+}
+
 export const PANE_TERMINAL = 'terminal';
 export const PANE_OVERVIEW = 'overview';
 export const PANE_PLAN_SCREEN = 'plan-screen';

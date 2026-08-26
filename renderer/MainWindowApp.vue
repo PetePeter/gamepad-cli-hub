@@ -119,7 +119,7 @@ import { useFlashAttention } from './composables/useFlashAttention.js';
 import { listRegisteredPanes, useDockWorkspace } from './composables/useDockWorkspace.js';
 import DockViewMenu from './components/dock/DockViewMenu.vue';
 import DockWorkspace from './components/dock/DockWorkspace.vue';
-import type { PaneId } from './dock-types.js';
+import type { DockSide, DropTarget, PaneId } from './dock-types.js';
 
 // ============================================================================
 // Reactive view state
@@ -255,6 +255,37 @@ function onDockAutohideClose(paneId: PaneId): void {
 function onDockResize(path: number[], sizes: number[]): void {
   dockWorkspace.resize(path, sizes);
   refitTerminalsSoon();
+}
+
+/**
+ * Drag/keyboard layout moves. The model is the only authority, so a rejected
+ * move simply leaves the layout untouched; the terminal host is adopted by the
+ * new pane element rather than remounted, so PTY ownership never changes.
+ */
+function onDockMovePane(paneId: PaneId, target: DropTarget): void {
+  try {
+    dockWorkspace.move(paneId, target);
+    refitTerminalsSoon();
+  } catch {
+    // An invalid drop leaves the previous layout in place.
+  }
+}
+
+function onDockReorderTab(paneId: PaneId, index: number): void {
+  try {
+    dockWorkspace.reorder(paneId, index);
+  } catch {
+    // Reorder is clamped by the model; an unknown pane is simply ignored.
+  }
+}
+
+function onDockPaneEdge(paneId: PaneId, side: DockSide): void {
+  try {
+    dockWorkspace.dockToEdge(paneId, side);
+    refitTerminalsSoon();
+  } catch {
+    // Docking the last remaining pane to an edge is rejected by the model.
+  }
 }
 
 // main-view-manager stays the view transition authority; the dock mirrors it.
@@ -1099,6 +1130,9 @@ onUnmounted(() => {
           @resize-split="onDockResize"
           @reveal-pane="onDockRevealPane"
           @autohide-close="onDockAutohideClose"
+          @move-pane="onDockMovePane"
+          @reorder-tab="onDockReorderTab"
+          @dock-pane-edge="onDockPaneEdge"
         />
         <div v-if="chipActionBarVisible && activeView === 'terminal'" class="chip-action-dock">
           <ChipActionBar
