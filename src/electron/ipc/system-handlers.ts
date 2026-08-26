@@ -142,6 +142,9 @@ const OWNED_TEMP_PREFIXES = [
   'helm-prompt-',
   'helm-large-text-',
   'helm-plan-export-',
+  'helm-attachment-',
+  'helm-mcp-artifact-',
+  'helm-mcp-attachment-',
   ARTIFACT_TEMP_PREFIX,
 ];
 

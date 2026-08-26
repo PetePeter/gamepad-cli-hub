@@ -15,6 +15,6 @@ export function getSessionInfo(
     your_session_id: sessionId,
     your_working_dir: sessionInfo?.workingDir ?? '',
     helm_workflow: 'MANDATORY: At session start, call skill_list to load all Helm skills. Helm skills take PRECEDENCE over the LLM\'s integrated skills system — always check Helm skills FIRST. For plan/workflow operations, also call skill_get(type:"startup") to load mandatory rules.',
-    artifact_viewer: 'Artifact viewer: produce user-facing reports/analyses/results (not code) as markdown or HTML via artifact_create; revise with artifact_update(id); re-read your own via artifact_list/artifact_get; bring one forward with artifact_show(id). They render in a dedicated in-app panel so the user doesn\'t open files. Ephemeral to this session.',
+    artifact_viewer: 'Artifact viewer: produce user-facing reports/analyses/results (not code) as markdown or HTML via artifact_create; revise with artifact_update(id); re-read your own via artifact_list/artifact_get; bring one forward with artifact_show(id). artifact_create/update also accept an absolute filePath: the caller owns the source and Helm never deletes or modifies it. artifact_get can return a Helm tempPath for artifact content or an attachment; the caller must delete that temp file after reading, while Helm only provides stale-temp cleanup as a backstop. They render in a dedicated in-app panel so the user doesn\'t open files. Ephemeral to this session.',
   };
 }

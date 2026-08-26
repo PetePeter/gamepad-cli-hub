@@ -43,6 +43,15 @@ import { buildTelegramGuide } from './guides/telegram-guide.js';
 import { buildStartupGuide } from './guides/startup-guide.js';
 import type { ProjectStore } from '../session/project-store.js';
 import { CapabilityDetector } from '../session/capability-detector.js';
+import { randomUUID } from 'node:crypto';
+import { readFileSync, statSync, writeFileSync, copyFileSync, mkdirSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { getTempDir } from '../utils/app-paths.js';
+import { sanitizeFilename } from '../session/artifact-temp-file.js';
+import { createArtifactFromBytes, updateArtifactFromBytes } from '../session/artifact-file-import.js';
+import type { ArtifactAttachmentManager } from '../session/artifact-attachment-manager.js';
+import type { ArtifactAttachment } from '../types/artifact-attachment.js';
 export { parseSubmitSuffix } from './submit-suffix.js';
 
 const SKILL_FEEDBACK_FOOTER = '---\nSkill applied. Call skill_submit_feedback("{skillId}", stars, summary, improvement?) to rate it.';
@@ -143,6 +152,7 @@ export class HelmControlService extends EventEmitter {
   private readonly telegramService: HelmTelegramService;
   private notificationManager: NotificationManager | null = null;
   private artifactManager?: import('../session/artifact-manager.js').ArtifactManager;
+  private artifactAttachmentManager?: ArtifactAttachmentManager;
   private readonly schedulerService: HelmSchedulerService | null;
   private readonly projectService: HelmProjectService | null;
   private readonly directoryService: HelmDirectoryService;
@@ -262,8 +272,12 @@ export class HelmControlService extends EventEmitter {
   }
 
   /** Wire the ArtifactManager so the artifact_* MCP tools can produce session reports. */
-  setArtifactManager(manager: import('../session/artifact-manager.js').ArtifactManager): void {
+  setArtifactManager(
+    manager: import('../session/artifact-manager.js').ArtifactManager,
+    attachmentManager?: ArtifactAttachmentManager,
+  ): void {
     this.artifactManager = manager;
+    this.artifactAttachmentManager = attachmentManager;
   }
 
   /**
@@ -306,6 +320,22 @@ export class HelmControlService extends EventEmitter {
     return this.requireArtifactManager().create(sessionId, title, kind, content);
   }
 
+  createArtifactFromFile(
+    sessionId: string,
+    filePath: string,
+    title?: string,
+    contentType?: string,
+  ): ReturnType<typeof createArtifactFromBytes> {
+    const input = readArtifactInputFile(filePath, contentType);
+    return createArtifactFromBytes(
+      this.requireArtifactManager(),
+      this.requireArtifactAttachmentManager(),
+      sessionId,
+      input,
+      title,
+    );
+  }
+
   /**
    * Resolve an artifact and assert it belongs to the calling session. Artifacts
    * are session-scoped: a session must never read or mutate another session's
@@ -325,6 +355,21 @@ export class HelmControlService extends EventEmitter {
     const updated = this.requireArtifactManager().update(id, content);
     if (!updated) throw new Error(`Artifact not found: ${id}`);
     return updated;
+  }
+
+  updateArtifactFromFile(
+    callerSessionId: string,
+    id: string,
+    filePath: string,
+    contentType?: string,
+  ): ReturnType<typeof updateArtifactFromBytes> {
+    const artifact = this.requireOwnedArtifact(callerSessionId, id);
+    return updateArtifactFromBytes(
+      this.requireArtifactManager(),
+      this.requireArtifactAttachmentManager(),
+      artifact,
+      readArtifactInputFile(filePath, contentType),
+    );
   }
 
   showArtifact(callerSessionId: string, id: string): { id: string; revealed: true } {
@@ -357,13 +402,59 @@ export class HelmControlService extends EventEmitter {
     }));
   }
 
-  /** Full artifact (latest version), or a specific version's content when requested. */
-  getArtifact(callerSessionId: string, id: string, version?: number): Artifact & { requestedVersionContent?: string } {
+  /** Full artifact inline, or a managed temp path when requested. */
+  getArtifact(
+    callerSessionId: string,
+    id: string,
+    version?: number,
+    options?: { asFile?: boolean; attachmentId?: string },
+  ): (Artifact & { requestedVersionContent?: string }) | { artifactId: string; version: number; tempPath: string } | { artifactId: string; attachment: ArtifactAttachment; tempPath: string } {
     const artifact = this.requireOwnedArtifact(callerSessionId, id);
+    if (options?.attachmentId) {
+      if (options.asFile) throw new Error('attachmentId and asFile cannot be used together');
+      return this.copyArtifactAttachmentToTemp(artifact, options.attachmentId);
+    }
+    if (options?.asFile) {
+      const shown = artifact.versions.find(v => v.version === version);
+      if (version !== undefined && !shown) throw new Error(`Artifact ${id} has no version ${version}`);
+      const selected = shown ?? artifact.versions[artifact.versions.length - 1];
+      return {
+        artifactId: artifact.id,
+        version: selected.version,
+        tempPath: this.writeArtifactVersionToTemp(artifact, selected.version, selected.content),
+      };
+    }
     if (version === undefined) return artifact;
     const match = artifact.versions.find(v => v.version === version);
     if (!match) throw new Error(`Artifact ${id} has no version ${version}`);
     return { ...artifact, requestedVersionContent: match.content };
+  }
+
+  private requireArtifactAttachmentManager(): ArtifactAttachmentManager {
+    if (!this.artifactAttachmentManager) {
+      throw new Error('Artifacts are not available: ArtifactAttachmentManager is not configured.');
+    }
+    return this.artifactAttachmentManager;
+  }
+
+  private writeArtifactVersionToTemp(artifact: Artifact, version: number, content: string): string {
+    const tempDir = getTempDir(dirname(fileURLToPath(import.meta.url)));
+    const tempPath = join(tempDir, `helm-mcp-artifact-${randomUUID()}-${sanitizeFilename(artifact.sessionId)}--${sanitizeFilename(artifact.title)}-${version}.${artifact.kind === 'html' ? 'html' : 'md'}`);
+    mkdirSync(tempDir, { recursive: true });
+    writeFileSync(tempPath, content, 'utf8');
+    return tempPath;
+  }
+
+  private copyArtifactAttachmentToTemp(artifact: Artifact, attachmentId: string): { artifactId: string; attachment: ArtifactAttachment; tempPath: string } {
+    const attachmentManager = this.requireArtifactAttachmentManager();
+    const attachment = attachmentManager.get(artifact.id, attachmentId);
+    if (!attachment) throw new Error(`Attachment not found: ${attachmentId}`);
+    const sourcePath = attachmentManager.getPath(artifact.id, attachmentId);
+    const tempDir = getTempDir(dirname(fileURLToPath(import.meta.url)));
+    const tempPath = join(tempDir, `helm-mcp-attachment-${randomUUID()}-${sanitizeFilename(attachment.filename)}`);
+    mkdirSync(tempDir, { recursive: true });
+    copyFileSync(sourcePath, tempPath);
+    return { artifactId: artifact.id, attachment, tempPath };
   }
 
   invalidateCapabilityCache(): void {
@@ -966,4 +1057,22 @@ function appendSkillFeedbackFooter(body: string, skillId: string): string {
 
 function toMcpSkillSummary(skill: SkillSummary): McpSkillSummary {
   return { id: skill.id, name: skill.name, triggerCondition: skill.description };
+}
+
+const MCP_FILE_MAX_BYTES = 10 * 1024 * 1024;
+
+function readArtifactInputFile(filePath: string, contentType?: string): {
+  filename: string;
+  content: Buffer;
+  contentType?: string;
+} {
+  if (!isAbsolute(filePath)) throw new Error('filePath must be an absolute path');
+  const fileStat = statSync(filePath);
+  if (!fileStat.isFile()) throw new Error('filePath must point to a regular file');
+  if (fileStat.size > MCP_FILE_MAX_BYTES) throw new Error('File exceeds 10MB size limit');
+  return {
+    filename: basename(filePath),
+    content: readFileSync(filePath),
+    ...(contentType ? { contentType } : {}),
+  };
 }

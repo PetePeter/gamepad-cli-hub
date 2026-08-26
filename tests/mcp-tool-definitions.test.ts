@@ -27,4 +27,14 @@ describe('MCP tool definitions (P-0343)', () => {
     const required: string[] = def!.inputSchema.required ?? [];
     expect(required).not.toContain('expectedUpdatedAt');
   });
+
+  it('documents file ownership and temp-path cleanup for artifact MCP tools', () => {
+    const create = MCP_TOOLS.find((t) => t.name === 'artifact_create')!;
+    const update = MCP_TOOLS.find((t) => t.name === 'artifact_update')!;
+    const get = MCP_TOOLS.find((t) => t.name === 'artifact_get')!;
+    expect(create.description).toContain('caller owns the source file');
+    expect(update.inputSchema.properties).toHaveProperty('filePath');
+    expect(get.inputSchema.properties).toHaveProperty('asFile');
+    expect(get.description).toContain('caller-owned');
+  });
 });

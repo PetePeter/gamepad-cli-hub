@@ -516,7 +516,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'plan_attachment_add',
     title: 'Add Plan Attachment',
-    description: 'Attach an existing file to a plan by providing its local file path. The file is copied into Helm config-managed storage. Use plan_get_id to convert P-00xx format to UUID.',
+    description: 'Attach an existing file to a plan by providing its local file path. The path is resolved on the Helm instance handling the call (for peer calls, the receiving instance). The caller owns the source file: Helm reads and copies it but never deletes or modifies it. The stored copy is owned by Helm in Helm config-managed storage and remains until plan_attachment_delete or plan deletion. Use plan_get_id to convert P-00xx format to UUID.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -531,7 +531,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'plan_attachment_delete',
     title: 'Delete Plan Attachment',
-    description: 'Delete a stored attachment from a plan by UUID and attachmentId. Use plan_get_id to convert P-00xx format to UUID.',
+    description: 'Delete a stored attachment from a plan by UUID and attachmentId. Helm deletes its managed copy; this does not affect the caller-owned source file originally supplied to plan_attachment_add. Use plan_get_id to convert P-00xx format to UUID.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -545,7 +545,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'plan_attachment_get',
     title: 'Get Plan Attachment Temp File',
-    description: 'Copy a stored attachment to a Helm temp file and return the tempPath plus metadata. This avoids inline raw or base64 content in MCP responses. Use plan_get_id to convert P-00xx format to UUID.',
+    description: 'Copy a stored attachment to a Helm temp file and return the tempPath plus metadata. The returned temp file is caller-owned for use and must be deleted promptly after reading; Helm may reap stale Helm-owned temp files on startup. This avoids inline raw or base64 content in MCP responses. Use plan_get_id to convert P-00xx format to UUID.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -944,6 +944,7 @@ export const MCP_TOOLS: McpTool[] = [
         name: { type: 'string' },
         lines: { type: 'number', minimum: 1 },
         mode: { type: 'string', enum: ['raw', 'stripped', 'both'] },
+        stripBlankLines: { type: 'boolean', description: 'When true, omit empty and whitespace-only rows from the returned tail.' },
       },
       additionalProperties: false,
     },
@@ -1243,15 +1244,20 @@ export const MCP_TOOLS: McpTool[] = [
     name: 'artifact_create',
     title: 'Create Artifact',
     description:
-      'Create a NEW readable report artifact for THIS session and show it in the user\'s in-app Artifact panel. Use for user-facing explanations, reports, analyses, results, or summaries the USER should read — NOT for code (write code to files instead). kind is "markdown" or "html". Returns the new artifact including its id. Auto-reveals (brings it forward) so the user sees it immediately. Ephemeral: artifacts belong to this session and are discarded when it closes. The session is resolved from your auth context — no sessionId argument.',
+      'Create a NEW readable report artifact for THIS session and show it in the user\'s in-app Artifact panel. Provide either inline content (title, kind, content) or an absolute local filePath. The path is resolved on the Helm instance handling the call (for peer calls, the receiving instance). For filePath, the caller owns the source file: Helm reads it during the call and never deletes or modifies it. Text files become readable markdown; binary files are stored as Helm-owned attachments. Returns the new artifact including its id. Auto-reveals (brings it forward) so the user sees it immediately. Ephemeral: artifacts belong to this session and are discarded when it closes. The session is resolved from your auth context — no sessionId argument.',
     inputSchema: {
       type: 'object',
       properties: {
         title: { type: 'string', description: 'Display title for the artifact.' },
         kind: { type: 'string', enum: ['markdown', 'html'], description: 'Renderable content kind.' },
         content: { type: 'string', description: 'The artifact body (markdown or HTML source).' },
+        filePath: { type: 'string', description: 'Absolute path to an existing source file. Caller owns this file; Helm reads it but never deletes or modifies it.' },
+        contentType: { type: 'string', description: 'Optional MIME type for filePath input.' },
       },
-      required: ['title', 'kind', 'content'],
+      oneOf: [
+        { required: ['title', 'kind', 'content'], not: { required: ['filePath'] } },
+        { required: ['filePath'], not: { required: ['content'] } },
+      ],
       additionalProperties: false,
     },
   },
@@ -1259,14 +1265,20 @@ export const MCP_TOOLS: McpTool[] = [
     name: 'artifact_update',
     title: 'Update Artifact',
     description:
-      'Append a NEW version to an existing artifact you created and bring it forward in the viewer. Use to revise a report/analysis/result as your work progresses. Prior versions are retained; the newest becomes the live content. Returns the updated artifact. Use for user-facing content only, not code.',
+      'Append a NEW version to an existing artifact you created and bring it forward in the viewer. Provide either inline content or an absolute local filePath. The path is resolved on the Helm instance handling the call (for peer calls, the receiving instance). For filePath, the caller owns the source file: Helm reads it during the call and never deletes or modifies it. Text files become the new readable version; binary files create a new Helm-owned attachment and metadata-card version. Prior versions and attachments are retained. Returns the updated artifact. Use for user-facing content only, not code.',
     inputSchema: {
       type: 'object',
       properties: {
         id: { type: 'string', description: 'The artifact id to revise.' },
         content: { type: 'string', description: 'The new full content body (becomes the latest version).' },
+        filePath: { type: 'string', description: 'Absolute path to an existing source file. Caller owns this file; Helm reads it but never deletes or modifies it.' },
+        contentType: { type: 'string', description: 'Optional MIME type for filePath input.' },
       },
-      required: ['id', 'content'],
+      required: ['id'],
+      oneOf: [
+        { required: ['content'], not: { required: ['filePath'] } },
+        { required: ['filePath'], not: { required: ['content'] } },
+      ],
       additionalProperties: false,
     },
   },
@@ -1287,7 +1299,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'artifact_delete',
     title: 'Delete Artifact',
-    description: 'Delete a single artifact by id from this session\'s in-app Artifact panel.',
+    description: 'Delete a single artifact by id from this session\'s in-app Artifact panel. Helm also deletes the artifact\'s managed attachment copies; it never deletes the caller-owned source files supplied through filePath.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1300,7 +1312,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'artifact_delete_all',
     title: 'Delete All Artifacts',
-    description: 'Clear ALL artifacts for THIS session (resolved from your auth context). Use to tidy up the panel when your reports are no longer needed.',
+    description: 'Clear ALL artifacts for THIS session (resolved from your auth context). Helm also deletes their managed attachment copies; it never deletes caller-owned source files supplied through filePath. Use to tidy up the panel when your reports are no longer needed.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -1322,12 +1334,14 @@ export const MCP_TOOLS: McpTool[] = [
     name: 'artifact_get',
     title: 'Get Artifact',
     description:
-      'Re-read one of your own artifacts by id. Returns the latest version by default, or the given version number\'s content. Use this to recover the content of a report/analysis you authored earlier this session.',
+      'Re-read one of your own artifacts by id. Returns the latest version by default, or the given version number\'s content. Use asFile=true to materialize the selected artifact source to a Helm temp path, or provide attachmentId to materialize an original binary attachment. The returned tempPath is on the Helm instance handling the call (for peer calls, the receiving instance), is caller-owned for use, and must be deleted promptly; Helm may reap stale Helm-owned temp files on startup. Use this to recover the content of a report/analysis you authored earlier this session.',
     inputSchema: {
       type: 'object',
       properties: {
         id: { type: 'string', description: 'The artifact id to read.' },
         version: { type: 'number', description: 'Optional 1-based version number; omit for the latest.' },
+        asFile: { type: 'boolean', description: 'Write the selected artifact source to a Helm temp file and return tempPath. Caller must delete tempPath after use.' },
+        attachmentId: { type: 'string', description: 'Materialize this original binary attachment to tempPath. Caller must delete tempPath after use.' },
       },
       required: ['id'],
       additionalProperties: false,

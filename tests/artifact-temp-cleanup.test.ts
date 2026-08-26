@@ -291,9 +291,12 @@ describe('read-only temp deletion', () => {
 // ─── 7-8. Startup sweep ──────────────────────────────────────────────────────
 
 describe('cleanupWorkTempFiles', () => {
-  it('removes read-only helm-artifact-* and helm-plan-export-* files', () => {
+  it('removes read-only Helm-owned artifact, attachment, and plan temp files', () => {
     const artifactTemp = writeTemp(artifactTempFileName('s1', 'Report', 'markdown', 1), true);
     const planTemp = writeTemp('helm-plan-export-Some_Plan-1.md', true);
+    const planAttachmentTemp = writeTemp('helm-attachment-att-1-note.txt', true);
+    const mcpArtifactTemp = writeTemp('helm-mcp-artifact-s1--Report-1.md', true);
+    const mcpAttachmentTemp = writeTemp('helm-mcp-attachment-att-1-note.txt', true);
     const workTemp = writeTemp('helm-work-1.md');
     const foreign = writeTemp('not-ours.md');
 
@@ -301,6 +304,9 @@ describe('cleanupWorkTempFiles', () => {
 
     expect(fs.existsSync(artifactTemp)).toBe(false);
     expect(fs.existsSync(planTemp)).toBe(false);
+    expect(fs.existsSync(planAttachmentTemp)).toBe(false);
+    expect(fs.existsSync(mcpArtifactTemp)).toBe(false);
+    expect(fs.existsSync(mcpAttachmentTemp)).toBe(false);
     expect(fs.existsSync(workTemp)).toBe(false);
     expect(fs.existsSync(foreign)).toBe(true);
   });

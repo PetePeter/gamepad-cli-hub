@@ -640,6 +640,15 @@ export async function callMcpTool(
         return service.deleteScheduledTask(asString(args.id, 'id is required'));
       case 'artifact_create': {
         const sessionId = requireCallerSession(authContext, 'artifact_create');
+        if (args.filePath !== undefined) {
+          if (args.content !== undefined) throw new Error('Provide either content or filePath, not both');
+          return service.createArtifactFromFile(
+            sessionId,
+            asString(args.filePath, 'filePath is required'),
+            args.title === undefined ? undefined : asString(args.title, 'title must not be empty'),
+            args.contentType === undefined ? undefined : asString(args.contentType, 'contentType must not be empty'),
+          );
+        }
         return service.createArtifact(
           sessionId,
           asString(args.title, 'title is required'),
@@ -649,6 +658,15 @@ export async function callMcpTool(
       }
       case 'artifact_update': {
         const sessionId = requireCallerSession(authContext, 'artifact_update');
+        if (args.filePath !== undefined) {
+          if (args.content !== undefined) throw new Error('Provide either content or filePath, not both');
+          return service.updateArtifactFromFile(
+            sessionId,
+            asString(args.id, 'id is required'),
+            asString(args.filePath, 'filePath is required'),
+            args.contentType === undefined ? undefined : asString(args.contentType, 'contentType must not be empty'),
+          );
+        }
         return service.updateArtifact(
           sessionId,
           asString(args.id, 'id is required'),
@@ -673,10 +691,15 @@ export async function callMcpTool(
       }
       case 'artifact_get': {
         const sessionId = requireCallerSession(authContext, 'artifact_get');
+        const asFile = args.asFile === undefined ? false : asBoolean(args.asFile, 'asFile must be a boolean');
+        const attachmentId = args.attachmentId === undefined
+          ? undefined
+          : asString(args.attachmentId, 'attachmentId must not be empty');
         return service.getArtifact(
           sessionId,
           asString(args.id, 'id is required'),
           typeof args.version === 'number' ? args.version : undefined,
+          { asFile, ...(attachmentId ? { attachmentId } : {}) },
         );
       }
       case 'peer_list':

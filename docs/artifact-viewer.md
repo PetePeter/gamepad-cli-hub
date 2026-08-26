@@ -73,13 +73,28 @@ surfaces the same `Artifact not found` error (no existence leak).
 
 | Tool | Args | Effect |
 |------|------|--------|
-| `artifact_create` | `title, kind('markdown'\|'html'), content` | New artifact (returns id); auto-reveals |
-| `artifact_update` | `id, content` | Append a version; brings forward |
+| `artifact_create` | `title, kind('markdown'\|'html'), content` **or** `filePath, title?, contentType?` | New artifact (returns id); auto-reveals. With `filePath`, the caller owns the source file; Helm reads it but never deletes or modifies it. |
+| `artifact_update` | `id, content` **or** `id, filePath, contentType?` | Append a version; brings forward. With `filePath`, the caller owns the source file; Helm reads it but never deletes or modifies it. |
 | `artifact_show` | `id` | Bring forward in the viewer (no change) |
-| `artifact_delete` | `id` | Delete one |
-| `artifact_delete_all` | — | Clear the caller's session |
+| `artifact_delete` | `id` | Delete one, including its Helm-owned attachment copies; caller-owned source files are never deleted |
+| `artifact_delete_all` | — | Clear the caller's session, including Helm-owned attachment copies; caller-owned source files are never deleted |
 | `artifact_list` | — | The caller's artifacts (id/title/kind/versionCount/timestamps) |
-| `artifact_get` | `id, version?` | Read own content (latest, or a specific version) |
+| `artifact_get` | `id, version?, asFile?, attachmentId?` | Read own content inline, or receive a Helm temp path for artifact content/attachment. Caller must delete returned `tempPath` after reading; Helm may reap stale temp files on startup. |
+
+### MCP file ownership
+
+For every MCP API that accepts `filePath`, the caller owns the source file. Helm
+only reads it during the call and never deletes or modifies it. The path is
+resolved on the Helm instance handling the call (for peer calls, the receiving
+instance). The source must remain available until the call returns; after a
+successful call the caller may delete it.
+
+For every MCP API that returns `tempPath`, Helm creates a temporary copy on the
+Helm instance handling the call for the caller. The caller must read it and
+delete it promptly. Helm's startup cleanup is only a safety net for stale files,
+not a replacement for caller cleanup. Stored
+artifact attachments are different: Helm owns those copies and they remain until
+the artifact or attachment is deleted through Helm.
 
 `session_info` advertises the viewer so any connected AI knows to post
 user-facing reports here rather than dumping files.

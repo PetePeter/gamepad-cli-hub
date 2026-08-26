@@ -12,16 +12,15 @@
 import { ipcMain, dialog, BrowserWindow, shell } from 'electron';
 import { readFile, stat, writeFile as fsWriteFile } from 'node:fs/promises';
 import { mkdirSync, writeFileSync, chmodSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
 import { basename, join } from 'node:path';
 import type { ArtifactManager } from '../../session/artifact-manager.js';
 import type { ArtifactAttachmentManager } from '../../session/artifact-attachment-manager.js';
-import { buildAttachmentHref, type ArtifactAttachment } from '../../types/artifact-attachment.js';
 import type { WindowManager } from '../window-manager.js';
 import { mimeForPath } from '../helm-img-protocol.js';
 import { setPendingDocument } from '../helm-artifact-protocol.js';
 import { sanitizeFilename, artifactExtension, artifactTempFileName } from '../../session/artifact-temp-file.js';
 import { ArtifactTempRegistry } from '../../session/artifact-temp-registry.js';
+import { createArtifactFromBytes } from '../../session/artifact-file-import.js';
 import { getTempDir } from '../../utils/app-paths.js';
 import { logger } from '../../utils/logger.js';
 
@@ -178,45 +177,16 @@ export function setupArtifactHandlers(
     }
     const buffer = Buffer.from(input.contentBase64, 'base64');
 
-    // The attachment is filed under the artifact's id, but the artifact must not
-    // exist until its real markdown is ready — creating it empty and updating it
-    // afterwards produced two versions and two reveal/changed events per drop.
-    // So mint the id up front, store the attachment, then create once.
-    const artifactId = randomUUID();
-
-    let attachment: ArtifactAttachment;
-    let mdContent: string;
     try {
-      attachment = attachmentManager.add(artifactId, {
+      return createArtifactFromBytes(artifactManager, attachmentManager, sessionId, {
         filename: input.filename,
         content: buffer,
         contentType: input.contentType,
-      });
-
-      // Build markdown content referencing the stored file
-      const absPath = attachmentManager.getPath(artifactId, attachment.id);
-      const isImage = input.contentType?.startsWith('image/');
-      if (isImage) {
-        mdContent = `![${input.filename}](${absPath})\n`;
-      } else {
-        // An app-internal href, NOT a filesystem path: the renderer's sanitizer
-        // strips file paths from <a href>, so the old absolute-path link was
-        // always dead on click. ArtifactViewer intercepts this scheme and calls
-        // artifact:openAttachment, which shell-opens the real stored file.
-        const href = buildAttachmentHref(artifactId, attachment.id);
-        mdContent = `**${input.filename}** — ${formatBytes(buffer.length)} — ${input.contentType ?? 'application/octet-stream'}\n\n📎 [Open in system viewer](${href})\n`;
-      }
+      }, undefined, 'manual', false);
     } catch (err) {
-      // No artifact exists yet, so nothing is stranded in the store — but a
-      // partially written attachment would linger under the unused id.
-      try { attachmentManager.deleteForArtifact(artifactId); } catch { /* best effort */ }
       logger.error(`[artifact:createWithFile] Failed to store ${input.filename}: ${err}`);
       throw err;
     }
-
-    const artifact = artifactManager.create(sessionId, input.filename, 'markdown', mdContent, 'manual', artifactId);
-
-    return { artifact, attachment };
   });
 
   /** Open a native file picker, read the file, return base64-encoded content. */
@@ -282,10 +252,4 @@ export function setupArtifactHandlers(
   });
 
   logger.info('[IPC] Artifact handlers registered');
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

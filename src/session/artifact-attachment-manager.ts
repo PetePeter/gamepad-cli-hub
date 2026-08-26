@@ -107,6 +107,20 @@ export class ArtifactAttachmentManager {
     return absPath;
   }
 
+  /** Delete one attachment, used to roll back a failed artifact update. */
+  delete(artifactId: string, attachmentId: string): boolean {
+    const index = this.loadIndex();
+    const attachment = index.attachments.find(a => a.artifactId === artifactId && a.id === attachmentId);
+    if (!attachment) return false;
+
+    const storagePath = join(this.rootDir, attachment.relativePath);
+    this.assertInside(this.rootDir, storagePath);
+    index.attachments = index.attachments.filter(a => a.id !== attachmentId);
+    this.saveIndex(index);
+    if (existsSync(storagePath)) unlinkSync(storagePath);
+    return true;
+  }
+
   /** Delete all attachments for an artifact. Returns count deleted. */
   deleteForArtifact(artifactId: string): number {
     const index = this.loadIndex();

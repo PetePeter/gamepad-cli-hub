@@ -215,4 +215,15 @@ describe('ArtifactManager', () => {
     onDeleteManager.delete(art.id);
     expect(deletedIds).toEqual([art.id]);
   });
+
+  it('deleteAllForSession() invokes onDelete for every artifact', () => {
+    const deletedIds: string[] = [];
+    const onDeleteManager = new ArtifactManager(capturePersist, clock, (id) => deletedIds.push(id));
+    const first = onDeleteManager.create('s1', 'A', 'markdown', 'x');
+    const second = onDeleteManager.create('s1', 'B', 'markdown', 'y');
+
+    onDeleteManager.deleteAllForSession('s1');
+
+    expect(deletedIds).toEqual([first.id, second.id]);
+  });
 });

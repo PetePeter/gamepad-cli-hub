@@ -155,8 +155,8 @@ When a user mentions `P-0035` or another `P-00xx` value, treat it as a Helm plan
 **Workflow:**
 1. Call `plan_get` to fetch a plan — the response includes `hasAttachments: true|false`.
 2. If `hasAttachments` is true, call `plan_attachment_list` to see metadata (filename, size, content type, timestamps).
-3. Call `plan_attachment_get` to retrieve a specific attachment — it is copied to a Helm temp file, and you receive the local temp path.
-4. Call `plan_attachment_add` with a `filePath` to attach an existing file (code samples, screenshots, design docs); attachments are persisted inside Helm's config-managed storage and survive session restarts.
+3. Call `plan_attachment_get` to retrieve a specific attachment — it is copied to a Helm temp file, and you receive the local temp path. Read it and delete the returned temp file promptly; Helm only reaps stale copies as a startup backstop.
+4. Call `plan_attachment_add` with a `filePath` to attach an existing file (code samples, screenshots, design docs); the caller owns the source and Helm never deletes or modifies it. Attachments are persisted inside Helm's config-managed storage and survive session restarts.
 
 Example:
 ```javascript

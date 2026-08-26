@@ -167,7 +167,7 @@ export function registerIPCHandlers(
   const helmControlService = new HelmControlService(planManager, sessionManager, ptyManager, configLoader, undefined, contextManager, scheduledTaskManager, projectStore, skillManager, skillAnalyticsManager);
   helmControlService.setNotificationManager(notificationManager);
   helmControlService.setRuntimeGroupManager(runtimeGroupManager);
-  helmControlService.setArtifactManager(artifactManager);
+  helmControlService.setArtifactManager(artifactManager, artifactAttachmentManager);
 
   const telegramBot = new TelegramBotCore();
   const topicManager = new TopicManager(telegramBot, sessionManager, configLoader.getTelegramConfig().instanceName);

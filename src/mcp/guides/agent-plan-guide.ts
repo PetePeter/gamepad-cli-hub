@@ -43,8 +43,8 @@ rule_2 = "Link durable context to the relevant plan or sequence when it concerns
 rule_3 = "Prefer context nodes over sequence sharedMemory for new long-lived notes, decisions, and collected evidence."
 
 [plan_attachment_guide]
-rule_1 = "Use plan_attachment_add with a local filePath to attach durable supporting artifacts such as screenshots, JSON payloads, logs, or generated reports."
-rule_2 = "Use plan_attachment_list for metadata first, then plan_attachment_get only when you need the actual file content."
+rule_1 = "Use plan_attachment_add with a local filePath to attach durable supporting artifacts such as screenshots, JSON payloads, logs, or generated reports. The caller owns the source file; Helm reads/copies it and never deletes or modifies it."
+rule_2 = "Use plan_attachment_list for metadata first, then plan_attachment_get only when you need the actual file content. Read the returned tempPath and delete it promptly; Helm only reaps stale temp files as a backstop."
 
 [sequence_memory_guide]
 rule_1 = "Sequences are primarily epic/coordination lanes. Treat sequence sharedMemory as legacy coordination text."

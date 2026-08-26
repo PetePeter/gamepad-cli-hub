@@ -150,7 +150,10 @@ export class ArtifactManager extends EventEmitter {
 
   /** Remove every artifact owned by a session. */
   deleteAllForSession(sessionId: string): void {
-    if (this.artifacts.delete(sessionId)) {
+    const artifacts = this.artifacts.get(sessionId);
+    if (artifacts) {
+      this.artifacts.delete(sessionId);
+      for (const artifact of artifacts) this.onDelete?.(artifact.id);
       this.markChanged(sessionId);
       logger.info(`[ArtifactManager] Deleted all artifacts for session ${sessionId}`);
     }
