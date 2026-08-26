@@ -1,7 +1,3 @@
-# Regenerated snapshot of the repo - stale the moment it is committed, and
-# large enough that tracking it poisons every `git grep` with graph noise.
-graphify-out/
-
 node_modules/
 dist/
 dist-electron/

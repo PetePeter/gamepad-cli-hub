@@ -1,6 +1,19 @@
 # Changelog
 
-All notable changes to gamepad-cli-hub are documented in this file.
+All notable changes to Helm are documented in this file.
+
+## [3.0.0] - 2026-08-27
+
+### Features
+
+- **Docking workspace** — Arrange Sessions, Scheduler, Quick Spawn, planner views, Terminal, Overview, Plan Screen, and Artifacts in recursive splits and tab groups.
+- **Persistent layouts** — Dock moves, tabs, splits, collapse state, and autohide rails survive restart, with Reset Layout available from the View menu.
+- **Safe terminal adoption** — Moving a terminal pane preserves the existing xterm host, PTY ownership, scrollback, session switching, and artifact bindings.
+- **Drag and drop** — Move panes to tab groups or workspace edges with live previews, pointer capture, keyboard equivalents, and no-op safeguards.
+
+### Distribution
+
+- **Windows x64** — The v3.0.0 release is packaged as a Windows NSIS installer.
 
 ## [2.2.0] - 2026-08-10
 

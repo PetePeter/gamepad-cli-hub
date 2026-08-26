@@ -223,7 +223,7 @@ def main():
     print(f"v{version} published!")
     print("=" * 50)
     print()
-    print(f"  GitHub Release: https://github.com/PetePeter/gamepad-cli-hub/releases/tag/v{version}")
+    print(f"  GitHub Release: https://github.com/PetePeter/helm/releases/tag/v{version}")
 
 
 if __name__ == "__main__":
