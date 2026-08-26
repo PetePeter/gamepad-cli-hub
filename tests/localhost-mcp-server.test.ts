@@ -295,6 +295,10 @@ describe('LocalhostMcpServer', () => {
     expect(readTerminalTool.description).toContain('terminal tail');
     expect(readTerminalTool.description).toContain('verify the recipient received');
     expect(readTerminalTool.description).toContain('raw ANSI');
+    expect(readTerminalTool.inputSchema.properties.stripBlankLines).toEqual({
+      type: 'boolean',
+      description: 'When true, omit empty and whitespace-only rows from the returned tail.',
+    });
     expect(setAiagentStateTool.description).toContain('Valid states');
     expect(setAiagentStateTool.description).toContain('planning');
     expect(setAiagentStateTool.description).toContain('Helm does not scrape terminal output');
@@ -706,12 +710,12 @@ describe('LocalhostMcpServer', () => {
       method: 'tools/call',
       params: {
         name: 'session_read_terminal',
-        arguments: { name: 'Claude', lines: 120, mode: 'both' },
+        arguments: { name: 'Claude', lines: 120, mode: 'both', stripBlankLines: true },
       },
     });
     const json = await response.json();
 
-    expect((service.readSessionTerminal as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 120, 'both', undefined);
+    expect((service.readSessionTerminal as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 120, 'both', true);
     expect(json.result.structuredContent).toMatchObject({
       sessionId: 'Claude',
       requestedLines: 120,
