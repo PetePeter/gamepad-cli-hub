@@ -347,6 +347,65 @@ describe('SessionGroup', () => {
     expect(w.find('.group-name').text()).toBe('project (3)');
   });
 
+  it('renders one right-aligned activity dot per member in order', () => {
+    const w = mount(SessionGroup, {
+      props: makeGroupProps({
+        group: {
+          dirPath: '/home/user/project',
+          displayName: 'project',
+          collapsed: false,
+          sessionCount: 3,
+          sessions: [
+            { id: 's1', name: 'active', activityLevel: 'active' },
+            { id: 's2', name: 'recent', activityLevel: 'inactive' },
+            { id: 's3', name: 'idle', activityLevel: 'idle' },
+          ],
+        },
+      }),
+    });
+
+    const dots = w.findAll('.group-activity-dot');
+    expect(dots).toHaveLength(3);
+    expect(dots[0].attributes('style')).toContain('rgb(68, 204, 68)');
+    expect(dots[1].attributes('style')).toContain('rgb(68, 136, 255)');
+    expect(dots[2].attributes('style')).toContain('rgb(85, 85, 85)');
+    expect(dots[0].attributes('title')).toBe('active: active');
+    expect(w.find('.group-activity-dots').attributes('aria-label')).toContain('recent inactive');
+    expect(w.find('.group-header-trailing').exists()).toBe(true);
+  });
+
+  it('keeps activity dots visible for a collapsed group', () => {
+    const w = mount(SessionGroup, {
+      props: makeGroupProps({
+        group: {
+          dirPath: '/home/user/project',
+          displayName: 'project',
+          collapsed: true,
+          sessionCount: 1,
+          sessions: [{ id: 's1', name: 'active', activityLevel: 'active' }],
+        },
+      }),
+    });
+
+    expect(w.findAll('.group-activity-dot')).toHaveLength(1);
+  });
+
+  it('does not render an activity dot cluster for an empty group', () => {
+    const w = mount(SessionGroup, {
+      props: makeGroupProps({
+        group: {
+          dirPath: '/home/user/project',
+          displayName: 'project',
+          collapsed: false,
+          sessionCount: 0,
+          sessions: [],
+        },
+      }),
+    });
+
+    expect(w.find('.group-activity-dots').exists()).toBe(false);
+  });
+
   it('shows expanded chevron when not collapsed', () => {
     const w = mount(SessionGroup, { props: makeGroupProps() });
     expect(w.find('.group-chevron').text()).toBe('▼');
@@ -456,6 +515,14 @@ describe('SessionList', () => {
     expect(w.findAll('.session-card')).toHaveLength(1);
     expect(w.find('.group-header').attributes('data-nav-index')).toBe('1');
     expect(w.find('.session-card').attributes('data-nav-index')).toBe('2');
+  });
+
+  it('passes each member activity level to its group header dot', () => {
+    const w = mount(SessionList, { props: makeSessionListProps() });
+    const dot = w.find('.group-activity-dot');
+
+    expect(dot.exists()).toBe(true);
+    expect(dot.attributes('style')).toContain('rgb(68, 204, 68)');
   });
 
   it('emits showGlobalOverview on overview segment click', async () => {

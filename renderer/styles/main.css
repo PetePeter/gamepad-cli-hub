@@ -628,6 +628,33 @@ button {
   text-overflow: ellipsis;
 }
 
+.group-header-trailing {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* One dot per member, kept visible when the group is collapsed. */
+.group-activity-dots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 7px;
+  border: 1px solid rgba(115, 125, 145, 0.28);
+  border-radius: 999px;
+  background: rgba(10, 11, 13, 0.3);
+}
+
+.group-activity-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
 /* ── Runtime (custom) groups ──────────────────────────────── */
 
 .group-header.runtime {
@@ -812,7 +839,9 @@ button {
 /* Keep the activity dot readable as a solid pip on the accent (it uses an inline
    background colour, so recolouring text does not affect it — give it a ring). */
 .session-card.flash-pulse .session-activity-dot,
-.session-card.flash-solid .session-activity-dot {
+.session-card.flash-solid .session-activity-dot,
+.group-header.flash-pulse .group-activity-dot,
+.group-header.flash-solid .group-activity-dot {
   box-shadow: 0 0 0 1px var(--flash-text);
 }
 

@@ -177,6 +177,11 @@ function onNewGroupDrop(e: DragEvent): void {
                 : resolveGroupDisplayName(group.dirPath, directories, projects),
               collapsed: group.collapsed,
               sessionCount: group.sessions.length,
+              sessions: group.sessions.map(session => ({
+                id: session.id,
+                name: session.name !== session.cliType ? session.name : getCliDisplayName(session.cliType),
+                activityLevel: sessionActivityLevels.get(session.id) || 'idle',
+              })),
               kind: group.kind,
               groupId: group.groupId,
             }"

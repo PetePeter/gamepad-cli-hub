@@ -13,6 +13,8 @@ export interface SessionGroupData {
   displayName: string;
   collapsed: boolean;
   sessionCount: number;
+  /** Member activity used to render one dot per session in the header. */
+  sessions?: Array<{ id: string; name: string; activityLevel: string }>;
   /** 'runtime' groups render the extra controls + drop rules. */
   kind?: 'directory' | 'runtime';
   /** Runtime group id (kind === 'runtime'). Equals dirPath for runtime groups. */
@@ -21,6 +23,7 @@ export interface SessionGroupData {
 
 import { computed, ref } from 'vue';
 import { state } from '../../state.js';
+import { getActivityColor } from '../../state-colors.js';
 import { useSessionDrag } from '../../composables/useSessionDrag.js';
 import { useRuntimeGroups } from '../../composables/useRuntimeGroups.js';
 import { dropVerdict, type DropTarget } from '../../runtime-group-drop.js';
@@ -43,6 +46,12 @@ const emit = defineEmits<{
 }>();
 
 const isRuntime = computed(() => props.group.kind === 'runtime');
+
+const activitySummary = computed(() => {
+  const sessions = props.group.sessions ?? [];
+  if (sessions.length === 0) return 'No active sessions';
+  return `${sessions.length} session${sessions.length === 1 ? '' : 's'}: ${sessions.map(session => `${session.name} ${session.activityLevel}`).join(', ')}`;
+});
 
 const flashClass = computed(() => {
   if (!props.flashEntry) return '';
@@ -139,29 +148,47 @@ function onDrop(e: DragEvent): void {
       {{ group.displayName }} ({{ group.sessionCount }})
     </span>
 
-    <div v-if="isRuntime" class="group-header-actions">
-      <button
-        class="group-header-action overview"
-        title="Overview of this group"
-        @click.stop="emit('showOverview', group.dirPath)"
-      >▸</button>
-      <button
-        class="group-header-action"
-        title="Rename group"
-        @click.stop="emit('rename', group.groupId ?? group.dirPath)"
-      >✎</button>
-      <button
-        class="group-header-action"
-        title="Close group"
-        @click.stop="emit('closeGroup', group.groupId ?? group.dirPath)"
-      >✕</button>
-    </div>
-    <div v-else class="group-header-actions">
-      <button
-        class="group-header-action"
-        title="Close all sessions in this folder"
-        @click.stop="emit('closeGroup', group.dirPath)"
-      >✕</button>
+    <div class="group-header-trailing">
+      <div
+        v-if="group.sessions?.length"
+        class="group-activity-dots"
+        role="img"
+        :aria-label="activitySummary"
+        title="Activity by session"
+      >
+        <span
+          v-for="session in group.sessions"
+          :key="session.id"
+          class="group-activity-dot"
+          :style="{ background: getActivityColor(session.activityLevel) }"
+          :title="`${session.name}: ${session.activityLevel}`"
+        />
+      </div>
+
+      <div v-if="isRuntime" class="group-header-actions">
+        <button
+          class="group-header-action overview"
+          title="Overview of this group"
+          @click.stop="emit('showOverview', group.dirPath)"
+        >▸</button>
+        <button
+          class="group-header-action"
+          title="Rename group"
+          @click.stop="emit('rename', group.groupId ?? group.dirPath)"
+        >✎</button>
+        <button
+          class="group-header-action"
+          title="Close group"
+          @click.stop="emit('closeGroup', group.groupId ?? group.dirPath)"
+        >✕</button>
+      </div>
+      <div v-else class="group-header-actions">
+        <button
+          class="group-header-action"
+          title="Close all sessions in this folder"
+          @click.stop="emit('closeGroup', group.dirPath)"
+        >✕</button>
+      </div>
     </div>
   </div>
 </template>
