@@ -252,6 +252,12 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   configSetCollapsePrefs: (prefs: { spawnCollapsed?: boolean; plannerCollapsed?: boolean; schedulerCollapsed?: boolean }) =>
     ipcRenderer.invoke('config:setCollapsePrefs', prefs),
 
+  /** Get the renderer-owned versioned dock workspace, if persisted. */
+  configGetWorkspaceLayout: () => ipcRenderer.invoke('config:getWorkspaceLayout') as Promise<unknown>,
+
+  /** Persist the renderer-owned versioned dock workspace. */
+  configSetWorkspaceLayout: (layout: unknown) => ipcRenderer.invoke('config:setWorkspaceLayout', layout),
+
   configGetEditorPrefs: () => ipcRenderer.invoke('config:getEditorPrefs') as Promise<{
     draftEditorHeight?: number;
     contextEditorHeight?: number;

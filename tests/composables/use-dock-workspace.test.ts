@@ -72,4 +72,33 @@ describe('useDockWorkspace', () => {
     expect(ws.focusedPaneId.value).not.toBe(PANE_ARTIFACTS);
     expect(ws.isVisible(PANE_ARTIFACTS)).toBe(false);
   });
+
+  it('loads from app-data, persists a safe fallback, and preserves pane recovery', async () => {
+    const saved: unknown[] = [];
+    const ws = useDockWorkspace(undefined, {
+      persistence: {
+        load: () => ({ version: 99 }),
+        save: (layout) => { saved.push(layout); },
+      },
+    });
+
+    const result = await ws.loadPersisted();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(result.source).toBe('fallback');
+    expect(ws.closedPanes.value).toEqual([]);
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toEqual(createDefaultLayout());
+
+    ws.close(PANE_ARTIFACTS);
+    expect(ws.isOpen(PANE_ARTIFACTS)).toBe(false);
+    ws.restore(PANE_ARTIFACTS);
+    expect(ws.isOpen(PANE_ARTIFACTS)).toBe(true);
+
+    ws.close(PANE_ARTIFACTS);
+    ws.reset();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(ws.layout.value).toEqual(createDefaultLayout());
+    expect(saved.at(-1)).toEqual(createDefaultLayout());
+  });
 });

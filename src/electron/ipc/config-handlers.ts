@@ -466,6 +466,29 @@ export function setupConfigHandlers(
     }
   });
 
+  // The dock schema belongs to the renderer's layout model. Main deliberately
+  // treats it as an opaque settings value so an older build can still load
+  // settings written by a newer renderer; the renderer validates and falls
+  // back before using it.
+  ipcMain.handle('config:getWorkspaceLayout', () => {
+    try {
+      return configLoader.getWorkspaceLayout();
+    } catch (error) {
+      logger.error(`[IPC] Failed to get workspace layout: ${error}`);
+      return undefined;
+    }
+  });
+
+  ipcMain.handle('config:setWorkspaceLayout', (_event, layout: unknown) => {
+    try {
+      configLoader.setWorkspaceLayout(layout);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to set workspace layout: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
   ipcMain.handle('config:getEditorPrefs', () => {
     try {
       return configLoader.getEditorPrefs();

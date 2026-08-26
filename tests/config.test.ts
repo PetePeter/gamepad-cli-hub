@@ -11,6 +11,7 @@ import { stickVirtualButtonName, STICK_VIRTUAL_BUTTONS } from '../src/config/loa
 import * as fs from 'fs';
 import * as path from 'path';
 import * as YAML from 'yaml';
+import { createDefaultLayout } from '../renderer/dock-layout';
 
 // ---------------------------------------------------------------------------
 // File-system helpers: use a real temp dir with real YAML files
@@ -1398,6 +1399,42 @@ describe('ConfigLoader', () => {
 
     it('throws when called before load', () => {
       expect(() => loader.getSidebarPrefs()).toThrow('Configuration not loaded');
+    });
+  });
+
+  // =========================================================================
+  // Dock workspace persistence
+  // =========================================================================
+
+  describe('dock workspace persistence', () => {
+    it('round-trips the renderer-owned layout through settings.yaml', () => {
+      const layout = createDefaultLayout();
+      loader.load();
+      loader.setWorkspaceLayout(layout);
+
+      expect(loader.getWorkspaceLayout()).toEqual(layout);
+      expect(readYaml<any>('settings.yaml').workspaceLayout).toEqual(layout);
+    });
+
+    it('preserves unrelated settings while updating the layout', () => {
+      writeYaml('settings.yaml', {
+        ...SETTINGS,
+        notifications: false,
+        sidebar: { width: 444, spawnCollapsed: true },
+      });
+      loader.load();
+      loader.setWorkspaceLayout(createDefaultLayout());
+
+      const onDisk = readYaml<any>('settings.yaml');
+      expect(onDisk.notifications).toBe(false);
+      expect(onDisk.sidebar).toEqual({ width: 444, spawnCollapsed: true });
+      expect(onDisk.workspaceLayout).toEqual(createDefaultLayout());
+    });
+
+    it('throws before configuration is loaded', () => {
+      const unloaded = new ConfigLoader(TEST_DIR);
+      expect(() => unloaded.getWorkspaceLayout()).toThrow('Configuration not loaded');
+      expect(() => unloaded.setWorkspaceLayout(createDefaultLayout())).toThrow('Configuration not loaded');
     });
   });
 

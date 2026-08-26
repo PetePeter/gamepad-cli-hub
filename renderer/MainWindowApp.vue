@@ -122,6 +122,9 @@ import { useNumberAccelerator, slotToIndex } from './composables/useNumberAccele
 import { resolveFocusSlot } from './composables/focus-slot.js';
 import { useLlmNotificationsStore } from './stores/llmNotifications.js';
 import { useFlashAttention } from './composables/useFlashAttention.js';
+import { listRegisteredPanes, useDockWorkspace } from './composables/useDockWorkspace.js';
+import DockViewMenu from './components/dock/DockViewMenu.vue';
+import type { PaneId } from './dock-types.js';
 
 // ============================================================================
 // Reactive view state
@@ -140,6 +143,77 @@ const runtimeGroups = useRuntimeGroups();
 const runtimeGroupActions = useRuntimeGroupActions();
 const artifactViewer = useArtifactViewer();
 const peers = usePeers();
+
+// The layout tree is persisted through the app-data config boundary. Legacy
+// localStorage widths/visibility are read only by the persistence adapter when
+// no versioned layout exists yet.
+const dockWorkspace = useDockWorkspace(undefined, {
+  persistence: {
+    load: () => configClient.configGetWorkspaceLayout(),
+    save: (layout) => configClient.configSetWorkspaceLayout(layout),
+    viewportWidth: () => window.innerWidth,
+  },
+});
+const dockViewMenuOpen = ref(false);
+const dockViewItems = computed(() => listRegisteredPanes(dockWorkspace.layout.value));
+const viewPaneByName: Record<ViewName, PaneId> = {
+  terminal: PANE_TERMINAL,
+  overview: PANE_OVERVIEW,
+  plan: PANE_PLAN_SCREEN,
+};
+const viewNameByPane = new Map<PaneId, ViewName>([
+  [PANE_TERMINAL, 'terminal'],
+  [PANE_OVERVIEW, 'overview'],
+  [PANE_PLAN_SCREEN, 'plan'],
+]);
+
+function isDockPaneOpen(paneId: PaneId): boolean {
+  return dockWorkspace.isOpen(paneId);
+}
+
+function syncViewFromDockLayout(): void {
+  const activePane = ([PANE_TERMINAL, PANE_OVERVIEW, PANE_PLAN_SCREEN] as const)
+    .find(paneId => dockWorkspace.isOpen(paneId) && dockWorkspace.isVisible(paneId));
+  const view = activePane ? viewNameByPane.get(activePane) : undefined;
+  if (view) activeView.value = view;
+}
+
+function fallbackToOpenView(): void {
+  if (dockWorkspace.isOpen(viewPaneByName[activeView.value])) return;
+  const fallback = ([PANE_TERMINAL, PANE_OVERVIEW, PANE_PLAN_SCREEN] as const)
+    .find(paneId => dockWorkspace.isOpen(paneId));
+  const view = fallback ? viewNameByPane.get(fallback) : undefined;
+  if (view) activeView.value = view;
+}
+
+function onDockViewToggle(paneId: PaneId): void {
+  try {
+    if (dockWorkspace.isOpen(paneId)) {
+      dockWorkspace.close(paneId);
+      fallbackToOpenView();
+    } else {
+      dockWorkspace.restore(paneId);
+      const view = viewNameByPane.get(paneId);
+      if (view) activeView.value = view;
+    }
+  } catch {
+    // The pure model rejects the last invalid operation; keep the menu usable.
+  }
+  dockViewMenuOpen.value = false;
+}
+
+function onDockLayoutReset(): void {
+  dockWorkspace.reset();
+  activeView.value = 'terminal';
+  dockViewMenuOpen.value = false;
+}
+
+watch(() => activeView.value, (view) => {
+  const paneId = viewPaneByName[view];
+  if (dockWorkspace.isOpen(paneId) && !dockWorkspace.isVisible(paneId)) {
+    dockWorkspace.activate(paneId);
+  }
+});
 
 // Bringing the window forward while viewing the active session means the user has
 // seen it — clear its flash. (The activeSessionId watcher handles session switches.)
@@ -737,6 +811,10 @@ provideHelmPaneContext({
 watch(runtimeGroups.groups, () => { refreshSessions(); }, { deep: true });
 
 onMounted(async () => {
+  const dockLoad = await dockWorkspace.loadPersisted();
+  if (dockLoad.source === 'persisted') syncViewFromDockLayout();
+  else fallbackToOpenView();
+
   recycleBin.ensureSubscribed();
   runtimeGroups.ensureSubscribed();
   artifactViewer.ensureSubscribed();
@@ -904,6 +982,14 @@ onUnmounted(() => {
           <span class="sidebar-tagline">steer your fleet of agents</span>
         </span>
         <div class="sidebar-actions">
+          <DockViewMenu
+            :open="dockViewMenuOpen"
+            :items="dockViewItems"
+            @open="dockViewMenuOpen = true"
+            @close="dockViewMenuOpen = false"
+            @toggle="onDockViewToggle"
+            @reset="onDockLayoutReset"
+          />
           <button class="sidebar-btn" title="User Guide" @click="onOpenHelp">ℹ️</button>
           <button class="sidebar-btn" title="Open Logs Folder" @click="onOpenLogsFolder">🐛</button>
           <button class="sidebar-btn" title="Settings" @click="onOpenSettings">⚙</button>
@@ -920,7 +1006,7 @@ onUnmounted(() => {
       <main class="sidebar-content">
         <component
           :is="getPaneComponent(PANE_SESSIONS)"
-          v-show="!settingsVisible"
+          v-show="!settingsVisible && isDockPaneOpen(PANE_SESSIONS)"
         />
 
         <!-- Settings screen (Vue components) -->
@@ -1014,19 +1100,19 @@ onUnmounted(() => {
       <!-- Spawn sections pinned at bottom of sidebar -->
       <component
         :is="getPaneComponent(PANE_SCHEDULER)"
-        v-show="!settingsVisible"
+        v-show="!settingsVisible && isDockPaneOpen(PANE_SCHEDULER)"
       />
       <RecycleBinModal v-model:visible="recycleBin.modalVisible.value" />
       <PeerPairingDialog />
 
       <component
         :is="getPaneComponent(PANE_QUICK_SPAWN)"
-        v-show="!settingsVisible"
+        v-show="!settingsVisible && isDockPaneOpen(PANE_QUICK_SPAWN)"
       />
 
       <component
         :is="getPaneComponent(PANE_PLAN_DIRECTORIES)"
-        v-show="!settingsVisible"
+        v-show="!settingsVisible && isDockPaneOpen(PANE_PLAN_DIRECTORIES)"
       />
 
       <!-- Recycle Bin pinned at bottom of sidebar — always visible -->
@@ -1097,15 +1183,15 @@ onUnmounted(() => {
       />
       <component
         :is="getPaneComponent(PANE_TERMINAL)"
-        v-show="activeView === 'terminal'"
+        v-show="activeView === 'terminal' && isDockPaneOpen(PANE_TERMINAL)"
       />
       <component
         :is="getPaneComponent(PANE_OVERVIEW)"
-        v-if="activeView === 'overview'"
+        v-if="activeView === 'overview' && isDockPaneOpen(PANE_OVERVIEW)"
       />
       <component
         :is="getPaneComponent(PANE_PLAN_SCREEN)"
-        v-if="activeView === 'plan'"
+        v-if="activeView === 'plan' && isDockPaneOpen(PANE_PLAN_SCREEN)"
       />
       <div v-if="chipActionBarVisible && activeView === 'terminal'" class="chip-action-dock">
         <ChipActionBar
@@ -1116,7 +1202,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Artifact panel: right-docked master/detail, bound to the active session. -->
-    <template v-if="hasActiveSession">
+    <template v-if="hasActiveSession && isDockPaneOpen(PANE_ARTIFACTS)">
       <div
         v-show="artifactViewer.panelVisible.value"
         class="artifact-splitter"

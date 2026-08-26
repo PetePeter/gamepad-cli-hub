@@ -17,10 +17,18 @@ import {
   movePane,
   reorderTab,
   restorePane,
+  resetLayout,
   setActiveTab,
   setDockMode,
   validateLayout,
 } from '../dock-layout';
+import {
+  loadDockLayout,
+  readLegacyDockPreferences,
+  serializeDockLayout,
+  type DockLoadResult,
+  type DockStorage,
+} from '../dock-persistence';
 import {
   DOCK_PANES,
   getPaneDescriptor,
@@ -50,9 +58,26 @@ export interface DockWorkspace {
   reset: () => void;
   /** Adopt an untrusted layout; falls back to Classic and returns false if invalid. */
   load: (raw: unknown) => boolean;
+  /** Load from app-data and migrate legacy browser storage on first launch. */
+  loadPersisted: () => Promise<DockLoadResult>;
+  /** True when the pane is present in the tree (regardless of active tab/hidden dock). */
+  isOpen: (paneId: PaneId) => boolean;
 }
 
-export function useDockWorkspace(initial?: DockWorkspaceLayout): DockWorkspace {
+export interface DockWorkspacePersistence {
+  load: () => Promise<unknown> | unknown;
+  save: (layout: DockWorkspaceLayout) => Promise<unknown> | unknown;
+  /** Optional injected storage makes migration deterministic in tests. */
+  legacyStorage?: DockStorage;
+  /** Optional viewport width used to convert legacy pixel widths to ratios. */
+  viewportWidth?: () => number;
+}
+
+export interface DockWorkspaceOptions {
+  persistence?: DockWorkspacePersistence;
+}
+
+export function useDockWorkspace(initial?: DockWorkspaceLayout, options: DockWorkspaceOptions = {}): DockWorkspace {
   const layoutState = ref<DockWorkspaceLayout>(createDefaultLayout());
   if (initial) {
     try {
@@ -67,6 +92,7 @@ export function useDockWorkspace(initial?: DockWorkspaceLayout): DockWorkspace {
 
   const paneOrder = computed(() => listPanes(layoutState.value.root));
   const closedPanes = computed(() => [...layoutState.value.closed]);
+  let persistQueue = Promise.resolve();
 
   /** A pane is visible when it is the active tab of a group in a non-hidden dock. */
   function isVisible(paneId: PaneId): boolean {
@@ -75,11 +101,22 @@ export function useDockWorkspace(initial?: DockWorkspaceLayout): DockWorkspace {
   }
 
   /** Apply a pure op, keeping focus on a pane that still exists. */
-  function apply(next: DockWorkspaceLayout): void {
+  function persist(next: DockWorkspaceLayout): void {
+    const save = options.persistence?.save;
+    if (!save) return;
+    const detached = serializeDockLayout(next);
+    persistQueue = persistQueue
+      .catch(() => undefined)
+      .then(() => save(detached))
+      .catch(() => undefined);
+  }
+
+  function apply(next: DockWorkspaceLayout, shouldPersist = true): void {
     layoutState.value = next;
     if (!findPaneGroup(next.root, focusedPaneId.value)) {
       focusedPaneId.value = listPanes(next.root)[0] ?? PANE_TERMINAL;
     }
+    if (shouldPersist) persist(next);
   }
 
   function focusPane(paneId: PaneId): void {
@@ -96,6 +133,27 @@ export function useDockWorkspace(initial?: DockWorkspaceLayout): DockWorkspace {
     focusPane(order[(start + direction + order.length) % order.length]);
   }
 
+  async function loadPersisted(): Promise<DockLoadResult> {
+    const persistence = options.persistence;
+    let raw: unknown;
+    if (persistence) {
+      try {
+        raw = await persistence.load();
+      } catch {
+        // Treat an unavailable config bridge like a first launch. The default
+        // remains usable and the save below is harmless when the bridge returns.
+        raw = undefined;
+      }
+    }
+    const result = loadDockLayout(raw, {
+      legacy: readLegacyDockPreferences(persistence?.legacyStorage),
+      viewportWidth: persistence?.viewportWidth?.(),
+    });
+    apply(result.layout, false);
+    if (result.source !== 'persisted') persist(result.layout);
+    return result;
+  }
+
   return {
     layout,
     paneOrder,
@@ -110,7 +168,7 @@ export function useDockWorkspace(initial?: DockWorkspaceLayout): DockWorkspace {
     setMode: (paneId, mode) => apply(setDockMode(layoutState.value, paneId, mode)),
     close: (paneId) => apply(closePane(layoutState.value, paneId)),
     restore: (paneId, target) => apply(restorePane(layoutState.value, paneId, target)),
-    reset: () => apply(createDefaultLayout()),
+    reset: () => apply(resetLayout()),
     load: (raw) => {
       try {
         apply(validateLayout(raw));
@@ -120,6 +178,8 @@ export function useDockWorkspace(initial?: DockWorkspaceLayout): DockWorkspace {
         return false;
       }
     },
+    loadPersisted,
+    isOpen: (paneId) => !layoutState.value.closed.includes(paneId),
   };
 }
 

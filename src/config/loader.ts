@@ -285,6 +285,14 @@ export interface SettingsConfig {
   sessionGroups?: SessionGroupPrefs;
   editorHistory?: string[];
   editorPrefs?: EditorPrefs;
+  /**
+   * The persisted dock workspace tree. Deliberately opaque here: the schema is
+   * owned by the renderer dock model, and the only trustworthy validator lives
+   * next to it. Main stores and returns it verbatim so a layout written by a
+   * newer build cannot crash an older one on load — the renderer rejects it and
+   * falls back to the default layout instead.
+   */
+  workspaceLayout?: unknown;
   telegram?: TelegramConfig;
   mcp?: McpConfig;
   fleet?: FleetConfig;
@@ -702,6 +710,19 @@ export class ConfigLoader {
     this.ensureLoaded();
     const current = this.getSidebarPrefs();
     this.settings!.sidebar = { ...current, ...prefs };
+    this.saveSettings();
+  }
+
+  /** Return the renderer-owned dock tree, if one has been persisted. */
+  getWorkspaceLayout(): unknown {
+    this.ensureLoaded();
+    return this.settings!.workspaceLayout;
+  }
+
+  /** Persist the renderer-owned dock tree without interpreting its schema here. */
+  setWorkspaceLayout(layout: unknown): void {
+    this.ensureLoaded();
+    this.settings!.workspaceLayout = layout;
     this.saveSettings();
   }
 

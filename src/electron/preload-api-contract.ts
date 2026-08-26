@@ -75,6 +75,8 @@ export const PRELOAD_API_DOMAINS = {
     'configGetStickConfig',
     'configGetCollapsePrefs',
     'configSetCollapsePrefs',
+    'configGetWorkspaceLayout',
+    'configSetWorkspaceLayout',
     'configGetEditorPrefs',
     'configSetEditorPrefs',
     'configGetWorkingDirs',
