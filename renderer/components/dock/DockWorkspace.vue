@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, markRaw, ref, toRaw, type Component } from 'vue';
-import type { DockNodePath, DockSide, DockWorkspaceLayout, DropTarget, PaneId } from '../../dock-types.js';
+import type { DockMode, DockNodePath, DockSide, DockWorkspaceLayout, DropTarget, PaneId } from '../../dock-types.js';
 import { getPaneDescriptor } from '../../dock-types.js';
 import { canDockPaneToEdge, canDropPane, canReorderTab } from '../../dock-layout.js';
 import { DOCK_PANE_COMPONENTS } from '../../dock-pane-registry.js';
@@ -23,6 +23,7 @@ const emit = defineEmits<{
   'resize-split': [path: DockNodePath, sizes: number[]];
   'reveal-pane': [paneId: PaneId];
   'autohide-close': [paneId: PaneId];
+  'set-dock-mode': [paneId: PaneId, mode: DockMode];
   'move-pane': [paneId: PaneId, target: DropTarget];
   'reorder-tab': [paneId: PaneId, index: number];
   'dock-pane-edge': [paneId: PaneId, side: DockSide];
@@ -107,6 +108,7 @@ const ghostLabel = computed(() => {
       @resize-split="(...args) => emit('resize-split', ...args)"
       @reveal-pane="(paneId) => emit('reveal-pane', paneId)"
       @autohide-close="(paneId) => emit('autohide-close', paneId)"
+      @set-dock-mode="(...args) => emit('set-dock-mode', ...args)"
       @drag-start="drag.start"
       @dock-edge="(paneId, side) => emit('dock-pane-edge', paneId, side)"
       @reorder-tab="(paneId, index) => emit('reorder-tab', paneId, index)"

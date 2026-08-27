@@ -1,13 +1,22 @@
 <script setup lang="ts">
+/**
+ * View menu — the recovery path for closed panes.
+ *
+ * Open and closed panes are listed separately rather than as one checklist:
+ * a closed pane is the only thing here the user is usually hunting for, and a
+ * mixed list of ticked and unticked rows does not say "these are recoverable".
+ */
+import { computed } from 'vue';
 import type { PaneId } from '../../dock-types.js';
 
 export interface DockViewMenuItem {
   id: PaneId;
   title: string;
+  icon?: string;
   closed: boolean;
 }
 
-defineProps<{
+const props = defineProps<{
   open: boolean;
   items: readonly DockViewMenuItem[];
 }>();
@@ -18,6 +27,9 @@ const emit = defineEmits<{
   reset: [];
   close: [];
 }>();
+
+const openItems = computed(() => props.items.filter(item => !item.closed));
+const closedItems = computed(() => props.items.filter(item => item.closed));
 </script>
 
 <template>
@@ -32,22 +44,42 @@ const emit = defineEmits<{
       @click="emit(open ? 'close' : 'open')"
     >
       View
+      <span v-if="closedItems.length > 0" class="dock-view-menu__badge">{{ closedItems.length }}</span>
     </button>
 
     <div v-if="open" class="dock-view-menu__popover" role="menu" @keydown.esc="emit('close')">
-      <div class="dock-view-menu__heading">Workspace panes</div>
+      <div class="dock-view-menu__heading">Open</div>
       <button
-        v-for="item in items"
+        v-for="item in openItems"
         :key="item.id"
         class="dock-view-menu__item"
         type="button"
         role="menuitemcheckbox"
-        :aria-checked="!item.closed"
+        aria-checked="true"
         @click="emit('toggle', item.id)"
       >
-        <span class="dock-view-menu__check" aria-hidden="true">{{ item.closed ? '' : '✓' }}</span>
-        <span>{{ item.title }}</span>
+        <span class="dock-view-menu__icon" aria-hidden="true">{{ item.icon }}</span>
+        <span class="dock-view-menu__label">{{ item.title }}</span>
+        <span class="dock-view-menu__action" aria-hidden="true">Close</span>
       </button>
+
+      <template v-if="closedItems.length > 0">
+        <div class="dock-view-menu__heading">Closed</div>
+        <button
+          v-for="item in closedItems"
+          :key="item.id"
+          class="dock-view-menu__item dock-view-menu__item--closed"
+          type="button"
+          role="menuitemcheckbox"
+          aria-checked="false"
+          @click="emit('toggle', item.id)"
+        >
+          <span class="dock-view-menu__icon" aria-hidden="true">{{ item.icon }}</span>
+          <span class="dock-view-menu__label">{{ item.title }}</span>
+          <span class="dock-view-menu__action" aria-hidden="true">Reopen</span>
+        </button>
+      </template>
+
       <div class="dock-view-menu__separator" role="separator"></div>
       <button class="dock-view-menu__item dock-view-menu__reset" type="button" role="menuitem" @click="emit('reset')">
         Reset Layout

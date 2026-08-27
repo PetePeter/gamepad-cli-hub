@@ -287,20 +287,36 @@ button {
 }
 .dock-tab-entry { display: flex; flex-shrink: 0; align-items: stretch; border-right: 1px solid var(--border); }
 .dock-tab {
-  min-width: 84px;
-  padding: 5px 9px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 12px;
   text-align: left;
+  white-space: nowrap;
   border-bottom: 2px solid transparent;
 }
+.dock-tab__icon { font-size: 13px; line-height: 1; }
 .dock-tab:hover,
 .dock-tab:focus-visible,
 .dock-tab--focused { color: var(--text-primary); background: var(--bg-tertiary); }
 .dock-tab--active { color: var(--accent); border-bottom-color: var(--accent); }
-.dock-tab-close { padding: 0 6px; color: var(--text-dim); font-size: 15px; }
+/* A permanent × on every tab turns the strip into noise. Reveal it for the tab
+ * the user is actually pointing at, plus the active one, and keep it reachable
+ * by keyboard. */
+.dock-tab-close {
+  padding: 0 6px;
+  color: var(--text-dim);
+  font-size: 15px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.dock-tab-entry:hover .dock-tab-close,
+.dock-tab-entry:focus-within .dock-tab-close,
+.dock-tab-entry:has(.dock-tab--active) .dock-tab-close { opacity: 1; }
 .dock-tab-close:hover,
-.dock-tab-close:focus-visible { color: var(--text-primary); background: var(--bg-tertiary); }
+.dock-tab-close:focus-visible { color: var(--text-primary); background: var(--bg-tertiary); opacity: 1; }
 .dock-tab--dragging { opacity: 0.5; }
 /* Drag overlay: the preview and ghost sit above every pane but must never
  * intercept the pointer, or the drop target under the cursor would be the
@@ -343,26 +359,36 @@ body.dock-dragging { cursor: grabbing; user-select: none; }
 .dock-splitter:hover,
 .dock-splitter:focus-visible,
 .dock-splitter--dragging { background: var(--accent); outline: none; }
+/* Rail: one icon button per pane in the dock. Icons rather than rotated text —
+ * a 34px strip fits a glyph and a tooltip, never a legible word. */
 .dock-rail {
   display: flex;
   flex-shrink: 0;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  min-width: 34px;
-  min-height: 34px;
-  padding: 6px;
-  color: var(--text-secondary);
+  gap: 2px;
+  padding: 4px;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
 }
-.dock-rail:hover,
-.dock-rail:focus-visible { color: var(--text-primary); background: var(--bg-tertiary); outline: 2px solid var(--accent); outline-offset: -2px; }
-/* Left/right rails read bottom-to-top; top/bottom rails stay horizontal. */
-.dock-rail__label { font-size: 11px; }
-.dock-node--side-left > .dock-rail > .dock-rail__label,
-.dock-node--side-right > .dock-rail > .dock-rail__label { writing-mode: vertical-rl; transform: rotate(180deg); }
 .dock-node--side-top > .dock-rail,
-.dock-node--side-bottom > .dock-rail { min-height: 24px; }
+.dock-node--side-bottom > .dock-rail { flex-direction: row; }
+.dock-rail__btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm, 3px);
+  cursor: pointer;
+}
+.dock-rail__btn:hover,
+.dock-rail__btn:focus-visible { color: var(--text-primary); background: var(--bg-tertiary); outline: 2px solid var(--accent); outline-offset: -2px; }
+.dock-rail__icon { font-size: 14px; line-height: 1; }
+.dock-rail__collapse { color: var(--text-dim); font-size: 13px; }
 .dock-node--empty { display: grid; place-items: center; flex: 1; color: var(--text-dim); }
 .dock-view-menu__trigger {
   font-size: 11px;
@@ -399,10 +425,22 @@ body.dock-dragging { cursor: grabbing; user-select: none; }
   font-size: 12px;
 }
 .dock-view-menu__item:hover { background: var(--bg-tertiary); }
-.dock-view-menu__check {
-  width: 12px;
-  color: var(--accent);
-  text-align: center;
+.dock-view-menu__icon { width: 16px; text-align: center; font-size: 13px; line-height: 1; }
+.dock-view-menu__label { flex: 1; min-width: 0; }
+/* The verb only appears on the row being pointed at, so the list reads as pane
+ * names rather than a wall of actions. */
+.dock-view-menu__action { font-size: 10px; color: var(--text-dim); opacity: 0; }
+.dock-view-menu__item:hover .dock-view-menu__action,
+.dock-view-menu__item:focus-visible .dock-view-menu__action { opacity: 1; }
+.dock-view-menu__item--closed .dock-view-menu__label,
+.dock-view-menu__item--closed .dock-view-menu__icon { color: var(--text-dim); }
+.dock-view-menu__badge {
+  margin-left: 5px;
+  padding: 0 5px;
+  font-size: 10px;
+  color: var(--bg-primary);
+  background: var(--accent);
+  border-radius: 999px;
 }
 .dock-view-menu__separator {
   height: 1px;
@@ -1438,53 +1476,15 @@ body.dock-dragging { cursor: grabbing; user-select: none; }
   color: #4fc3f7;
 }
 
-/* Quick Spawn Grid */
-.spawn-section {
+/* Quick Spawn Grid.
+ * The dock owns pane titling and collapse, so a pane body is only padding and
+ * scroll — no section header, no collapse toggle. */
+.dock-pane-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: var(--spacing-sm);
-  border-top: 1px solid var(--border);
-  flex-shrink: 0;
 }
-
-.section-label {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: var(--spacing-xs);
-  cursor: pointer;
-  user-select: none;
-}
-.section-label:hover { color: var(--text-secondary); }
-
-.section-hint {
-  margin-left: auto;
-  font-size: 9px;
-  font-weight: 500;
-  color: var(--text-dim);
-  opacity: 0.6;
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-.section-toggle {
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  font-size: 14px;
-  cursor: pointer;
-  padding: 0 2px;
-  line-height: 1;
-  transition: color 0.15s;
-}
-.section-toggle:hover { color: var(--text-primary); }
-
-.spawn-grid--collapsed { display: none; }
-.spawn-section--collapsed .section-label { margin-bottom: 0; }
 
 .spawn-grid {
   display: grid;
@@ -3077,6 +3077,14 @@ kbd {
 .tab-state-dot--completed { background: #ffd700; box-shadow: 0 0 6px #ffd700; }
 .tab-state-dot--idle { background: #555555; }
 
+.terminal-view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .terminal-container {
   flex: 1;
   position: relative;
@@ -4107,13 +4115,14 @@ kbd {
   gap: 6px;
   padding: 6px 10px;
   background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   min-height: 40px;
   align-items: center;
   align-content: flex-start;
   justify-content: flex-start;
 }
+.draft-strip--top { border-bottom: 1px solid var(--border); }
+.draft-strip--bottom { border-top: 1px solid var(--border); }
 
 .draft-pill {
   display: inline-flex;
@@ -4418,19 +4427,9 @@ kbd {
   user-select: none;
 }
 
-/* Chip action bar — left-aligned quick-action buttons in the bottom strip */
-.chip-action-dock {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 6px 10px;
-  min-height: 40px;
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--border);
-  flex-shrink: 0;
-  position: relative;
-  z-index: 10;
-}
+/* Terminal chips — plan pills and quick actions, at the foot of the terminal
+ * they belong to rather than as a band across the whole shell. */
+.chip-bar { position: relative; z-index: 10; }
 
 .chip-action-bar {
   display: flex;
@@ -4524,12 +4523,12 @@ kbd {
   cursor: pointer;
 }
 .artifact-edge:hover { background: var(--bg-tertiary); }
+/* Icon-only edge tab — same reasoning as the dock rail: a 34px strip fits a
+ * glyph and a tooltip, not rotated words. */
 .artifact-edge-tab {
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  font-size: 0.7rem;
+  font-size: 15px;
+  line-height: 1;
   color: var(--text-secondary);
-  letter-spacing: 0.5px;
 }
 .artifact-edge-badge {
   min-width: 18px;

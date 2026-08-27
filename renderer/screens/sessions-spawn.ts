@@ -20,7 +20,8 @@ import { refreshPlanBadges } from './sessions-plans.js';
 import { hideOverview } from './group-overview.js';
 import { registerView } from '../main-view/main-view-manager.js';
 import { useNavigationStore } from '../stores/navigation.js';
-import { isSpawnCollapsed, isPlannerCollapsed } from '../sidebar/section-collapse.js';
+import { isPaneVisible } from '../dock-visibility-bridge.js';
+import { PANE_PLAN_DIRECTORIES, PANE_QUICK_SPAWN } from '../dock-types.js';
 
 // Register the terminal view with the main-view manager. mount/unmount are
 // no-ops because sessions-spawn owns the terminal container's display via
@@ -271,14 +272,14 @@ export function handleSessionsZone(button: string, dir: string | null): void {
     if (sessionsState.cardColumn > 0) return; // no-op when on action buttons
     if (count === 0 || sessionsState.sessionsFocusIndex >= count - 1) {
       // Skip collapsed zones
-      if (!isSpawnCollapsed()) {
+      if (isPaneVisible(PANE_QUICK_SPAWN)) {
         sessionsState.activeFocus = 'spawn';
         sessionsState.spawnFocusIndex = 0;
         sessionsState.cardColumn = 0;
         updateAllFocus();
         return;
       }
-      if (!isPlannerCollapsed() && sessionsState.directories.length > 0) {
+      if (isPaneVisible(PANE_PLAN_DIRECTORIES) && sessionsState.directories.length > 0) {
         sessionsState.activeFocus = 'plans';
         sessionsState.plansFocusIndex = 0;
         sessionsState.cardColumn = 0;
@@ -298,13 +299,13 @@ export function handleSessionsZone(button: string, dir: string | null): void {
 
 export function handleSpawnZone(button: string, dir: string | null): void {
   // If spawn is collapsed, redirect to adjacent zones
-  if (isSpawnCollapsed()) {
+  if (!isPaneVisible(PANE_QUICK_SPAWN)) {
     if (dir === 'up') {
       sessionsState.activeFocus = 'sessions';
       sessionsState.sessionsFocusIndex = Math.max(0, sessionsState.navList.length - 1);
       sessionsState.cardColumn = 0;
       updateAllFocus();
-    } else if (dir === 'down' && !isPlannerCollapsed() && sessionsState.directories.length > 0) {
+    } else if (dir === 'down' && isPaneVisible(PANE_PLAN_DIRECTORIES) && sessionsState.directories.length > 0) {
       sessionsState.activeFocus = 'plans';
       sessionsState.plansFocusIndex = 0;
       updateAllFocus();
@@ -333,7 +334,7 @@ export function handleSpawnZone(button: string, dir: string | null): void {
     if (newIndex < count) {
       sessionsState.spawnFocusIndex = newIndex;
       updateSpawnFocus();
-    } else if (!isPlannerCollapsed() && sessionsState.directories.length > 0) {
+    } else if (isPaneVisible(PANE_PLAN_DIRECTORIES) && sessionsState.directories.length > 0) {
       sessionsState.activeFocus = 'plans';
       sessionsState.plansFocusIndex = 0;
       updateAllFocus();

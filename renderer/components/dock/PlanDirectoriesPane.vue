@@ -5,6 +5,8 @@
  * Directory navigation only: picking a directory activates the PlanScreen view
  * for it (via the sidebar controller's onShowPlans), it never renders a canvas
  * of its own.
+ *
+ * Content only — the dock tab titles it and the rail collapses it.
  */
 import { computed } from 'vue';
 import PlansGrid from '../sidebar/PlansGrid.vue';
@@ -30,17 +32,8 @@ const directories = computed(() =>
 </script>
 
 <template>
-  <div
-    id="plannerSection"
-    class="spawn-section"
-    :class="{ 'spawn-section--collapsed': sidebar.plannerCollapsed.value }"
-  >
-    <div class="section-label" @click="sidebar.togglePlannerCollapse">
-      <button class="section-toggle">{{ sidebar.plannerCollapsed.value ? '▲' : '▼' }}</button>
-      <span>Project Planner</span>
-    </div>
+  <div class="dock-pane-body">
     <PlansGrid
-      v-show="!sidebar.plannerCollapsed.value"
       :directories="directories"
       :focus-index="sessionsState.plansFocusIndex"
       :is-active="sessionsState.activeFocus === 'plans'"

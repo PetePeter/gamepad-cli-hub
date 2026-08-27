@@ -49,19 +49,6 @@ const ZONE_GEOMETRY: Record<Exclude<DropZone, 'center'>, { direction: SplitDirec
   bottom: { direction: 'vertical', before: false },
 };
 
-/** Default landing spot for a pane restored from the View menu. */
-const DEFAULT_HOME: Record<PaneId, DropTarget> = {
-  [PANE_SESSIONS]: { paneId: PANE_SCHEDULER, zone: 'top' },
-  [PANE_SCHEDULER]: { paneId: PANE_SESSIONS, zone: 'bottom' },
-  [PANE_QUICK_SPAWN]: { paneId: PANE_SCHEDULER, zone: 'center' },
-  [PANE_PLAN_DIRECTORIES]: { paneId: PANE_SCHEDULER, zone: 'center' },
-  [PANE_OVERVIEW]: { paneId: PANE_TERMINAL, zone: 'center' },
-  [PANE_PLAN_SCREEN]: { paneId: PANE_TERMINAL, zone: 'center' },
-  [PANE_MEMORIES]: { paneId: PANE_TERMINAL, zone: 'center' },
-  [PANE_ARTIFACTS]: { paneId: PANE_TERMINAL, zone: 'right' },
-  [PANE_TERMINAL]: { paneId: PANE_OVERVIEW, zone: 'center' },
-};
-
 // ---------------------------------------------------------------------------
 // Construction
 // ---------------------------------------------------------------------------
@@ -466,17 +453,78 @@ export function restorePane(
     return withRoot(layout, insertPane(layout.root, paneId, target), layout.closed.filter(id => id !== paneId));
   }
 
+  const remaining = layout.closed.filter(id => id !== paneId);
   if (layout.root.type === 'empty') {
-    return withRoot(layout, group([paneId]), layout.closed.filter(id => id !== paneId));
+    return withRoot(layout, group([paneId]), remaining);
   }
 
-  const home = target ?? DEFAULT_HOME[paneId];
-  // The home anchor may itself be closed; fall back to the first live pane so
-  // recovery from the View menu can never fail.
-  const anchorLive = home && findPaneGroup(layout.root, home.paneId);
-  const resolved: DropTarget = anchorLive ? home : { paneId: listPanes(layout.root)[0], zone: 'center' };
+  const home = getPaneDescriptor(paneId)?.home ?? 'center';
 
-  return withRoot(layout, insertPane(layout.root, paneId, resolved), layout.closed.filter(id => id !== paneId));
+  // A centre-homed view joins the widest centre group as a tab.
+  if (home === 'center') {
+    return withRoot(layout, insertPane(layout.root, paneId, centreTarget(layout.root)), remaining);
+  }
+
+  // An edge-homed tool window rejoins the dock on its side. If that dock is
+  // gone — every pane of it was closed — it is rebuilt rather than the pane
+  // being stranded as a tab in the centre, which is what made a closed tool
+  // window feel unrecoverable.
+  const liveDock = findDockOnSide(layout.root, home);
+  if (liveDock) {
+    const anchor = listPanes(liveDock.child)[0];
+    return withRoot(layout, insertPane(layout.root, paneId, { paneId: anchor, zone: 'center' }), remaining);
+  }
+  return withRoot(layout, attachEdgeDock(layout.root, home, group([paneId])), remaining);
+}
+
+/** The centre group: the first group that is not inside an edge dock. */
+function centreTarget(root: DockNode): DropTarget {
+  const centre = findCentreGroup(root);
+  return { paneId: (centre ?? findFirstGroup(root))!.tabs[0], zone: 'center' };
+}
+
+function findCentreGroup(node: DockNode): DockGroupNode | null {
+  if (node.type === 'group') return node;
+  if (node.type === 'dock') return null;
+  if (node.type === 'split') {
+    for (const child of node.children) {
+      const found = findCentreGroup(child);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function findFirstGroup(node: DockNode): DockGroupNode | null {
+  if (node.type === 'group') return node;
+  if (node.type === 'dock') return findFirstGroup(node.child);
+  if (node.type === 'split') {
+    for (const child of node.children) {
+      const found = findFirstGroup(child);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function findDockOnSide(node: DockNode, side: DockSide): DockDockNode | null {
+  if (node.type === 'dock') return node.side === side ? node : findDockOnSide(node.child, side);
+  if (node.type === 'split') {
+    for (const child of node.children) {
+      const found = findDockOnSide(child, side);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/** Wrap the tree in a fresh edge dock on `side`, sized like a dragged edge drop. */
+function attachEdgeDock(root: DockNode, side: DockSide, child: DockNode): DockNode {
+  const { direction, before } = ZONE_GEOMETRY[side];
+  const edge = dock(side, 'pinned', child);
+  return before
+    ? split(direction, [edge, root], [OUTER_EDGE_RATIO, 1 - OUTER_EDGE_RATIO])
+    : split(direction, [root, edge], [1 - OUTER_EDGE_RATIO, OUTER_EDGE_RATIO]);
 }
 
 export function resetLayout(): DockWorkspaceLayout {

@@ -73,8 +73,6 @@ export const PRELOAD_API_DOMAINS = {
     'configGetCliTypeEnv',
     'configGetDpadConfig',
     'configGetStickConfig',
-    'configGetCollapsePrefs',
-    'configSetCollapsePrefs',
     'configGetWorkspaceLayout',
     'configSetWorkspaceLayout',
     'configGetEditorPrefs',

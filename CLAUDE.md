@@ -130,6 +130,7 @@ python sendDeploy.py            # Commit, tag, push, upload installer via gh CLI
 | [docs/config-system.md](docs/config-system.md) | Profile YAML, binding types, sequence parser syntax, stick/dpad config |
 | [docs/config-boundary.md](docs/config-boundary.md) | Where writable config/logs/temp live, seeding, legacy migration |
 | [docs/preload-api-boundary.md](docs/preload-api-boundary.md) | IPC/contextBridge boundary rules |
+| [docs/docking.md](docs/docking.md) | Dock workspace — pane registry, tabs/splits/edge docks, rails, close & restore, chips-in-pane |
 
 **Input & terminals**
 

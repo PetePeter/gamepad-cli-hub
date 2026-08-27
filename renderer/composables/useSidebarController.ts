@@ -1,8 +1,7 @@
 import { ref, type Ref } from 'vue';
 import { state } from '../state.js';
 import { sessionsState } from '../screens/sessions-state.js';
-import { configClient, patternsClient, schedulerClient, sessionsClient } from '../ipc/clients.js';
-import { setSpawnCollapsed, setPlannerCollapsed } from '../sidebar/section-collapse.js';
+import { patternsClient, schedulerClient, sessionsClient } from '../ipc/clients.js';
 import { setDirPickerBridge } from '../screens/sessions-spawn.js';
 import { openDirPicker, dirPicker, closeConfirm, setCloseConfirmCallback } from '../stores/modal-bridge.js';
 import { refreshSessions, getSortField, getSortDirection, setSortField, setSortDirection } from './useAppBootstrap.js';
@@ -31,9 +30,6 @@ export interface SidebarControllerDeps {
 export function useSidebarController(deps: SidebarControllerDeps) {
   const overviewCollapsedIds = ref<Set<string>>(new Set());
   const overviewGroupLabel = ref('');
-  const spawnCollapsed = ref(false);
-  const plannerCollapsed = ref(false);
-  const schedulerCollapsed = ref(false);
   const schedulerPopupVisible = ref(false);
   const schedulerPopupTaskId = ref<string | null>(null);
   const historyModalVisible = ref(false);
@@ -135,44 +131,6 @@ export function useSidebarController(deps: SidebarControllerDeps) {
     }
   }
 
-  async function loadCollapsePrefs(): Promise<void> {
-    try {
-      const prefs = await configClient.configGetCollapsePrefs();
-      if (prefs) {
-        spawnCollapsed.value = prefs.spawnCollapsed ?? false;
-        plannerCollapsed.value = prefs.plannerCollapsed ?? false;
-        schedulerCollapsed.value = (prefs as any).schedulerCollapsed ?? false;
-        setSpawnCollapsed(spawnCollapsed.value);
-        setPlannerCollapsed(plannerCollapsed.value);
-      }
-    } catch { /* first run - defaults are fine */ }
-  }
-
-  function persistCollapsePrefs(): void {
-    configClient.configSetCollapsePrefs({
-      spawnCollapsed: spawnCollapsed.value,
-      plannerCollapsed: plannerCollapsed.value,
-      schedulerCollapsed: schedulerCollapsed.value,
-    });
-  }
-
-  function toggleSpawnCollapse(): void {
-    spawnCollapsed.value = !spawnCollapsed.value;
-    setSpawnCollapsed(spawnCollapsed.value);
-    persistCollapsePrefs();
-  }
-
-  function togglePlannerCollapse(): void {
-    plannerCollapsed.value = !plannerCollapsed.value;
-    setPlannerCollapsed(plannerCollapsed.value);
-    persistCollapsePrefs();
-  }
-
-  function toggleSchedulerCollapse(): void {
-    schedulerCollapsed.value = !schedulerCollapsed.value;
-    persistCollapsePrefs();
-  }
-
   function openSchedulerPopup(taskId: string | null): void {
     schedulerPopupTaskId.value = taskId;
     schedulerPopupVisible.value = true;
@@ -224,9 +182,6 @@ export function useSidebarController(deps: SidebarControllerDeps) {
   return {
     overviewCollapsedIds,
     overviewGroupLabel,
-    spawnCollapsed,
-    plannerCollapsed,
-    schedulerCollapsed,
     schedulerPopupVisible,
     schedulerPopupTaskId,
     historyModalVisible,
@@ -251,10 +206,6 @@ export function useSidebarController(deps: SidebarControllerDeps) {
     onCancelSchedule,
     onSessionSnapOut,
     onSessionSnapBack,
-    loadCollapsePrefs,
-    toggleSpawnCollapse,
-    togglePlannerCollapse,
-    toggleSchedulerCollapse,
     openSchedulerPopup,
     openSchedulerHistory,
     recreateFromHistory,

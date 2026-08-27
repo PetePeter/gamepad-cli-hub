@@ -105,7 +105,7 @@ describe('DockWorkspace', () => {
     expect(rail.exists()).toBe(true);
     expect(wrapper.find('.dock-node__content').attributes('style')).toContain('display: none');
 
-    await rail.trigger('click');
+    await rail.get(`[data-dock-rail-pane="${PANE_ARTIFACTS}"]`).trigger('click');
     expect(wrapper.emitted('reveal-pane')).toEqual([[PANE_ARTIFACTS]]);
 
     // Reveal is workspace state, so the rail only asks; the prop drives the DOM.
@@ -121,6 +121,54 @@ describe('DockWorkspace', () => {
     await nextTick();
     expect(wrapper.find('.dock-node__content').attributes('style')).toContain('display: none');
     expect(wrapper.find('.dock-node--dock').classes()).toContain('dock-node--collapsed');
+  });
+
+  // The rail used to advertise only the dock's first pane, as a rotated pane id.
+  it('gives the rail one icon button per pane in the dock', async () => {
+    const wrapper = mount(DockWorkspace, {
+      props: {
+        layout: layout({
+          type: 'dock',
+          side: 'right',
+          mode: 'autohide',
+          child: { type: 'group', tabs: [PANE_ARTIFACTS, PANE_OVERVIEW], activeTab: PANE_ARTIFACTS },
+        }),
+        focusedPaneId: PANE_TERMINAL,
+        revealedPaneIds: [],
+        paneComponents: { [PANE_ARTIFACTS]: PaneStub, [PANE_OVERVIEW]: PaneStub },
+      },
+    });
+
+    const rail = wrapper.get('[data-dock-rail="right"]');
+    const buttons = rail.findAll('[data-dock-rail-pane]');
+    expect(buttons.map(b => b.attributes('data-dock-rail-pane'))).toEqual([PANE_ARTIFACTS, PANE_OVERVIEW]);
+    expect(buttons.map(b => b.attributes('title'))).toEqual(['Artifacts', 'Overview']);
+
+    // Clicking an icon opens that pane, not the dock's first one.
+    await buttons[1].trigger('click');
+    expect(wrapper.emitted('reveal-pane')).toEqual([[PANE_OVERVIEW]]);
+  });
+
+  // Space used to be reclaimable from a pinned dock only by closing its panes —
+  // the one path that recovered badly.
+  it('lets a pinned dock be collapsed to its rail instead of closed', async () => {
+    const wrapper = mount(DockWorkspace, {
+      props: {
+        layout: layout({
+          type: 'dock',
+          side: 'left',
+          mode: 'pinned',
+          child: { type: 'group', tabs: [PANE_ARTIFACTS], activeTab: PANE_ARTIFACTS },
+        }),
+        focusedPaneId: PANE_TERMINAL,
+        revealedPaneIds: [],
+        paneComponents: { [PANE_ARTIFACTS]: PaneStub },
+      },
+    });
+
+    await wrapper.get('.dock-rail__collapse').trigger('click');
+    expect(wrapper.emitted('set-dock-mode')).toEqual([[PANE_ARTIFACTS, 'autohide']]);
+    expect(wrapper.emitted('close-pane')).toBeUndefined();
   });
 
   it('gives a collapsed dock a rail-sized track instead of its split share', async () => {

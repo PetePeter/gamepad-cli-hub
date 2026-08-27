@@ -5,6 +5,9 @@
  * Owns the scheduler list plus the run-history modal it raises. The task editor
  * popup stays in the app modal host: it is raised from several places, not just
  * this pane.
+ *
+ * The pane renders content only. Titling and collapse belong to the dock — the
+ * tab names it and the rail collapses it — so there is no section header here.
  */
 import SchedulerSection from '../sidebar/SchedulerSection.vue';
 import ScheduledTaskHistoryModal from '../sidebar/ScheduledTaskHistoryModal.vue';
@@ -14,17 +17,8 @@ const sidebar = useHelmPaneContext().sidebar;
 </script>
 
 <template>
-  <div
-    id="schedulerSection"
-    class="spawn-section"
-    :class="{ 'spawn-section--collapsed': sidebar.schedulerCollapsed.value }"
-  >
-    <div class="section-label" @click="sidebar.toggleSchedulerCollapse">
-      <button class="section-toggle">{{ sidebar.schedulerCollapsed.value ? '▲' : '▼' }}</button>
-      <span>Scheduler</span>
-    </div>
+  <div class="dock-pane-body">
     <SchedulerSection
-      :collapsed="sidebar.schedulerCollapsed.value"
       @open="sidebar.openSchedulerPopup"
       @delete="sidebar.deleteScheduledTask"
       @history="sidebar.openSchedulerHistory"

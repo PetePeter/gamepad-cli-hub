@@ -1,6 +1,10 @@
 <script setup lang="ts">
 /**
  * QuickSpawnPane — the `quick-spawn` tool window.
+ *
+ * Content only: the dock tab names the pane and the rail collapses it, so the
+ * pane owns neither a header nor a collapse toggle. The keyboard hint lives on
+ * the pane descriptor and surfaces as the tab's tooltip.
  */
 import { computed } from 'vue';
 import SpawnGrid from '../sidebar/SpawnGrid.vue';
@@ -19,18 +23,8 @@ const items = computed(() =>
 </script>
 
 <template>
-  <div
-    id="quickSpawnSection"
-    class="spawn-section"
-    :class="{ 'spawn-section--collapsed': sidebar.spawnCollapsed.value }"
-  >
-    <div class="section-label" @click="sidebar.toggleSpawnCollapse">
-      <button class="section-toggle">{{ sidebar.spawnCollapsed.value ? '▲' : '▼' }}</button>
-      <span>Quick Spawn</span>
-      <span class="section-hint">Ctrl+Shift+N / Ctrl+Shift+W</span>
-    </div>
+  <div class="dock-pane-body">
     <SpawnGrid
-      v-show="!sidebar.spawnCollapsed.value"
       :items="items"
       :focus-index="sessionsState.spawnFocusIndex"
       :is-active="sessionsState.activeFocus === 'spawn'"

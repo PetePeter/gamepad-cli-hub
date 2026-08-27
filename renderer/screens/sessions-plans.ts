@@ -7,7 +7,8 @@
 
 import { sessionsState } from './sessions-state.js';
 import { useNavigationStore } from '../stores/navigation.js';
-import { isSpawnCollapsed } from '../sidebar/section-collapse.js';
+import { isPaneVisible } from '../dock-visibility-bridge.js';
+import { PANE_QUICK_SPAWN } from '../dock-types.js';
 import { state } from '../state.js';
 import { plansClient } from '../ipc/clients.js';
 import { buildPlannerDirectories } from './planner-directories.js';
@@ -31,7 +32,7 @@ export function handlePlansZone(button: string, dir: string | null): void {
     const newIndex = sessionsState.plansFocusIndex - cols;
     if (newIndex < 0) {
       // Skip to sessions if spawn is collapsed
-      if (isSpawnCollapsed()) {
+      if (!isPaneVisible(PANE_QUICK_SPAWN)) {
         sessionsState.activeFocus = 'sessions';
         sessionsState.sessionsFocusIndex = Math.max(0, sessionsState.navList.length - 1);
         sessionsState.cardColumn = 0;

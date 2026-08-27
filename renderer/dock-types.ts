@@ -63,8 +63,27 @@ export interface DockPaneDescriptor {
   id: PaneId;
   kind: PaneKind;
   title: string;
+  /**
+   * Glyph shown on a collapsed dock's rail.
+   *
+   * A rail is ~34px wide, which fits an icon but not a word. Naming the pane
+   * with an icon plus a tooltip is what lets the rail stay legible without
+   * rotating text, and it lets one rail list every pane in its dock rather than
+   * advertising only the first.
+   */
+  icon: string;
+  /** Optional keyboard hint, surfaced as the tab's tooltip. */
+  hint?: string;
   /** Panes that may be closed to the View menu and recovered later. */
   closable: boolean;
+  /**
+   * Where the pane belongs when it is restored and no explicit target is given.
+   *
+   * Anchored on an edge rather than on a sibling pane: a sibling can itself be
+   * closed, which used to strand a restored tool window as a tab in the centre
+   * group. An edge always exists — the dock is recreated if it is gone.
+   */
+  home: DockSide | 'center';
 }
 
 export interface DockWorkspaceLayout {
@@ -121,15 +140,23 @@ export const PANE_ARTIFACTS = 'artifacts';
  * map ids to components without the model knowing about them.
  */
 export const DOCK_PANES: readonly DockPaneDescriptor[] = Object.freeze([
-  Object.freeze({ id: PANE_TERMINAL, kind: 'view', title: 'Terminal', closable: true }),
-  Object.freeze({ id: PANE_OVERVIEW, kind: 'view', title: 'Overview', closable: true }),
-  Object.freeze({ id: PANE_PLAN_SCREEN, kind: 'view', title: 'Plans', closable: true }),
-  Object.freeze({ id: PANE_MEMORIES, kind: 'view', title: 'Memories', closable: true }),
-  Object.freeze({ id: PANE_SESSIONS, kind: 'tool', title: 'Sessions', closable: true }),
-  Object.freeze({ id: PANE_SCHEDULER, kind: 'tool', title: 'Scheduler', closable: true }),
-  Object.freeze({ id: PANE_QUICK_SPAWN, kind: 'tool', title: 'Quick Spawn', closable: true }),
-  Object.freeze({ id: PANE_PLAN_DIRECTORIES, kind: 'tool', title: 'Directories', closable: true }),
-  Object.freeze({ id: PANE_ARTIFACTS, kind: 'tool', title: 'Artifacts', closable: true }),
+  Object.freeze({ id: PANE_TERMINAL, kind: 'view', title: 'Terminal', icon: '▶', closable: true, home: 'center' }),
+  Object.freeze({ id: PANE_OVERVIEW, kind: 'view', title: 'Overview', icon: '▦', closable: true, home: 'center' }),
+  Object.freeze({ id: PANE_PLAN_SCREEN, kind: 'view', title: 'Plans', icon: '🗺', closable: true, home: 'center' }),
+  Object.freeze({ id: PANE_MEMORIES, kind: 'view', title: 'Memories', icon: '🧠', closable: true, home: 'center' }),
+  Object.freeze({ id: PANE_SESSIONS, kind: 'tool', title: 'Sessions', icon: '🗂', closable: true, home: 'left' }),
+  Object.freeze({ id: PANE_SCHEDULER, kind: 'tool', title: 'Scheduler', icon: '🕘', closable: true, home: 'left' }),
+  Object.freeze({
+    id: PANE_QUICK_SPAWN,
+    kind: 'tool',
+    title: 'Quick Spawn',
+    icon: '✦',
+    hint: 'Ctrl+Shift+N / Ctrl+Shift+W',
+    closable: true,
+    home: 'left',
+  }),
+  Object.freeze({ id: PANE_PLAN_DIRECTORIES, kind: 'tool', title: 'Directories', icon: '📁', closable: true, home: 'left' }),
+  Object.freeze({ id: PANE_ARTIFACTS, kind: 'tool', title: 'Artifacts', icon: '📄', closable: true, home: 'right' }),
 ]);
 
 export function getPaneDescriptor(paneId: PaneId): DockPaneDescriptor | undefined {

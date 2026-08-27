@@ -17,11 +17,13 @@ export interface ChipAction {
   preview: string;
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   planChips: PlanChipItem[];
   actions: ChipAction[];
   visible: boolean;
-}>();
+  /** Which edge the bar sits against — decides which side carries the border. */
+  placement?: 'top' | 'bottom';
+}>(), { placement: 'top' });
 
 const emit = defineEmits<{
   planChipClick: [id: string];
@@ -36,7 +38,7 @@ const hasContent = computed(() =>
 </script>
 
 <template>
-  <div v-if="visible && hasContent" class="chip-bar draft-strip">
+  <div v-if="visible && hasContent" class="chip-bar draft-strip" :class="`draft-strip--${props.placement}`">
     <PlanChip
       v-for="chip in planChips"
       :key="chip.id"

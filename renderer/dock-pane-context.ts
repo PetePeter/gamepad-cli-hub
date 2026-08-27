@@ -41,8 +41,6 @@ export interface HelmPaneContext {
   groups: PaneGroupActions;
   /** Activate a session and reveal its artifacts (session-card badge entry point). */
   showArtifactsForSession: (sessionId: string) => void;
-  /** Activate the durable Memories pane from a prominent navigation entry. */
-  showMemories: () => void;
   /** Pop the active session out; its artifact panel travels with the terminal. */
   popOutArtifacts: () => void;
 }

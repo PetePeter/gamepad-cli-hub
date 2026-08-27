@@ -18,9 +18,7 @@ import EditorPopup from './modals/EditorPopup.vue';
 import PromptTreeModal from './modals/PromptTreeModal.vue';
 import { loadStoredSessions } from '../session-store.js';
 import { getCliDisplayName } from '../utils.js';
-import ChipBar from './chips/ChipBar.vue';
-import ChipActionBar from './chips/ChipActionBar.vue';
-import { copyPlanRef } from '../composables/useCopyPlanRef.js';
+import TerminalChips from './chips/TerminalChips.vue';
 import ContextMenu from './modals/ContextMenu.vue';
 import EscProtectionModal from './modals/EscProtectionModal.vue';
 import DraftEditor from './panels/DraftEditor.vue';
@@ -92,9 +90,6 @@ watch(() => artifactViewer.panelVisible.value, () => {
 });
 
 const chipBarStore = useChipBarStore();
-const chipBarPlans = computed(() => chipBarStore.plans);
-const chipBarHasPills = computed(() => chipBarPlans.value.length > 0);
-const chipActionBarVisible = computed(() => chipBarHasPills.value || chipBarStore.actions.length > 0);
 
 const contextMenuVisible = ref(false);
 const contextMenuHasSelection = ref(false);
@@ -284,9 +279,6 @@ onUnmounted(() => {
   view = null;
 });
 
-function onChipBarPlanClick(planId: string): void { void chipBarStore.openPlan(planId); }
-function onChipBarPlanCopy(humanId: string): void { void copyPlanRef(humanId); }
-function onChipBarAction(sequence: string): void { void chipBarStore.triggerAction(sequence); }
 
 async function onContextMenuAction(action: string): Promise<void> {
   contextMenuVisible.value = false;
@@ -319,7 +311,6 @@ function onContextMenuCancel(): void { contextMenuVisible.value = false; }
 
 <template>
   <div class="snap-out-window" id="mainArea">
-    <ChipBar :plan-chips="chipBarPlans" :actions="[]" :visible="true" @plan-chip-click="onChipBarPlanClick" @plan-chip-copy="onChipBarPlanCopy" @action-click="onChipBarAction" />
     <DraftEditor v-if="draftEditorVisible" ref="draftEditorRef" :visible="draftEditorVisible" :mode="draftEditorMode" :session-id="draftEditorSessionId" :draft-id="draftEditorDraftId" :initial-label="draftEditorLabel" :initial-text="draftEditorText" :plan-status="draftEditorPlanStatus" :plan-state-info="draftEditorPlanStateInfo" :plan-callbacks="draftEditorPlanCallbacks" @save="onDraftSave" @apply="onDraftApply" @delete="onDraftDelete" @close="onDraftClose" />
     <div class="snap-out-body">
       <div ref="containerRef" class="snap-out-terminal"></div>
@@ -329,10 +320,10 @@ function onContextMenuCancel(): void { contextMenuVisible.value = false; }
       </div>
       <div v-show="!artifactViewer.panelVisible.value" class="artifact-edge" title="Show artifacts" @click="artifactViewer.showPanel()">
         <span v-if="artifactBadge > 0" class="artifact-edge-badge" :class="{ 'artifact-edge-badge--pulse': artifactHasUnread }">{{ artifactBadge }}</span>
-        <span class="artifact-edge-tab">📄 Artifacts</span>
+        <span class="artifact-edge-tab" aria-hidden="true">📄</span>
       </div>
     </div>
-    <div v-if="chipActionBarVisible" class="chip-action-dock"><ChipActionBar :actions="chipBarStore.actions" @action-click="onChipBarAction" /></div>
+    <TerminalChips />
     <ContextMenu v-model:visible="contextMenuVisible" :has-selection="contextMenuHasSelection" :has-active-session="true" :has-sequences="false" :has-drafts="false" :is-snapped-out="true" @action="onContextMenuAction" @cancel="onContextMenuCancel" />
     <PromptTreeModal
       v-model:visible="promptTree.visible"
@@ -357,5 +348,4 @@ function onContextMenuCancel(): void { contextMenuVisible.value = false; }
 .snap-out-window { width: 100vw; height: 100vh; background: #0a0a0a; display: flex; flex-direction: column; }
 .snap-out-body { flex: 1; min-height: 0; display: flex; flex-direction: row; }
 .snap-out-terminal { flex: 1; min-width: 0; min-height: 0; position: relative; overflow: hidden; z-index: 1; }
-.chip-action-dock { border-top: 1px solid #333; background: #1a1a1a; position: relative; z-index: 10; }
 </style>

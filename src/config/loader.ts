@@ -174,9 +174,6 @@ export interface SidebarPrefs {
   height?: number;
   x?: number;
   y?: number;
-  spawnCollapsed?: boolean;
-  plannerCollapsed?: boolean;
-  schedulerCollapsed?: boolean;
 }
 
 const DEFAULT_SIDEBAR_PREFS: SidebarPrefs = { width: 1280 };
@@ -700,9 +697,6 @@ export class ConfigLoader {
       height: saved.height,
       x: saved.x,
       y: saved.y,
-      spawnCollapsed: saved.spawnCollapsed,
-      plannerCollapsed: saved.plannerCollapsed,
-      schedulerCollapsed: saved.schedulerCollapsed,
     };
   }
 

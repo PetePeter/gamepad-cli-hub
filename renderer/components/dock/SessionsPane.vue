@@ -54,7 +54,6 @@ function sessionElapsedText(sessionId: string): string {
 
 <template>
   <section class="sessions-screen-section">
-    <button type="button" class="memories-entry" @click="pane.showMemories">🧠 Memories</button>
     <SortBar
       :options="SORT_OPTIONS"
       :field="sidebar.getSortField()"

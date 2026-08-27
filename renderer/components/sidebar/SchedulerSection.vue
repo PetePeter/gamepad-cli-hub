@@ -9,10 +9,6 @@ const emit = defineEmits<{
   history: [];
 }>();
 
-const props = defineProps<{
-  collapsed: boolean;
-}>();
-
 const tasks = ref<ScheduledTask[]>([]);
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let offChanged: (() => void) | null = null;
@@ -60,7 +56,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-show="!props.collapsed" class="scheduler-section">
+  <div class="scheduler-section">
     <div class="scheduler-create-split">
       <button class="scheduler-create scheduler-create--main focusable" data-focus-id="scheduler:new" @click.stop="emit('open', null)">New Schedule</button>
       <button class="scheduler-create scheduler-create--hist focusable" data-focus-id="scheduler:history" type="button" title="Past Schedules" aria-label="Past Schedules" @click.stop="emit('history')">🕘</button>

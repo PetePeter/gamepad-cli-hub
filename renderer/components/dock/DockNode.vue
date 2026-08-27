@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, type Component, type CSSProperties } from 'vue';
-import type { DockNodePath, DockNode, DockSide, PaneId } from '../../dock-types.js';
-import { DOCK_MIN_TRACK_PX, DOCK_SPLITTER_PX } from '../../dock-types.js';
+import type { DockMode, DockNodePath, DockNode, DockSide, PaneId } from '../../dock-types.js';
+import { DOCK_MIN_TRACK_PX, DOCK_SPLITTER_PX, getPaneDescriptor } from '../../dock-types.js';
 import { isDockCollapsed, listPanes } from '../../dock-layout.js';
 import DockSplitter from './DockSplitter.vue';
 import DockTabGroup from './DockTabGroup.vue';
@@ -24,6 +24,7 @@ const emit = defineEmits<{
   'resize-split': [path: DockNodePath, sizes: number[]];
   'reveal-pane': [paneId: PaneId];
   'autohide-close': [paneId: PaneId];
+  'set-dock-mode': [paneId: PaneId, mode: DockMode];
   'drag-start': [paneId: PaneId, event: PointerEvent];
   'dock-edge': [paneId: PaneId, side: DockSide];
   'reorder-tab': [paneId: PaneId, index: number];
@@ -78,9 +79,28 @@ function onResize(sizes: number[]): void {
   emit('resize-split', props.path, sizes);
 }
 
-function openRail(): void {
+const railItems = computed(() => dockPaneIds.value.map(paneId => {
+  const descriptor = getPaneDescriptor(paneId);
+  return { paneId, icon: descriptor?.icon ?? '▪', title: descriptor?.title ?? paneId };
+}));
+
+/**
+ * Clicking a rail icon opens that pane, not the dock's first one.
+ *
+ * A pinned dock has no reveal state to set, so collapsing it is a mode change
+ * (pinned → autohide) and expanding it is the reveal. Both directions therefore
+ * go through the model rather than a local `collapsed` flag.
+ */
+function openRail(paneId: PaneId): void {
+  if (props.node.type === 'dock' && props.node.mode === 'hidden') {
+    emit('set-dock-mode', paneId, 'autohide');
+  }
+  emit('reveal-pane', paneId);
+}
+
+function collapsePinned(): void {
   const paneId = dockAnchorPaneId.value;
-  if (paneId) emit('reveal-pane', paneId);
+  if (paneId) emit('set-dock-mode', paneId, 'autohide');
 }
 
 function onDockFocusIn(): void {
@@ -125,6 +145,7 @@ function onDockFocusOut(event: FocusEvent): void {
         @resize-split="(...args) => emit('resize-split', ...args)"
         @reveal-pane="(paneId) => emit('reveal-pane', paneId)"
         @autohide-close="(paneId) => emit('autohide-close', paneId)"
+        @set-dock-mode="(...args) => emit('set-dock-mode', ...args)"
         @drag-start="(...args) => emit('drag-start', ...args)"
         @dock-edge="(...args) => emit('dock-edge', ...args)"
         @reorder-tab="(...args) => emit('reorder-tab', ...args)"
@@ -187,21 +208,39 @@ function onDockFocusOut(event: FocusEvent): void {
         @resize-split="(...args) => emit('resize-split', ...args)"
         @reveal-pane="(paneId) => emit('reveal-pane', paneId)"
         @autohide-close="(paneId) => emit('autohide-close', paneId)"
+        @set-dock-mode="(...args) => emit('set-dock-mode', ...args)"
         @drag-start="(...args) => emit('drag-start', ...args)"
         @dock-edge="(...args) => emit('dock-edge', ...args)"
         @reorder-tab="(...args) => emit('reorder-tab', ...args)"
       />
     </div>
-    <button
-      v-if="node.mode !== 'pinned'"
-      class="dock-rail"
-      :data-dock-rail="node.side"
-      type="button"
-      :aria-label="`${node.mode === 'hidden' ? 'Show' : 'Open'} ${dockAnchorPaneId ?? 'dock'} pane`"
-      :aria-expanded="dockContentVisible"
-      @click="openRail"
-    >
-      <span class="dock-rail__label">{{ dockAnchorPaneId ?? 'Pane' }}</span>
-    </button>
+    <!-- One icon per pane in the dock. Present for pinned docks too, so space
+         can be reclaimed by collapsing rather than by closing the pane. -->
+    <div class="dock-rail" :data-dock-rail="node.side" role="toolbar" :aria-label="`${node.side} dock`">
+      <button
+        v-if="node.mode === 'pinned'"
+        class="dock-rail__btn dock-rail__collapse"
+        type="button"
+        aria-label="Collapse dock"
+        title="Collapse dock"
+        @click="collapsePinned"
+      >
+        {{ node.side === 'right' ? '›' : node.side === 'left' ? '‹' : node.side === 'bottom' ? '⌄' : '⌃' }}
+      </button>
+      <button
+        v-for="item in railItems"
+        v-show="node.mode !== 'pinned'"
+        :key="`rail-${item.paneId}`"
+        class="dock-rail__btn"
+        :data-dock-rail-pane="item.paneId"
+        type="button"
+        :aria-label="`Open ${item.title} pane`"
+        :title="item.title"
+        :aria-expanded="dockContentVisible"
+        @click="openRail(item.paneId)"
+      >
+        <span class="dock-rail__icon" aria-hidden="true">{{ item.icon }}</span>
+      </button>
+    </div>
   </div>
 </template>

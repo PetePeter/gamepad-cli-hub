@@ -35,6 +35,27 @@ function titleFor(paneId: PaneId): string {
   return getPaneDescriptor(paneId)?.title ?? paneId;
 }
 
+function iconFor(paneId: PaneId): string {
+  return getPaneDescriptor(paneId)?.icon ?? '';
+}
+
+/** Keyboard hints live on the descriptor and surface only as a tooltip. */
+function tooltipFor(paneId: PaneId): string {
+  const descriptor = getPaneDescriptor(paneId);
+  if (!descriptor) return paneId;
+  return descriptor.hint ? `${descriptor.title} — ${descriptor.hint}` : descriptor.title;
+}
+
+/** Middle-click closes a tab, matching every other tabbed surface. */
+function onTabPointerDown(event: PointerEvent, paneId: PaneId): void {
+  if (event.button === 1) {
+    event.preventDefault();
+    emit('close', paneId);
+    return;
+  }
+  emit('drag-start', paneId, event);
+}
+
 function setTabRef(paneId: PaneId, element: Element | null): void {
   if (element instanceof HTMLElement) tabRefs.set(paneId, element);
   else tabRefs.delete(paneId);
@@ -111,11 +132,13 @@ function onPaneFocus(paneId: PaneId, focusedItemId?: string): void {
           :aria-controls="`dock-pane-${paneId}`"
           :aria-selected="paneId === activeTab"
           :tabindex="paneId === activeTab ? 0 : -1"
-          @pointerdown="emit('drag-start', paneId, $event)"
+          :title="tooltipFor(paneId)"
+          @pointerdown="onTabPointerDown($event, paneId)"
           @click="selectTab(paneId)"
           @keydown="onTabKey($event, paneId)"
         >
-          {{ titleFor(paneId) }}
+          <span class="dock-tab__icon" aria-hidden="true">{{ iconFor(paneId) }}</span>
+          <span class="dock-tab__label">{{ titleFor(paneId) }}</span>
         </button>
         <button
           class="dock-tab-close"

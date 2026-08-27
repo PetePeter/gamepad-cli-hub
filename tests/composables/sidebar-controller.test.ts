@@ -14,14 +14,10 @@ const mocks = vi.hoisted(() => ({
   sessionsState: {
     directories: [] as Array<{ name: string; path: string }>,
   },
-  configGetCollapsePrefs: vi.fn(),
-  configSetCollapsePrefs: vi.fn(),
   patternCancelSchedule: vi.fn(),
   scheduledTaskDelete: vi.fn(),
   sessionSnapOut: vi.fn(),
   sessionSnapBack: vi.fn(),
-  setSpawnCollapsed: vi.fn(),
-  setPlannerCollapsed: vi.fn(),
   openDirPicker: vi.fn(),
   setDirPickerBridge: vi.fn(),
   refreshSessions: vi.fn(),
@@ -33,8 +29,6 @@ vi.mock('../../renderer/state.js', () => ({ state: mocks.state }));
 vi.mock('../../renderer/screens/sessions-state.js', () => ({ sessionsState: mocks.sessionsState }));
 vi.mock('../../renderer/ipc/clients.js', () => ({
   configClient: {
-    configGetCollapsePrefs: mocks.configGetCollapsePrefs,
-    configSetCollapsePrefs: mocks.configSetCollapsePrefs,
   },
   patternsClient: { patternCancelSchedule: mocks.patternCancelSchedule },
   schedulerClient: { scheduledTaskDelete: mocks.scheduledTaskDelete },
@@ -42,10 +36,6 @@ vi.mock('../../renderer/ipc/clients.js', () => ({
     sessionSnapOut: mocks.sessionSnapOut,
     sessionSnapBack: mocks.sessionSnapBack,
   },
-}));
-vi.mock('../../renderer/sidebar/section-collapse.js', () => ({
-  setSpawnCollapsed: mocks.setSpawnCollapsed,
-  setPlannerCollapsed: mocks.setPlannerCollapsed,
 }));
 vi.mock('../../renderer/screens/sessions-spawn.js', () => ({ setDirPickerBridge: mocks.setDirPickerBridge }));
 vi.mock('../../renderer/stores/modal-bridge.js', () => ({
@@ -99,38 +89,6 @@ describe('useSidebarController', () => {
     mocks.state.draftCounts = new Map();
     mocks.state.projects = [];
     mocks.sessionsState.directories = [];
-    mocks.configGetCollapsePrefs.mockResolvedValue(null);
-  });
-
-  it('loads collapse preferences and syncs legacy section bounds', async () => {
-    mocks.configGetCollapsePrefs.mockResolvedValue({
-      spawnCollapsed: true,
-      plannerCollapsed: false,
-      schedulerCollapsed: true,
-    });
-    const { controller } = createController();
-
-    await controller.loadCollapsePrefs();
-
-    expect(controller.spawnCollapsed.value).toBe(true);
-    expect(controller.plannerCollapsed.value).toBe(false);
-    expect(controller.schedulerCollapsed.value).toBe(true);
-    expect(mocks.setSpawnCollapsed).toHaveBeenCalledWith(true);
-    expect(mocks.setPlannerCollapsed).toHaveBeenCalledWith(false);
-  });
-
-  it('persists collapse toggles', () => {
-    const { controller } = createController();
-
-    controller.toggleSpawnCollapse();
-
-    expect(controller.spawnCollapsed.value).toBe(true);
-    expect(mocks.setSpawnCollapsed).toHaveBeenCalledWith(true);
-    expect(mocks.configSetCollapsePrefs).toHaveBeenCalledWith({
-      spawnCollapsed: true,
-      plannerCollapsed: false,
-      schedulerCollapsed: false,
-    });
   });
 
   it('opens the directory picker when spawn directories exist', async () => {

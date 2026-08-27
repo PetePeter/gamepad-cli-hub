@@ -13,6 +13,7 @@ import { mount } from '@vue/test-utils';
 import { ref, type Ref } from 'vue';
 
 import TerminalPane from '../../../renderer/components/dock/TerminalPane.vue';
+import TerminalChips from '../../../renderer/components/chips/TerminalChips.vue';
 import OverviewPane from '../../../renderer/components/dock/OverviewPane.vue';
 import PlanScreenPane from '../../../renderer/components/dock/PlanScreenPane.vue';
 import SessionsPane from '../../../renderer/components/dock/SessionsPane.vue';
@@ -98,7 +99,6 @@ function makeContext(): Fake {
       removeSession: vi.fn(),
     },
     showArtifactsForSession: vi.fn(),
-    showMemories: vi.fn(),
     popOutArtifacts: vi.fn(),
   } as unknown as HelmPaneContext;
   return { context, terminalContainerRef };
@@ -129,23 +129,24 @@ beforeEach(() => {
 describe('pane wrappers render their view', () => {
   it('TerminalPane hands its container element to the shell', () => {
     const wrapper = mountPane(TerminalPane, fake.context);
-    expect(wrapper.find('#terminalContainer').exists()).toBe(true);
-    expect(fake.terminalContainerRef.value).toBe(wrapper.element);
+    const container = wrapper.find('#terminalContainer');
+    expect(container.exists()).toBe(true);
+    expect(fake.terminalContainerRef.value).toBe(container.element);
     wrapper.unmount();
     expect(fake.terminalContainerRef.value).toBeNull();
+  });
+
+  // The chips belong to the terminal, not to a band across the shell, so they
+  // travel with the pane wherever the dock puts it.
+  it('TerminalPane carries its chip bar inside the pane', () => {
+    const wrapper = mountPane(TerminalPane, fake.context);
+    expect(wrapper.findComponent(TerminalChips).exists()).toBe(true);
   });
 
   it('SessionsPane renders the sort bar and the session list', () => {
     const wrapper = mountPane(SessionsPane, fake.context);
     expect(wrapper.findComponent(SortBar).exists()).toBe(true);
     expect(wrapper.findComponent(SessionList).exists()).toBe(true);
-    expect(wrapper.find('.memories-entry').exists()).toBe(true);
-  });
-
-  it('SessionsPane exposes the prominent Memories navigation entry', async () => {
-    const wrapper = mountPane(SessionsPane, fake.context);
-    await wrapper.find('.memories-entry').trigger('click');
-    expect((fake.context.showMemories as any)).toHaveBeenCalledOnce();
   });
 
   it('OverviewPane renders the overview grid', () => {

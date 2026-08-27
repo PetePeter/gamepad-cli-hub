@@ -247,10 +247,7 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
 
   configGetStickConfig: (stick: string) => ipcRenderer.invoke('config:getStickConfig', stick),
 
-  configGetCollapsePrefs: () => ipcRenderer.invoke('config:getCollapsePrefs') as Promise<{ spawnCollapsed: boolean; plannerCollapsed: boolean; schedulerCollapsed?: boolean }>,
 
-  configSetCollapsePrefs: (prefs: { spawnCollapsed?: boolean; plannerCollapsed?: boolean; schedulerCollapsed?: boolean }) =>
-    ipcRenderer.invoke('config:setCollapsePrefs', prefs),
 
   /** Get the renderer-owned versioned dock workspace, if persisted. */
   configGetWorkspaceLayout: () => ipcRenderer.invoke('config:getWorkspaceLayout') as Promise<unknown>,

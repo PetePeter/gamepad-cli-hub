@@ -75,6 +75,7 @@ import { deliverPromptSequence } from './sequence-delivery.js';
 
 // Docking workspace — every view/tool window is resolved through the registry.
 import { provideHelmPaneContext } from './dock-pane-context.js';
+import { setPaneVisibilityBridge } from './dock-visibility-bridge.js';
 import {
   PANE_ARTIFACTS,
   PANE_OVERVIEW,
@@ -107,10 +108,7 @@ import AppModalHost from './components/app/AppModalHost.vue';
 
 const appStore = useAppStore();
 const state = appStore.state;
-import ChipBar from './components/chips/ChipBar.vue';
-import ChipActionBar from './components/chips/ChipActionBar.vue';
 import { useChipBarStore } from './stores/chip-bar.js';
-import { copyPlanRef as copyPlanRefToClipboard } from './composables/useCopyPlanRef.js';
 import { useNavigationStore } from './stores/navigation.js';
 import { useSessionsScreenStore } from './stores/sessions-screen.js';
 import { useNumberAccelerator, slotToIndex } from './composables/useNumberAccelerator.js';
@@ -120,7 +118,7 @@ import { useFlashAttention } from './composables/useFlashAttention.js';
 import { listRegisteredPanes, useDockWorkspace } from './composables/useDockWorkspace.js';
 import DockViewMenu from './components/dock/DockViewMenu.vue';
 import DockWorkspace from './components/dock/DockWorkspace.vue';
-import type { DockSide, DropTarget, PaneId } from './dock-types.js';
+import type { DockMode, DockSide, DropTarget, PaneId } from './dock-types.js';
 
 // ============================================================================
 // Reactive view state
@@ -151,6 +149,11 @@ const dockWorkspace = useDockWorkspace(undefined, {
   },
 });
 const dockViewMenuOpen = ref(false);
+
+// The imperative gamepad navigation in `screens/` decides whether to skip a
+// zone. The dock is the only collapse authority, so it answers that question
+// directly rather than a parallel set of collapse booleans.
+setPaneVisibilityBridge(dockWorkspace.isVisible);
 
 // A recursive dock renderer may move the host while keeping the workspace
 // alive. TerminalManager adopts the existing DOM so xterm scrollback and PTY
@@ -251,6 +254,13 @@ function onDockRevealPane(paneId: PaneId): void {
 function onDockAutohideClose(paneId: PaneId): void {
   dockWorkspace.unreveal(paneId);
   if (paneId === PANE_ARTIFACTS) artifactViewer.hidePanel();
+}
+
+// Collapsing a pinned dock is a mode change, not a close: the panes stay in the
+// tree and the rail brings them back.
+function onDockSetMode(paneId: PaneId, mode: DockMode): void {
+  dockWorkspace.setMode(paneId, mode);
+  if (mode !== 'pinned') dockWorkspace.unreveal(paneId);
 }
 
 function onDockResize(path: number[], sizes: number[]): void {
@@ -449,7 +459,6 @@ const {
   onSessionRename,
   onSessionSnapOut,
   onSessionSnapBack,
-  loadCollapsePrefs,
   onSpawn,
   onDirPickerSelect,
   installDirPickerBridge,
@@ -496,21 +505,6 @@ const hasDrafts = computed(() => {
   if (!state.activeSessionId) return false;
   return (state.draftCounts.get(state.activeSessionId) ?? 0) > 0;
 });
-
-const chipBarVisible = computed(() =>
-  !settingsVisible.value &&
-  activeView.value === 'terminal' &&
-  !!state.activeSessionId,
-);
-
-const chipBarPlans = computed(() => chipBarStore.plans);
-const chipBarHasPills = computed(() =>
-  chipBarPlans.value.length > 0,
-);
-const chipActionBarVisible = computed(() =>
-  chipBarVisible.value &&
-  (chipBarHasPills.value || chipBarStore.actions.length > 0)
-);
 
 watch(() => activeView.value, (view) => {
   if (view === 'overview') {
@@ -616,16 +610,6 @@ function onArtifactPopOut(): void {
 function onShowArtifactsForSession(sessionId: string): void {
   onSessionClick(sessionId);
   artifactViewer.showPanel();
-}
-
-function onShowMemories(): void {
-  try {
-    if (!dockWorkspace.isOpen(PANE_MEMORIES)) dockWorkspace.restore(PANE_MEMORIES);
-    dockWorkspace.activate(PANE_MEMORIES);
-    dockWorkspace.focusPane(PANE_MEMORIES, 'memories-entry');
-  } catch (error) {
-    console.warn('[App] Could not activate Memories pane:', error);
-  }
 }
 
 // Context menu
@@ -762,18 +746,6 @@ function onDraftNewDraft(): void {
   openDraftEditor(state.activeSessionId);
 }
 
-function onChipBarPlanClick(planId: string): void {
-  void chipBarStore.openPlan(planId);
-}
-
-function onChipBarAction(sequence: string): void {
-  void chipBarStore.triggerAction(sequence);
-}
-
-function copyPlanRef(humanId: string): void {
-  void copyPlanRefToClipboard(humanId);
-}
-
 async function onDraftSubmenuApply(draft: { id: string; text: string }): Promise<void> {
   draftSubmenu.visible = false;
   if (state.activeSessionId && draft.text) {
@@ -885,7 +857,6 @@ provideHelmPaneContext({
     removeSession: onGroupRemoveSession,
   },
   showArtifactsForSession: onShowArtifactsForSession,
-  showMemories: onShowMemories,
   popOutArtifacts: onArtifactPopOut,
 });
 
@@ -1018,7 +989,6 @@ onMounted(async () => {
     setPlanScreenPlanChangesChecker(hasUnsavedChanges);
     setPlanScreenBackupRestoreOpener(openBackupRestore);
 
-    await loadCollapsePrefs();
     await chipBarStore.refresh(state.activeSessionId ?? null);
   } catch (error) {
     console.error('[App] Startup failed:', error);
@@ -1085,15 +1055,6 @@ onUnmounted(() => {
     />
     <div class="app-workspace">
       <div class="app-main-area">
-        <ChipBar
-          id="draftStrip"
-          :plan-chips="chipBarPlans"
-          :actions="[]"
-          :visible="chipBarVisible && activeView !== 'overview'"
-          @plan-chip-click="onChipBarPlanClick"
-          @plan-chip-copy="copyPlanRef"
-          @action-click="onChipBarAction"
-        />
         <DraftEditor
           v-if="draftEditorVisible"
           ref="draftEditorRef"
@@ -1142,16 +1103,11 @@ onUnmounted(() => {
           @resize-split="onDockResize"
           @reveal-pane="onDockRevealPane"
           @autohide-close="onDockAutohideClose"
+          @set-dock-mode="onDockSetMode"
           @move-pane="onDockMovePane"
           @reorder-tab="onDockReorderTab"
           @dock-pane-edge="onDockPaneEdge"
         />
-        <div v-if="chipActionBarVisible && activeView === 'terminal'" class="chip-action-dock">
-          <ChipActionBar
-            :actions="chipBarStore.actions"
-            @action-click="onChipBarAction"
-          />
-        </div>
       </div>
 
       <div v-if="settingsVisible" class="settings-workspace-overlay">

@@ -29,7 +29,7 @@ Direct `window.gamepadCli` references are allowed only in:
 | `window.helm.sessions` | session selection, lifetime, snap-out/snap-back, rename, and state |
 | `window.helm.terminal` | PTY spawn, write, resize, scroll input, switching marks, and kill |
 | `window.helm.delivery` | queued pipeline operations |
-| `window.helm.config` | bindings, sequences, chip bar, notifications, MCP config, ESC protection, sort/filter/group prefs, working directories, spawn commands, CLI env, and editor/collapse prefs |
+| `window.helm.config` | bindings, sequences, chip bar, notifications, MCP config, ESC protection, sort/filter/group prefs, working directories, spawn commands, CLI env, editor prefs, and the dock workspace layout |
 | `window.helm.tools` | configured CLI tools and their ordering |
 | `window.helm.profiles` | profile list, active profile, switching, creation, and deletion |
 | `window.helm.projects` | project list, CRUD, and directory membership |

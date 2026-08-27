@@ -5,23 +5,35 @@ import { mount } from '@vue/test-utils';
 import DockViewMenu from '../../../renderer/components/dock/DockViewMenu.vue';
 
 const items = [
-  { id: 'terminal', title: 'Terminal', closed: false },
-  { id: 'artifacts', title: 'Artifacts', closed: true },
+  { id: 'terminal', title: 'Terminal', icon: '▶', closed: false },
+  { id: 'artifacts', title: 'Artifacts', icon: '📄', closed: true },
 ] as const;
 
 describe('DockViewMenu', () => {
-  it('lists every registered pane and emits recovery/reset actions', async () => {
+  it('separates closed panes from open ones so recovery is findable', async () => {
     const wrapper = mount(DockViewMenu, { props: { open: true, items } });
     const buttons = wrapper.findAll('[role="menuitemcheckbox"]');
 
-    expect(buttons.map(button => button.text())).toEqual(['✓Terminal', 'Artifacts']);
+    expect(buttons.map(button => button.get('.dock-view-menu__label').text())).toEqual(['Terminal', 'Artifacts']);
     expect(buttons[0].attributes('aria-checked')).toBe('true');
     expect(buttons[1].attributes('aria-checked')).toBe('false');
+    expect(buttons[1].classes()).toContain('dock-view-menu__item--closed');
+    expect(wrapper.findAll('.dock-view-menu__heading').map(h => h.text())).toEqual(['Open', 'Closed']);
 
     await buttons[1].trigger('click');
     await wrapper.get('.dock-view-menu__reset').trigger('click');
     expect(wrapper.emitted('toggle')).toEqual([['artifacts']]);
     expect(wrapper.emitted('reset')).toEqual([[]]);
+  });
+
+  it('badges the trigger with the number of recoverable panes', () => {
+    const wrapper = mount(DockViewMenu, { props: { open: false, items } });
+    expect(wrapper.get('.dock-view-menu__badge').text()).toBe('1');
+
+    const allOpen = mount(DockViewMenu, {
+      props: { open: false, items: items.map(item => ({ ...item, closed: false })) },
+    });
+    expect(allOpen.find('.dock-view-menu__badge').exists()).toBe(false);
   });
 
   it('opens and closes from the accessible trigger', async () => {

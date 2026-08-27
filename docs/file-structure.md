@@ -118,7 +118,7 @@ renderer/
 │       ├── OverviewGrid.vue    # Scrollable preview grid
 │       ├── PlanScreen.vue      # SVG DAG canvas + editor
 │       ├── MainView.vue        # Right panel view switcher
-│       └── ChipBar.vue         # Draft pills + plan chips strip
+│       └── ChipBar.vue         # Draft pills + plan chips strip (chips/ChipBar.vue; mounted via chips/TerminalChips.vue inside the terminal pane)
 ├── stores/
 │   ├── index.ts                # Barrel export of all Pinia stores
 │   ├── app.ts                  # useAppStore — currentScreen, gamepadCount, eventLog, activeProfile

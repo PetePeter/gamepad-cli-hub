@@ -34,6 +34,7 @@ import {
   PANE_SESSIONS,
   PANE_TERMINAL,
   type DockNode,
+  type DockSide,
   type DockSplitNode,
   type DockWorkspaceLayout,
 } from '../renderer/dock-types';
@@ -44,6 +45,20 @@ function group(tabs: string[], activeTab = tabs[0]): DockNode {
 
 function layoutOf(root: DockNode, closed: string[] = []): DockWorkspaceLayout {
   return { version: DOCK_LAYOUT_VERSION, root, closed };
+}
+
+/** Which edge dock a pane sits under, or null when it lives in the centre. */
+function findDockSideOf(node: DockNode, paneId: string): DockSide | null {
+  if (node.type === 'dock') {
+    return listPanes(node.child).includes(paneId) ? node.side : null;
+  }
+  if (node.type === 'split') {
+    for (const child of node.children) {
+      const side = findDockSideOf(child, paneId);
+      if (side) return side;
+    }
+  }
+  return null;
 }
 
 describe('default Classic layout', () => {
@@ -331,12 +346,40 @@ describe('close and restore', () => {
     expect(() => validateLayout(next)).not.toThrow();
   });
 
-  it('restores a closed pane to its default home', () => {
+  it('restores a closed pane into the live dock on its home side', () => {
     const layout = closePane(createDefaultLayout(), PANE_SCHEDULER);
     const restored = restorePane(layout, PANE_SCHEDULER);
     expect(restored.closed).toEqual([]);
-    expect(listPanes(restored.root)).toContain(PANE_SCHEDULER);
+    expect(findDockSideOf(restored.root, PANE_SCHEDULER)).toBe('left');
     expect(() => validateLayout(restored)).not.toThrow();
+  });
+
+  // The regression that made tool windows feel unrecoverable: closing every
+  // pane of a dock deletes the dock, and restore used to fall back to the first
+  // live pane — dropping the tool window into the centre group behind Terminal.
+  it('recreates the home edge dock when every pane of it was closed', () => {
+    const emptied = [PANE_SESSIONS, PANE_SCHEDULER, PANE_QUICK_SPAWN, PANE_PLAN_DIRECTORIES]
+      .reduce(closePane, createDefaultLayout());
+    expect(findDockSideOf(emptied.root, PANE_SESSIONS)).toBeNull();
+
+    const restored = restorePane(emptied, PANE_SESSIONS);
+    expect(findDockSideOf(restored.root, PANE_SESSIONS)).toBe('left');
+    expect(findPaneGroup(restored.root, PANE_TERMINAL)?.tabs).not.toContain(PANE_SESSIONS);
+    expect(() => validateLayout(restored)).not.toThrow();
+  });
+
+  it('restores each tool window to its own home side', () => {
+    const closed = closePane(closePane(createDefaultLayout(), PANE_ARTIFACTS), PANE_SCHEDULER);
+    const restored = restorePane(restorePane(closed, PANE_ARTIFACTS), PANE_SCHEDULER);
+    expect(findDockSideOf(restored.root, PANE_ARTIFACTS)).toBe('right');
+    expect(findDockSideOf(restored.root, PANE_SCHEDULER)).toBe('left');
+  });
+
+  it('restores a centre-homed view into the centre group, never a dock', () => {
+    const layout = closePane(createDefaultLayout(), PANE_OVERVIEW);
+    const restored = restorePane(layout, PANE_OVERVIEW);
+    expect(findDockSideOf(restored.root, PANE_OVERVIEW)).toBeNull();
+    expect(findPaneGroup(restored.root, PANE_OVERVIEW)?.tabs).toContain(PANE_TERMINAL);
   });
 
   it('refuses to restore or move a pane that is not closed', () => {

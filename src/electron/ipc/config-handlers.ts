@@ -434,38 +434,6 @@ export function setupConfigHandlers(
     return result.filePaths[0];
   });
 
-  ipcMain.handle('config:getCollapsePrefs', () => {
-    try {
-      const prefs = configLoader.getSidebarPrefs();
-      return {
-        spawnCollapsed: prefs.spawnCollapsed ?? false,
-        plannerCollapsed: prefs.plannerCollapsed ?? false,
-        schedulerCollapsed: prefs.schedulerCollapsed ?? false,
-      };
-    } catch (error) {
-      logger.error(`[IPC] Failed to get collapse prefs: ${error}`);
-      return { spawnCollapsed: false, plannerCollapsed: false, schedulerCollapsed: false };
-    }
-  });
-
-  ipcMain.handle('config:setCollapsePrefs', (_event, prefs: {
-    spawnCollapsed?: boolean;
-    plannerCollapsed?: boolean;
-    schedulerCollapsed?: boolean;
-  }) => {
-    try {
-      const current = configLoader.getSidebarPrefs();
-      configLoader.setSidebarPrefs({
-        ...current,
-        spawnCollapsed: prefs.spawnCollapsed ?? current.spawnCollapsed,
-        plannerCollapsed: prefs.plannerCollapsed ?? current.plannerCollapsed,
-        schedulerCollapsed: prefs.schedulerCollapsed ?? current.schedulerCollapsed,
-      });
-    } catch (error) {
-      logger.error(`[IPC] Failed to set collapse prefs: ${error}`);
-    }
-  });
-
   // The dock schema belongs to the renderer's layout model. Main deliberately
   // treats it as an opaque settings value so an older build can still load
   // settings written by a newer renderer; the renderer validates and falls
