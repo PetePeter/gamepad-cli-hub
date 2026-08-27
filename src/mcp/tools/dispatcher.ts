@@ -7,11 +7,15 @@ import {
   asArtifactKind,
   asBoolean,
   asContextBindingTargetType,
+  asFiniteNumber,
+  asGraphDepth,
+  asMemoryExportFormat,
   asPlanFilter,
   asPlanStatus,
   asPlanTypeOrNull,
   asRecord,
   asString,
+  asStringValue,
   asTerminalOutputMode,
   requireBooleanResult,
   requireResult,
@@ -700,6 +704,127 @@ export async function callMcpTool(
           asString(args.id, 'id is required'),
           typeof args.version === 'number' ? args.version : undefined,
           { asFile, ...(attachmentId ? { attachmentId } : {}) },
+        );
+      }
+      case 'memory_list': {
+        const sessionId = requireCallerSession(authContext, 'memory_list');
+        return service.listMemories(sessionId);
+      }
+      case 'memory_get': {
+        const sessionId = requireCallerSession(authContext, 'memory_get');
+        return requireResult(
+          service.getMemory(sessionId, asString(args.id, 'id is required'), asGraphDepth(args.graphDepth)),
+          `Memory not found: ${String(args.id)}`,
+        );
+      }
+      case 'memory_create': {
+        const sessionId = requireCallerSession(authContext, 'memory_create');
+        return service.createMemory(sessionId, {
+          tldr: asString(args.tldr, 'tldr is required'),
+          content: asStringValue(args.content, 'content is required'),
+        });
+      }
+      case 'memory_update': {
+        const sessionId = requireCallerSession(authContext, 'memory_update');
+        const updates: { tldr?: string; content?: string } = {};
+        if (args.tldr !== undefined) updates.tldr = asString(args.tldr, 'tldr must be a non-empty string');
+        if (args.content !== undefined) updates.content = asStringValue(args.content, 'content must be a string');
+        if (Object.keys(updates).length === 0) throw new Error('Provide tldr and/or content to update');
+        const expectedUpdatedAt = args.expectedUpdatedAt === undefined
+          ? undefined
+          : asFiniteNumber(args.expectedUpdatedAt, 'expectedUpdatedAt must be a finite number');
+        return requireResult(
+          service.updateMemory(sessionId, asString(args.id, 'id is required'), updates, expectedUpdatedAt),
+          `Memory not found: ${String(args.id)}`,
+        );
+      }
+      case 'memory_delete': {
+        const sessionId = requireCallerSession(authContext, 'memory_delete');
+        return requireBooleanResult(
+          service.deleteMemory(sessionId, asString(args.id, 'id is required')),
+          `Memory not found: ${String(args.id)}`,
+        );
+      }
+      case 'memory_search': {
+        const sessionId = requireCallerSession(authContext, 'memory_search');
+        const regex = args.regex === undefined ? false : asBoolean(args.regex, 'regex must be a boolean');
+        return service.searchMemories(sessionId, asStringValue(args.query, 'query is required'), {
+          regex,
+          graphDepth: asGraphDepth(args.graphDepth),
+        });
+      }
+      case 'memory_graph': {
+        const sessionId = requireCallerSession(authContext, 'memory_graph');
+        return requireResult(
+          service.graphMemory(sessionId, asString(args.rootId, 'rootId is required'), asGraphDepth(args.graphDepth)),
+          `Memory not found: ${String(args.rootId)}`,
+        );
+      }
+      case 'memory_export': {
+        const sessionId = requireCallerSession(authContext, 'memory_export');
+        const rootId = args.rootId === undefined ? undefined : asString(args.rootId, 'rootId must be a non-empty string');
+        return service.exportMemories(
+          sessionId,
+          asMemoryExportFormat(args.format),
+          rootId,
+          asGraphDepth(args.graphDepth),
+        );
+      }
+      case 'memory_link': {
+        const sessionId = requireCallerSession(authContext, 'memory_link');
+        return requireBooleanResult(
+          service.linkMemory(
+            sessionId,
+            asString(args.fromId, 'fromId is required'),
+            asString(args.toId, 'toId is required'),
+          ),
+          'Both memories must belong to the authenticated caller session',
+        );
+      }
+      case 'memory_unlink': {
+        const sessionId = requireCallerSession(authContext, 'memory_unlink');
+        return requireBooleanResult(
+          service.unlinkMemory(
+            sessionId,
+            asString(args.fromId, 'fromId is required'),
+            asString(args.toId, 'toId is required'),
+          ),
+          'Memory edge not found or is outside the authenticated caller session',
+        );
+      }
+      case 'memory_attachment_add': {
+        const sessionId = requireCallerSession(authContext, 'memory_attachment_add');
+        return service.addMemoryAttachment(
+          sessionId,
+          asString(args.memoryId, 'memoryId is required'),
+          {
+            filePath: asString(args.filePath, 'filePath is required'),
+            filename: asString(args.filename, 'filename is required'),
+            ...(args.contentType === undefined ? {} : { contentType: asString(args.contentType, 'contentType must be a non-empty string') }),
+          },
+        );
+      }
+      case 'memory_attachment_list': {
+        const sessionId = requireCallerSession(authContext, 'memory_attachment_list');
+        return service.listMemoryAttachments(sessionId, asString(args.memoryId, 'memoryId is required'));
+      }
+      case 'memory_attachment_get': {
+        const sessionId = requireCallerSession(authContext, 'memory_attachment_get');
+        return service.getMemoryAttachment(
+          sessionId,
+          asString(args.memoryId, 'memoryId is required'),
+          asString(args.attachmentId, 'attachmentId is required'),
+        );
+      }
+      case 'memory_attachment_delete': {
+        const sessionId = requireCallerSession(authContext, 'memory_attachment_delete');
+        return requireBooleanResult(
+          service.deleteMemoryAttachment(
+            sessionId,
+            asString(args.memoryId, 'memoryId is required'),
+            asString(args.attachmentId, 'attachmentId is required'),
+          ),
+          `Attachment not found: ${String(args.attachmentId)}`,
         );
       }
       case 'peer_list':

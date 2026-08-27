@@ -812,6 +812,25 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   planOpenExternal: (planId: string): Promise<{ success: boolean; path?: string; error?: string }> =>
     ipcRenderer.invoke('plan:open-external', planId),
 
+  // ========================================================================
+  // Renderer-safe durable memories (ownership is derived by the main process)
+  // ========================================================================
+
+  memoryList: () => ipcRenderer.invoke('memory:list'),
+  memoryGet: (memoryId: string) => ipcRenderer.invoke('memory:get', memoryId),
+  memorySearch: (query: string, options?: { regex?: boolean; graphDepth?: number }) =>
+    ipcRenderer.invoke('memory:search', query, options),
+  memoryGraph: (rootId: string, graphDepth?: number) =>
+    ipcRenderer.invoke('memory:graph', rootId, graphDepth),
+  memoryExport: (format: 'markdown' | 'json', rootId?: string, graphDepth?: number) =>
+    ipcRenderer.invoke('memory:export', format, rootId, graphDepth),
+  memoryDelete: (memoryId: string): Promise<boolean> => ipcRenderer.invoke('memory:delete', memoryId),
+  memoryAttachmentList: (memoryId: string) => ipcRenderer.invoke('memory:attachment-list', memoryId),
+  memoryAttachmentOpen: (memoryId: string, attachmentId: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('memory:attachment-open', memoryId, attachmentId),
+  memoryAttachmentDelete: (memoryId: string, attachmentId: string): Promise<boolean> =>
+    ipcRenderer.invoke('memory:attachment-delete', memoryId, attachmentId),
+
   /** Read a local file and return its content as a string */
   planReadFile: (filePath: string): Promise<string | null> =>
     ipcRenderer.invoke('plan:read-file', filePath),
@@ -1113,6 +1132,13 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     const listener = (_event: Electron.IpcRendererEvent, data: { sessionId: string }) => callback(data);
     ipcRenderer.on('artifact:changed', listener);
     return () => ipcRenderer.removeListener('artifact:changed', listener);
+  },
+
+  /** Subscribe to durable-memory invalidation for the owning session. */
+  onMemoryChanged: (callback: (event: { sessionId?: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: { sessionId?: string }) => callback(data);
+    ipcRenderer.on('memory:changed', listener);
+    return () => ipcRenderer.removeListener('memory:changed', listener);
   },
 
   /** Subscribe to artifact reveal (bring-forward) events */

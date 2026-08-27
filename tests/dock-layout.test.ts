@@ -28,6 +28,7 @@ import {
   PANE_OVERVIEW,
   PANE_PLAN_DIRECTORIES,
   PANE_PLAN_SCREEN,
+  PANE_MEMORIES,
   PANE_QUICK_SPAWN,
   PANE_SCHEDULER,
   PANE_SESSIONS,
@@ -69,6 +70,7 @@ describe('default Classic layout', () => {
       PANE_TERMINAL,
       PANE_OVERVIEW,
       PANE_PLAN_SCREEN,
+      PANE_MEMORIES,
       PANE_ARTIFACTS,
     ]);
   });
@@ -89,6 +91,7 @@ describe('default Classic layout', () => {
       PANE_TERMINAL,
       PANE_OVERVIEW,
       PANE_PLAN_SCREEN,
+      PANE_MEMORIES,
     ]);
   });
 

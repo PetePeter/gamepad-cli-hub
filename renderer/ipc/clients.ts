@@ -28,6 +28,7 @@ export const projectsClient = domainClient('projects');
 export const skillsClient = domainClient('skills');
 export const plansClient = domainClient('plans');
 export const contextsClient = domainClient('contexts');
+export const memoryClient = domainClient('memory');
 export const attachmentsClient = domainClient('attachments');
 export const backupsClient = domainClient('backups');
 export const incomingClient = domainClient('incoming');

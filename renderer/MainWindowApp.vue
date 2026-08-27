@@ -79,6 +79,7 @@ import {
   PANE_ARTIFACTS,
   PANE_OVERVIEW,
   PANE_PLAN_SCREEN,
+  PANE_MEMORIES,
   PANE_TERMINAL,
 } from './dock-types.js';
 
@@ -617,6 +618,16 @@ function onShowArtifactsForSession(sessionId: string): void {
   artifactViewer.showPanel();
 }
 
+function onShowMemories(): void {
+  try {
+    if (!dockWorkspace.isOpen(PANE_MEMORIES)) dockWorkspace.restore(PANE_MEMORIES);
+    dockWorkspace.activate(PANE_MEMORIES);
+    dockWorkspace.focusPane(PANE_MEMORIES, 'memories-entry');
+  } catch (error) {
+    console.warn('[App] Could not activate Memories pane:', error);
+  }
+}
+
 // Context menu
 function onContextMenuAction(action: string): void {
   contextMenu.visible = false;
@@ -874,6 +885,7 @@ provideHelmPaneContext({
     removeSession: onGroupRemoveSession,
   },
   showArtifactsForSession: onShowArtifactsForSession,
+  showMemories: onShowMemories,
   popOutArtifacts: onArtifactPopOut,
 });
 

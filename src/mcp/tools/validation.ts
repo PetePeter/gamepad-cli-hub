@@ -1,5 +1,7 @@
 import type { ContextBindingTargetType } from '../../types/context.js';
 import type { ArtifactKind } from '../../types/artifact.js';
+import { validateGraphDepth } from '../../session/memory-graph.js';
+import type { MemoryExportFormat } from '../../types/memory.js';
 
 export function asString(value: unknown, errorMessage: string): string {
   if (typeof value !== 'string' || value.length === 0) {
@@ -78,6 +80,27 @@ export function asArtifactKind(value: unknown): ArtifactKind {
     return value;
   }
   throw new Error('kind must be one of markdown or html');
+}
+
+export function asStringValue(value: unknown, errorMessage: string): string {
+  if (typeof value !== 'string') throw new Error(errorMessage);
+  return value;
+}
+
+export function asFiniteNumber(value: unknown, errorMessage: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error(errorMessage);
+  return value;
+}
+
+export function asGraphDepth(value: unknown): number {
+  if (value === undefined) return 0;
+  validateGraphDepth(value);
+  return value;
+}
+
+export function asMemoryExportFormat(value: unknown): MemoryExportFormat {
+  if (value === 'markdown' || value === 'json') return value;
+  throw new Error('format must be one of markdown or json');
 }
 
 

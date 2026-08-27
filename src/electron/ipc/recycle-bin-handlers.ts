@@ -12,6 +12,7 @@ import type { ArtifactManager } from '../../session/artifact-manager.js';
 import type { RecycleBinEntry } from '../../types/recycle-bin.js';
 import type { WindowManager } from '../window-manager.js';
 import { ArtifactTempRegistry } from '../../session/artifact-temp-registry.js';
+import type { MemoryManager } from '../../session/memory-manager.js';
 import { logger } from '../../utils/logger.js';
 
 export function setupRecycleBinHandlers(
@@ -19,8 +20,18 @@ export function setupRecycleBinHandlers(
   artifactManager: ArtifactManager,
   windowManager?: WindowManager,
   tempRegistry: ArtifactTempRegistry = new ArtifactTempRegistry(),
+  memoryManager?: Pick<MemoryManager, 'purgeSession'>,
 ): void {
   const getTargetWindows = () => windowManager?.getAllWindows() ?? BrowserWindow.getAllWindows();
+  const purgeMemory = (sessionId: string): boolean => {
+    try {
+      memoryManager?.purgeSession(sessionId);
+      return true;
+    } catch (error) {
+      logger.error(`[recycleBin] Failed to purge memories for ${sessionId}: ${error}`);
+      return false;
+    }
+  };
 
   recycleBin.on('recycle-bin:changed', () => {
     for (const win of getTargetWindows()) {
@@ -34,6 +45,7 @@ export function setupRecycleBinHandlers(
   // coming back, so nothing can still legitimately reference them.
   recycleBin.on('recycle-bin:expired', (expired: RecycleBinEntry[]) => {
     for (const entry of expired) {
+      if (!purgeMemory(entry.sessionId)) continue;
       artifactManager.clearSession(entry.sessionId);
       tempRegistry.drain(entry.sessionId);
     }
@@ -77,6 +89,11 @@ export function setupRecycleBinHandlers(
       // the session id BEFORE forgetting (restore uses a different path, so this
       // only fires on a genuine Forget, never on restore).
       const sessionId = recycleBin.list().find(e => e.id === id)?.sessionId;
+      if (sessionId) {
+        // Purge memory before removing the entry, so a failed purge leaves the
+        // recoverable entry available for retry. Restore never uses this path.
+        if (!purgeMemory(sessionId)) return false;
+      }
       recycleBin.forget(id);
       if (sessionId) {
         artifactManager.clearSession(sessionId);
@@ -93,6 +110,9 @@ export function setupRecycleBinHandlers(
     try {
       // Snapshot every binned session id before emptying, then clear their artifacts.
       const sessionIds = recycleBin.list().map(e => e.sessionId);
+      for (const sessionId of sessionIds) {
+        if (!purgeMemory(sessionId)) return false;
+      }
       recycleBin.empty();
       for (const sessionId of sessionIds) {
         artifactManager.clearSession(sessionId);

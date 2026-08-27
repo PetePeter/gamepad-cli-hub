@@ -12,6 +12,7 @@ import type { Component } from 'vue';
 import TerminalPane from './components/dock/TerminalPane.vue';
 import OverviewPane from './components/dock/OverviewPane.vue';
 import PlanScreenPane from './components/dock/PlanScreenPane.vue';
+import MemoriesPane from './components/dock/MemoriesPane.vue';
 import SessionsPane from './components/dock/SessionsPane.vue';
 import SchedulerPane from './components/dock/SchedulerPane.vue';
 import QuickSpawnPane from './components/dock/QuickSpawnPane.vue';
@@ -22,6 +23,7 @@ import {
   PANE_OVERVIEW,
   PANE_PLAN_DIRECTORIES,
   PANE_PLAN_SCREEN,
+  PANE_MEMORIES,
   PANE_QUICK_SPAWN,
   PANE_SCHEDULER,
   PANE_SESSIONS,
@@ -33,6 +35,7 @@ export const DOCK_PANE_COMPONENTS: Readonly<Record<PaneId, Component>> = Object.
   [PANE_TERMINAL]: TerminalPane,
   [PANE_OVERVIEW]: OverviewPane,
   [PANE_PLAN_SCREEN]: PlanScreenPane,
+  [PANE_MEMORIES]: MemoriesPane,
   [PANE_SESSIONS]: SessionsPane,
   [PANE_SCHEDULER]: SchedulerPane,
   [PANE_QUICK_SPAWN]: QuickSpawnPane,

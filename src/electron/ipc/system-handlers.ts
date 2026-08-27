@@ -12,6 +12,7 @@ import { logger, logDir } from '../../utils/logger.js';
 import { getTempDir } from '../../utils/app-paths.js';
 import { forceDeleteTempFile } from '../../utils/temp-file-delete.js';
 import { ARTIFACT_TEMP_PREFIX } from '../../session/artifact-temp-file.js';
+import { MEMORY_ATTACHMENT_TEMP_PREFIX } from '../../session/memory-attachment-manager.js';
 
 export function setupSystemHandlers(dirname: string): void {
   ipcMain.handle('app:getVersion', () => app.getVersion());
@@ -146,6 +147,7 @@ const OWNED_TEMP_PREFIXES = [
   'helm-mcp-artifact-',
   'helm-mcp-attachment-',
   ARTIFACT_TEMP_PREFIX,
+  MEMORY_ATTACHMENT_TEMP_PREFIX,
 ];
 
 /**

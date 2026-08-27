@@ -297,6 +297,7 @@ describe('cleanupWorkTempFiles', () => {
     const planAttachmentTemp = writeTemp('helm-attachment-att-1-note.txt', true);
     const mcpArtifactTemp = writeTemp('helm-mcp-artifact-s1--Report-1.md', true);
     const mcpAttachmentTemp = writeTemp('helm-mcp-attachment-att-1-note.txt', true);
+    const memoryAttachmentTemp = writeTemp('helm-memory-attachment-temp-1-note.txt', true);
     const workTemp = writeTemp('helm-work-1.md');
     const foreign = writeTemp('not-ours.md');
 
@@ -307,6 +308,7 @@ describe('cleanupWorkTempFiles', () => {
     expect(fs.existsSync(planAttachmentTemp)).toBe(false);
     expect(fs.existsSync(mcpArtifactTemp)).toBe(false);
     expect(fs.existsSync(mcpAttachmentTemp)).toBe(false);
+    expect(fs.existsSync(memoryAttachmentTemp)).toBe(false);
     expect(fs.existsSync(workTemp)).toBe(false);
     expect(fs.existsSync(foreign)).toBe(true);
   });

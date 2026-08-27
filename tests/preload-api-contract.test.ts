@@ -75,6 +75,7 @@ describe('preload API boundary contract', () => {
       'plans',
       'drafts',
       'contexts',
+      'memory',
       'attachments',
       'backups',
       'incoming',

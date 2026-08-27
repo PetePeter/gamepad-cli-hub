@@ -30,6 +30,9 @@ import { ArtifactAttachmentManager } from '../../session/artifact-attachment-man
 import { saveArtifacts, loadArtifacts } from '../../session/artifact-persistence.js';
 import { pruneOrphanArtifacts } from '../../session/artifact-orphan-prune.js';
 import { ArtifactTempRegistry, attachSessionTempCleanup } from '../../session/artifact-temp-registry.js';
+import { MemoryPersistence } from '../../session/memory-persistence.js';
+import { MemoryAttachmentManager } from '../../session/memory-attachment-manager.js';
+import { MemoryManager } from '../../session/memory-manager.js';
 import { setupPowerMonitor } from '../../session/power-monitor.js';
 import { ConfigLoader } from '../../config/loader.js';
 import { keyboard } from '../../output/keyboard.js';
@@ -54,6 +57,7 @@ import { setupScheduledTaskHandlers } from './scheduled-task-handlers.js';
 import { setupRecycleBinHandlers } from './recycle-bin-handlers.js';
 import { setupRuntimeGroupHandlers } from './runtime-group-handlers.js';
 import { setupArtifactHandlers } from './artifact-handlers.js';
+import { setupMemoryHandlers } from './memory-handlers.js';
 import { setupBackupPlanHandlers } from './plan-backup-handlers.js';
 import { setupProjectHandlers } from './project-handlers.js';
 import { setupSkillHandlers } from './skill-handlers.js';
@@ -144,6 +148,12 @@ export function registerIPCHandlers(
     (artifactId) => artifactAttachmentManager.deleteForArtifact(artifactId),
   );
   artifactManager.importAll(loadArtifacts());
+  const memoryPersistence = new MemoryPersistence();
+  const memoryAttachmentManager = new MemoryAttachmentManager();
+  const memoryManager = new MemoryManager({
+    persistence: memoryPersistence,
+    attachmentManager: memoryAttachmentManager,
+  });
   const planManager = new PlanManager(projectStore);
   const contextManager = new ContextManager(planManager);
   const getSkillsPath = (configLoader as ConfigLoader & { getSkillsPath?: () => string }).getSkillsPath;
@@ -168,6 +178,7 @@ export function registerIPCHandlers(
   helmControlService.setNotificationManager(notificationManager);
   helmControlService.setRuntimeGroupManager(runtimeGroupManager);
   helmControlService.setArtifactManager(artifactManager, artifactAttachmentManager);
+  helmControlService.setMemoryManager(memoryManager, memoryAttachmentManager, artifactTempRegistry);
 
   const telegramBot = new TelegramBotCore();
   const topicManager = new TopicManager(telegramBot, sessionManager, configLoader.getTelegramConfig().instanceName);
@@ -205,6 +216,11 @@ export function registerIPCHandlers(
   // subsequent startup.
   const liveSessionIds = new Set(sessionManager.getAllSessions().map(s => s.id));
   const binSessionIds = new Set(recycleBinManager.list().map(e => e.sessionId));
+  try {
+    memoryManager.pruneOrphanedSessions(new Set([...liveSessionIds, ...binSessionIds]));
+  } catch (error) {
+    logger.error(`[IPC] Failed to prune orphaned memories: ${error}`);
+  }
   pruneOrphanArtifacts(
     Object.keys(artifactManager.exportAll()),
     liveSessionIds,
@@ -278,9 +294,23 @@ export function registerIPCHandlers(
   setupSkillHandlers(skillManager, skillAnalyticsManager);
   setupPlanHandlers(planManager, contextManager, windowManager, incomingWatcher, dirname);
   setupScheduledTaskHandlers(scheduledTaskManager, scheduledTaskHistoryManager, windowManager);
-  setupRecycleBinHandlers(recycleBinManager, artifactManager, windowManager, artifactTempRegistry);
+  setupRecycleBinHandlers(recycleBinManager, artifactManager, windowManager, artifactTempRegistry, memoryManager);
+  // Expired entries loaded from persisted state were not visible to the runtime
+  // expiry event until now; dispatch them after cleanup listeners are attached.
+  recycleBinManager.pruneExpired();
   setupRuntimeGroupHandlers(runtimeGroupManager, windowManager);
   setupArtifactHandlers(artifactManager, artifactAttachmentManager, windowManager, dirname, artifactTempRegistry);
+  setupMemoryHandlers(memoryManager, memoryAttachmentManager, sessionManager, windowManager, artifactTempRegistry);
+
+  // Memory mutations can originate from MCP or another window. Route the
+  // invalidation only to windows that own the changed session; unscoped legacy
+  // records are broadcast so they cannot leave a stale view behind.
+  memoryManager.on('memory:changed', (event: { sessionId?: string }) => {
+    const targets = event.sessionId
+      ? [windowManager.getWindowForSession(event.sessionId)].filter((win): win is BrowserWindow => Boolean(win && !win.isDestroyed()))
+      : windowManager.getAllWindows();
+    for (const win of targets) win.webContents.send('memory:changed', event);
+  });
 
   // Forward artifact mutations/reveals to the main window AND the session's own
   // popout window (mirrors the session:updated dual-window forwarding below), so
@@ -391,7 +421,14 @@ export function registerIPCHandlers(
     // the recycle bin, so KEEP its artifacts under the same id — restore reuses that
     // id and they come straight back; only Forget/Empty clears them. A non-recoverable
     // (ephemeral) close has no bin entry, so drop its artifacts now.
-    if (!binned) artifactManager.clearSession(event.sessionId);
+    if (!binned) {
+      try {
+        memoryManager.purgeSession(event.sessionId);
+      } catch (error) {
+        logger.error(`[IPC] Failed to purge memories for removed session ${event.sessionId}: ${error}`);
+      }
+      artifactManager.clearSession(event.sessionId);
+    }
 
     if (!telegramBot.isRunning()) return;
     telegramNotifier.removeSession(event.sessionId);

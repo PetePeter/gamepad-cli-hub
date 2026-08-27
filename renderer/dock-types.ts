@@ -109,6 +109,7 @@ export function splitTrackSize(total: number, ratio: number): number {
 export const PANE_TERMINAL = 'terminal';
 export const PANE_OVERVIEW = 'overview';
 export const PANE_PLAN_SCREEN = 'plan-screen';
+export const PANE_MEMORIES = 'memories';
 export const PANE_SESSIONS = 'sessions';
 export const PANE_SCHEDULER = 'scheduler';
 export const PANE_QUICK_SPAWN = 'quick-spawn';
@@ -123,6 +124,7 @@ export const DOCK_PANES: readonly DockPaneDescriptor[] = Object.freeze([
   Object.freeze({ id: PANE_TERMINAL, kind: 'view', title: 'Terminal', closable: true }),
   Object.freeze({ id: PANE_OVERVIEW, kind: 'view', title: 'Overview', closable: true }),
   Object.freeze({ id: PANE_PLAN_SCREEN, kind: 'view', title: 'Plans', closable: true }),
+  Object.freeze({ id: PANE_MEMORIES, kind: 'view', title: 'Memories', closable: true }),
   Object.freeze({ id: PANE_SESSIONS, kind: 'tool', title: 'Sessions', closable: true }),
   Object.freeze({ id: PANE_SCHEDULER, kind: 'tool', title: 'Scheduler', closable: true }),
   Object.freeze({ id: PANE_QUICK_SPAWN, kind: 'tool', title: 'Quick Spawn', closable: true }),

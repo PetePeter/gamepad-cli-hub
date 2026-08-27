@@ -98,6 +98,7 @@ function makeContext(): Fake {
       removeSession: vi.fn(),
     },
     showArtifactsForSession: vi.fn(),
+    showMemories: vi.fn(),
     popOutArtifacts: vi.fn(),
   } as unknown as HelmPaneContext;
   return { context, terminalContainerRef };
@@ -138,6 +139,13 @@ describe('pane wrappers render their view', () => {
     const wrapper = mountPane(SessionsPane, fake.context);
     expect(wrapper.findComponent(SortBar).exists()).toBe(true);
     expect(wrapper.findComponent(SessionList).exists()).toBe(true);
+    expect(wrapper.find('.memories-entry').exists()).toBe(true);
+  });
+
+  it('SessionsPane exposes the prominent Memories navigation entry', async () => {
+    const wrapper = mountPane(SessionsPane, fake.context);
+    await wrapper.find('.memories-entry').trigger('click');
+    expect((fake.context.showMemories as any)).toHaveBeenCalledOnce();
   });
 
   it('OverviewPane renders the overview grid', () => {

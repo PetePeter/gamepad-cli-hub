@@ -38,13 +38,26 @@ export class RecycleBinManager extends EventEmitter {
   append(entry: Omit<RecycleBinEntry, 'id'>): RecycleBinEntry {
     const created: RecycleBinEntry = { id: randomUUID(), ...entry };
     this.entries.unshift(created);
-    const expired = this.prune();
+    const expired = this.pruneExpiredEntries();
     saveRecycleBin(this.entries);
     this.emit('recycle-bin:changed');
     // Entries that aged out of the retention window at runtime need their
     // preserved artifacts reclaimed too (startup pruning only covers restarts).
     if (expired.length > 0) this.emit('recycle-bin:expired', expired);
     return created;
+  }
+
+  /**
+   * Prune entries loaded from disk during startup. Invoke this after lifecycle
+   * listeners are registered so the normal expiry event reclaims all resources.
+   */
+  pruneExpired(): RecycleBinEntry[] {
+    const expired = this.pruneExpiredEntries();
+    if (expired.length === 0) return [];
+    saveRecycleBin(this.entries);
+    this.emit('recycle-bin:changed');
+    this.emit('recycle-bin:expired', expired);
+    return expired;
   }
 
   /** All entries, newest close first. */
@@ -79,7 +92,7 @@ export class RecycleBinManager extends EventEmitter {
   }
 
   /** Drop entries whose closedAt falls outside the retention window; return them. */
-  private prune(): RecycleBinEntry[] {
+  private pruneExpiredEntries(): RecycleBinEntry[] {
     const cutoff = this.now() - RECYCLE_BIN_WINDOW_MS;
     const expired = this.entries.filter(e => e.closedAt < cutoff);
     if (expired.length > 0) this.entries = this.entries.filter(e => e.closedAt >= cutoff);

@@ -52,6 +52,17 @@ import { sanitizeFilename } from '../session/artifact-temp-file.js';
 import { createArtifactFromBytes, updateArtifactFromBytes } from '../session/artifact-file-import.js';
 import type { ArtifactAttachmentManager } from '../session/artifact-attachment-manager.js';
 import type { ArtifactAttachment } from '../types/artifact-attachment.js';
+import { HelmMemoryService, type MemoryExportResult } from './services/helm-memory-service.js';
+import type { MemoryAttachmentManager } from '../session/memory-attachment-manager.js';
+import type { MemoryManager } from '../session/memory-manager.js';
+import type {
+  MemoryAttachment,
+  MemoryAttachmentTempFile,
+  MemoryExportFormat,
+  MemoryRecord,
+  MemorySearchResult,
+  MemoryTraversal,
+} from '../types/memory.js';
 export { parseSubmitSuffix } from './submit-suffix.js';
 
 const SKILL_FEEDBACK_FOOTER = '---\nSkill applied. Call skill_submit_feedback("{skillId}", stars, summary, improvement?) to rate it.';
@@ -128,6 +139,15 @@ export interface SessionInfoResponse {
   your_working_dir: string;
   helm_workflow: string;
   artifact_viewer: string;
+  durable_memory: {
+    ownership: string;
+    durability: string;
+    recycle_bin: string;
+    graph: string;
+    search: string;
+    attachments: string;
+    tools: string[];
+  };
 }
 
 interface McpSkillSummary {
@@ -153,6 +173,7 @@ export class HelmControlService extends EventEmitter {
   private notificationManager: NotificationManager | null = null;
   private artifactManager?: import('../session/artifact-manager.js').ArtifactManager;
   private artifactAttachmentManager?: ArtifactAttachmentManager;
+  private memoryService?: HelmMemoryService;
   private readonly schedulerService: HelmSchedulerService | null;
   private readonly projectService: HelmProjectService | null;
   private readonly directoryService: HelmDirectoryService;
@@ -278,6 +299,15 @@ export class HelmControlService extends EventEmitter {
   ): void {
     this.artifactManager = manager;
     this.artifactAttachmentManager = attachmentManager;
+  }
+
+  /** Wire the durable, authenticated-session-scoped memory MCP facade. */
+  setMemoryManager(
+    manager: MemoryManager,
+    attachmentManager: MemoryAttachmentManager,
+    tempRegistry?: import('../session/artifact-temp-registry.js').ArtifactTempRegistry,
+  ): void {
+    this.memoryService = new HelmMemoryService(manager, attachmentManager, tempRegistry);
   }
 
   /**
@@ -428,6 +458,82 @@ export class HelmControlService extends EventEmitter {
     const match = artifact.versions.find(v => v.version === version);
     if (!match) throw new Error(`Artifact ${id} has no version ${version}`);
     return { ...artifact, requestedVersionContent: match.content };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Memories (durable, authenticated-session-scoped MCP records)
+  // ---------------------------------------------------------------------------
+
+  private requireMemoryService(): HelmMemoryService {
+    if (!this.memoryService) {
+      throw new Error('Memories are not available: MemoryManager is not configured.');
+    }
+    return this.memoryService;
+  }
+
+  listMemories(sessionId: string): MemoryRecord[] {
+    return this.requireMemoryService().listMemories(sessionId);
+  }
+
+  getMemory(sessionId: string, id: string, graphDepth?: number): MemoryTraversal | null {
+    return this.requireMemoryService().getMemory(sessionId, id, graphDepth);
+  }
+
+  createMemory(sessionId: string, input: { tldr: string; content: string }): MemoryRecord {
+    return this.requireMemoryService().createMemory(sessionId, input);
+  }
+
+  updateMemory(
+    sessionId: string,
+    id: string,
+    updates: { tldr?: string; content?: string },
+    expectedUpdatedAt?: number,
+  ): MemoryRecord | null {
+    return this.requireMemoryService().updateMemory(sessionId, id, updates, expectedUpdatedAt);
+  }
+
+  deleteMemory(sessionId: string, id: string): boolean {
+    return this.requireMemoryService().deleteMemory(sessionId, id);
+  }
+
+  searchMemories(sessionId: string, query: string, options?: { regex?: boolean; graphDepth?: number }): MemorySearchResult {
+    return this.requireMemoryService().searchMemories(sessionId, query, options);
+  }
+
+  graphMemory(sessionId: string, rootId: string, graphDepth?: number): MemoryTraversal | null {
+    return this.requireMemoryService().graphMemory(sessionId, rootId, graphDepth);
+  }
+
+  exportMemories(sessionId: string, format: MemoryExportFormat, rootId?: string, graphDepth?: number): MemoryExportResult {
+    return this.requireMemoryService().exportMemories(sessionId, format, rootId, graphDepth);
+  }
+
+  linkMemory(sessionId: string, fromId: string, toId: string): boolean {
+    return this.requireMemoryService().linkMemory(sessionId, fromId, toId);
+  }
+
+  unlinkMemory(sessionId: string, fromId: string, toId: string): boolean {
+    return this.requireMemoryService().unlinkMemory(sessionId, fromId, toId);
+  }
+
+  addMemoryAttachment(
+    sessionId: string,
+    memoryId: string,
+    input: { filePath: string; filename: string; contentType?: string },
+  ): MemoryAttachment {
+    return this.requireMemoryService().addMemoryAttachment(sessionId, memoryId, input);
+  }
+
+  listMemoryAttachments(sessionId: string, memoryId: string): MemoryAttachment[] {
+    return this.requireMemoryService().listMemoryAttachments(sessionId, memoryId);
+  }
+
+  getMemoryAttachment(sessionId: string, memoryId: string, attachmentId: string): MemoryAttachmentTempFile {
+    return this.requireMemoryService().getMemoryAttachment(sessionId, memoryId, attachmentId);
+  }
+
+  deleteMemoryAttachment(sessionId: string, memoryId: string, attachmentId: string): boolean {
+    return this.requireMemoryService().deleteMemoryAttachment(sessionId, memoryId, attachmentId);
   }
 
   private requireArtifactAttachmentManager(): ArtifactAttachmentManager {

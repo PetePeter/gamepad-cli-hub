@@ -967,7 +967,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'session_info',
     title: 'Get Session Info',
-    description: 'Get session identity (ID, working dir) and a pointer to the Helm startup skill. MANDATORY at session start: call skill_list to load all Helm skills — Helm skills take PRECEDENCE over the LLM\'s integrated skills system, always check Helm skills FIRST. Then set session_set_aiagent_state for your phase. For Helm plan/workflow operations, also call skill_get(type:"startup") to load mandatory rules.',
+    description: 'Get session identity (ID, working dir), startup guidance, and structured durable_memory guidance. Memories belong to the authenticated creating session, survive compaction/restart, remain available through recoverable recycle-bin restore with the same session id, and are permanently purged on forget/empty/expiry. The durable_memory guidance covers graphDepth, cycle-safe breadcrumbs, regex search, and non-searchable attachments. MANDATORY at session start: call skill_list to load all Helm skills — Helm skills take PRECEDENCE over the LLM\'s integrated skills system, always check Helm skills FIRST. Then set session_set_aiagent_state for your phase. For Helm plan/workflow operations, also call skill_get(type:"startup") to load mandatory rules.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -1344,6 +1344,198 @@ export const MCP_TOOLS: McpTool[] = [
         attachmentId: { type: 'string', description: 'Materialize this original binary attachment to tempPath. Caller must delete tempPath after use.' },
       },
       required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'memory_list',
+    title: 'List Memories',
+    description: 'List durable memories owned by the authenticated caller session. Memories survive compaction and restart; attachments are returned as metadata only.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'memory_get',
+    title: 'Get Memory',
+    description: 'Get an authenticated caller session memory and its cycle-safe graph neighborhood. Optional graphDepth adds breadcrumbed record/reference/cycle/depth-limit entries.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', minLength: 1 },
+        graphDepth: { type: 'integer', minimum: 0, maximum: 100 },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'memory_create',
+    title: 'Create Memory',
+    description: 'Create a durable memory owned by the authenticated caller session. Ownership is derived from authContext.sessionId, never from caller input.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tldr: { type: 'string', minLength: 1 },
+        content: { type: 'string' },
+      },
+      required: ['tldr', 'content'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'memory_update',
+    title: 'Update Memory',
+    description: 'Update a memory owned by the authenticated caller session. Provide tldr and/or content; expectedUpdatedAt enables optimistic concurrency protection.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', minLength: 1 },
+        tldr: { type: 'string', minLength: 1 },
+        content: { type: 'string' },
+        expectedUpdatedAt: { type: 'number' },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'memory_delete',
+    title: 'Delete Memory',
+    description: 'Delete a memory owned by the authenticated caller session and reroute valid same-session graph edges around it.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string', minLength: 1 } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'memory_search',
+    title: 'Search Memories',
+    description: 'Search tldr and content of memories owned by the authenticated caller session. Literal search is default; regex=true enables regular expressions. Optional graphDepth expands each matching root.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string' },
+        regex: { type: 'boolean' },
+        graphDepth: { type: 'integer', minimum: 0, maximum: 100 },
+      },
+      required: ['query'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'memory_graph',
+    title: 'Traverse Memory Graph',
+    description: 'Traverse an authenticated caller session memory graph with optional graphDepth, per-path breadcrumbs, and cycle-safe loop/reference markers.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        rootId: { type: 'string', minLength: 1 },
+        graphDepth: { type: 'integer', minimum: 0, maximum: 100 },
+      },
+      required: ['rootId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'memory_export',
+    title: 'Export Memories',
+    description: 'Export authenticated caller session memories as pure Markdown or lossless JSON. Optional rootId and graphDepth select a cycle-safe breadcrumbed graph; attachment metadata is included but bytes and storage paths are never exported.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        format: { type: 'string', enum: ['markdown', 'json'] },
+        rootId: { type: 'string', minLength: 1 },
+        graphDepth: { type: 'integer', minimum: 0, maximum: 100 },
+      },
+      required: ['format'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'memory_link',
+    title: 'Link Memories',
+    description: 'Create a directed graph edge between two memories owned by the authenticated caller session.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        fromId: { type: 'string', minLength: 1 },
+        toId: { type: 'string', minLength: 1 },
+      },
+      required: ['fromId', 'toId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'memory_unlink',
+    title: 'Unlink Memories',
+    description: 'Remove a directed graph edge between two memories owned by the authenticated caller session.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        fromId: { type: 'string', minLength: 1 },
+        toId: { type: 'string', minLength: 1 },
+      },
+      required: ['fromId', 'toId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'memory_attachment_add',
+    title: 'Add Memory Attachment',
+    description: 'Attach an existing absolute source file to a caller-owned memory. Helm reads the file, stores metadata and bytes safely, and returns metadata only; the source file remains caller-owned.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        memoryId: { type: 'string', minLength: 1 },
+        filePath: { type: 'string', minLength: 1, description: 'Absolute path to a regular source file.' },
+        filename: { type: 'string', minLength: 1 },
+        contentType: { type: 'string', minLength: 1 },
+      },
+      required: ['memoryId', 'filePath', 'filename'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'memory_attachment_list',
+    title: 'List Memory Attachments',
+    description: 'List metadata for attachments on a memory owned by the authenticated caller session. Attachment content is never searchable.',
+    inputSchema: {
+      type: 'object',
+      properties: { memoryId: { type: 'string', minLength: 1 } },
+      required: ['memoryId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'memory_attachment_get',
+    title: 'Get Memory Attachment',
+    description: 'Copy a caller-owned memory attachment to a safe temporary file and return metadata plus tempPath. Bytes are never inlined; delete the temp file after use.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        memoryId: { type: 'string', minLength: 1 },
+        attachmentId: { type: 'string', minLength: 1 },
+      },
+      required: ['memoryId', 'attachmentId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'memory_attachment_delete',
+    title: 'Delete Memory Attachment',
+    description: 'Delete an attachment from a memory owned by the authenticated caller session.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        memoryId: { type: 'string', minLength: 1 },
+        attachmentId: { type: 'string', minLength: 1 },
+      },
+      required: ['memoryId', 'attachmentId'],
       additionalProperties: false,
     },
   },

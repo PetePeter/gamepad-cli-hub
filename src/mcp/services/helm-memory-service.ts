@@ -1,0 +1,169 @@
+import { readFileSync, statSync } from 'node:fs';
+import { basename, isAbsolute } from 'node:path';
+import { MemoryAttachmentManager } from '../../session/memory-attachment-manager.js';
+import type { ArtifactTempRegistry } from '../../session/artifact-temp-registry.js';
+import { MemoryExporter } from '../../session/memory-exporter.js';
+import { MemoryManager, type CreateMemoryInput, type UpdateMemoryInput } from '../../session/memory-manager.js';
+import type {
+  MemoryAttachment,
+  MemoryAttachmentTempFile,
+  MemoryExportFormat,
+  MemorySearchResult,
+  MemoryRecord,
+  MemorySummary,
+  MemoryTraversal,
+} from '../../types/memory.js';
+
+const MCP_FILE_MAX_BYTES = 10 * 1024 * 1024;
+
+export interface MemoryExportResult {
+  format: MemoryExportFormat;
+  content: string;
+  graphDepth: number;
+  rootId?: string;
+}
+
+/** Session-scoped MCP facade for durable memories and their binary attachments. */
+export class HelmMemoryService {
+  constructor(
+    private readonly memoryManager: MemoryManager,
+    private readonly attachmentManager: MemoryAttachmentManager,
+    private readonly tempRegistry?: ArtifactTempRegistry,
+  ) {}
+
+  listMemories(sessionId: string): MemoryRecord[] {
+    return this.memoryManager.listRecordsForSession(sessionId);
+  }
+
+  listMemorySummaries(sessionId: string): MemorySummary[] {
+    return this.memoryManager.listRecordsForSession(sessionId).map((record) => ({
+      id: record.id,
+      tldr: record.tldr,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+      attachmentCount: record.attachments.length,
+    }));
+  }
+
+  getMemoryRecord(sessionId: string, id: string): MemoryRecord | null {
+    return this.memoryManager.getRecordForSession(sessionId, id);
+  }
+
+  getMemory(sessionId: string, id: string, graphDepth = 0): MemoryTraversal | null {
+    return this.memoryManager.getForSession(sessionId, id, graphDepth);
+  }
+
+  createMemory(sessionId: string, input: CreateMemoryInput): MemoryRecord {
+    return this.memoryManager.createForSession(sessionId, input);
+  }
+
+  updateMemory(
+    sessionId: string,
+    id: string,
+    updates: UpdateMemoryInput,
+    expectedUpdatedAt?: number,
+  ): MemoryRecord | null {
+    return this.memoryManager.updateForSession(sessionId, id, updates, expectedUpdatedAt);
+  }
+
+  deleteMemory(sessionId: string, id: string): boolean {
+    return this.memoryManager.deleteForSession(sessionId, id);
+  }
+
+  searchMemories(sessionId: string, query: string, options: { regex?: boolean; graphDepth?: number } = {}): MemorySearchResult {
+    return this.memoryManager.searchForSession(sessionId, query, options);
+  }
+
+  graphMemory(sessionId: string, rootId: string, graphDepth = 0): MemoryTraversal | null {
+    return this.getMemory(sessionId, rootId, graphDepth);
+  }
+
+  exportMemories(
+    sessionId: string,
+    format: MemoryExportFormat,
+    rootId?: string,
+    graphDepth = 0,
+  ): MemoryExportResult {
+    const records = rootId
+      ? [this.requireMemory(sessionId, rootId)]
+      : this.memoryManager.listRecordsForSession(sessionId);
+    const traversals = records
+      .map((record) => this.memoryManager.getForSession(sessionId, record.id, graphDepth))
+      .filter((traversal): traversal is MemoryTraversal => traversal !== null);
+
+    const content = rootId
+      ? this.formatTraversal(traversals[0]!, format)
+      : this.formatTraversals(traversals, format);
+    return {
+      format,
+      content,
+      graphDepth,
+      ...(rootId ? { rootId } : {}),
+    };
+  }
+
+  linkMemory(sessionId: string, fromId: string, toId: string): boolean {
+    return this.memoryManager.linkForSession(sessionId, fromId, toId);
+  }
+
+  unlinkMemory(sessionId: string, fromId: string, toId: string): boolean {
+    return this.memoryManager.unlinkForSession(sessionId, fromId, toId);
+  }
+
+  addMemoryAttachment(
+    sessionId: string,
+    memoryId: string,
+    input: { filePath: string; filename: string; contentType?: string },
+  ): MemoryAttachment {
+    this.requireMemory(sessionId, memoryId);
+    const content = readMemoryInputFile(input.filePath);
+    return this.memoryManager.addAttachmentForSession(sessionId, memoryId, {
+      filename: input.filename,
+      content,
+      ...(input.contentType ? { contentType: input.contentType } : {}),
+    });
+  }
+
+  listMemoryAttachments(sessionId: string, memoryId: string): MemoryAttachment[] {
+    this.requireMemory(sessionId, memoryId);
+    return this.attachmentManager.list(memoryId);
+  }
+
+  getMemoryAttachment(sessionId: string, memoryId: string, attachmentId: string): MemoryAttachmentTempFile {
+    const memory = this.requireMemory(sessionId, memoryId);
+    const attachment = memory.attachments.find((item) => item.id === attachmentId);
+    if (!attachment) throw new Error(`Attachment not found: ${attachmentId}`);
+    const tempFile = this.attachmentManager.getToTempFile(attachment);
+    this.tempRegistry?.record(sessionId, tempFile.tempPath);
+    return tempFile;
+  }
+
+  deleteMemoryAttachment(sessionId: string, memoryId: string, attachmentId: string): boolean {
+    this.requireMemory(sessionId, memoryId);
+    return this.memoryManager.deleteAttachmentForSession(sessionId, memoryId, attachmentId);
+  }
+
+  private requireMemory(sessionId: string, id: string): MemoryRecord {
+    const memory = this.memoryManager.getRecordForSession(sessionId, id);
+    if (!memory) throw new Error(`Memory not found: ${id}`);
+    return memory;
+  }
+
+  private formatTraversal(traversal: MemoryTraversal, format: MemoryExportFormat): string {
+    return format === 'markdown' ? MemoryExporter.toMarkdown(traversal) : MemoryExporter.toJSON(traversal);
+  }
+
+  private formatTraversals(traversals: MemoryTraversal[], format: MemoryExportFormat): string {
+    if (format === 'markdown') return traversals.map((traversal) => MemoryExporter.toMarkdown(traversal)).join('\n');
+    const values = traversals.map((traversal) => JSON.parse(MemoryExporter.toJSON(traversal)) as unknown);
+    return `${JSON.stringify(values, null, 2)}\n`;
+  }
+}
+
+function readMemoryInputFile(filePath: string): Buffer {
+  if (!isAbsolute(filePath)) throw new Error('filePath must be an absolute path');
+  const fileStat = statSync(filePath);
+  if (!fileStat.isFile()) throw new Error('filePath must point to a regular file');
+  if (fileStat.size > MCP_FILE_MAX_BYTES) throw new Error('File exceeds 10MB size limit');
+  return readFileSync(filePath);
+}

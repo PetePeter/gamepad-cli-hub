@@ -610,14 +610,16 @@ describe('HelmControlService optional domain services', () => {
 });
 
 describe('HelmControlService.getSessionInfo', () => {
-  it('returns only session identity and helm_workflow pointer', () => {
+  it('returns session identity, workflow, and structured durable memory guidance', () => {
     const { service } = makeService();
 
     const info = service.getSessionInfo({ sessionId: 's1', sessionName: 'Claude' });
 
-    expect(Object.keys(info).sort()).toEqual(['artifact_viewer', 'helm_workflow', 'your_session_id', 'your_working_dir']);
+    expect(Object.keys(info).sort()).toEqual(['artifact_viewer', 'durable_memory', 'helm_workflow', 'your_session_id', 'your_working_dir']);
     expect(info.helm_workflow).toContain('startup');
     expect(info.artifact_viewer).toContain('artifact_create');
+    expect(info.durable_memory.tools).toContain('memory_search');
+    expect(info.durable_memory.recycle_bin).toContain('same original session id');
     expect(info).not.toHaveProperty('mandatory_rules');
     expect(info).not.toHaveProperty('mcp_url');
     expect(info).not.toHaveProperty('mcp_token');
