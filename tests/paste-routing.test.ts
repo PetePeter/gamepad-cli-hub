@@ -165,6 +165,24 @@ describe('keyboard relay', () => {
       expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'pasted text');
     });
 
+    it('leaves Ctrl+V to the artifact pane for native image/file paste', async () => {
+      getActiveSessionId.mockReturnValue('sess-1');
+      const panel = document.createElement('div');
+      panel.className = 'artifact-panel';
+      const button = document.createElement('button');
+      panel.appendChild(button);
+      document.body.appendChild(panel);
+
+      const e = new KeyboardEvent('keydown', { key: 'v', ctrlKey: true, bubbles: true, cancelable: true });
+      button.dispatchEvent(e);
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(e.defaultPrevented).toBe(false);
+      expect(navigator.clipboard.readText).not.toHaveBeenCalled();
+      expect(mockPtyWrite).not.toHaveBeenCalled();
+      document.body.removeChild(panel);
+    });
+
     it('does nothing when no terminal is active', async () => {
       getActiveSessionId.mockReturnValue(null);
 

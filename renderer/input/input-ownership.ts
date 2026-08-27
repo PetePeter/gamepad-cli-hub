@@ -2,6 +2,7 @@ export type InputOwnershipContext = 'editable-field' | 'terminal' | 'modal-navig
 
 export const EDITABLE_ELEMENT_SELECTOR = 'input, textarea, select, [contenteditable], [contenteditable=""], [contenteditable="true"]';
 export const TERMINAL_ELEMENT_SELECTOR = '.xterm';
+export const ARTIFACT_PANEL_SELECTOR = '.artifact-panel';
 export const MODAL_NAVIGATION_SELECTOR = '.modal-overlay.modal--visible, .scheduled-tasks-tab--popup, .scheduler-popup-backdrop';
 
 function asElement(value: EventTarget | Element | null | undefined): Element | null {
@@ -54,6 +55,11 @@ export function isEditableTargetFromEvent(event: Event): boolean {
 
 export function isTerminalTargetFromEvent(event: Event): boolean {
   return isTerminalElement(event.target);
+}
+
+export function isArtifactTargetFromEvent(event: Event): boolean {
+  return isElementWithinSelectors(event.target, ARTIFACT_PANEL_SELECTOR)
+    || isElementWithinSelectors(document.activeElement, ARTIFACT_PANEL_SELECTOR);
 }
 
 export function isElementWithinSelectors(

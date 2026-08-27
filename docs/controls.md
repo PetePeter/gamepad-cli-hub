@@ -66,7 +66,8 @@ The same flag the `session_set_locked` MCP tool writes.
 | Ctrl+G | Open in-app Prompt Editor (`EditorPopup.vue`) — multi-line textarea + recent-prompts list + prompt-template tree pane; Ctrl+Enter / Send delivers to active terminal via `deliverPromptSequence()` |
 | Ctrl+1-9, Ctrl+0 | Jump directly to the Nth session in sidebar order (badge: `^n`) |
 | Alt+1-9 | Fire the Nth chip bar quick-action for the active session (badge: `⌥n`) |
-| Tab / Shift+Tab | Cycle buttons in selection-mode modals (close-confirm, context-menu, prompt-tree picker, quick-spawn) |
+| Shift+Tab (Sessions pane) | Select the previous session |
+| Tab / Shift+Tab (selection-mode modal) | Cycle buttons in close-confirm, context-menu, prompt-tree picker, or quick-spawn |
 
 ## Navigation Priority Chain
 

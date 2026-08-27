@@ -210,6 +210,33 @@ describe('keyboard relay ESC handling', () => {
     document.body.removeChild(overlay);
   });
 
+  it('does not open terminal protection behind a normal modal', async () => {
+    activeSessionId = 'test-session';
+    ptyWriteData = [];
+
+    window.gamepadCli = {
+      ptyWrite: vi.fn((sessionId: string, data: string) => {
+        ptyWriteData.push({ sessionId, data });
+      }),
+    } as any;
+
+    setupKeyboardRelay(
+      () => activeSessionId,
+      () => false,
+      async () => true,
+    );
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay modal--visible';
+    document.body.appendChild(overlay);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    expect(useEscProtection().isProtecting.value).toBe(false);
+    expect(ptyWriteData).toHaveLength(0);
+    document.body.removeChild(overlay);
+  });
+
   it('first ESC prevents default before async protection work resolves', async () => {
     activeSessionId = 'test-session';
     ptyWriteData = [];

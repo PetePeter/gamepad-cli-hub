@@ -14,6 +14,7 @@ import { isDraftEditorVisible } from './stores/draft-editor-registry.js';
 import { showEditorPopup } from './editor/editor-popup.js';
 import {
   getActiveInputContext,
+  isArtifactTargetFromEvent,
   isEditableElement,
   isElementWithinSelectors,
   isTerminalTargetFromEvent,
@@ -298,6 +299,11 @@ export function setupKeyboardRelay(
         escProtection.dismissProtection();
         return;
       }
+
+      // A normal modal owns Escape through the window-level modal bridge. Do
+      // not open terminal protection behind it; the exception above preserves
+      // the second press of the protection dialog itself.
+      if (document.querySelector('.modal-overlay.modal--visible')) return;
     }
 
     if (e.ctrlKey && e.shiftKey && e.key === 'R') {
@@ -326,6 +332,9 @@ export function setupKeyboardRelay(
       if (clipboardPasteInFlight) return;
       if (document.querySelector('.plan-screen.visible')) return;
       if (isDraftEditorVisible()) return;
+      // ArtifactViewer owns native paste for images and files. Do not reduce
+      // those clipboard items to text/plain in the terminal relay first.
+      if (isArtifactTargetFromEvent(e)) return;
       const activeContext = getActiveInputContext({
         activeElement: document.activeElement,
         modalNavigationSelectors: MODAL_NAVIGATION_SELECTOR,

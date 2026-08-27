@@ -5,6 +5,7 @@ import {
   getActiveInputContext,
   getEditableOwner,
   getTerminalOwner,
+  isArtifactTargetFromEvent,
   isEditableElement,
   isEditableElementInContainer,
   isEditableTargetFromEvent,
@@ -80,6 +81,18 @@ describe('input ownership helper', () => {
     Object.defineProperty(event, 'target', { configurable: true, value: child });
 
     expect(isTerminalTargetFromEvent(event)).toBe(true);
+  });
+
+  it('detects artifact-pane targets from keyboard events', () => {
+    const panel = document.createElement('div');
+    panel.className = 'artifact-panel';
+    const button = document.createElement('button');
+    panel.appendChild(button);
+    document.body.appendChild(panel);
+    const event = new KeyboardEvent('keydown', { key: 'v', bubbles: true });
+    Object.defineProperty(event, 'target', { configurable: true, value: button });
+
+    expect(isArtifactTargetFromEvent(event)).toBe(true);
   });
 
   it('tracks whether an element sits inside container selectors', () => {

@@ -15,6 +15,7 @@ import { useNavigationStore } from '../../stores/navigation.js';
 import { useSessionsScreenStore } from '../../stores/sessions-screen.js';
 import { useLlmNotificationsStore } from '../../stores/llmNotifications.js';
 import { useFlashAttention } from '../../composables/useFlashAttention.js';
+import { useRecycleBin } from '../../composables/useRecycleBin.js';
 import { isSessionHiddenFromOverview, resolveGroupDisplayName } from '../../session-groups.js';
 import { getCliDisplayName } from '../../utils.js';
 import { formatElapsed } from '../../../src/utils/time-parser.js';
@@ -34,6 +35,7 @@ const navStore = useNavigationStore();
 const sessionsScreenStore = useSessionsScreenStore();
 const llmNotificationsStore = useLlmNotificationsStore();
 const flashAttention = useFlashAttention();
+const recycleBin = useRecycleBin();
 
 // Maps each navList item's id → its index — fed to session cards/group headers as
 // data-nav-index so the legacy updateSessionsFocus() can find focused elements.
@@ -107,5 +109,15 @@ function sessionElapsedText(sessionId: string): string {
       @dismiss-notification="llmNotificationsStore.dismiss"
       @dismiss-session-notifications="llmNotificationsStore.dismissSession"
     />
+    <button
+      class="recycle-bin-btn focusable"
+      type="button"
+      title="Recycle Bin — restore closed sessions"
+      @click="recycleBin.modalVisible.value = true"
+    >
+      <span class="recycle-bin-icon">🗑️</span>
+      <span class="recycle-bin-label">Recycle Bin</span>
+      <span v-if="recycleBin.count.value > 0" class="recycle-bin-badge">{{ recycleBin.count.value }}</span>
+    </button>
   </section>
 </template>
