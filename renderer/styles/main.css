@@ -273,6 +273,11 @@ button {
 .dock-node--side-top.dock-node--collapsed,
 .dock-node--side-bottom.dock-node--collapsed { flex-direction: row; }
 .dock-node__content { flex-direction: column; }
+/* Tab strip above its panes. Without this the group inherits `row` from the
+ * shared `display: flex` above, which lays the strip out as a full-height
+ * column beside the content — the reason tab labels used to wrap one character
+ * per line and read as vertical text. */
+.dock-tab-group { flex-direction: column; }
 .dock-pane { position: relative; flex-direction: column; background: var(--bg-primary); }
 .dock-pane[aria-hidden="true"] { pointer-events: none; }
 .dock-pane--focused { box-shadow: inset 0 0 0 1px var(--focus); }
