@@ -4,6 +4,7 @@
  */
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { TerminalView } from '../terminal/terminal-view.js';
+import { fitAndSyncPty } from '../terminal/fit-and-sync-pty.js';
 import { useKeyboardRelay } from '../composables/useKeyboardRelay.js';
 import { useNumberAccelerator, slotToIndex } from '../composables/useNumberAccelerator.js';
 import { useAppStore } from '../stores/app.js';
@@ -45,6 +46,9 @@ let view: TerminalView | null = null;
 let unsubData: (() => void) | null = null;
 let unsubExit: (() => void) | null = null;
 let unsubSessionUpdated: (() => void) | null = null;
+let cancelFit: (() => void) | null = null;
+let fitDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let terminalReleased = false;
 const sessionInfo = ref<any | null>(null);
 const appStore = useAppStore();
 const editorPopupStore = useEditorPopupStore();
@@ -202,6 +206,24 @@ onMounted(async () => {
     updateWindowTitle();
   }
 
+  const attachResult = await terminalClient.terminalAttach?.(props.sessionId);
+  if (attachResult && !attachResult.success) {
+    console.error('[SnapOut] Failed to attach terminal ownership:', attachResult.error);
+    try { await sessionsClient.sessionSnapBack(props.sessionId); }
+    catch (error) { console.error('[SnapOut] Failed to recover after attach failure:', error); }
+    return;
+  }
+
+  // Register the output listener before constructing xterm. The PTY can emit
+  // while the child is attaching; replay from the main process covers prior
+  // output and this short queue covers the handoff race.
+  const pendingOutput: string[] = [];
+  unsubData = eventsClient.onPtyData((sessionId: string, data: string) => {
+    if (sessionId !== props.sessionId) return;
+    if (view) view.write(data);
+    else pendingOutput.push(data);
+  });
+
   view = new TerminalView({
     sessionId: props.sessionId,
     container: containerRef.value,
@@ -211,7 +233,9 @@ onMounted(async () => {
     onTitleChange: (title) => { if (sessionInfo.value) sessionInfo.value = { ...sessionInfo.value, title }; updateWindowTitle(); },
   });
 
-  unsubData = eventsClient.onPtyData((sessionId: string, data: string) => { if (sessionId === props.sessionId) view?.write(data); });
+  if (attachResult?.replay) view.write(attachResult.replay);
+  for (const data of pendingOutput) view.write(data);
+  pendingOutput.length = 0;
   unsubExit = eventsClient.onPtyExit((sessionId: string) => { if (sessionId === props.sessionId) view?.write('\r\n\x1b[33m[Process exited]\x1b[0m\r\n'); });
   unsubSessionUpdated = eventsClient.onSessionUpdated?.((updatedSession: any) => {
     if (updatedSession?.id !== props.sessionId) return;
@@ -220,13 +244,22 @@ onMounted(async () => {
     updateWindowTitle();
   }) ?? null;
 
-  let fitDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  const syncFit = () => {
+    if (!view) return;
+    cancelFit?.();
+    cancelFit = fitAndSyncPty(
+      props.sessionId,
+      view,
+      (id, cols, rows) => terminalClient.ptyResize?.(id, cols, rows),
+    );
+  };
   const debouncedFit = () => {
     if (fitDebounceTimer !== null) clearTimeout(fitDebounceTimer);
-    fitDebounceTimer = setTimeout(() => { fitDebounceTimer = null; view?.fit(); }, 50);
+    fitDebounceTimer = setTimeout(() => { fitDebounceTimer = null; syncFit(); }, 50);
   };
 
-  requestAnimationFrame(() => { requestAnimationFrame(() => { view?.fit(); view?.focus(); }); });
+  syncFit();
+  view.focus();
   const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => debouncedFit()) : null;
   if (resizeObserver && containerRef.value) resizeObserver.observe(containerRef.value);
   const handleResize = () => debouncedFit();
@@ -268,10 +301,15 @@ onMounted(async () => {
     window.removeEventListener('keydown', onArtifactShortcut, true);
     containerRef.value?.removeEventListener('contextmenu', handleContextMenu);
     resizeObserver?.disconnect();
+    if (fitDebounceTimer !== null) clearTimeout(fitDebounceTimer);
+    fitDebounceTimer = null;
+    cancelFit?.();
+    cancelFit = null;
   });
 });
 
 onUnmounted(() => {
+  terminalReleased = true;
   unsubData?.();
   unsubExit?.();
   unsubSessionUpdated?.();
@@ -300,7 +338,13 @@ async function onContextMenuAction(action: string): Promise<void> {
       void openPromptPicker();
       break;
     case 'snap-back':
-      try { await sessionsClient.sessionSnapBack(props.sessionId); }
+      try {
+        if (!terminalReleased) {
+          await terminalClient.terminalDetach?.(props.sessionId);
+          terminalReleased = true;
+        }
+        await sessionsClient.sessionSnapBack(props.sessionId);
+      }
       catch (error) { console.error('Failed to snap back:', error); }
       break;
   }

@@ -273,6 +273,14 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   // PTY Terminal Management
   // ========================================================================
 
+  /** Claim the current renderer as the terminal owner and return PTY replay. */
+  terminalAttach: (sessionId: string) =>
+    ipcRenderer.invoke('terminal:attach', sessionId) as Promise<{ success: boolean; replay?: string; error?: string }>,
+
+  /** Release the current renderer before a terminal moves to another window. */
+  terminalDetach: (sessionId: string) =>
+    ipcRenderer.invoke('terminal:detach', sessionId) as Promise<{ success: boolean; error?: string }>,
+
   /** Spawn a new embedded PTY terminal */
   ptySpawn: (sessionId: string, command: string, args: string[], cwd?: string, cliType?: string, contextText?: string, resumeSessionName?: string) =>
     ipcRenderer.invoke('pty:spawn', sessionId, command, args, cwd, cliType, contextText, resumeSessionName),

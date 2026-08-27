@@ -107,8 +107,6 @@ export class TerminalView {
       return true;
     });
 
-    this.fit();
-
     if (options.onData) {
       this.writeCallback = options.onData;
       this.terminal.onData(options.onData);
@@ -127,6 +125,9 @@ export class TerminalView {
     if (options.onTitleChange) {
       this.terminal.onTitleChange(options.onTitleChange);
     }
+
+    // Fitting is deliberately owned by fitAndSyncPty. It waits until the
+    // containing layout is measurable and then synchronizes the PTY dimensions.
   }
 
   /** Write data to the terminal display (from PTY stdout) */

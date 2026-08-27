@@ -10,6 +10,7 @@ import { logger } from '../utils/logger.js';
 export class WindowManager {
   private windows = new Map<number, BrowserWindow>();
   private sessionToWindow = new Map<string, number>();
+  private detachedSessions = new Set<string>();
   private mainWindowId: number | null = null;
 
   /** Register the main application window. */
@@ -32,6 +33,7 @@ export class WindowManager {
     for (const [sessionId, windowId] of this.sessionToWindow.entries()) {
       if (windowId === id) {
         this.sessionToWindow.delete(sessionId);
+        this.detachedSessions.delete(sessionId);
         logger.info(`[WindowManager] Session ${sessionId} orphaned by window ${id} close`);
       }
     }
@@ -56,6 +58,11 @@ export class WindowManager {
 
   /** Get the window that owns a given session. Returns main window if not snapped out. */
   getWindowForSession(sessionId: string): BrowserWindow | undefined {
+    // During snap-back the child has released terminal ownership, but its
+    // window mapping remains until BrowserWindow emits `closed`. Route output
+    // to the main window so its transition buffer captures the short gap.
+    if (this.detachedSessions.has(sessionId)) return this.getMainWindow();
+
     const windowId = this.sessionToWindow.get(sessionId);
     if (windowId !== undefined) {
       const win = this.windows.get(windowId);
@@ -73,6 +80,29 @@ export class WindowManager {
     return this.sessionToWindow.get(sessionId);
   }
 
+  /**
+   * Check whether a renderer is the current terminal owner for a session.
+   * Ownership is derived from the authoritative window mapping; renderer code
+   * never supplies or changes the owning window id.
+   */
+  isSessionOwnedByWebContents(sessionId: string, webContentsId: number): boolean {
+    if (this.detachedSessions.has(sessionId)) return false;
+    const owner = this.getWindowForSession(sessionId);
+    return owner?.webContents.id === webContentsId;
+  }
+
+  /** Mark a renderer as attached after its terminal surface is ready. */
+  markSessionRendererAttached(sessionId: string): void {
+    this.detachedSessions.delete(sessionId);
+  }
+
+  /** Release renderer ownership while the session transitions to another host. */
+  markSessionRendererDetached(sessionId: string, webContentsId: number): boolean {
+    if (!this.isSessionOwnedByWebContents(sessionId, webContentsId)) return false;
+    this.detachedSessions.add(sessionId);
+    return true;
+  }
+
   /** Assign a session to a window (for snap-out). */
   assignSessionToWindow(sessionId: string, windowId: number): void {
     this.sessionToWindow.set(sessionId, windowId);
@@ -82,6 +112,7 @@ export class WindowManager {
   /** Remove a session from its window (for snap-back). */
   unassignSession(sessionId: string): void {
     this.sessionToWindow.delete(sessionId);
+    this.detachedSessions.delete(sessionId);
     logger.info(`[WindowManager] Session ${sessionId} unassigned from window`);
   }
 

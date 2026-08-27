@@ -26,6 +26,7 @@ class MockPtyManager extends EventEmitter {
   setActivityMarker = vi.fn();
   kill = vi.fn();
   resize = vi.fn();
+  getTerminalTail = vi.fn(() => ({ raw: ['first line', 'second line'] }));
   on = vi.fn((event: string, listener: Function) => {
     super.on(event, listener);
     return this;
@@ -59,6 +60,9 @@ function setup() {
   const windowManager = {
     getWindowForSession: vi.fn(() => null),
     getWindowIdForSession: vi.fn(() => undefined),
+    isSessionOwnedByWebContents: vi.fn(() => true),
+    markSessionRendererAttached: vi.fn(),
+    markSessionRendererDetached: vi.fn(() => true),
   };
   const onPtyInput = vi.fn();
 
@@ -75,7 +79,7 @@ function setup() {
     onPtyInput,
   );
 
-  return { ptyManager, stateDetector, sessionManager, onPtyInput };
+  return { ptyManager, stateDetector, sessionManager, onPtyInput, windowManager };
 }
 
 describe('pty:write input origin', () => {
@@ -103,5 +107,31 @@ describe('pty:write input origin', () => {
 
     expect(sessionManager.updateSession).toHaveBeenCalledWith('s1', { interactionChannel: 'desktop' });
     expect(onPtyInput).toHaveBeenCalledWith('s1', 'typed');
+  });
+
+  it('rejects input from a renderer that does not own the session', async () => {
+    const { ptyManager, windowManager } = setup();
+    windowManager.isSessionOwnedByWebContents.mockReturnValue(false);
+
+    await handlers.get('pty:write')?.({ sender: { id: 22 } }, 's1', 'stale renderer input');
+
+    expect(ptyManager.write).not.toHaveBeenCalled();
+  });
+
+  it('returns main-process PTY replay only to the current renderer owner', async () => {
+    const { ptyManager, windowManager } = setup();
+    const attach = handlers.get('terminal:attach')!;
+
+    expect(attach({ sender: { id: 7 } }, 's1')).toEqual({
+      success: true,
+      replay: 'first line\r\nsecond line',
+    });
+
+    windowManager.isSessionOwnedByWebContents.mockReturnValue(false);
+    expect(attach({ sender: { id: 8 } }, 's1')).toEqual({
+      success: false,
+      error: 'Renderer does not own session',
+    });
+    expect(ptyManager.getTerminalTail).toHaveBeenCalledTimes(1);
   });
 });

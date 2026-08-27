@@ -26,6 +26,8 @@ export const PRELOAD_API_DOMAINS = {
     'sessionFocusWindow',
   ],
   terminal: [
+    'terminalAttach',
+    'terminalDetach',
     'ptySpawn',
     'ptyWrite',
     'ptyScrollInput',

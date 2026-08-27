@@ -6,6 +6,7 @@
  */
 
 import { TerminalView } from './terminal-view.js';
+import { fitAndSyncPty } from './fit-and-sync-pty.js';
 import { PtyOutputBuffer } from './pty-output-buffer.js';
 import { resolveSuccessorSessionId } from './successor-pick.js';
 import type { SessionInfo } from '../../src/types/session.js';
@@ -37,7 +38,7 @@ export class TerminalManager {
   private visibleOrderProvider: (() => string[]) | null = null;
   private onSwitch: ((sessionId: string | null) => void) | null = null;
   private onTitleChangeCallback: ((sessionId: string, title: string) => void) | null = null;
-  private pendingFitRaf: number | null = null;
+  private pendingFitCancel: (() => void) | null = null;
   private fitDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private fitWatchdog: ReturnType<typeof setInterval> | null = null;
   private outputBuffer: PtyOutputBuffer;
@@ -269,37 +270,13 @@ export class TerminalManager {
 
     // Fit and focus after layout — double-RAF so the display:block reflow is
     // measured by FitAddon. Cancel pending rAF to avoid stacking on rapid switches.
-    if (this.pendingFitRaf !== null) {
-      cancelAnimationFrame(this.pendingFitRaf);
-    }
-    this.pendingFitRaf = requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        this.pendingFitRaf = null;
-        if (this.activeSessionId !== sessionId) return;
-        const beforeFit = session.view.getDimensions();
-        session.view.fit();
-        session.view.focus();
-
-        // xterm.js emits onResize when fit changes dimensions. If dimensions
-        // are unchanged, force one sync for snap-back cases where the main PTY
-        // may still remember the detached window size.
-        const afterFit = session.view.getDimensions();
-        if (terminalClient.ptyResize &&
-            beforeFit.cols === afterFit.cols &&
-            beforeFit.rows === afterFit.rows) {
-          terminalClient.ptyResize(sessionId, afterFit.cols, afterFit.rows);
-        }
-
-        // Fallback fit retry for snap-back: if dimensions are still zero,
-        // the container may not have been in the layout yet. Retry after 100ms.
-        if (afterFit.cols === 0 || afterFit.rows === 0) {
-          setTimeout(() => {
-            if (this.activeSessionId !== sessionId) return;
-            session.view.fit();
-          }, 100);
-        }
-      });
-    });
+    this.pendingFitCancel?.();
+    this.pendingFitCancel = fitAndSyncPty(
+      sessionId,
+      session.view,
+      (id, cols, rows) => terminalClient.ptyResize?.(id, cols, rows),
+    );
+    session.view.focus();
 
     this.onSwitch?.(sessionId);
   }
@@ -344,12 +321,14 @@ export class TerminalManager {
   fitActive(): void {
     const sessionId = this.activeSessionId;
     if (!sessionId) return;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (this.activeSessionId !== sessionId) return;
-        this.terminals.get(sessionId)?.view.fit();
-      });
-    });
+    this.pendingFitCancel?.();
+    const session = this.terminals.get(sessionId);
+    if (!session) return;
+    this.pendingFitCancel = fitAndSyncPty(
+      sessionId,
+      session.view,
+      (id, cols, rows) => terminalClient.ptyResize?.(id, cols, rows),
+    );
   }
 
   /** Get all terminal session IDs */
@@ -508,7 +487,11 @@ export class TerminalManager {
   fitAll(): void {
     for (const [, session] of this.terminals) {
       if (session.element.style.display !== 'none') {
-        session.view.fit();
+        fitAndSyncPty(
+          session.sessionId,
+          session.view,
+          (id, cols, rows) => terminalClient.ptyResize?.(id, cols, rows),
+        );
       }
     }
   }
@@ -615,10 +598,8 @@ export class TerminalManager {
       this.destroyTerminal(id);
     }
 
-    if (this.pendingFitRaf !== null) {
-      cancelAnimationFrame(this.pendingFitRaf);
-      this.pendingFitRaf = null;
-    }
+    this.pendingFitCancel?.();
+    this.pendingFitCancel = null;
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;

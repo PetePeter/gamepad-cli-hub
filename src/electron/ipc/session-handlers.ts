@@ -214,8 +214,11 @@ export function setupSessionHandlers(
       applyNavigationPolicy(childWindow);
 
       // Load renderer with snap-out query params
-      childWindow.loadFile(rendererPath, {
+      void Promise.resolve(childWindow.loadFile(rendererPath, {
         query: { snapOut: '1', sessionId },
+      })).catch((error) => {
+        logger.error(`[Session] Snap-out renderer failed to load for ${sessionId}: ${error}`);
+        if (!childWindow.isDestroyed()) childWindow.close();
       });
 
       windowManager.registerWindow(childWindow.id, childWindow);
@@ -244,6 +247,14 @@ export function setupSessionHandlers(
       };
       childWindow.on('resize', persistBounds);
       childWindow.on('move', persistBounds);
+
+      // A renderer crash does not necessarily destroy its BrowserWindow. Close
+      // it explicitly so the normal closed handler releases ownership and the
+      // main renderer can rehydrate the session.
+      childWindow.webContents.on('render-process-gone', (_event, details) => {
+        logger.error(`[Session] Snap-out renderer gone for ${sessionId}: reason=${details.reason}, exitCode=${details.exitCode}`);
+        if (!childWindow.isDestroyed()) childWindow.close();
+      });
 
       // Handle child window close — auto snap-back
       childWindow.on('closed', () => {

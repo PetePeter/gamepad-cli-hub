@@ -35,6 +35,43 @@ export function setupPtyHandlers(
   onPtyInput?: (sessionId: string, data: string) => void,
   patternMatcher?: PatternMatcher,
 ): void {
+  const isRendererOwner = (event: Electron.IpcMainInvokeEvent, sessionId: string): boolean => {
+    // Electron always supplies sender for a real invoke. The missing-sender
+    // fallback keeps direct unit calls useful without weakening the runtime
+    // boundary.
+    const senderId = event?.sender?.id;
+    if (typeof senderId !== 'number') return true;
+    if (windowManager.isSessionOwnedByWebContents(sessionId, senderId)) return true;
+    logger.warn(`[PTY IPC] Rejected renderer access for session=${sessionId} sender=${senderId}`);
+    return false;
+  };
+
+  // terminal:attach is the child-window ownership handshake. The main
+  // process owns the replay buffer, so output produced before the child
+  // listener is ready is still available to the new renderer.
+  ipcMain.handle('terminal:attach', (event, sessionId: string) => {
+    if (!isRendererOwner(event, sessionId)) {
+      return { success: false, error: 'Renderer does not own session' };
+    }
+    if (typeof event?.sender?.id === 'number') windowManager.markSessionRendererAttached(sessionId);
+    const tail = ptyManager.getTerminalTail(sessionId, 500, 'raw');
+    return { success: true, replay: tail.raw?.join('\r\n') ?? '' };
+  });
+
+  // terminal:detach is intentionally explicit even though the authoritative
+  // mapping changes in session:snapBack/session window close. It prevents a
+  // stale renderer from claiming it still owns the PTY during that transition.
+  ipcMain.handle('terminal:detach', (event, sessionId: string) => {
+    if (!isRendererOwner(event, sessionId)) {
+      return { success: false, error: 'Renderer does not own session' };
+    }
+    const senderId = event?.sender?.id;
+    if (typeof senderId === 'number' && !windowManager.markSessionRendererDetached(sessionId, senderId)) {
+      return { success: false, error: 'Renderer does not own session' };
+    }
+    return { success: true };
+  });
+
   // pty:spawn - Spawn a new PTY process and register as session
   ipcMain.handle('pty:spawn', (_event, sessionId: string, command: string, args: string[], cwd?: string, cliType?: string, contextText?: string, resumeSessionName?: string) => {
     logger.info(`[PTY IPC] pty:spawn called: sessionId=${sessionId}, command=${command}, args=${JSON.stringify(args)}, cwd=${cwd}, cliType=${cliType}, hasContext=${!!contextText}, resume=${resumeSessionName || 'none'}`);
@@ -74,7 +111,8 @@ export function setupPtyHandlers(
   ptyManager.setActivityMarker(sessionId => stateDetector.markActive(sessionId));
 
   // pty:write - Write data to a session's PTY stdin
-  ipcMain.handle('pty:write', (_event, sessionId: string, data: string, options?: PtyWriteOptions) => {
+  ipcMain.handle('pty:write', (event, sessionId: string, data: string, options?: PtyWriteOptions) => {
+    if (!isRendererOwner(event, sessionId)) return;
     try {
       const inputOrigin = options?.inputOrigin === 'programmatic' ? 'programmatic' : 'user';
       ptyManager.write(sessionId, data);
@@ -93,7 +131,8 @@ export function setupPtyHandlers(
 
   // pty:scrollInput - Write scroll keys to PTY without triggering marker detection.
   // Screen redraws from scroll can contain stale agent-visible text.
-  ipcMain.handle('pty:scrollInput', (_event, sessionId: string, data: string) => {
+  ipcMain.handle('pty:scrollInput', (event, sessionId: string, data: string) => {
+    if (!isRendererOwner(event, sessionId)) return;
     try {
       ptyManager.write(sessionId, data, 'scroll');
       stateDetector.markScrolling(sessionId);
@@ -103,7 +142,8 @@ export function setupPtyHandlers(
   });
 
   // pty:resize - Resize a session's PTY
-  ipcMain.handle('pty:resize', (_event, sessionId: string, cols: number, rows: number) => {
+  ipcMain.handle('pty:resize', (event, sessionId: string, cols: number, rows: number) => {
+    if (!isRendererOwner(event, sessionId)) return;
     try {
       ptyManager.resize(sessionId, cols, rows);
       stateDetector.markResizing(sessionId);

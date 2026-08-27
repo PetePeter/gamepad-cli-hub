@@ -25,6 +25,7 @@ vi.mock('../../renderer/terminal/terminal-view.js', () => ({
   TerminalView: class {
     fit(): void {}
     focus(): void {}
+    getDimensions(): { cols: number; rows: number } { return { cols: 80, rows: 24 }; }
     write(): void {}
     dispose(): void {}
     getSelection(): string { return ''; }

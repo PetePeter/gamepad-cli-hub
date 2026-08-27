@@ -160,7 +160,7 @@ describe('TerminalView', () => {
     expect(view.adoptContainer(nextContainer)).toBe(true);
     expect(nextContainer.firstChild).toBe(xtermDom);
     expect(container.firstChild).toBeNull();
-    expect(lastFitAddon().fit).toHaveBeenCalledTimes(2); // construction + adoption
+    expect(lastFitAddon().fit).toHaveBeenCalledTimes(1); // adoption
     expect(terminalInstances).toHaveLength(1);
   });
 
@@ -169,9 +169,9 @@ describe('TerminalView', () => {
     expect(lastTerminal().loadAddon).toHaveBeenCalledTimes(3);
   });
 
-  it('calls fit() on construction', () => {
+  it('defers fitting until the containing layout has settled', () => {
     new TerminalView({ sessionId: 'tv3', container });
-    expect(lastFitAddon().fit).toHaveBeenCalled();
+    expect(lastFitAddon().fit).not.toHaveBeenCalled();
   });
 
   it('write() forwards data to terminal.write()', () => {
