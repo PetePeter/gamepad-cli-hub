@@ -8,7 +8,7 @@
  * Footer: Edit / Open externally / Export… / Copy reference / Delete. Editing
  * is in-situ over the raw source and saves as a NEW version, so it is offered
  * on the latest version only.
- * Header: title + count + pop-out + close.
+ * Header: title + count + pop-out. Pane close/restore belongs to the dock.
  *
  * Supports manual artifact creation: text notes, file attachments via
  * file picker / drag-and-drop / clipboard paste. Images render inline
@@ -32,7 +32,6 @@ import { parseAttachmentHref } from '../../../src/types/artifact-attachment.js';
 
 const props = defineProps<{ sessionId: string }>();
 const emit = defineEmits<{
-  (e: 'close'): void;
   (e: 'pop-out'): void;
 }>();
 
@@ -590,7 +589,6 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
       <span class="ap-count">{{ count }} · session-scoped</span>
       <span class="ap-spacer"></span>
       <button class="ap-ico" title="Pop out with terminal" @click="emit('pop-out')">⧉</button>
-      <button class="ap-ico" title="Close panel" @click="emit('close')">✕</button>
     </div>
 
     <div class="ap-main">

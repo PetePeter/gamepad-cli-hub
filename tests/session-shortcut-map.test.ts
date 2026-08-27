@@ -18,10 +18,6 @@ function makeGroupHeader(id: string): NavItem {
   return { type: 'group-header' as const, id, groupIndex: 0 };
 }
 
-function makeOverviewButton(): NavItem {
-  return { type: 'overview-button' as const, id: 'overview', groupIndex: -1 };
-}
-
 // ============================================================================
 // getOrderedSessionIds
 // ============================================================================
@@ -99,7 +95,6 @@ describe('getOrderedSessionIds', () => {
 
   it('non-session-card items are ignored', () => {
     const navList: NavItem[] = [
-      makeOverviewButton(),
       makeGroupHeader('/dir'),
       makeSessionCard('s1'),
     ];
@@ -166,7 +161,6 @@ describe('buildSessionShortcutMap', () => {
 
   it('non-session-card nav items are ignored and do not consume slots', () => {
     const navList: NavItem[] = [
-      makeOverviewButton(),
       makeGroupHeader('/dir/a'),
       makeSessionCard('s1'),
       makeSessionCard('s2'),

@@ -2,7 +2,7 @@
 
 The group overview is a session preview grid that shows sessions at a glance with live PTY output. It has two modes:
 
-- **Global overview** — shows all eye-visible sessions across every folder, with folder break marks between groups. Triggered by the Overview button at the top of the session list.
+- **Global overview** — shows all eye-visible sessions across every folder, with folder break marks between groups. Opened through the dock Overview pane or `Ctrl+Shift+O`.
 - **Group overview** — shows only sessions in one directory. Triggered by D-pad Right on a group header (or clicking the group name).
 
 ## Purpose
@@ -13,7 +13,7 @@ When managing many concurrent CLI sessions (e.g. multiple Claude Code or Copilot
 
 ```mermaid
 flowchart LR
-    A[Session List] -->|"A on Overview button (top of list)"| B[Global Overview<br/>all eye-visible sessions]
+    A[Dock Overview pane] -->|"Ctrl+Shift+O or pane selection"| B[Global Overview<br/>all eye-visible sessions]
     A -->|"D-pad Right on group header"| C[Group Overview<br/>single folder]
     B -->|"D-pad Left / B button"| A
     C -->|"D-pad Left / B button"| A
@@ -23,14 +23,14 @@ flowchart LR
 
 | Action | Trigger |
 |--------|---------|
-| **Enter global overview** | A / Enter on the Overview button (top of session list) |
+| **Enter global overview** | Select the dock Overview pane or press Ctrl+Shift+O |
 | **Enter group overview** | D-pad Right on a group header (or click group name) |
 | **Exit overview (back)** | D-pad Left or B button — returns to sidebar |
 | **Sidebar navigation while open** | D-pad Up/Down — passes through to sidebar navigation; overview stays open |
 | **Select session** | A button — exits overview and switches to the selected session |
 | **Close session** | X button — opens close confirmation for the focused card |
 
-D-pad Up/Down skips through group headers in the sidebar without opening the overview. The overview is a **drill-in zone**: pressing Right on a group header opens the group view, pressing the Overview button opens the global view.
+D-pad Up/Down skips through group headers in the sidebar without opening the overview. The overview is a **drill-in zone**: pressing Right on a group header opens the group view, while selecting the dock Overview pane opens the global view.
 
 ## Eye Toggle
 
@@ -41,11 +41,11 @@ Each session card has an eye button (👁 / 👁‍🗨) at column 3 (D-pad Righ
 
 Hidden sessions still appear in the sidebar list, in their own group overview, and can be selected and used normally. Visibility is persisted in `settings.yaml` via `SessionGroupPrefs.overviewHidden` using the stable CLI session name as the key.
 
-The Overview button's session count badge reflects only eye-visible sessions.
+The dock Overview pane's session count badge reflects only eye-visible sessions.
 
 ## Global Overview Layout
 
-When activated from the Overview button, the grid spans all folders. Between sessions from different directories a **folder break mark** is rendered — a subtle divider line showing the directory path (e.g. `─────── ~/projects/foo ───────`). Sessions within each folder appear in the same order as the sidebar.
+When activated from the dock Overview pane, the grid spans all folders. Between sessions from different directories a **folder break mark** is rendered — a subtle divider line showing the directory path (e.g. `─────── ~/projects/foo ───────`). Sessions within each folder appear in the same order as the sidebar.
 
 ## Pre-Selection
 

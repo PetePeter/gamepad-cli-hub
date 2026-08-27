@@ -143,10 +143,12 @@ is caught by the next startup sweep.
 **Export…** differs on both counts: it prompts for a location and always writes the
 **latest** version.
 
-**Show / hide:** a `📄 Artifacts` toolbar toggle with a live badge, `✕` on the
-panel header, and `Ctrl+Shift+A` (ignored while modal overlays / editors / plan
-screen are active). Collapsed = terminal reclaims full width + a slim right
-**edge tab** (📄 + badge) that pulses when a new artifact arrives.
+**Show / hide:** the dock owns pane visibility and close/restore, with the View
+menu recovering closed panes and the right rail revealing collapsed panes.
+`Ctrl+Shift+A` shows/focuses Artifacts and never toggles it. In a snapped-out
+window, the slim right **edge tab** (📄 + badge) remains the reveal affordance
+and pulses when a new artifact arrives. ArtifactViewer itself has no duplicate
+panel-close button.
 
 **Snap-out follow:** the panel is bound to its session. Its `⧉` snaps the
 terminal out; the `SnapOutWindow` mounts its own `ArtifactViewer` bound to that
@@ -330,7 +332,7 @@ graph TB
         COMP["useArtifactViewer<br/>(module-singleton state)"]
         VIEW["ArtifactViewer.vue<br/>master/detail + versions"]
         RENDER["renderArtifact()<br/>marked → DOMPurify"]
-        MAIN["MainWindowApp / SnapOutWindow<br/>toggle · edge tab · Ctrl+Shift+A"]
+        MAIN["MainWindowApp / SnapOutWindow<br/>dock or edge reveal · Ctrl+Shift+A"]
     end
 
     AI["AI"] -->|artifact_*| MCP --> SVC --> AM

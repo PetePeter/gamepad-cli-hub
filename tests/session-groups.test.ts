@@ -290,7 +290,6 @@ describe('buildFlatNavList', () => {
     const groups = [makeGroup('/a', ['s1', 's2']), makeGroup('/b', ['s3'])];
     const nav = buildFlatNavList(groups);
     expect(nav).toEqual([
-      { type: 'overview-button', id: 'overview', groupIndex: -1 },
       { type: 'group-header', id: '/a', groupIndex: 0 },
       { type: 'session-card', id: 's1', groupIndex: 0 },
       { type: 'session-card', id: 's2', groupIndex: 0 },
@@ -303,7 +302,6 @@ describe('buildFlatNavList', () => {
     const groups = [makeGroup('/a', ['s1', 's2'], true), makeGroup('/b', ['s3'])];
     const nav = buildFlatNavList(groups);
     expect(nav).toEqual([
-      { type: 'overview-button', id: 'overview', groupIndex: -1 },
       { type: 'group-header', id: '/a', groupIndex: 0 },
       { type: 'group-header', id: '/b', groupIndex: 1 },
       { type: 'session-card', id: 's3', groupIndex: 1 },
@@ -317,9 +315,8 @@ describe('buildFlatNavList', () => {
   it('handles all groups collapsed', () => {
     const groups = [makeGroup('/a', ['s1'], true), makeGroup('/b', ['s2'], true)];
     const nav = buildFlatNavList(groups);
-    expect(nav).toHaveLength(3);
-    expect(nav[0]).toEqual({ type: 'overview-button', id: 'overview', groupIndex: -1 });
-    expect(nav.slice(1).every(item => item.type === 'group-header')).toBe(true);
+    expect(nav).toHaveLength(2);
+    expect(nav.every(item => item.type === 'group-header')).toBe(true);
   });
 
   it('skips group with no sessions (non-sticky)', () => {
@@ -332,16 +329,15 @@ describe('buildFlatNavList', () => {
     const groups = [makeGroup('/a', []), makeGroup('/b', ['s1'])];
     const nav = buildFlatNavList(groups);
     expect(nav).toEqual([
-      { type: 'overview-button', id: 'overview', groupIndex: -1 },
       { type: 'group-header', id: '/b', groupIndex: 1 },
       { type: 'session-card', id: 's1', groupIndex: 1 },
     ]);
   });
 
-  it('adds the overview button at nav index 0', () => {
+  it('does not add a synthetic Overview item to the session navigation list', () => {
     const groups = [makeGroup('/a', ['s1'])];
     const nav = buildFlatNavList(groups);
-    expect(nav[0]).toEqual({ type: 'overview-button', id: 'overview', groupIndex: -1 });
+    expect(nav[0]).toEqual({ type: 'group-header', id: '/a', groupIndex: 0 });
   });
 });
 

@@ -63,7 +63,6 @@ function makeContext(): Fake {
     onGroupToggleCollapse: vi.fn(),
     onShowPlans: vi.fn(),
     onShowOverview: vi.fn(),
-    onShowGlobalOverview: vi.fn(),
     onToggleOverview: vi.fn(),
     onToggleLock: vi.fn(),
     onCancelSchedule: vi.fn(),

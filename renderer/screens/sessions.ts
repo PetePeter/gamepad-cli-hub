@@ -22,7 +22,7 @@ import {
   getOverviewSessions, handleOverviewInput, hideOverview, isOverviewVisible, refreshOverview,
 } from './group-overview.js';
 import { useNavigationStore } from '../stores/navigation.js';
-import { isPlanScreenVisible, handlePlanScreenDpad, handlePlanScreenAction, hidePlanScreen, getCurrentPlanDirPath } from '../plans/plan-screen.js';
+import { isPlanScreenVisible, handlePlanScreenDpad, handlePlanScreenAction, hidePlanScreen } from '../plans/plan-screen.js';
 import { currentView } from '../main-view/main-view-manager.js';
 import { loadStoredSessions } from '../session-store.js';
 
@@ -382,54 +382,6 @@ function resolvePlanShortcutDirPath(preferredSessionId?: string): string | null 
     ?? null;
 }
 
-function getCurrentShortcutSessionId(): string | null {
-  return state.activeSessionId ?? state.recentSessionId;
-}
-
-function resolveCurrentShortcutDirPath(): string | null {
-  const preferredSessionId = getCurrentShortcutSessionId();
-  return resolvePlanShortcutDirPath(preferredSessionId ?? undefined)
-    ?? getCurrentPlanDirPath()
-    ?? null;
-}
-
-async function openCurrentSessionPlanShortcut(): Promise<void> {
-  const dirPath = resolveCurrentShortcutDirPath();
-  if (!dirPath) return;
-  await useNavigationStore().openPlan(dirPath);
-}
-
-async function toggleCurrentSessionOverviewShortcut(): Promise<void> {
-  const preferredSessionId = getCurrentShortcutSessionId();
-  const dirPath = resolveCurrentShortcutDirPath();
-  if (!dirPath) return;
-
-  if (currentView() === 'overview') {
-    if (sessionsState.overviewIsGlobal) {
-      await useNavigationStore().openOverview(dirPath, preferredSessionId ?? undefined);
-      return;
-    }
-    if (sessionsState.overviewGroup === dirPath) {
-      await useNavigationStore().openOverview(null, preferredSessionId ?? undefined);
-      return;
-    }
-  }
-
-  await useNavigationStore().openOverview(dirPath, preferredSessionId ?? undefined);
-}
-
-async function switchToLastSelectedSessionShortcut(): Promise<void> {
-  const sessionId = getCurrentShortcutSessionId() ?? state.lastSelectedSessionId;
-  const navStore = useNavigationStore();
-  if (!sessionId || !state.sessions.some(session => session.id === sessionId)) {
-    if (currentView() === 'overview') {
-      await navStore.closeOverview();
-    }
-    return;
-  }
-  await navStore.navigateToSession(sessionId);
-}
-
 export async function triggerNewPlanShortcut(preferredSessionId?: string): Promise<void> {
   const dirPath = resolvePlanShortcutDirPath(preferredSessionId);
   if (!dirPath || !plansClient.planCreate) return;
@@ -672,10 +624,6 @@ function handleSessionsZoneButton(button: string): boolean {
   if (!navItem) return false;
 
   if (button === 'A') {
-    if (navItem.type === 'overview-button') {
-      void useNavigationStore().openOverview(null, state.activeSessionId ?? undefined);
-      return true;
-    }
     if (navItem.type === 'group-header') {
       if (sessionsState.cardColumn === 0) {
         toggleGroupCollapse(navItem.id);
@@ -772,36 +720,8 @@ function onKeyDown(e: KeyboardEvent): void {
 
   const active = document.activeElement;
   const view = currentView();
-
   // Bridge/Vue modals own keyboard navigation while visible.
   if (document.querySelector('.modal-overlay.modal--visible')) return;
-
-  if (e.shiftKey && (e.ctrlKey || e.metaKey)) {
-    const key = e.key.toLowerCase();
-
-    if (key === 'p') {
-      e.preventDefault();
-      e.stopPropagation();
-      if (currentView() === 'overview') { hideOverview(); return; }
-      void openCurrentSessionPlanShortcut();
-      return;
-    }
-
-    if (key === 'o') {
-      e.preventDefault();
-      e.stopPropagation();
-      void toggleCurrentSessionOverviewShortcut();
-      return;
-    }
-
-    if (key === 's') {
-      e.preventDefault();
-      e.stopPropagation();
-      if (currentView() === 'overview') { hideOverview(); return; }
-      void switchToLastSelectedSessionShortcut();
-      return;
-    }
-  }
 
   // Ctrl+Shift+N creates new sessions
   if (e.key.toLowerCase() === 'n' && (e.ctrlKey || e.metaKey) && e.shiftKey) {

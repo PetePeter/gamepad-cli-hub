@@ -86,7 +86,6 @@ function sessionElapsedText(sessionId: string): string {
       :is-session-hidden-from-overview="(session) => isSessionHiddenFromOverview(session, sessionsState.groupPrefs)"
       :session-elapsed-text="sessionElapsedText"
       :session-shortcut-map="sessionsScreenStore.sessionShortcutMap"
-      @show-global-overview="sidebar.onShowGlobalOverview"
       @new-group="pane.groups.newGroup"
       @new-group-with-session="pane.groups.newGroupWithSession"
       @group-rename="pane.groups.rename"

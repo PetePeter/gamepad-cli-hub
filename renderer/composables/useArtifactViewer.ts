@@ -123,11 +123,6 @@ function jumpToLatest(): void {
   selectedVersion.value = null;
 }
 
-function togglePanel(): void {
-  panelVisible.value = !panelVisible.value;
-  persistBool(PANEL_VISIBLE_KEY, panelVisible.value);
-}
-
 function showPanel(): void {
   panelVisible.value = true;
   persistBool(PANEL_VISIBLE_KEY, true);
@@ -301,7 +296,6 @@ export function useArtifactViewer() {
     setVersion,
     jumpToLatest,
     // panel / rail
-    togglePanel,
     showPanel,
     hidePanel,
     toggleRail,

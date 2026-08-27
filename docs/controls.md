@@ -49,11 +49,14 @@ The same flag the `session_set_locked` MCP tool writes.
 |-------|--------|
 | Ctrl+Tab | Next terminal tab |
 | Ctrl+Shift+Tab | Previous terminal tab |
+| Ctrl+Shift+T | Focus the Terminal pane |
+| Ctrl+Shift+O | Open/focus the global Overview pane |
+| Ctrl+Shift+M | Focus the Memories pane |
+| Ctrl+Shift+P | Open/focus the Plans pane for the active session folder |
+| Ctrl+Shift+S | Focus the Sessions pane |
+| Ctrl+Shift+A | Show/focus the Artifacts pane; never toggles it |
 | Ctrl+Shift+N | Terminal: open quick spawn / Sessions or Overview: create a new plan for the current directory |
 | Ctrl+Shift+W | Close the active session while terminal view is active |
-| Ctrl+Shift+P | Open the planner for the current session folder |
-| Ctrl+Shift+O | Open the overview for the current session folder; press again to toggle between that folder overview and global overview |
-| Ctrl+Shift+S | Switch back to the last selected session, including a snapped-out window |
 | Arrow keys | Navigate sessions (mapped to D-pad equivalents) |
 | Enter | Mapped to A button |
 | Escape | Mapped to B button |

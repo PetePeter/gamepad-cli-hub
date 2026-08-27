@@ -24,7 +24,7 @@ import { doSpawn, doSpawnShell, switchToSession, doCloseSession,
   setPendingContextText, restoreSnappedBackSession, refreshProjects, refreshSessions,
 } from './composables/useAppBootstrap.js';
 import { resolveGroupDisplayName } from './session-groups.js';
-import { onPlanContextSave } from './plans/plan-screen.js';
+import { getCurrentPlanDirPath, onPlanContextSave } from './plans/plan-screen.js';
 import { onViewChange, type MainView as ViewName } from './main-view/main-view-manager.js';
 import { useToast } from './composables/useToast.js';
 import { useSettingsController } from './composables/useSettingsController.js';
@@ -80,9 +80,9 @@ import {
   PANE_ARTIFACTS,
   PANE_OVERVIEW,
   PANE_PLAN_SCREEN,
-  PANE_MEMORIES,
   PANE_TERMINAL,
 } from './dock-types.js';
+import { getDockShortcutPane } from './dock-shortcuts.js';
 
 // Sidebar components
 import StatusStrip from './components/sidebar/StatusStrip.vue';
@@ -164,12 +164,6 @@ watch(terminalContainerRef, (container) => {
 
 const dockViewItems = computed(() => listRegisteredPanes(dockWorkspace.layout.value));
 
-// The artifact panel can also be raised from outside the dock (shortcut, IPC).
-// The workspace stays the single reveal authority; this only mirrors into it.
-watch(() => artifactViewer.panelVisible.value, (visible) => {
-  if (visible) dockWorkspace.reveal(PANE_ARTIFACTS);
-  else dockWorkspace.unreveal(PANE_ARTIFACTS);
-});
 const viewPaneByName: Record<ViewName, PaneId> = {
   terminal: PANE_TERMINAL,
   overview: PANE_OVERVIEW,
@@ -196,47 +190,104 @@ function fallbackToOpenView(): void {
   if (view) activeView.value = view;
 }
 
-function onDockViewToggle(paneId: PaneId): void {
+function resolveDockPlanDirPath(): string | null {
+  const session = state.sessions.find(item => item.id === state.activeSessionId);
+  return session?.projectPath
+    ?? session?.workingDir
+    ?? getCurrentPlanDirPath()
+    ?? sessionsState.groups[0]?.dirPath
+    ?? sessionsState.directories[0]?.path
+    ?? null;
+}
+
+let dockNavigationRequest = 0;
+
+/**
+ * Select a pane through one shell-owned path. View panes must pass through the
+ * navigation store so their existing mount/unmount lifecycle initializes data;
+ * tool panes only need dock activation/focus.
+ */
+async function activateDockPane(paneId: PaneId, reveal = false, focusedItemId?: string): Promise<void> {
+  const requestId = ++dockNavigationRequest;
   try {
-    if (dockWorkspace.isOpen(paneId)) {
-      dockWorkspace.close(paneId);
-      fallbackToOpenView();
-    } else {
-      dockWorkspace.restore(paneId);
-      const view = viewNameByPane.get(paneId);
-      if (view) activeView.value = view;
-    }
+    if (!dockWorkspace.isOpen(paneId)) dockWorkspace.restore(paneId);
+    if (reveal) dockWorkspace.reveal(paneId);
+    else dockWorkspace.activate(paneId);
   } catch {
-    // The pure model rejects the last invalid operation; keep the menu usable.
+    return;
   }
+
+  if (paneId === PANE_OVERVIEW) {
+    await navStore.openOverview(null, state.activeSessionId ?? undefined);
+  } else if (paneId === PANE_PLAN_SCREEN) {
+    const dirPath = resolveDockPlanDirPath();
+    if (dirPath) await navStore.openPlan(dirPath);
+  } else if (paneId === PANE_TERMINAL) {
+    if (activeView.value === 'overview') await navStore.closeOverview();
+    else if (activeView.value === 'plan') await navStore.closePlan();
+  } else if (paneId === PANE_ARTIFACTS) {
+    // ArtifactViewer retains content/session state for snapped-out windows;
+    // dock visibility itself remains owned by the workspace tree.
+    artifactViewer.showPanel();
+  }
+
+  if (requestId !== dockNavigationRequest) return;
+  dockWorkspace.focusPane(paneId, focusedItemId);
+}
+
+async function closeDockPane(paneId: PaneId): Promise<void> {
+  const view = viewNameByPane.get(paneId);
+  const wasActiveView = view === activeView.value;
+
+  if (wasActiveView && view === 'overview') await navStore.closeOverview();
+  else if (wasActiveView && view === 'plan') await navStore.closePlan();
+
+  try {
+    dockWorkspace.close(paneId);
+  } catch {
+    return;
+  }
+
+  if (paneId === PANE_ARTIFACTS) artifactViewer.hidePanel();
+
+  if (wasActiveView && view === 'terminal') {
+    const fallback = ([PANE_OVERVIEW, PANE_PLAN_SCREEN] as const)
+      .find(candidate => dockWorkspace.isOpen(candidate));
+    if (fallback) void activateDockPane(fallback);
+    else fallbackToOpenView();
+  }
+}
+
+function onDockViewToggle(paneId: PaneId): void {
   dockViewMenuOpen.value = false;
+  if (dockWorkspace.isOpen(paneId)) void closeDockPane(paneId);
+  else void activateDockPane(paneId);
 }
 
 function onDockLayoutReset(): void {
+  dockNavigationRequest++;
   dockWorkspace.reset();
+  if (activeView.value === 'overview') void navStore.closeOverview();
+  else if (activeView.value === 'plan') void navStore.closePlan();
   activeView.value = 'terminal';
   dockViewMenuOpen.value = false;
 }
 
 function onDockFocusPane(paneId: PaneId, focusedItemId?: string): void {
-  dockWorkspace.focusPane(paneId, focusedItemId);
   const view = viewNameByPane.get(paneId);
-  if (view) activeView.value = view;
+  if (view && view !== activeView.value) {
+    void activateDockPane(paneId, false, focusedItemId);
+    return;
+  }
+  dockWorkspace.focusPane(paneId, focusedItemId);
 }
 
 function onDockActivatePane(paneId: PaneId): void {
-  dockWorkspace.activate(paneId);
-  const view = viewNameByPane.get(paneId);
-  if (view) activeView.value = view;
+  void activateDockPane(paneId);
 }
 
 function onDockClosePane(paneId: PaneId): void {
-  try {
-    dockWorkspace.close(paneId);
-    fallbackToOpenView();
-  } catch {
-    // The model rejects closing the last invalid pane; the View menu remains usable.
-  }
+  void closeDockPane(paneId);
 }
 
 /**
@@ -245,10 +296,7 @@ function onDockClosePane(paneId: PaneId): void {
  * mode, so leaving it re-collapses the rail instead of stealing layout space.
  */
 function onDockRevealPane(paneId: PaneId): void {
-  dockWorkspace.reveal(paneId);
-  if (paneId === PANE_ARTIFACTS) artifactViewer.showPanel();
-  const view = viewNameByPane.get(paneId);
-  if (view) activeView.value = view;
+  void activateDockPane(paneId, true);
 }
 
 function onDockAutohideClose(paneId: PaneId): void {
@@ -470,8 +518,6 @@ function refitTerminalsSoon(): void {
   requestAnimationFrame(() => { getTerminalManager()?.fitActive(); });
 }
 
-watch(() => artifactViewer.panelVisible.value, () => { refitTerminalsSoon(); });
-
 // Keep the panel bound to whichever session is active; reload on switch.
 watch(() => state.activeSessionId, (id) => {
   void artifactViewer.setActiveSession(id ?? null);
@@ -585,17 +631,22 @@ function handleClearSessionNotifications(e: Event): void {
 // Prompt-template apply flow (picker → editor → deliverPromptSequence).
 const { openPromptPicker } = usePromptApplyFlow(() => state.activeSessionId);
 
-// Ctrl+Shift+A toggles the artifact panel. Ignored while a modal overlay,
-// settings, an editor, or the plan screen owns input — consistent with the
-// app's other document-level shortcuts (see paste-handler guards).
-function onArtifactShortcut(e: KeyboardEvent): void {
-  if (!(e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a'))) return;
-  if (settingsVisible.value || activeView.value === 'plan') return;
-  if (draftEditorVisible.value || isAnyBridgeModalVisible()) return;
+function isEditableShortcutTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement
+    && Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
+}
+
+/** Global workspace navigation. Ctrl+Shift+A shows Artifacts; it never toggles. */
+function onDockShortcut(e: KeyboardEvent): void {
+  const paneId = getDockShortcutPane(e);
+  if (!paneId) return;
+  if (settingsVisible.value || draftEditorVisible.value || isAnyBridgeModalVisible()) return;
   if (document.querySelector('.modal-overlay.modal--visible')) return;
+  if (isEditableShortcutTarget(e.target)) return;
+
   e.preventDefault();
   e.stopPropagation();
-  artifactViewer.togglePanel();
+  void activateDockPane(paneId, paneId === PANE_ARTIFACTS);
 }
 
 // ⧉ pop-out: the panel travels with its terminal. Snapping the active session
@@ -608,8 +659,10 @@ function onArtifactPopOut(): void {
 // Session-card 📄 badge: an additional entry point that SHOWS (never toggles)
 // the artifact panel for that session — activate it, then reveal the panel.
 function onShowArtifactsForSession(sessionId: string): void {
-  onSessionClick(sessionId);
-  artifactViewer.showPanel();
+  void (async () => {
+    await onSessionClick(sessionId);
+    await activateDockPane(PANE_ARTIFACTS, true);
+  })();
 }
 
 // Context menu
@@ -877,7 +930,7 @@ onMounted(async () => {
   // raise its dialog even when Settings has never been opened this session.
   peers.ensureSubscribed();
   void artifactViewer.setActiveSession(state.activeSessionId ?? null);
-  window.addEventListener('keydown', onArtifactShortcut, true);
+  window.addEventListener('keydown', onDockShortcut, true);
 
   if (!terminalContainerRef.value) {
     await appClient.appStartupReady();
@@ -1003,7 +1056,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleModalKeyboardBridge, true);
-  window.removeEventListener('keydown', onArtifactShortcut, true);
+  window.removeEventListener('keydown', onDockShortcut, true);
   window.removeEventListener('rename-session-request', handleRenameRequest);
   window.removeEventListener('clear-session-notifications', handleClearSessionNotifications);
   unsubSnapOut?.();

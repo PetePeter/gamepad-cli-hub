@@ -124,7 +124,7 @@ describe('derived sidebar groups', () => {
     state.sessions = [makeSession('s1', DIR_A), makeSession('s2', DIR_B)];
 
     expect(sessionsState.navList.map(item => item.type)).toEqual([
-      'overview-button', 'group-header', 'session-card', 'group-header', 'session-card',
+      'group-header', 'session-card', 'group-header', 'session-card',
     ]);
 
     // Collapsing a group drops its cards from navigation.

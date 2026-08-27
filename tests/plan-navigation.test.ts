@@ -148,17 +148,14 @@ describe('plan navigation — group header Plans button', () => {
     expect(maxSessionCol).toBe(4);
   });
 
-  it('navList includes overview button + group headers + session cards', () => {
+  it('navList includes group headers + session cards', () => {
     const groups = [makeGroup('/proj1', 2), makeGroup('/proj2', 1)];
     const navList = buildFlatNavList(groups);
 
-    // overview button at nav index 0
-    expect(navList[0]).toEqual({ type: 'overview-button', id: 'overview', groupIndex: -1 });
-
     const headers = navList.filter(n => n.type === 'group-header');
     expect(headers).toHaveLength(2);
-    // 1 overview + 2 headers + 3 cards = 6 items
-    expect(navList).toHaveLength(6);
+    // 2 headers + 3 cards = 5 items
+    expect(navList).toHaveLength(5);
   });
 
   it('isPlanScreenVisible returns false by default', async () => {

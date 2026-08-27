@@ -8,19 +8,16 @@
  */
 import ArtifactViewer from '../panels/ArtifactViewer.vue';
 import { useAppStore } from '../../stores/app.js';
-import { useArtifactViewer } from '../../composables/useArtifactViewer.js';
 import { useHelmPaneContext } from '../../dock-pane-context.js';
 
 const pane = useHelmPaneContext();
 const state = useAppStore().state;
-const artifactViewer = useArtifactViewer();
 </script>
 
 <template>
   <ArtifactViewer
     v-if="state.activeSessionId"
     :session-id="state.activeSessionId"
-    @close="artifactViewer.hidePanel()"
     @pop-out="pane.popOutArtifacts"
   />
 </template>

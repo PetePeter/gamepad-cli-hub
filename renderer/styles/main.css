@@ -945,8 +945,8 @@ body.dock-dragging { cursor: grabbing; user-select: none; }
 }
 .group-header.runtime:hover { background: linear-gradient(90deg, rgba(160, 122, 255, 0.18), var(--bg-tertiary) 70%); }
 
-/* Split button: [ ▦ Overview | ＋ New Group ] */
-.runtime-split-button {
+/* Runtime group actions. Overview is a dock pane, not a sidebar button. */
+.runtime-list-actions {
   display: flex;
   width: 100%;
   flex: 0 0 auto;
@@ -955,7 +955,7 @@ body.dock-dragging { cursor: grabbing; user-select: none; }
   overflow: hidden;
   margin-bottom: 6px;
 }
-.runtime-split-button .split-seg {
+.runtime-list-actions .runtime-action {
   flex: 1;
   display: flex;
   align-items: center;
@@ -969,13 +969,8 @@ body.dock-dragging { cursor: grabbing; user-select: none; }
   font-size: 12px;
   user-select: none;
 }
-.runtime-split-button .split-seg:hover { background: var(--bg-tertiary); }
-.runtime-split-button .split-divider {
-  width: 1px;
-  flex: 0 0 auto;
-  background: #3a4150;
-}
-.runtime-split-button .split-seg.drop-ok {
+.runtime-list-actions .runtime-action:hover { background: var(--bg-tertiary); }
+.runtime-list-actions .runtime-action.drop-ok {
   background: #1d2a1d;
   color: var(--activity-active, #44cc44);
 }
@@ -4554,28 +4549,5 @@ kbd {
   0% { box-shadow: 0 0 0 0 var(--focus); }
   70% { box-shadow: 0 0 0 8px rgba(79, 208, 139, 0); }
   100% { box-shadow: 0 0 0 0 rgba(79, 208, 139, 0); }
-}
-
-/* Sidebar-header toggle button + badge. */
-.artifact-toggle-btn { position: relative; }
-.artifact-toggle-btn--on { color: var(--accent); }
-.artifact-toggle-btn:disabled { opacity: 0.4; cursor: default; }
-.artifact-toggle-badge {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  font-size: 0.58rem;
-  display: grid;
-  place-items: center;
-}
-.artifact-toggle-badge--pulse {
-  box-shadow: 0 0 0 0 var(--focus);
-  animation: artifact-pulse 2s ease-out infinite;
 }
 

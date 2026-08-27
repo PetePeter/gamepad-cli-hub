@@ -79,7 +79,6 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  showGlobalOverview: [];
   newGroup: [];
   newGroupWithSession: [sessionId: string];
   groupRename: [groupId: string];
@@ -145,17 +144,10 @@ function onNewGroupDrop(e: DragEvent): void {
 
 <template>
   <div class="sessions-list-shell">
-    <!-- Split button: [ ▦ Overview | ＋ New Group ] -->
-    <div class="runtime-split-button">
+    <!-- Overview is a dock pane; this toolbar only owns runtime-group creation. -->
+    <div class="runtime-list-actions">
       <button
-        class="split-seg"
-        :class="{ focused: isNavItemFocused(activeFocus, focusedNavItem, 'overview-button', 'overview') }"
-        title="Overview grid of all live sessions"
-        @click="emit('showGlobalOverview')"
-      >▦ Overview</button>
-      <span class="split-divider" aria-hidden="true"></span>
-      <button
-        class="split-seg"
+        class="runtime-action"
         :class="{ 'drop-ok': newGroupDropActive }"
         title="Create a new runtime group"
         @click="emit('newGroup')"

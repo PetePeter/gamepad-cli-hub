@@ -97,10 +97,6 @@ export function useSidebarController(deps: SidebarControllerDeps) {
     void deps.navStore.openOverview(dirPath, state.activeSessionId ?? undefined);
   }
 
-  function onShowGlobalOverview(): void {
-    void deps.navStore.openOverview(null, state.activeSessionId ?? undefined);
-  }
-
   function onToggleOverview(sessionId: string): void {
     void toggleSessionOverviewVisibility(sessionId);
   }
@@ -200,7 +196,6 @@ export function useSidebarController(deps: SidebarControllerDeps) {
     onGroupToggleCollapse,
     onShowPlans,
     onShowOverview,
-    onShowGlobalOverview,
     onToggleOverview,
     onToggleLock,
     onCancelSchedule,

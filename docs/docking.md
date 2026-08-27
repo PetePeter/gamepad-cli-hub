@@ -94,6 +94,23 @@ as "it never came back".
 Homes live in the registry, not in the persisted tree, so changing a pane's home
 does not invalidate a saved layout.
 
+## Workspace shortcuts and view lifecycle
+
+The dock owns pane selection, but the three main view panes still use the
+navigation store's mount/unmount lifecycle. Selecting Overview or Plans from a
+tab, rail, View menu, or shortcut therefore runs the same initialization path.
+Selecting Terminal closes the active overview or plan lifecycle before focusing
+the terminal.
+
+Global shortcuts are `Ctrl+Shift+T` Terminal, `Ctrl+Shift+O` Overview,
+`Ctrl+Shift+M` Memories, `Ctrl+Shift+P` Plans, `Ctrl+Shift+S` Sessions, and
+`Ctrl+Shift+A` Artifacts. The Artifact shortcut shows/focuses the pane; it does
+not toggle visibility. `Ctrl+Shift+N` remains the new-session shortcut.
+
+Pane content does not provide a second close control. The dock tab close button
+is the close action, the View menu restores closed panes, and rails reveal
+collapsed or autohide panes.
+
 ## Chips belong to the terminal
 
 `TerminalChips` (plan pills + quick actions) mounts **inside** `TerminalPane`, at

@@ -66,7 +66,7 @@ const draftEditorPlanCallbacks = ref<import('./panels/DraftEditor.vue').PlanCall
 const draftEditorRef = ref<InstanceType<typeof DraftEditor> | null>(null);
 
 // Artifact panel — bound to THIS popout's session so its artifacts travel with
-// the terminal. Ctrl+Shift+A toggles it here too.
+// the terminal. Ctrl+Shift+A is an explicit show action, never a toggle.
 const artifactViewer = useArtifactViewer();
 const artifactBadge = computed(() => artifactViewer.artifacts.value.length);
 const artifactHasUnread = computed(() => artifactViewer.unreadCount.value > 0);
@@ -75,7 +75,7 @@ function onArtifactShortcut(e: KeyboardEvent): void {
   if (draftEditorVisible.value || contextMenuVisible.value || promptTree.visible || editorPopupStore.visible) return;
   e.preventDefault();
   e.stopPropagation();
-  artifactViewer.togglePanel();
+  artifactViewer.showPanel();
 }
 const { splitterRef: artifactSplitterRef, panelRef: artifactPanelRef } = usePanelResize({
   onResized: () => { view?.fit(); },
@@ -316,7 +316,7 @@ function onContextMenuCancel(): void { contextMenuVisible.value = false; }
       <div ref="containerRef" class="snap-out-terminal"></div>
       <div v-show="artifactViewer.panelVisible.value" class="artifact-splitter" ref="artifactSplitterRef" title="Drag to resize"></div>
       <div v-show="artifactViewer.panelVisible.value" class="artifact-panel-dock" ref="artifactPanelRef">
-        <ArtifactViewer :session-id="props.sessionId" @close="artifactViewer.hidePanel()" @pop-out="artifactViewer.hidePanel()" />
+        <ArtifactViewer :session-id="props.sessionId" @pop-out="artifactViewer.hidePanel()" />
       </div>
       <div v-show="!artifactViewer.panelVisible.value" class="artifact-edge" title="Show artifacts" @click="artifactViewer.showPanel()">
         <span v-if="artifactBadge > 0" class="artifact-edge-badge" :class="{ 'artifact-edge-badge--pulse': artifactHasUnread }">{{ artifactBadge }}</span>

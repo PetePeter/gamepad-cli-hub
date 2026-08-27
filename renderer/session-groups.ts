@@ -30,13 +30,13 @@ export interface SessionGroup {
   groupId?: string;
 }
 
-export type NavItemType = 'overview-button' | 'group-header' | 'session-card';
+export type NavItemType = 'group-header' | 'session-card';
 
 export interface NavItem {
   type: NavItemType;
-  /** For overview-button: "overview". For group-header: dirPath. For session-card: session id. */
+  /** For group-header: dirPath. For session-card: session id. */
   id: string;
-  /** Index of the group this item belongs to (in the groups array). -1 for overview-button. */
+  /** Index of the group this item belongs to (in the groups array). */
   groupIndex: number;
 }
 
@@ -234,10 +234,6 @@ export function buildSessionGroups(
  */
 export function buildFlatNavList(groups: SessionGroup[]): NavItem[] {
   const items: NavItem[] = [];
-  const hasSessions = groups.some(group => group.sessions.length > 0);
-  if (hasSessions) {
-    items.push({ type: 'overview-button', id: 'overview', groupIndex: -1 });
-  }
   for (let gi = 0; gi < groups.length; gi++) {
     const group = groups[gi];
     // Runtime groups persist as visible headers even when empty (so the UI can

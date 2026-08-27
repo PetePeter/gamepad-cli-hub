@@ -327,13 +327,13 @@ describe('ArtifactViewer', () => {
     expect(titles).toEqual(['Perf Benchmark']);
   });
 
-  it('emits close and pop-out from the header', async () => {
+  it('emits pop-out from the header without a duplicate panel-close action', async () => {
     const { w } = await mountWith([makeArtifact()]);
 
-    await w.findAll('.ap-ico').find((b) => b.attributes('title') === 'Close panel')!.trigger('click');
     await w.findAll('.ap-ico').find((b) => b.attributes('title')?.includes('Pop out'))!.trigger('click');
 
-    expect(w.emitted('close')).toHaveLength(1);
+    expect(w.find('.ap-ico[title="Close panel"]').exists()).toBe(false);
+    expect(w.emitted('close')).toBeUndefined();
     expect(w.emitted('pop-out')).toHaveLength(1);
   });
 });

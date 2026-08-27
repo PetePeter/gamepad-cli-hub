@@ -402,163 +402,21 @@ describe('Sessions Screen', () => {
   });
 
   describe('keyboard shortcuts', () => {
-    it('Ctrl+Shift+P opens the planner for the current session folder', async () => {
-      state.activeSessionId = 's-1';
-      state.recentSessionId = 's-1';
-      state.sessions = [{
-        id: 's-1',
-        name: 'Session 1',
-        cliType: 'claude-code',
-        processId: 1,
-        workingDir: '/projects/a',
-      }];
-
-      document.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 'P',
-        ctrlKey: true,
-        shiftKey: true,
-        bubbles: true,
-        cancelable: true,
-      }));
+    it('leaves workspace pane shortcuts to the docking shell', async () => {
+      for (const key of ['P', 'O', 'M', 'S', 'A', 'T']) {
+        document.dispatchEvent(new KeyboardEvent('keydown', {
+          key,
+          ctrlKey: true,
+          shiftKey: true,
+          bubbles: true,
+          cancelable: true,
+        }));
+      }
       await flush();
 
-      expect(mockOpenPlan).toHaveBeenCalledWith('/projects/a');
-    });
-
-    it('Ctrl+Shift+O opens the current session folder overview', async () => {
-      state.activeSessionId = 's-1';
-      state.recentSessionId = 's-1';
-      state.sessions = [{
-        id: 's-1',
-        name: 'Session 1',
-        cliType: 'claude-code',
-        processId: 1,
-        workingDir: '/projects/a',
-      }];
-
-      document.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 'O',
-        ctrlKey: true,
-        shiftKey: true,
-        bubbles: true,
-        cancelable: true,
-      }));
-      await flush();
-
-      expect(mockOpenOverview).toHaveBeenCalledWith('/projects/a', 's-1');
-    });
-
-    it('Ctrl+Shift+O toggles a folder overview to global overview on second press', async () => {
-      mockCurrentView = 'overview';
-      state.recentSessionId = 's-1';
-      state.sessions = [{
-        id: 's-1',
-        name: 'Session 1',
-        cliType: 'claude-code',
-        processId: 1,
-        workingDir: '/projects/a',
-      }];
-      sessionsState.overviewGroup = '/projects/a';
-      sessionsState.overviewIsGlobal = false;
-
-      document.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 'O',
-        ctrlKey: true,
-        shiftKey: true,
-        bubbles: true,
-        cancelable: true,
-      }));
-      await flush();
-
-      expect(mockOpenOverview).toHaveBeenCalledWith(null, 's-1');
-      mockCurrentView = 'terminal';
-    });
-
-    it('Ctrl+Shift+S switches to the current session context', async () => {
-      state.activeSessionId = 's-2';
-      state.recentSessionId = 's-2';
-      state.lastSelectedSessionId = 's-1';
-      state.sessions = [
-        { id: 's-1', name: 'Session 1', cliType: 'claude-code', processId: 1, workingDir: '/projects/a' },
-        { id: 's-2', name: 'Session 2', cliType: 'claude-code', processId: 2, workingDir: '/projects/b' },
-      ];
-
-      document.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 'S',
-        ctrlKey: true,
-        shiftKey: true,
-        bubbles: true,
-        cancelable: true,
-      }));
-      await flush();
-
-      expect(mockNavigateToSession).toHaveBeenCalledWith('s-2');
-    });
-
-    it('Ctrl+Shift+S restores the recent session while plan/overview cleared active selection', async () => {
-      state.activeSessionId = null;
-      state.recentSessionId = 's-2';
-      state.lastSelectedSessionId = 's-1';
-      state.sessions = [
-        { id: 's-1', name: 'Session 1', cliType: 'claude-code', processId: 1, workingDir: '/projects/a' },
-        { id: 's-2', name: 'Session 2', cliType: 'claude-code', processId: 2, workingDir: '/projects/b' },
-      ];
-
-      document.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 'S',
-        ctrlKey: true,
-        shiftKey: true,
-        bubbles: true,
-        cancelable: true,
-      }));
-      await flush();
-
-      expect(mockNavigateToSession).toHaveBeenCalledWith('s-2');
-    });
-
-    it('Ctrl+Shift+S closes overview when no session context can be resolved', async () => {
-      mockCurrentView = 'overview';
-      state.activeSessionId = null;
-      state.recentSessionId = null;
-      state.lastSelectedSessionId = null;
-      state.sessions = [
-        { id: 's-1', name: 'Session 1', cliType: 'claude-code', processId: 1, workingDir: '/projects/a' },
-      ];
-
-      document.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 'S',
-        ctrlKey: true,
-        shiftKey: true,
-        bubbles: true,
-        cancelable: true,
-      }));
-      await flush();
-
-      expect(mockHideOverview).toHaveBeenCalledTimes(1);
-      expect(mockNavigateToSession).not.toHaveBeenCalled();
-      mockCurrentView = 'terminal';
-    });
-
-    it('Ctrl+Shift+P closes overview when in overview mode', async () => {
-      mockCurrentView = 'overview';
-      state.activeSessionId = null;
-      state.sessions = [
-        { id: 's-1', name: 'Session 1', cliType: 'claude-code', processId: 1, workingDir: '/projects/a' },
-      ];
-
-      mockHideOverview.mockClear();
-      document.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 'P',
-        ctrlKey: true,
-        shiftKey: true,
-        bubbles: true,
-        cancelable: true,
-      }));
-      await flush();
-
-      expect(mockHideOverview).toHaveBeenCalledTimes(1);
       expect(mockOpenPlan).not.toHaveBeenCalled();
-      mockCurrentView = 'terminal';
+      expect(mockOpenOverview).not.toHaveBeenCalled();
+      expect(mockNavigateToSession).not.toHaveBeenCalled();
     });
 
     it('Ctrl+Shift+W opens close confirm for the active terminal session', async () => {
@@ -605,43 +463,43 @@ describe('Sessions Screen', () => {
     });
 
     it('DPadDown on session card advances to next card', () => {
-      sessionsState.sessionsFocusIndex = 2; // first session card (skip overview+header)
+      sessionsState.sessionsFocusIndex = 1; // first session card
       sessions.handleSessionsScreenButton('DPadDown');
       sessions.handleSessionsScreenButton('DPadDown');
-      expect(sessionsState.sessionsFocusIndex).toBe(4);
+      expect(sessionsState.sessionsFocusIndex).toBe(3);
     });
 
     it('DPadDown from overview routes session auto-select through activateSession', () => {
       mockCurrentView = 'overview';
-      sessionsState.sessionsFocusIndex = 2; // first session card
+      sessionsState.sessionsFocusIndex = 1; // first session card
 
       sessions.handleSessionsScreenButton('DPadDown');
 
-      expect(sessionsState.sessionsFocusIndex).toBe(3);
+      expect(sessionsState.sessionsFocusIndex).toBe(2);
       expect(mockActivateSession).toHaveBeenCalledWith('s-1');
       expect(mockNavigateToSession).not.toHaveBeenCalled();
       expect(mockSwitchTo).not.toHaveBeenCalled();
     });
 
     it('DPadUp moves sessionsFocusIndex backward', () => {
-      sessionsState.sessionsFocusIndex = 2;
+      sessionsState.sessionsFocusIndex = 1;
       sessions.handleSessionsScreenButton('DPadUp');
-      expect(sessionsState.sessionsFocusIndex).toBe(1);
+      expect(sessionsState.sessionsFocusIndex).toBe(0);
     });
 
-    it('DPadUp on session card navigates up, stops at overview (no wrap)', () => {
-      sessionsState.sessionsFocusIndex = 2; // first session card
-      sessions.handleSessionsScreenButton('DPadUp'); // → group header (index 1)
-      expect(sessionsState.sessionsFocusIndex).toBe(1);
+    it('DPadUp on session card navigates up, stops at the group header (no wrap)', () => {
+      sessionsState.sessionsFocusIndex = 1; // first session card
+      sessions.handleSessionsScreenButton('DPadUp'); // → group header (index 0)
+      expect(sessionsState.sessionsFocusIndex).toBe(0);
       expect(sessionsState.activeFocus).toBe('sessions');
-      // From overview (index 0), DPadUp is a no-op
+      // From the group header (index 0), DPadUp is a no-op
       sessionsState.sessionsFocusIndex = 0;
       sessions.handleSessionsScreenButton('DPadUp');
       expect(sessionsState.sessionsFocusIndex).toBe(0);
     });
 
     it('DPadDown past last session switches to spawn zone', () => {
-      sessionsState.sessionsFocusIndex = 4;
+      sessionsState.sessionsFocusIndex = 3;
       sessions.handleSessionsScreenButton('DPadDown');
       expect(sessionsState.activeFocus).toBe('spawn');
       expect(sessionsState.spawnFocusIndex).toBe(0);
@@ -666,12 +524,12 @@ describe('Sessions Screen', () => {
     });
 
     it('A in sessions zone is not consumed at col=0 on session card (returns false)', () => {
-      sessionsState.sessionsFocusIndex = 2; // first session card
+      sessionsState.sessionsFocusIndex = 1; // first session card
       expect(sessions.handleSessionsScreenButton('A')).toBe(false);
     });
 
     it('D-pad down auto-selects the focused session', () => {
-      sessionsState.sessionsFocusIndex = 2; // first session card
+      sessionsState.sessionsFocusIndex = 1; // first session card
       sessions.handleSessionsScreenButton('DPadDown');
 
       expect(mockActivateSession).toHaveBeenCalledWith('s-1');
@@ -693,7 +551,7 @@ describe('Sessions Screen', () => {
       expect(sessions.handleSessionsScreenButton('X')).toBe(false);
       expect(sessions.handleSessionsScreenButton('Y')).toBe(false);
       // A on session card at col=0 falls through to config bindings
-      sessionsState.sessionsFocusIndex = 2; // session card, not overview/group header
+      sessionsState.sessionsFocusIndex = 1; // session card, not group header
       expect(sessions.handleSessionsScreenButton('A')).toBe(false);
       // Unknown buttons are not consumed — fall through to config bindings
       expect(sessions.handleSessionsScreenButton('UnknownButton')).toBe(false);
@@ -714,21 +572,21 @@ describe('Sessions Screen', () => {
     });
 
     it('DPadUp on group-header navigates to previous nav item (no reorder)', () => {
-      // nav list: [overview(0), group-header(1), session(2), session(3), session(4)]
-      sessionsState.sessionsFocusIndex = 1; // group-header
+      // nav list: [group-header(0), session(1), session(2), session(3)]
+      sessionsState.sessionsFocusIndex = 0; // group-header
       sessionsState.cardColumn = 0;
       sessions.handleSessionsScreenButton('DPadUp');
-      // Should navigate up to index 0 — NOT trigger group reorder
+      // Should stay at index 0 — NOT trigger group reorder
       expect(sessionsState.sessionsFocusIndex).toBe(0);
     });
 
     it('DPadDown on group-header navigates to next nav item (no reorder)', () => {
-      // nav list: [overview(0), group-header(1), session(2), session(3), session(4)]
-      sessionsState.sessionsFocusIndex = 1; // group-header
+      // nav list: [group-header(0), session(1), session(2), session(3)]
+      sessionsState.sessionsFocusIndex = 0; // group-header
       sessionsState.cardColumn = 0;
       sessions.handleSessionsScreenButton('DPadDown');
-      // Should navigate down to index 2 — NOT trigger group reorder
-      expect(sessionsState.sessionsFocusIndex).toBe(2);
+      // Should navigate down to index 1 — NOT trigger group reorder
+      expect(sessionsState.sessionsFocusIndex).toBe(1);
     });
   });
 
@@ -769,14 +627,14 @@ describe('Sessions Screen', () => {
       sessionsState.spawnFocusIndex = 0;
       sessions.handleSessionsScreenButton('DPadUp');
       expect(sessionsState.activeFocus).toBe('sessions');
-      expect(sessionsState.sessionsFocusIndex).toBe(3);
+      expect(sessionsState.sessionsFocusIndex).toBe(2);
     });
 
     it('DPadUp past top row from column 1 also switches to sessions zone', () => {
       sessionsState.spawnFocusIndex = 1;
       sessions.handleSessionsScreenButton('DPadUp');
       expect(sessionsState.activeFocus).toBe('sessions');
-      expect(sessionsState.sessionsFocusIndex).toBe(3);
+      expect(sessionsState.sessionsFocusIndex).toBe(2);
     });
 
     it('DPadRight moves within row', () => {
@@ -1192,7 +1050,7 @@ describe('Sessions Screen', () => {
 
       await loadAndFlush(sessions);
 
-      expect(sessionsState.sessionsFocusIndex).toBe(4);
+      expect(sessionsState.sessionsFocusIndex).toBe(3);
     });
 
     it('defaults to 0 when no active session', async () => {
@@ -1256,7 +1114,7 @@ describe('Sessions Screen', () => {
 
       sessions.syncSessionHighlight('pty-copilot-1');
 
-      expect(sessionsState.sessionsFocusIndex).toBe(3);
+      expect(sessionsState.sessionsFocusIndex).toBe(2);
       expect(state.activeSessionId).toBe('pty-copilot-1');
     });
 
@@ -1284,7 +1142,7 @@ describe('Sessions Screen', () => {
       sessionsState.sessionsFocusIndex = 2;
       sessions.syncSessionHighlight('pty-a');
 
-      expect(sessionsState.sessionsFocusIndex).toBe(2);
+      expect(sessionsState.sessionsFocusIndex).toBe(1);
       expect(state.activeSessionId).toBe('pty-a');
     });
   });
@@ -1388,7 +1246,7 @@ describe('Sessions Screen', () => {
       setMockTerminalSessions(data);
       await loadAndFlush(sessions);
       sessionsState.activeFocus = 'sessions';
-      sessionsState.sessionsFocusIndex = 2;
+      sessionsState.sessionsFocusIndex = 1;
       sessionsState.cardColumn = 0;
     });
 
@@ -1470,7 +1328,7 @@ describe('Sessions Screen', () => {
 
     it('cardColumn resets to 0 on zone switch to spawn', () => {
       sessionsState.cardColumn = 0;
-      sessionsState.sessionsFocusIndex = 4; // last navList item
+      sessionsState.sessionsFocusIndex = 3; // last navList item
       sessions.handleSessionsScreenButton('DPadDown');
       expect(sessionsState.activeFocus).toBe('spawn');
       expect(sessionsState.cardColumn).toBe(0);
@@ -1544,7 +1402,7 @@ describe('Sessions Screen', () => {
 
     it('A on the eye toggle persists overviewHidden changes', async () => {
       mockSessionGetAll.mockResolvedValueOnce([{ ...makeSessions(1)[0], cliSessionName: 'cli-0' }]);
-      sessionsState.sessionsFocusIndex = 2;
+      sessionsState.sessionsFocusIndex = 1;
       sessionsState.cardColumn = 3;
       await loadAndFlush(sessions);
 
@@ -1605,7 +1463,7 @@ describe('Sessions Screen', () => {
       ]));
       await loadAndFlush(sessions);
       sessionsState.activeFocus = 'sessions';
-      sessionsState.sessionsFocusIndex = 2; // first session card (after overview + group header)
+      sessionsState.sessionsFocusIndex = 1; // first session card
     });
 
     function enterRenameMode(renderInsideCard = false): HTMLInputElement {
