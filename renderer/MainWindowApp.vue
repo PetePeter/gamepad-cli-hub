@@ -102,7 +102,7 @@ import PeerPairingDialog from './components/modals/PeerPairingDialog.vue';
 import { usePeers } from './composables/usePeers.js';
 import SkillsTab from './components/sidebar/SkillsTab.vue';
 
-import { handleSessionsScreenButton, loadSessions } from './screens/sessions.js';
+import { loadSessions } from './screens/sessions.js';
 
 import AppModalHost from './components/app/AppModalHost.vue';
 
@@ -649,19 +649,6 @@ function onDockShortcut(e: KeyboardEvent): void {
   void activateDockPane(paneId, paneId === PANE_ARTIFACTS);
 }
 
-/** Shift+Tab moves the selected session backwards when the Sessions pane owns focus. */
-function onSessionNavigationShortcut(e: KeyboardEvent): void {
-  if (e.key !== 'Tab' || !e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
-  if (dockWorkspace.focusedPaneId.value !== 'sessions') return;
-  if (settingsVisible.value || draftEditorVisible.value || isAnyBridgeModalVisible()) return;
-  if (document.querySelector('.modal-overlay.modal--visible')) return;
-  if (isEditableShortcutTarget(e.target)) return;
-
-  e.preventDefault();
-  e.stopPropagation();
-  handleSessionsScreenButton('DPadUp');
-}
-
 // ⧉ pop-out: the panel travels with its terminal. Snapping the active session
 // out mounts a SnapOutWindow that renders its own ArtifactViewer, so the panel
 // is available there and never shown in two windows at once.
@@ -944,7 +931,6 @@ onMounted(async () => {
   peers.ensureSubscribed();
   void artifactViewer.setActiveSession(state.activeSessionId ?? null);
   window.addEventListener('keydown', onDockShortcut, true);
-  window.addEventListener('keydown', onSessionNavigationShortcut, true);
 
   if (!terminalContainerRef.value) {
     await appClient.appStartupReady();
@@ -1071,7 +1057,6 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleModalKeyboardBridge, true);
   window.removeEventListener('keydown', onDockShortcut, true);
-  window.removeEventListener('keydown', onSessionNavigationShortcut, true);
   window.removeEventListener('rename-session-request', handleRenameRequest);
   window.removeEventListener('clear-session-notifications', handleClearSessionNotifications);
   unsubSnapOut?.();
