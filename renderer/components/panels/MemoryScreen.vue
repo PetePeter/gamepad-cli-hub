@@ -2,6 +2,10 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import ConfirmDialog from '../modals/ConfirmDialog.vue';
 import MemoryDetailPopOutWindow from '../MemoryDetailPopOutWindow.vue';
+import EmptyState from '../common/EmptyState.vue';
+import ListRow from '../common/ListRow.vue';
+import PanelHeader from '../common/PanelHeader.vue';
+import SearchField from '../common/SearchField.vue';
 import { useAppStore } from '../../stores/app.js';
 import { buildMemoryGraphLayout } from '../../memories/memory-graph-layout.js';
 import {
@@ -64,63 +68,73 @@ onUnmounted(disposeMemoryChangedSubscription);
 
 <template>
   <section class="memory-screen">
-    <header class="memory-toolbar">
-      <div>
-        <span class="memory-kicker">Session context</span>
-        <h1>Memories</h1>
-      </div>
-      <div class="memory-toolbar-actions">
+    <PanelHeader title="Memories" :subtitle="`${memoryScreenState.summaries.length} memories`">
+      <template #actions>
         <label class="memory-export-scope">Export
           <select v-model="exportScope" aria-label="Export scope">
             <option value="selected">selected root</option>
             <option value="all">all memories</option>
           </select>
         </label>
-        <button type="button" class="btn" @click="void exportMemories('markdown', exportScope === 'selected' ? memoryScreenState.selectedId : null)">Markdown</button>
-        <button type="button" class="btn" @click="void exportMemories('json', exportScope === 'selected' ? memoryScreenState.selectedId : null)">JSON</button>
-        <button type="button" class="btn" @click="void refreshMemories()">Refresh</button>
-      </div>
-    </header>
-
-    <div class="memory-controls">
-      <input v-model="memoryScreenState.searchQuery" type="search" placeholder="Search memories" @keyup.enter="void searchMemories()">
-      <label><input v-model="memoryScreenState.regex" type="checkbox"> Regex</label>
-      <label>Graph depth
-        <input
-          :value="memoryScreenState.graphDepth"
-          type="number"
-          min="0"
-          max="100"
-          @change="setGraphDepth(Number(($event.target as HTMLInputElement).value))"
-        >
-      </label>
-      <button type="button" class="btn" @click="void searchMemories()">Search</button>
-    </div>
+        <button type="button" class="btn btn--secondary btn--sm" @click="void exportMemories('markdown', exportScope === 'selected' ? memoryScreenState.selectedId : null)">Markdown</button>
+        <button type="button" class="btn btn--secondary btn--sm" @click="void exportMemories('json', exportScope === 'selected' ? memoryScreenState.selectedId : null)">JSON</button>
+        <button type="button" class="btn btn--secondary btn--sm" @click="void refreshMemories()">Refresh</button>
+      </template>
+      <template #toolbar>
+        <div class="memory-controls">
+          <SearchField
+            v-model="memoryScreenState.searchQuery"
+            placeholder="Search memories"
+            aria-label="Search memories"
+            @keyup.enter="void searchMemories()"
+          />
+          <label><input v-model="memoryScreenState.regex" type="checkbox"> Regex</label>
+          <label>Graph depth
+            <input
+              :value="memoryScreenState.graphDepth"
+              type="number"
+              min="0"
+              max="100"
+              @change="setGraphDepth(Number(($event.target as HTMLInputElement).value))"
+            >
+          </label>
+          <button type="button" class="btn btn--secondary btn--sm" @click="void searchMemories()">Search</button>
+        </div>
+      </template>
+    </PanelHeader>
 
     <div class="memory-workspace">
       <aside class="memory-list" aria-label="Memory list">
-        <div class="memory-list-heading">{{ memoryScreenState.summaries.length }} memories</div>
-        <button
-          v-for="summary in memoryScreenState.summaries"
-          :key="summary.id"
-          type="button"
-          class="memory-list-item"
-          :class="{ selected: summary.id === memoryScreenState.selectedId }"
-          @click="void selectMemory(summary.id)"
-          @dblclick="void selectMemory(summary.id).then(openDetail)"
-        >
-          <strong>{{ summary.tldr }}</strong>
-          <small>{{ summary.attachmentCount }} attachment(s) · {{ new Date(summary.updatedAt).toLocaleString() }}</small>
-        </button>
-        <div v-if="!memoryScreenState.summaries.length && !memoryScreenState.loading" class="memory-empty">No memories for this session.</div>
+        <EmptyState
+          v-if="memoryScreenState.loading"
+          title="Loading memories"
+          hint="Retrieving session context…"
+          loading
+        />
+        <template v-else>
+          <ListRow
+            v-for="summary in memoryScreenState.summaries"
+            :key="summary.id"
+            :selected="summary.id === memoryScreenState.selectedId"
+            @click="void selectMemory(summary.id)"
+            @dblclick="void selectMemory(summary.id).then(openDetail)"
+          >
+            <template #title>{{ summary.tldr }}</template>
+            <template #meta>{{ summary.attachmentCount }} attachment(s) · {{ new Date(summary.updatedAt).toLocaleString() }}</template>
+          </ListRow>
+          <EmptyState
+            v-if="!memoryScreenState.summaries.length"
+            title="No memories for this session."
+          />
+        </template>
       </aside>
 
       <div class="memory-graph-panel">
         <div class="memory-graph-toolbar">
           <span>Read-only graph</span>
           <span v-if="memoryScreenState.searchQuery" class="memory-search-count">{{ memoryScreenState.searchResults.length }} match(es)</span>
-          <button type="button" class="btn" @click="resetViewport">Reset view</button>
-          <button v-if="memoryScreenState.detail" type="button" class="btn" @click="openDetail">Open detail</button>
+          <button type="button" class="btn btn--secondary btn--sm" @click="resetViewport">Reset view</button>
+          <button v-if="memoryScreenState.detail" type="button" class="btn btn--secondary btn--sm" @click="openDetail">Open detail</button>
         </div>
         <div
           class="memory-graph-canvas"
@@ -157,7 +171,7 @@ onUnmounted(disposeMemoryChangedSubscription);
               </g>
             </g>
           </svg>
-          <div v-else class="memory-empty">Select a memory to inspect its graph.</div>
+          <EmptyState v-else title="Select a memory to inspect its graph." />
         </div>
         <p v-if="memoryScreenState.notice" class="memory-notice" role="status">{{ memoryScreenState.notice }}</p>
       </div>
@@ -191,24 +205,17 @@ onUnmounted(disposeMemoryChangedSubscription);
 
 <style scoped>
 .memory-screen { display: flex; flex-direction: column; height: 100%; min-height: 0; color: var(--text-primary); background: var(--bg-primary); }
-.memory-toolbar, .memory-controls, .memory-graph-toolbar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
-.memory-toolbar { justify-content: space-between; }
-.memory-toolbar h1 { margin: 3px 0 0; font-size: 20px; }
-.memory-toolbar-actions { display: flex; gap: 6px; }
+.memory-controls, .memory-graph-toolbar { display: flex; align-items: center; gap: 10px; }
+.memory-controls { width: 100%; }
+.memory-graph-toolbar { padding: 10px 14px; border-bottom: 1px solid var(--border); }
 .memory-export-scope { display: flex; align-items: center; gap: 4px; color: var(--text-secondary); font-size: 12px; }
-.memory-kicker { color: var(--accent); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
-.memory-controls input[type='search'] { flex: 1; min-width: 180px; }
+.memory-controls .search-field { flex: 1; min-width: 180px; }
 .memory-controls input[type='number'] { width: 60px; }
 .memory-workspace { display: grid; grid-template-columns: minmax(190px, 26%) 1fr; min-height: 0; flex: 1; }
 .memory-list { overflow: auto; border-right: 1px solid var(--border); }
-.memory-list-heading { padding: 10px; color: var(--text-secondary); font-size: 12px; }
-.memory-list-item { display: block; width: 100%; padding: 10px; border: 0; border-top: 1px solid var(--border); color: var(--text-primary); text-align: left; background: transparent; cursor: pointer; }
-.memory-list-item:hover, .memory-list-item.selected { background: var(--bg-tertiary); }
-.memory-list-item.selected { box-shadow: inset 3px 0 var(--accent); }
-.memory-list-item strong, .memory-list-item small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.memory-list-item small { margin-top: 4px; color: var(--text-secondary); font-size: 11px; }
 .memory-graph-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .memory-graph-toolbar { justify-content: space-between; color: var(--text-secondary); font-size: 12px; }
+.memory-search-count { color: var(--text-secondary); }
 .memory-graph-canvas { flex: 1; min-height: 260px; overflow: hidden; cursor: grab; touch-action: none; }
 .memory-graph-canvas:active { cursor: grabbing; }
 .memory-graph-canvas svg { display: block; width: 100%; height: 100%; min-height: 420px; }
@@ -216,11 +223,10 @@ onUnmounted(disposeMemoryChangedSubscription);
 .memory-graph-node { cursor: pointer; }
 .memory-graph-node rect { fill: var(--bg-secondary); stroke: var(--border); stroke-width: 2; }
 .memory-graph-node.selected rect { stroke: var(--accent); }
-.memory-status-cycle rect, .memory-status-reference rect { stroke: #d9a441; }
-.memory-status-missing rect, .memory-status-depth-limit rect { stroke: #cc6677; stroke-dasharray: 5 3; }
+.memory-status-cycle rect, .memory-status-reference rect { stroke: var(--status-blocked); }
+.memory-status-missing rect, .memory-status-depth-limit rect { stroke: var(--danger); stroke-dasharray: 5 3; }
 .memory-graph-node text { fill: var(--text-primary); font-size: 12px; pointer-events: none; }
 .memory-graph-node .memory-node-status, .memory-graph-node .memory-node-path { fill: var(--text-secondary); font-size: 10px; }
-.memory-empty { padding: 28px; color: var(--text-secondary); text-align: center; }
 .memory-notice { margin: 0; padding: 8px 14px; color: var(--accent); border-top: 1px solid var(--border); }
 .memory-confirm-copy { padding: 0 18px; color: var(--text-secondary); }
 </style>
