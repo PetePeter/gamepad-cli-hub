@@ -30,6 +30,11 @@ import { isEditableElement } from '../../input/input-ownership.js';
 import { buildTextArtifact, isTextLikeFile, TEXT_INLINE_MAX_BYTES } from '../../artifacts/text-file-drop.js';
 import type { Artifact } from '../../../src/types/artifact.js';
 import { parseAttachmentHref } from '../../../src/types/artifact-attachment.js';
+import Chip from '../common/Chip.vue';
+import EmptyState from '../common/EmptyState.vue';
+import ListRow from '../common/ListRow.vue';
+import PanelHeader from '../common/PanelHeader.vue';
+import SearchField from '../common/SearchField.vue';
 
 const props = defineProps<{ sessionId: string }>();
 const emit = defineEmits<{
@@ -260,6 +265,13 @@ function kindLabel(a: Artifact): string {
     if (content.includes('Open in system viewer')) return 'BIN';
   }
   return a.kind === 'markdown' ? 'MD' : 'HTML';
+}
+
+function kindTone(a: Artifact): 'accent' | 'info' | 'warning' {
+  const kind = kindLabel(a);
+  if (kind === 'MD') return 'accent';
+  if (kind === 'BIN') return 'warning';
+  return 'info';
 }
 
 const count = computed(() => artifacts.value.length);
@@ -592,12 +604,19 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
       <span class="ap-drop-sub">Images, documents, or any file</span>
     </div>
 
-    <div class="ap-head">
-      <span class="ap-title">📄 Artifacts</span>
-      <span class="ap-count">{{ count }} · session-scoped</span>
-      <span class="ap-spacer"></span>
-      <button class="ap-ico" title="Pop out with terminal" @click="emit('pop-out')">⧉</button>
-    </div>
+    <PanelHeader title="Artifacts" :subtitle="`${count} · session-scoped`" icon="📄">
+      <template #actions>
+        <button class="ap-ico" title="Pop out with terminal" @click="emit('pop-out')">⧉</button>
+      </template>
+      <template #toolbar>
+        <SearchField
+          v-model="query"
+          class="ap-search"
+          placeholder="Search artifacts…"
+          aria-label="Search artifacts"
+        />
+      </template>
+    </PanelHeader>
 
     <div class="ap-main">
       <!-- MASTER: index rail -->
@@ -617,10 +636,6 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
               </div>
               <button class="ap-btn-attach" title="Pick a file to attach" @click="onAttachFile">📎</button>
             </div>
-            <label class="ap-search">
-              <span class="ap-mag">🔍</span>
-              <input v-model="query" placeholder="Search artifacts…" />
-            </label>
             <div class="ap-sort">
               <span>Sort</span>
               <select v-model="sortMode">
@@ -631,34 +646,31 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
             </div>
           </div>
           <div class="ap-rail-list">
-            <div v-if="artifacts.length === 0" class="ap-empty">No artifacts yet.</div>
+            <EmptyState v-if="artifacts.length === 0" class="ap-empty" title="No artifacts yet." />
+            <EmptyState v-else-if="railRows.length === 0" class="ap-empty" title="No artifacts match your search." />
             <template v-for="(row, i) in railRows" :key="row.kind === 'header' ? 'h-' + row.label + i : row.artifact!.id">
               <div v-if="row.kind === 'header'" class="ap-grp-h">{{ row.label }}</div>
-              <div
+              <ListRow
                 v-else
                 class="ap-item"
                 :class="{ 'ap-item--active': row.artifact!.id === selectedId, 'ap-item--unread': unread.has(row.artifact!.id) }"
+                :selected="row.artifact!.id === selectedId"
+                :unread="unread.has(row.artifact!.id)"
                 @click="onSelect(row.artifact!.id)"
               >
-                <span class="ap-dot"></span>
-                <div class="ap-it-body">
-                  <div class="ap-it-title">{{ row.artifact!.title }}</div>
-                  <div class="ap-it-meta">
-                    <span
-                      class="ap-kind"
-                      :class="{
-                        'ap-kind--md': kindLabel(row.artifact!) === 'MD',
-                        'ap-kind--html': kindLabel(row.artifact!) === 'HTML',
-                        'ap-kind--img': kindLabel(row.artifact!) === 'IMG',
-                        'ap-kind--bin': kindLabel(row.artifact!) === 'BIN',
-                      }"
-                    >{{ kindLabel(row.artifact!) }}</span>
+                <template #title>
+                  <span class="ap-dot" aria-hidden="true"></span>
+                  <span class="ap-it-title">{{ row.artifact!.title }}</span>
+                </template>
+                <template #meta>
+                  <span class="ap-it-meta">
+                    <Chip class="ap-kind" :label="kindLabel(row.artifact!)" :tone="kindTone(row.artifact!)" />
                     <span v-if="row.artifact!.source === 'manual'" class="ap-src">manual</span>
                     <span class="ap-vcount">v{{ row.artifact!.versions.length }}</span>
                     <span>{{ relativeTime(row.artifact!.updatedAt) }}</span>
-                  </div>
-                </div>
-              </div>
+                  </span>
+                </template>
+              </ListRow>
             </template>
           </div>
         </div>
@@ -816,10 +828,6 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
 }
 
 /* header */
-.ap-head { display: flex; align-items: center; gap: 8px; padding: 11px 12px; border-bottom: 1px solid var(--border); }
-.ap-title { font-size: 0.95rem; font-weight: 600; }
-.ap-count { font-size: 0.72rem; color: var(--text-secondary); }
-.ap-spacer { flex: 1; }
 .ap-ico { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 5px; border: 1px solid transparent; color: var(--text-secondary); font-size: 0.95rem; }
 .ap-ico:hover { border-color: var(--border); color: var(--text-primary); background: var(--bg-tertiary); }
 
@@ -847,32 +855,20 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
 .dropdown-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 4px; font-size: 0.76rem; color: var(--text-primary); cursor: pointer; border: none; background: none; width: 100%; text-align: left; font-family: inherit; }
 .dropdown-item:hover { background: rgba(79,208,139,0.12); color: var(--accent); }
 
-.ap-search { display: flex; align-items: center; gap: 6px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; }
-.ap-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus); }
-.ap-search input { flex: 1; min-width: 0; background: none; border: none; outline: none; color: var(--text-primary); font-size: 0.78rem; font-family: inherit; }
-.ap-mag { color: var(--text-dim); font-size: 0.78rem; }
+.ap-search { width: 100%; }
 .ap-sort { display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--text-secondary); }
 .ap-sort select { flex: 1; background: var(--bg-primary); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 5px; padding: 3px 6px; font-size: 0.7rem; font-family: inherit; color-scheme: dark; }
 .ap-sort select option { background: var(--bg-secondary); color: var(--text-primary); }
 
 .ap-rail-list { flex: 1; overflow-y: auto; padding: 4px 6px 8px; }
-.ap-empty { font-size: 0.74rem; color: var(--text-dim); padding: 12px 8px; }
 .ap-grp-h { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); padding: 8px 6px 4px; position: sticky; top: 0; background: var(--bg-secondary); }
-.ap-item { display: flex; gap: 7px; align-items: flex-start; padding: 7px 8px; border-radius: 7px; border: 1px solid transparent; cursor: pointer; margin-bottom: 2px; }
-.ap-item:hover { background: var(--bg-tertiary); }
-.ap-item--active { background: rgba(79, 208, 139, 0.07); border-color: var(--accent); }
-.ap-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; background: transparent; }
+.ap-item { margin-bottom: 2px; }
+.ap-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin: 0 7px 1px 0; background: transparent; }
 .ap-item--unread .ap-dot { background: var(--accent); }
-.ap-it-body { flex: 1; min-width: 0; }
-.ap-it-title { font-size: 0.8rem; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ap-it-meta { font-size: 0.66rem; color: var(--text-secondary); display: flex; gap: 6px; align-items: center; margin-top: 1px; }
-.ap-kind { font-size: 0.58rem; padding: 0 5px; border-radius: 3px; background: var(--bg-tertiary); }
-.ap-kind--md { color: var(--accent); }
-.ap-kind--html { color: var(--blue, #6c8cff); }
-.ap-kind--img { color: #a78bfa; }
-.ap-kind--bin { color: #ffb347; }
+.ap-it-title { color: var(--text-primary); }
+.ap-it-meta { display: inline-flex; gap: 6px; align-items: center; margin-top: 1px; }
 .ap-vcount { color: var(--text-dim); }
-.ap-src { color: var(--text-dim); font-size: 0.58rem; font-style: italic; }
+.ap-src { color: var(--text-dim); font-style: italic; }
 
 /* detail */
 .ap-detail { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg-primary); }
