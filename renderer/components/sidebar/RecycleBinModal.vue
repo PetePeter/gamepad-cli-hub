@@ -12,8 +12,8 @@
  *
  * Restore re-spawns via the normal spawn-with-resume flow; Forget deletes a
  * single entry; per-folder bulk actions loop those same IPC calls; Empty clears
- * the bin. Retention/expiry lives in the manager — it is intentionally NOT
- * surfaced in this UI.
+ * the bin behind a confirmation, since it also destroys every entry's artifacts.
+ * Retention/expiry lives in the manager — it is intentionally NOT surfaced here.
  */
 import { computed, onUnmounted, ref, watch } from 'vue';
 import type { RecycleBinEntry } from '../../../src/types/recycle-bin.js';
@@ -28,6 +28,7 @@ import {
   type ResolveProject,
 } from '../../recycle-bin-tree.js';
 import { useTreeExpansion, type TreeNodeKind } from '../../tree-collapse-state.js';
+import EmptyRecycleBinModal from '../modals/EmptyRecycleBinModal.vue';
 
 const MODAL_ID = 'recycle-bin';
 
@@ -121,6 +122,17 @@ async function onForgetFolder(folder: RecycleFolderNode): Promise<void> {
   }
 }
 
+/**
+ * Emptying is irreversible (entries + their artifacts), so it is gated behind a
+ * confirm. The bin is empty afterwards, so close it — same as the last restore.
+ */
+const confirmEmptyVisible = ref(false);
+
+async function onConfirmEmpty(): Promise<void> {
+  await empty();
+  close();
+}
+
 function handleButton(): boolean {
   return true;
 }
@@ -134,6 +146,8 @@ function onOverlayKeydown(event: KeyboardEvent): void {
 }
 
 watch(() => props.visible, (visible) => {
+  // Never leave the empty-confirm floating over a closed bin, or stale on reopen.
+  confirmEmptyVisible.value = false;
   if (visible) {
     query.value = '';
     modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: FORM_KEYS });
@@ -167,7 +181,7 @@ defineExpose({ handleButton });
           <h3 class="rb-title">🗑️ Recycle Bin</h3>
           <span class="rb-count">{{ countLabel }}</span>
           <span class="rb-spacer"></span>
-          <button class="rb-clear focusable" type="button" :disabled="entries.length === 0" @click="empty">Empty bin</button>
+          <button class="rb-clear focusable" type="button" :disabled="entries.length === 0" @click="confirmEmptyVisible = true">Empty bin</button>
           <button class="rb-x focusable" type="button" aria-label="Close" @click="close">✕</button>
         </div>
 
@@ -292,6 +306,12 @@ defineExpose({ handleButton });
       </div>
     </div>
   </Teleport>
+
+  <EmptyRecycleBinModal
+    v-model:visible="confirmEmptyVisible"
+    :count="entries.length"
+    @confirm="onConfirmEmpty"
+  />
 </template>
 
 <style scoped>

@@ -193,6 +193,12 @@ buildRecycleTree(entries, resolveProject, query)
   ellipsis), an optional runtime-group chip, and
   `closed Xm ago · yyyy/mm/dd HH:mm`.
 - Per-folder **↺ Restore all** / **🗑 Forget all** simply loop the single-entry IPC.
+- **Empty bin** is gated behind a confirmation
+  (`renderer/components/modals/EmptyRecycleBinModal.vue`, built on the shared
+  `ConfirmDialog`) — it destroys every entry *and* its artifacts with no way back.
+  The confirm states the count; confirming empties and closes the bin. It is reset
+  whenever the bin's visibility changes, so it never floats over a closed bin or
+  reappears stale.
 - Empty state: "No closed sessions to restore".
 
 **Expiry is deliberately not surfaced.** No countdown, no colour bars. Retention is
