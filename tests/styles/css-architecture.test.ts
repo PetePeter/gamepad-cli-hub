@@ -15,6 +15,18 @@ const CSS = readFileSync(CSS_PATH, 'utf8');
 
 const BUTTON_VARIANTS = ['sm', 'primary', 'secondary', 'danger', 'success'];
 
+// This ratchet counts the current non-core top-level selectors. It may only
+// decrease as legacy global CSS is migrated into its owning components.
+const GLOBAL_SELECTOR_BASELINE = 417;
+
+const CORE_PREFIXES = [
+  '.helm-app-shell', '.app-', '.dock-',
+  '.panel-left', '.panel-right', '.panel-splitter',
+  '.sidebar-header', '.sidebar-logo', '.sidebar-brand', '.sidebar-title',
+  '.sidebar-tagline', '.sidebar-actions', '.sidebar-btn',
+  '.artifact-panel-dock', '.artifact-splitter', '.artifact-edge',
+];
+
 const GLOBAL_PREFIXES = [
   '#app',
   '.helm-app-shell', '.app-', '.dock-',
@@ -81,6 +93,20 @@ function isAllowedSelector(selector: string): boolean {
   });
 }
 
+function isCoreSelector(selector: string): boolean {
+  const normalized = selector.replace(/\s+/g, ' ').trim();
+  if (normalized === '*' || normalized === ':root') return true;
+  if (/^(body|button|input|select|textarea)(?::|\[|$)/.test(normalized)) {
+    return true;
+  }
+  if (/^#app(?:\b|[ >])/.test(normalized) || /^body\.dock-/.test(normalized)) {
+    return true;
+  }
+  return CORE_PREFIXES.some((prefix) => normalized.startsWith(prefix))
+    || /^\.btn(?:\b|[-:])/.test(normalized)
+    || /^\.modal(?:\b|[-:])/.test(normalized);
+}
+
 function exactRuleSelectors(rule: Rule, selector: string): boolean {
   return rule.selector.split(',').some((item) => item.trim() === selector);
 }
@@ -97,6 +123,15 @@ describe('CSS architecture', () => {
       .map((rule) => `${rule.source?.start.line}: ${rule.selector}`);
 
     expect(disallowed).toEqual([]);
+  });
+
+  it('ratchets non-core top-level global selectors downward', () => {
+    const nonCoreSelectors = new Set(
+      rules.flatMap((rule) => rule.selector.split(',').map((selector) => selector.trim()))
+        .filter((selector) => !isCoreSelector(selector)),
+    );
+
+    expect(nonCoreSelectors.size).toBeLessThanOrEqual(GLOBAL_SELECTOR_BASELINE);
   });
 
   it.each(BUTTON_VARIANTS)('declares .btn--%s exactly once in main.css', (variant) => {

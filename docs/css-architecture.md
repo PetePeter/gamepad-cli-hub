@@ -75,6 +75,8 @@ xterm classes, the teleported editor/modal families, and legacy session,
 settings, picker, and overview classes that are shared across component
 boundaries or queried by the navigation bridge. The structural CSS test keeps
 this list explicit so a new global selector requires a deliberate rationale.
+The structural test also ratchets the current non-core selector count; that
+baseline may only decrease as legacy rules move to their component owners.
 
 ## Shared primitives
 
