@@ -2968,69 +2968,6 @@ kbd {
   text-align: center;
 }
 
-/* Telegram tab */
-.telegram-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-sm) 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.telegram-section:last-child {
-  border-bottom: none;
-}
-
-.telegram-section h4 {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.telegram-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-
-.telegram-field input {
-  width: 100%;
-  padding: 6px 8px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
-  font-family: inherit;
-}
-
-.telegram-field input:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-.bot-status {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-}
-
-.bot-running {
-  color: #44cc44;
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-}
-
-.bot-stopped {
-  color: var(--text-dim);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-}
-
 /* Settings empty state */
 .settings-empty {
   color: var(--text-dim);
@@ -3043,76 +2980,6 @@ kbd {
   font-size: var(--font-size-sm);
   color: var(--text-dim);
   margin-top: 4px;
-}
-
-.binding-card__delete {
-  margin-left: auto;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  font-size: 12px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  border-radius: 4px;
-  opacity: 0.6;
-  flex-shrink: 0;
-}
-
-.binding-card__delete:hover,
-.binding-card__delete:focus {
-  opacity: 1;
-}
-
-.binding-card--overridden {
-  opacity: 0.3;
-  text-decoration: line-through;
-}
-
-.binding-card__override-tag {
-  margin-left: auto;
-  font-size: 10px;
-  color: var(--accent);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-
-
-.bindings-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.settings-bindings-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-.binding-picker {
-  margin-top: 12px;
-  padding: 12px;
-  background: var(--bg-hover);
-  border-radius: 8px;
-  border: 1px solid var(--border);
-}
-
-.binding-picker__grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-
-.settings-warning {
-  color: var(--accent);
-  font-size: 0.85rem;
-  margin-top: 0.5rem;
-  padding: 0.25rem 0.5rem;
 }
 
 /* ============================================================================
@@ -3197,15 +3064,6 @@ kbd {
   border-bottom: 1px solid var(--border);
 }
 
-.tg-section-title--collapsible {
-  cursor: pointer;
-  user-select: none;
-}
-
-.tg-section-title--collapsible:hover {
-  color: var(--accent);
-}
-
 .tg-form-row {
   display: flex;
   align-items: center;
@@ -3218,49 +3076,6 @@ kbd {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
   flex-shrink: 0;
-}
-
-.tg-input {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-  flex: 1;
-  min-width: 0;
-}
-
-.tg-input:focus {
-  border-color: var(--accent);
-  outline: none;
-}
-
-.tg-input-row {
-  display: flex;
-  gap: var(--spacing-sm);
-  align-items: center;
-  flex: 1;
-}
-
-.tg-btn-row {
-  display: flex;
-  gap: var(--spacing-sm);
-  margin-top: var(--spacing-md);
-}
-
-.tg-guide-list {
-  padding-left: 20px;
-  line-height: 1.8;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-}
-
-.tg-guide-list code {
-  background: var(--bg-tertiary);
-  padding: 1px 5px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
 }
 
 .context-menu-item:hover {
@@ -3289,58 +3104,6 @@ kbd {
   background: #444;
   margin: 4px 8px;
 }
-
-.item-icon {
-  width: 20px;
-  text-align: center;
-  font-size: 14px;
-}
-
-.item-shortcut {
-  margin-left: auto;
-  font-size: 10px;
-  color: #777;
-  font-family: monospace;
-}
-
-/* =========================================================================
-   Sequence Picker (reuses context-menu item styling)
-   ========================================================================= */
-
-#sequencePicker {
-  max-height: 60vh;
-  overflow-y: auto;
-}
-
-/* =========================================================================
-   Prompt Tree Picker (reuses context-menu item styling)
-   ========================================================================= */
-
-#promptTreePicker {
-  max-height: 60vh;
-  overflow-y: auto;
-  min-width: 280px;
-}
-
-.prompt-tree-expand-icon {
-  display: inline-block;
-  flex-shrink: 0;
-  width: 14px;
-  font-size: 10px;
-  color: #888;
-  text-align: center;
-}
-
-.prompt-tree-folder .prompt-tree-name {
-  font-weight: 600;
-}
-
-.prompt-tree-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 
 .btn--small {
   padding: 2px 6px;
@@ -3384,37 +3147,6 @@ kbd {
 
 .btn--danger:hover {
   background: rgba(255, 85, 85, 0.15);
-}
-
-.sequence-list-add {
-  width: 100%;
-  margin-top: 4px;
-}
-
-/* =========================================================================
-   Close Confirmation Modal
-   ========================================================================= */
-
-.close-confirm-modal {
-  max-width: 320px;
-  text-align: center;
-}
-
-.close-confirm-body {
-  padding: 16px 20px;
-  font-size: 14px;
-  color: var(--text-primary);
-  line-height: 1.5;
-}
-
-.close-confirm-modal .modal-footer {
-  gap: 12px;
-}
-
-.close-confirm-draft-warning {
-  color: #ffaa00;
-  font-size: 12px;
-  margin-top: 4px;
 }
 
 .btn--danger {

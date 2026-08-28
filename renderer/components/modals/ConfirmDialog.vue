@@ -157,3 +157,14 @@ defineExpose({ handleButton, syncSelectedIndex });
     </div>
   </Teleport>
 </template>
+
+<style scoped>
+.close-confirm-modal {
+  max-width: 320px;
+  text-align: center;
+}
+
+.close-confirm-modal .modal-footer {
+  gap: 12px;
+}
+</style>

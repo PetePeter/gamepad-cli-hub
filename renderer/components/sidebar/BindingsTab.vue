@@ -142,3 +142,37 @@ function clearTimer(button: string): void {
     </div>
   </div>
 </template>
+
+<style scoped>
+.bindings-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.settings-bindings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.binding-card__delete {
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 4px;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.binding-card__delete:hover,
+.binding-card__delete:focus {
+  opacity: 1;
+}
+</style>

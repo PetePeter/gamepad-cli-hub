@@ -185,3 +185,34 @@ const statusText = computed(() => {
     />
   </div>
 </template>
+
+<style scoped>
+.tg-input {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  flex: 1;
+  min-width: 0;
+}
+
+.tg-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.tg-input-row {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+  flex: 1;
+}
+
+.tg-btn-row {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+}
+</style>

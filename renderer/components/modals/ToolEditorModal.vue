@@ -401,4 +401,5 @@ defineExpose({ handleButton });
 .te-prompt-item { display: flex; flex-direction: column; gap: var(--spacing-xs); padding: var(--spacing-sm); background: var(--bg-secondary); border-radius: var(--radius-sm); }
 .te-prompt-item__header { display: flex; align-items: center; gap: 6px; }
 .te-prompt-item__header .te-input--sm { flex: 1; }
+.sequence-list-add { width: 100%; margin-top: 4px; }
 </style>

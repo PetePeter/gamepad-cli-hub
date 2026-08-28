@@ -257,6 +257,70 @@ async function browseFilePath(
 </template>
 
 <style scoped>
+.telegram-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.telegram-section:last-child {
+  border-bottom: none;
+}
+
+.telegram-section h4 {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.telegram-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.telegram-field input {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+}
+
+.telegram-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.bot-status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.bot-running {
+  color: #44cc44;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.bot-stopped {
+  color: var(--text-dim);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+</style>
+
+<style scoped>
 .telegram-setup-guide summary {
   cursor: pointer;
   font-weight: 600;
