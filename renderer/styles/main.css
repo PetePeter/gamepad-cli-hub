@@ -3352,94 +3352,6 @@ kbd {
   color: #ff5555;
 }
 
-/* =========================================================================
-   Plan Help Modal
-   ========================================================================= */
-
-.plan-help-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  background: rgba(0, 0, 0, 0.65);
-  align-items: center;
-  justify-content: center;
-}
-
-.plan-help-overlay.visible {
-  display: flex;
-}
-
-.plan-help-modal {
-  background: var(--bg-secondary);
-  border: 2px solid var(--accent);
-  border-radius: var(--radius-lg);
-  padding: 28px 32px;
-  max-width: 420px;
-  width: calc(100% - 48px);
-  color: var(--text-primary);
-}
-
-.plan-help-title {
-  margin: 0 0 12px;
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-}
-
-.plan-help-desc {
-  margin: 0 0 16px;
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
-.plan-help-states {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 18px;
-}
-
-.plan-help-state {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 14px;
-}
-
-.plan-help-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.plan-help-hint {
-  margin: 0 0 14px;
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-.plan-help-hint kbd {
-  background: #333;
-  border: 1px solid #555;
-  border-radius: 4px;
-  padding: 1px 5px;
-  font-size: 12px;
-}
-
-.plan-help-dismiss {
-  margin: 0;
-  font-size: 12px;
-  color: #555;
-  text-align: center;
-}
-
-.plan-help-mouse-only {
-  color: #ffaa44;
-  margin-top: 0;
-}
-
 .plan-header__chip {
   padding: 2px 7px;
   font-size: 10px;
@@ -3663,134 +3575,8 @@ kbd {
   text-overflow: ellipsis;
 }
 
-/* ============================================================================
-   Draft Strip — view-only pills above terminal
-   ============================================================================ */
-
-.draft-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 6px 10px;
-  background: var(--bg-secondary);
-  flex-shrink: 0;
-  min-height: 40px;
-  align-items: center;
-  align-content: flex-start;
-  justify-content: flex-start;
-}
-.draft-strip--top { border-bottom: 1px solid var(--border); }
-.draft-strip--bottom { border-top: 1px solid var(--border); }
-
-.draft-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  background: var(--bg-tertiary);
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
-  border-radius: 12px;
-  font-size: 11px;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 180px;
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-
-.draft-pill:hover {
-  background: color-mix(in srgb, var(--bg-tertiary) 80%, var(--accent) 20%);
-  border-color: var(--accent);
-}
-
-.draft-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 1px 5px;
-  background: #2a2a3a;
-  border: 1px solid #555;
-  border-radius: 8px;
-  font-size: 10px;
-  color: #aaa;
-  margin-left: auto;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-/* Artifact badge — clickable entry point that opens the session's artifact panel. */
-.artifact-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 1px 5px;
-  background: #2a2a3a;
-  border: 1px solid #555;
-  border-radius: 8px;
-  font-size: 10px;
-  color: #aaa;
-  margin-left: auto; /* right-align like the draft badge when it stands alone */
-  flex-shrink: 0;
-  white-space: nowrap;
-  cursor: pointer;
-  font-family: inherit;
-}
-.artifact-badge:hover { border-color: var(--accent); color: var(--accent); }
-/* When it follows the draft badge (which already took the auto margin), sit snug. */
-.draft-badge + .artifact-badge { margin-left: 4px; }
-
-/* Natural draggability — whole card, no handle */
-.session-card[draggable='true'] { cursor: grab; }
-.session-card[draggable='true']:active { cursor: grabbing; }
-.session-card.dragging { opacity: 0.4; }
-
-/* ============================================================================
-   Plan Chips — badges on session cards and pills in draft strip
-   ============================================================================ */
-
-.plan-badge-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-.plan-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 1px 5px;
-  background: #2a2a3a;
-  border: 1px solid #555;
-  border-radius: 8px;
-  font-size: 10px;
-  white-space: nowrap;
-  margin-right: 4px;
-}
-
-.plan-badge--coding {
-  color: #44cc44;
-}
-
-.plan-badge--ready {
-  color: #4488ff;
-}
-
-.plan-badge--review {
-  color: #44ccff;
-}
-
-.plan-badge--blocked {
-  color: #ff9f1a;
-}
-
-.plan-badge--planning {
-  color: #555555;
-}
-
+/* Plan chips are shared by PlanChip.vue and DraftEditor.vue. Keep these
+   rules global because the latter renders a plain span rather than PlanChip. */
 .plan-chip {
   display: inline-flex;
   align-items: center;
@@ -3798,7 +3584,7 @@ kbd {
   padding: 2px 8px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 999px;
   font-size: 11px;
   color: var(--text-primary);
   white-space: nowrap;
@@ -3816,219 +3602,27 @@ kbd {
 }
 
 .plan-chip--coding {
-  border: 2px solid #44cc44;
+  border-color: var(--status-coding);
 }
 
 .plan-chip--ready {
-  border: 2px solid #4488ff;
+  border-color: var(--status-ready);
 }
 
 .plan-chip--review {
-  border: 2px solid #44ccff;
+  border-color: var(--status-review);
 }
 
 .plan-chip--blocked {
-  border: 2px solid #ff9f1a;
+  border-color: var(--status-blocked);
 }
 
 .plan-chip--planning {
-  border: 2px solid #555555;
+  border-color: var(--status-planning);
 }
 
-/* ============================================================================
-   Draft Editor — slide-down panel for composing/editing
-   ============================================================================ */
-
-.draft-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 10px;
-  background: #1e1e2e;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  position: relative;
-  z-index: 20;
-  max-height: 55vh;
-  overflow-y: auto;
-}
-
-.draft-editor--plan,
-.draft-editor--context {
-  max-height: 82vh;
-}
-
-.draft-editor-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.draft-editor-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.draft-editor-plan-meta {
-  color: #aaa;
-  font-size: 11px;
-  margin: 0 0 8px;
-}
-
-.draft-editor-actions {
-  display: flex;
-  gap: 4px;
-}
-
-.draft-editor-plan-state {
-  display: flex;
-  gap: 6px;
-}
-
-.draft-editor-title-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* Plan-mode dropdown inside title row — right-aligned, visually secondary */
-.draft-editor-title-row .draft-editor-plan-select {
-  min-width: 110px;
-  font-size: 11px;
-  color: var(--text-dim);
-  flex-shrink: 0;
-}
-
-/* Title input takes most of the space */
-.draft-editor-title-row .draft-editor-label {
-  flex: 1;
-}
-
-.draft-editor-plan-select,
-.draft-editor-plan-info {
-  padding: 4px 8px;
-  background: #252535;
-  border: 1px solid #444;
-  border-radius: 4px;
-  color: var(--text-primary);
-  font-size: 12px;
-  outline: none;
-}
-
-.draft-editor-plan-select:focus,
-.draft-editor-plan-info:focus {
-  border-color: var(--accent);
-}
-
-.draft-editor-plan-select {
-  min-width: 150px;
-}
-
-.draft-editor-plan-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.draft-editor-label {
-  padding: 4px 8px;
-  background: #252535;
-  border: 1px solid #444;
-  border-radius: 4px;
-  color: var(--text-primary);
-  font-size: 12px;
-  outline: none;
-}
-
-.draft-editor-label:focus {
-  border-color: var(--accent);
-}
-
-.plan-save-status {
-  font-size: 11px;
-  color: var(--text-dim);
-  margin-right: 4px;
-  white-space: nowrap;
-}
-
-.plan-save-status--hidden { display: none; }
-.plan-save-status--unsaved { color: #f5a623; }   /* amber dot */
-.plan-save-status--saving  { color: var(--text-dim); }
-.plan-save-status--saved   { color: #44cc44; }   /* green */
-
-.draft-editor-content {
-  padding: 6px 8px;
-  background: #252535;
-  border: 1px solid #444;
-  border-radius: 4px;
-  color: var(--text-primary);
-  font-size: 12px;
-  font-family: 'Consolas', 'Courier New', monospace;
-  min-height: 60px;
-  outline: none;
-  line-height: 1.4;
-}
-
-.draft-editor-content:focus {
-  border-color: var(--accent);
-}
-
-/* Strip section labels (Drafts / Plans separator) */
-.strip-section-label {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 2px 6px;
-  align-self: center;
-  user-select: none;
-}
-
-/* Terminal chips — plan pills and quick actions, at the foot of the terminal
- * they belong to rather than as a band across the whole shell. */
-.chip-bar { position: relative; z-index: 10; }
-
-.chip-action-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.chip-action-btn {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
-  color: var(--text-primary);
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 11px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
-  user-select: none;
-}
-
-.chip-action-btn:hover {
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
-  border-color: var(--accent);
-}
-
-.chip-action-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-/* Alt+number accelerator badge — uses the ⌥ glyph (set in markup) to stay
-   visually distinct from the Ctrl-based ^n session-jump badge. */
-.chip-action-btn__accel {
-  margin-right: 5px;
-  font-family: monospace;
-  font-size: 10px;
-  font-weight: 600;
-  opacity: 0.65;
-  color: var(--accent);
+.plan-chip--done {
+  border-color: var(--status-done);
 }
 
 .settings-help {

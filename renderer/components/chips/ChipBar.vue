@@ -56,3 +56,26 @@ const hasContent = computed(() =>
     />
   </div>
 </template>
+
+<style scoped>
+.chip-bar {
+  position: relative;
+  z-index: 10;
+}
+
+.draft-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+  min-height: 40px;
+  align-items: center;
+  align-content: flex-start;
+  justify-content: flex-start;
+}
+
+.draft-strip--top { border-bottom: 1px solid var(--border); }
+.draft-strip--bottom { border-top: 1px solid var(--border); }
+</style>
