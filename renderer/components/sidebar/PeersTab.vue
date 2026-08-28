@@ -347,13 +347,4 @@ function applyPreset(peer: ConfiguredPeer, globs: string[]): void {
 .peers-discovery-state--found { color: #44cc44; }
 .peer-manual { display: flex; gap: 8px; align-items: center; }
 
-.btn {
-  padding: 6px 12px; border-radius: 4px; border: 1px solid var(--border);
-  background: var(--bg-tertiary); color: var(--text-primary); cursor: pointer; font-size: 0.82rem;
-}
-.btn--sm { padding: 4px 10px; font-size: 0.78rem; }
-.btn--primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn--secondary { background: var(--bg-tertiary); color: var(--text-primary); }
-.btn--danger { border-color: #ff6666; color: #ff6666; background: transparent; }
-.btn--danger:hover { background: rgba(255,102,102,0.12); }
 </style>

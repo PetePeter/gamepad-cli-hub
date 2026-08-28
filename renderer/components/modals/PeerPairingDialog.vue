@@ -171,17 +171,4 @@ defineExpose({ handleButton });
   border-top: 1px solid var(--border);
   justify-content: flex-end;
 }
-.btn {
-  padding: 8px 18px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  cursor: pointer;
-  font-size: 0.88rem;
-}
-.btn--primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn--primary:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn--danger { border-color: #ff6666; color: #ff6666; }
-.btn--danger:hover { background: rgba(255,102,102,0.12); }
 </style>

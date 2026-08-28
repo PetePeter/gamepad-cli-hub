@@ -524,26 +524,6 @@ body.dock-dragging { cursor: grabbing; user-select: none; }
   flex-shrink: 0;
 }
 
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-dim);
-  flex-shrink: 0;
-}
-.status-dot.connected { background: #44cc44; }
-
-.status-text { flex: 1; }
-
-.profile-badge-compact {
-  padding: 1px 6px;
-  background: var(--bg-tertiary);
-  border-radius: var(--radius-sm);
-  font-size: 10px;
-  color: var(--accent);
-  font-weight: 600;
-}
-
 .icon-button {
   padding: var(--spacing-sm);
   border-radius: var(--radius-sm);
@@ -562,32 +542,6 @@ body.dock-dragging { cursor: grabbing; user-select: none; }
   outline-offset: 2px;
 }
 
-/* Main Content */
-.sidebar-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  min-height: 0;
-}
-
-/* Screens */
-.screen {
-  position: absolute;
-  inset: 0;
-  padding: var(--spacing-md);
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.2s, visibility 0.2s;
-  overflow-y: auto;
-}
-
-#screen-sessions {
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-}
-
 /* Sessions screen Vue section */
 .sessions-screen-section {
   display: flex;
@@ -596,11 +550,6 @@ body.dock-dragging { cursor: grabbing; user-select: none; }
   flex: 1;
   min-height: 0;
   overflow: hidden;
-}
-
-.screen--active {
-  opacity: 1;
-  visibility: visible;
 }
 
 .editor-popup-overlay {
@@ -1639,9 +1588,14 @@ body.dock-dragging { cursor: grabbing; user-select: none; }
   outline-offset: 2px;
 }
 
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .btn--primary {
   background: var(--accent);
-  color: white;
+  color: var(--accent-contrast);
 }
 
 .btn--primary:hover,
@@ -2197,24 +2151,6 @@ kbd {
   flex-shrink: 0;
 }
 
-
-/* Danger Button */
-.btn--danger {
-  background: #cc3333;
-  color: white;
-}
-
-.btn--danger:hover,
-.btn--danger:focus {
-  background: #dd4444;
-}
-
-.btn--danger:disabled {
-  background: #661a1a;
-  color: #999;
-  cursor: not-allowed;
-  opacity: 0.6;
-}
 
 .btn--success {
   background: rgba(68, 204, 68, 0.15);
@@ -3105,16 +3041,6 @@ kbd {
   margin: 4px 8px;
 }
 
-.btn--small {
-  padding: 2px 6px;
-  font-size: 12px;
-  min-width: unset;
-}
-
-.btn--danger {
-  color: #ff5555;
-}
-
 .plan-header__chip {
   padding: 2px 7px;
   font-size: 10px;
@@ -3145,25 +3071,16 @@ kbd {
   color: #cc4444;
 }
 
-.btn--danger:hover {
-  background: rgba(255, 85, 85, 0.15);
-}
-
 .btn--danger {
-  background: rgba(255, 68, 68, 0.15);
-  color: #ff4444;
-  border: 1px solid rgba(255, 68, 68, 0.3);
-  padding: 6px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: background 0.2s, border-color 0.2s;
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  color: var(--danger);
+  border: 1px solid var(--danger-border);
 }
 
 .btn--danger:hover,
 .btn--danger.btn--focused {
-  background: rgba(255, 68, 68, 0.3);
-  border-color: #ff4444;
+  background: color-mix(in srgb, var(--danger) 30%, transparent);
+  border-color: var(--danger);
 }
 
 .btn--focused {

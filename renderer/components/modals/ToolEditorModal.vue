@@ -270,7 +270,7 @@ defineExpose({ handleButton });
                 <input :id="`te-env-name-${idx}`" type="text" class="te-input te-input--mono" placeholder="Variable name, e.g. PATH" :value="item.name" @input="item.name = ($event.target as HTMLInputElement).value" />
                 <div class="te-env-value-row">
                   <input :id="`te-env-value-${idx}`" type="text" class="te-input te-input--mono" placeholder="Value or env ref like %AZURE_API_KEY% or ${AZURE_API_KEY}" :value="item.value" @input="item.value = ($event.target as HTMLInputElement).value" />
-                  <button type="button" class="btn btn--small btn--danger" title="Remove" @click="removeEnvItem(idx)">✕</button>
+                  <button type="button" class="btn btn--sm btn--danger" title="Remove" @click="removeEnvItem(idx)">✕</button>
                 </div>
                 <select :id="`te-env-mode-${idx}`" class="te-input te-input--mode" :value="item.mode" @change="item.mode = ($event.target as HTMLSelectElement).value as 'replace' | 'append' | 'prepend'">
                   <option value="replace">Replace</option>
@@ -340,7 +340,7 @@ defineExpose({ handleButton });
               <div v-for="(item, idx) in promptItems" :key="idx" class="te-prompt-item">
                 <div class="te-prompt-item__header">
                   <input type="text" class="te-input te-input--sm" placeholder="Label, e.g. commit" :value="item.label" @input="item.label = ($event.target as HTMLInputElement).value" />
-                  <button type="button" class="btn btn--small btn--danger" title="Remove" @click="removePromptItem(idx)">✕</button>
+                  <button type="button" class="btn btn--sm btn--danger" title="Remove" @click="removePromptItem(idx)">✕</button>
                 </div>
                 <PromptTextarea
                   v-model="item.sequence"

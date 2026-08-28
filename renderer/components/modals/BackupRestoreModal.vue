@@ -468,33 +468,4 @@ onUnmounted(() => {
   flex-wrap: wrap;
 }
 
-.btn {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-  font-size: 0.95rem;
-  transition: opacity 0.2s;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn--primary {
-  background: var(--accent);
-  color: white;
-}
-
-.btn--secondary {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.btn--danger {
-  background: #ff4444;
-  color: white;
-}
 </style>
