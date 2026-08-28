@@ -205,3 +205,110 @@ defineExpose({ openCreate, openEdit });
     </div>
   </Teleport>
 </template>
+
+<style scoped>
+/* This component owns the modal it teleports to body. */
+.plan-sequence-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.plan-sequence-modal {
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 20px;
+  width: 480px;
+  max-width: 90vw;
+  max-height: 90vh;
+  min-height: 0;
+  overflow: hidden;
+  resize: both;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plan-sequence-modal__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  gap: 12px;
+}
+
+.plan-sequence-modal__field--memory {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.plan-sequence-modal__field--memory .plan-sequence-modal__textarea {
+  flex: 1 1 auto;
+  min-height: 0;
+  resize: none;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.plan-sequence-modal__header {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ddd;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.plan-sequence-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.plan-sequence-modal__field span {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.plan-sequence-modal__input {
+  background: #141414;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #ddd;
+  font-size: 13px;
+  padding: 6px 8px;
+  font-family: inherit;
+  height: 32px;
+}
+
+.plan-sequence-modal__textarea {
+  background: #141414;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #ddd;
+  font-size: 13px;
+  padding: 6px 8px;
+  font-family: inherit;
+  resize: vertical;
+  width: 100%;
+  min-height: 4.5em;
+  box-sizing: border-box;
+}
+
+.plan-sequence-modal__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-start;
+  padding-top: 4px;
+}
+</style>

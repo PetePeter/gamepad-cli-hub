@@ -981,6 +981,298 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/*
+ * PlanScreen owns the plan canvas, header, nodes, sequences, arrows,
+ * inspector, notices, and controls-hint class families.
+ * The plan-header__chip family remains global because SkillsTab.vue also
+ * renders it. Sequence modal styles live in SequencePanel.vue because its
+ * modal is teleported to body.
+ */
+.plan-screen {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: #0a0a0a;
+}
+.plan-screen.visible {
+  display: flex;
+}
+
+.plan-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #111111;
+  border-bottom: 1px solid #222;
+}
+.plan-header__title {
+  flex: 1;
+  font-size: 14px;
+  color: #eee;
+  font-weight: 600;
+}
+.plan-header__btn {
+  padding: 4px 12px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 12px;
+}
+.plan-header__btn:hover {
+  background: #252525;
+  border-color: #ff6600;
+  color: #ff6600;
+}
+
+.plan-header__btn--secondary {
+  border-color: #444;
+  color: #aaa;
+}
+
+.plan-header__btn--secondary:hover {
+  border-color: #4488ff;
+  color: #4488ff;
+}
+
+.plan-header__controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.plan-header__filters {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  flex-wrap: wrap;
+}
+.plan-header__filter-sep {
+  color: #444;
+  font-size: 12px;
+  padding: 0 2px;
+  user-select: none;
+}
+.plan-header__btn--reset {
+  padding: 2px 6px;
+  font-size: 13px;
+  line-height: 1;
+  margin-left: 4px;
+}
+
+.plan-notice {
+  font-size: 12px;
+  color: #4fd08b;
+  opacity: 0;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+
+.plan-notice--visible {
+  opacity: 1;
+}
+
+.plan-canvas {
+  flex: 1;
+  overflow: hidden;
+  cursor: grab;
+}
+.plan-canvas:active {
+  cursor: grabbing;
+}
+.plan-canvas svg {
+  width: 100%;
+  height: 100%;
+}
+
+.plan-node { cursor: pointer; }
+.plan-node:hover rect { stroke-width: 2; }
+.plan-node--selected rect { stroke-width: 2.5; stroke: #ff6600 !important; }
+.plan-node--done { opacity: 0.5; }
+.plan-node--done .plan-node__title { text-decoration: line-through; }
+.plan-node--related-background:not(.plan-node--selected) {
+  opacity: 0.24;
+  filter: grayscale(0.8);
+}
+.plan-node--related-background:not(.plan-node--selected) rect {
+  stroke-dasharray: 4 4;
+}
+.plan-node--related-transient:not(.plan-node--selected) rect {
+  stroke: #4fd08b;
+  stroke-dasharray: 5 3;
+}
+
+.plan-node__title {
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 20px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.plan-node__meta {
+  color: #8f8f8f;
+  font-size: 9px;
+  line-height: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  user-select: none;
+}
+
+.plan-node__desc {
+  color: #cfcfcf;
+  font-size: 11px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 13px;
+  pointer-events: none;
+  user-select: none;
+  word-break: break-word;
+}
+
+.plan-node__state-info {
+  color: #999;
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 18px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.plan-sequence-lane {
+  pointer-events: none;
+}
+.plan-sequence-lane rect {
+  fill: rgba(79, 208, 139, 0.06);
+  stroke: rgba(79, 208, 139, 0.45);
+  stroke-width: 1.5;
+  stroke-dasharray: 9 5;
+}
+
+.plan-arrow { cursor: pointer; }
+.plan-arrow:hover { stroke: #888 !important; stroke-width: 2.5; }
+.plan-arrow--related-background {
+  opacity: 0.18;
+  stroke-dasharray: 6 5;
+}
+
+.plan-canvas-empty {
+  font-size: 16px;
+  fill: #666;
+  pointer-events: none;
+}
+.plan-canvas-empty-hint {
+  font-size: 12px;
+  fill: #444;
+  pointer-events: none;
+}
+
+.plan-controls-hint {
+  display: flex;
+  gap: 16px;
+  padding: 6px 16px;
+  background: #0d0d0d;
+  border-top: 1px solid #1a1a1a;
+  font-size: 11px;
+  color: #444;
+  flex-wrap: wrap;
+}
+.plan-controls-hint span::before {
+  content: '·';
+  margin-right: 4px;
+  color: #2a2a2a;
+}
+
+.plan-inspector {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  max-height: min(42vh, 360px);
+  background: #111;
+  border-top: 1px solid #242424;
+  overflow: hidden;
+}
+
+.plan-inspector__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid #222;
+}
+
+.plan-inspector__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #eee;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-inspector__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 12px 12px;
+}
+
+.plan-inspector__section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  gap: 8px;
+}
+
+.plan-inspector__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #bbb;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.plan-node__connector { cursor: crosshair; }
+.plan-node__connector:hover { fill: #ff6600; stroke: #ff6600; }
+
+@keyframes plan-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(2px); }
+}
+.plan-node--shake {
+  animation: plan-shake 0.4s ease;
+}
+
+.plan-drag-line { pointer-events: none; }
+
 .plan-node--multiselected rect:first-child {
   stroke: #4488ff;
   stroke-width: 2;
@@ -1107,6 +1399,10 @@ onUnmounted(() => {
   font-weight: 600;
   font-size: 13px;
   color: var(--text-primary, #ddd);
+  line-height: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .plan-sequence-lane__title:hover {
   color: #4488ff;
