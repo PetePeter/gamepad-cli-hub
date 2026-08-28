@@ -68,6 +68,12 @@ function onSelect(value: 'plan' | 'context' | 'sequence'): void {
   min-width: 28px;
 }
 
+.split-add__primary:focus-visible,
+.split-add__toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 .split-add__primary:hover,
 .split-add__toggle:hover {
   border-color: #ff6600;

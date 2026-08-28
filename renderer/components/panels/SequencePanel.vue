@@ -291,6 +291,12 @@ defineExpose({ openCreate, openEdit });
   height: 32px;
 }
 
+.plan-sequence-modal__input:focus-visible,
+.plan-sequence-modal__textarea:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 .plan-sequence-modal__textarea {
   background: #141414;
   border: 1px solid #333;

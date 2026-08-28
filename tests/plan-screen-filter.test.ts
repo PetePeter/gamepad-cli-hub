@@ -60,11 +60,11 @@ describe('PlanScreen filter integration', () => {
       });
 
       const chips = wrapper.findAll('.plan-header__chip');
-      expect(chips[0].text()).toBe('Bug');
+      expect(chips[0].find('.filter-chip__label').text()).toBe('Bug');
       expect(chips[0].classes()).toContain('yes');
-      expect(chips[1].text()).toBe('Feature');
+      expect(chips[1].find('.filter-chip__label').text()).toBe('Feature');
       expect(chips[1].classes()).toContain('no');
-      expect(chips[2].text()).toBe('Research');
+      expect(chips[2].find('.filter-chip__label').text()).toBe('Research');
       expect(chips[2].classes()).toContain('either');
     });
 

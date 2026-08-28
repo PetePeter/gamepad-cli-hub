@@ -6,6 +6,8 @@ import type { PlanDependency, PlanItem, PlanSequence } from '../../../src/types/
 import type { ContextBindingTargetType, ContextNode } from '../../../src/types/context.js';
 import type { LayoutResult } from '../../plans/plan-layout.js';
 import type { TriState } from '../../plans/plan-screen.js';
+import PanelHeader from '../common/PanelHeader.vue';
+import FilterChip from '../common/FilterChip.vue';
 import SplitAddButton from '../buttons/SplitAddButton.vue';
 import SequencePanel from './SequencePanel.vue';
 import { isEditableElement } from '../../input/input-ownership.js';
@@ -18,6 +20,12 @@ const EMPTY_SEQ_W = 260;
 const EMPTY_SEQ_H = 80;
 const CONTEXT_W = 230;
 const CONTEXT_H = 130;
+
+function filterState(value: unknown): TriState {
+  if (value === true || value === 'yes') return 'yes';
+  if (value === false || value === 'no') return 'no';
+  return 'either';
+}
 
 const STATUS_COLORS: Record<string, string> = {
   planning: '#555555',
@@ -658,51 +666,53 @@ onUnmounted(() => {
     :class="{ visible }"
     @mousedown="focusPlanScreen"
   >
-    <div class="plan-header">
-      <button class="plan-header__btn" @click="emit('close')">← Back</button>
-      <SplitAddButton @primary="emit('addNode')" @select="handleAddSelection" />
-      <span class="plan-header__title">{{ dirPath }} - Plans</span>
+    <PanelHeader title="Plans" :subtitle="dirPath" icon="📋">
+      <template #actions>
+        <div class="plan-header__controls">
+          <button class="plan-header__btn" @click="emit('close')">← Back</button>
+          <SplitAddButton @primary="emit('addNode')" @select="handleAddSelection" />
+          <button
+            class="plan-header__btn plan-header__btn--secondary"
+            :disabled="!selectedId && !relatedFocusActive"
+            title="Focus related plans (F)"
+            @click="emit('toggleRelatedFocus')"
+          >{{ relatedFocusActive ? 'Clear Focus' : 'Focus Related' }}</button>
+          <button
+            v-if="canPopOut"
+            class="plan-header__btn plan-header__btn--secondary"
+            title="Open this planner in a detached window"
+            @click="emit('popOut')"
+          >↗ Pop Out</button>
+          <button class="plan-header__btn plan-header__btn--secondary" @click="emit('openPlanExternal')" title="Open selected plan as Markdown (read-only)">📄 Open Plan</button>
+          <button class="plan-header__btn plan-header__btn--secondary" @click="emit('exportDir')">⬆ Export Dir</button>
+          <button class="plan-header__btn plan-header__btn--secondary" @click="emit('clearDone')">🧹 Clear Done</button>
+          <button class="plan-header__btn plan-header__btn--secondary" @click="emit('openBackups')" title="Backups (R)">💾 Backups</button>
+          <span v-if="notice" class="plan-notice plan-notice--visible">{{ notice }}</span>
+        </div>
+      </template>
 
-      <div class="plan-header__filters">
-        <button class="plan-header__chip" :class="filters.types.bug" @click="emit('toggleTypeFilter', 'bug')">Bug</button>
-        <button class="plan-header__chip" :class="filters.types.feature" @click="emit('toggleTypeFilter', 'feature')">Feature</button>
-        <button class="plan-header__chip" :class="filters.types.research" @click="emit('toggleTypeFilter', 'research')">Research</button>
-        <button class="plan-header__chip" :class="filters.types.untyped" @click="emit('toggleTypeFilter', 'untyped')">Untyped</button>
-        <span class="plan-header__filter-sep">|</span>
-        <button class="plan-header__chip" :class="filters.statuses.planning" @click="emit('toggleStatusFilter', 'planning')">Planning</button>
-        <button class="plan-header__chip" :class="filters.statuses.ready" @click="emit('toggleStatusFilter', 'ready')">Ready</button>
-        <button class="plan-header__chip" :class="filters.statuses.coding" @click="emit('toggleStatusFilter', 'coding')">Coding</button>
-        <button class="plan-header__chip" :class="filters.statuses.review" @click="emit('toggleStatusFilter', 'review')">Review</button>
-        <button class="plan-header__chip" :class="filters.statuses.blocked" @click="emit('toggleStatusFilter', 'blocked')">Blocked</button>
-        <button class="plan-header__chip" :class="filters.statuses.done" @click="emit('toggleStatusFilter', 'done')">Done</button>
-        <span class="plan-header__filter-sep">|</span>
-        <button class="plan-header__chip" :class="filters.hasAttachment?.yes" @click="emit('toggleHasAttachmentFilter', 'yes')">Has</button>
-        <button class="plan-header__chip" :class="filters.hasAttachment?.no" @click="emit('toggleHasAttachmentFilter', 'no')">None</button>
-        <span class="plan-header__filter-sep">|</span>
-        <button class="plan-header__chip" :class="filters.auto" @click="emit('toggleAutoFilter')">Auto</button>
-        <button class="plan-header__btn plan-header__btn--reset" title="Reset filters" @click="emit('resetFilters')">↺</button>
-      </div>
-
-      <div class="plan-header__controls">
-        <button
-          class="plan-header__btn plan-header__btn--secondary"
-          :disabled="!selectedId && !relatedFocusActive"
-          title="Focus related plans (F)"
-          @click="emit('toggleRelatedFocus')"
-        >{{ relatedFocusActive ? 'Clear Focus' : 'Focus Related' }}</button>
-        <button
-          v-if="canPopOut"
-          class="plan-header__btn plan-header__btn--secondary"
-          title="Open this planner in a detached window"
-          @click="emit('popOut')"
-        >↗ Pop Out</button>
-        <button class="plan-header__btn plan-header__btn--secondary" @click="emit('openPlanExternal')" title="Open selected plan as Markdown (read-only)">📄 Open Plan</button>
-        <button class="plan-header__btn plan-header__btn--secondary" @click="emit('exportDir')">⬆ Export Dir</button>
-        <button class="plan-header__btn plan-header__btn--secondary" @click="emit('clearDone')">🧹 Clear Done</button>
-        <button class="plan-header__btn plan-header__btn--secondary" @click="emit('openBackups')" title="Backups (R)">💾 Backups</button>
-      </div>
-      <span v-if="notice" class="plan-notice plan-notice--visible">{{ notice }}</span>
-    </div>
+      <template #toolbar>
+        <div class="plan-header__filters">
+          <FilterChip class="plan-header__chip" :class="filterState(filters.types.bug)" :state="filterState(filters.types.bug)" label="Bug" @update:state="emit('toggleTypeFilter', 'bug')" />
+          <FilterChip class="plan-header__chip" :class="filterState(filters.types.feature)" :state="filterState(filters.types.feature)" label="Feature" @update:state="emit('toggleTypeFilter', 'feature')" />
+          <FilterChip class="plan-header__chip" :class="filterState(filters.types.research)" :state="filterState(filters.types.research)" label="Research" @update:state="emit('toggleTypeFilter', 'research')" />
+          <FilterChip class="plan-header__chip" :class="filterState(filters.types.untyped)" :state="filterState(filters.types.untyped)" label="Untyped" @update:state="emit('toggleTypeFilter', 'untyped')" />
+          <span class="plan-header__filter-sep">|</span>
+          <FilterChip class="plan-header__chip" :class="filterState(filters.statuses.planning)" :state="filterState(filters.statuses.planning)" label="Planning" @update:state="emit('toggleStatusFilter', 'planning')" />
+          <FilterChip class="plan-header__chip" :class="filterState(filters.statuses.ready)" :state="filterState(filters.statuses.ready)" label="Ready" @update:state="emit('toggleStatusFilter', 'ready')" />
+          <FilterChip class="plan-header__chip" :class="filterState(filters.statuses.coding)" :state="filterState(filters.statuses.coding)" label="Coding" @update:state="emit('toggleStatusFilter', 'coding')" />
+          <FilterChip class="plan-header__chip" :class="filterState(filters.statuses.review)" :state="filterState(filters.statuses.review)" label="Review" @update:state="emit('toggleStatusFilter', 'review')" />
+          <FilterChip class="plan-header__chip" :class="filterState(filters.statuses.blocked)" :state="filterState(filters.statuses.blocked)" label="Blocked" @update:state="emit('toggleStatusFilter', 'blocked')" />
+          <FilterChip class="plan-header__chip" :class="filterState(filters.statuses.done)" :state="filterState(filters.statuses.done)" label="Done" @update:state="emit('toggleStatusFilter', 'done')" />
+          <span class="plan-header__filter-sep">|</span>
+          <FilterChip class="plan-header__chip" :class="filterState(filters.hasAttachment?.yes)" :state="filterState(filters.hasAttachment?.yes)" label="Has" @update:state="emit('toggleHasAttachmentFilter', 'yes')" />
+          <FilterChip class="plan-header__chip" :class="filterState(filters.hasAttachment?.no)" :state="filterState(filters.hasAttachment?.no)" label="None" @update:state="emit('toggleHasAttachmentFilter', 'no')" />
+          <span class="plan-header__filter-sep">|</span>
+          <FilterChip class="plan-header__chip" :class="filterState(filters.auto)" :state="filterState(filters.auto)" label="Auto" @update:state="emit('toggleAutoFilter')" />
+          <button class="plan-header__btn plan-header__btn--reset" title="Reset filters" @click="emit('resetFilters')">↺</button>
+        </div>
+      </template>
+    </PanelHeader>
 
     <div
       ref="wrapperRef"
@@ -999,20 +1009,6 @@ onUnmounted(() => {
   display: flex;
 }
 
-.plan-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 16px;
-  background: #111111;
-  border-bottom: 1px solid #222;
-}
-.plan-header__title {
-  flex: 1;
-  font-size: 14px;
-  color: #eee;
-  font-weight: 600;
-}
 .plan-header__btn {
   padding: 4px 12px;
   background: #1a1a1a;
@@ -1021,6 +1017,19 @@ onUnmounted(() => {
   color: #ccc;
   cursor: pointer;
   font-size: 12px;
+}
+.plan-header__btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.plan-header__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.plan-header__btn:disabled:hover {
+  background: #1a1a1a;
+  border-color: #333;
+  color: #777;
 }
 .plan-header__btn:hover {
   background: #252525;
@@ -1054,6 +1063,9 @@ onUnmounted(() => {
   border: 1px solid #333;
   border-radius: 4px;
   flex-wrap: wrap;
+}
+.plan-header__filters :deep(.filter-chip) {
+  font-size: var(--font-size-xs);
 }
 .plan-header__filter-sep {
   color: #444;
@@ -1124,7 +1136,7 @@ onUnmounted(() => {
 
 .plan-node__meta {
   color: #8f8f8f;
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   line-height: 14px;
   white-space: nowrap;
   overflow: hidden;

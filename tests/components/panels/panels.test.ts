@@ -1141,7 +1141,8 @@ describe('PlanScreen', () => {
 
   it('shows dir path in title', () => {
     const w = mount(PlanScreen, { props: baseProps });
-    expect(w.find('.plan-header__title').text()).toBe('/home/project - Plans');
+    expect(w.find('.panel-header h2').text()).toBe('Plans');
+    expect(w.find('.panel-header__subtitle').text()).toBe('/home/project');
   });
 
   it('renders plan nodes', () => {
