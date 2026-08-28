@@ -34,7 +34,6 @@ import ArtifactViewer from '../../../renderer/components/panels/ArtifactViewer.v
 import { HELM_PANE_CONTEXT, type HelmPaneContext } from '../../../renderer/dock-pane-context.js';
 import { sessionsState } from '../../../renderer/screens/sessions-state.js';
 import { appState } from '../../../renderer/stores/app.js';
-import { planScreenState } from '../../../renderer/plans/plan-screen.js';
 
 interface Fake {
   context: HelmPaneContext;
@@ -210,15 +209,6 @@ describe('pane wrappers render their view', () => {
     expect(plan.findComponent(PlanScreen).props('dirPath')).toBe('X:/two');
     expect(artifacts.findComponent(ArtifactViewer).props('sessionId')).toBe('s-2');
     expect(appState.activeSessionId).toBe('s-2');
-  });
-
-  it('PlanScreen visibility follows the rendered canvas state for keyboard routing', async () => {
-    const wrapper = mountPane(PlanScreenPane, fake.context);
-    planScreenState.visible = false;
-    await nextTick();
-
-    expect(wrapper.findComponent(PlanScreen).props('visible')).toBe(false);
-    wrapper.unmount();
   });
 
   it('ArtifactsPane renders nothing without an active session', () => {

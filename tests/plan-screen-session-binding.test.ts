@@ -37,7 +37,16 @@ vi.mock('../renderer/main-view/main-view-manager.js', () => ({
   registerView: vi.fn(),
   showView: vi.fn(),
 }));
-vi.mock('../renderer/keyboard/router.js', () => ({ registerKeyHandler: vi.fn() }));
+const registeredKeyHandlers = vi.hoisted(() => [] as Array<{
+  claims?: (ctx: any) => boolean;
+  handle: (ctx: any) => boolean;
+}>);
+vi.mock('../renderer/keyboard/router.js', () => ({
+  registerKeyHandler: vi.fn((handler) => {
+    registeredKeyHandlers.push(handler);
+    return vi.fn();
+  }),
+}));
 vi.mock('../renderer/sequence-delivery.js', () => ({ deliverPromptSequence: vi.fn() }));
 
 async function getModule() {
@@ -56,6 +65,7 @@ function deferred<T>() {
 
 beforeEach(() => {
   vi.resetModules();
+  registeredKeyHandlers.length = 0;
   fakeState.activeSessionId = 'session-a';
   planList.mockReset();
   planDeps.mockReset().mockResolvedValue([]);
@@ -122,6 +132,29 @@ describe('plan screen session binding', () => {
 
     expect(mod.planScreenState.currentDir).toBe('');
     expect(mod.planScreenState.items).toEqual([]);
+  });
+
+  it('routes plan shortcuts only while the focused dock pane owns the canvas', async () => {
+    planList.mockImplementation(async (dirPath: string) => [item(dirPath)]);
+    const mod = await getModule();
+    await mod.bindPlanScreenToDir('C:/repo/a');
+    mod.setPlanScreenPaneMounted(true);
+
+    const handler = registeredKeyHandlers.find((entry) => entry.handle);
+    expect(handler).toBeDefined();
+
+    const focusedContext = {
+      key: 'Escape',
+      isFocused: (pane: string) => pane === 'plan-screen',
+    };
+    expect(handler!.claims?.(focusedContext)).toBe(true);
+    expect(handler!.handle(focusedContext)).toBe(true);
+
+    const unfocusedContext = {
+      key: 'Escape',
+      isFocused: () => false,
+    };
+    expect(handler!.claims?.(unfocusedContext)).toBe(false);
   });
 
   it('binds a mounted dock canvas without depending on the overlay visible flag', async () => {

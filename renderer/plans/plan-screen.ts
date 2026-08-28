@@ -76,7 +76,6 @@ let fitActiveCallback: (() => void) | null = null;
 let closeCallback: (() => void) | null = null;
 let noticeTimer: ReturnType<typeof setTimeout> | null = null;
 let latestPlanDataLoadToken = 0;
-let requestGeneration = 0;
 let dockPaneMounted = false;
 let overlayMounted = false;
 
@@ -620,27 +619,14 @@ export async function showPlanScreen(dirPath: string): Promise<void> {
   await showView('plan', { dir: dirPath });
 }
 
-function normalizePlanDir(dirPath: string): string {
-  return dirPath.replace(/[\\/]+/g, '/').toLowerCase();
-}
-
-function planDirsMatch(a: string, b: string): boolean {
-  return normalizePlanDir(a) === normalizePlanDir(b);
-}
-
-function requestIsCurrent(generation: number): boolean {
-  return generation === requestGeneration;
-}
-
 /** Bind the singleton canvas to one directory, regardless of how it is rendered. */
 export async function bindPlanScreenToDir(dirPath: string | null, context?: ViewMountContext): Promise<void> {
-  const generation = ++requestGeneration;
   if (!dirPath) {
     ++latestPlanDataLoadToken;
     clearPlanDataForSession();
     return;
   }
-  if (planScreenState.currentDir && planDirsMatch(planScreenState.currentDir, dirPath)) return;
+  if (planScreenState.currentDir && pathsMatch(planScreenState.currentDir, dirPath)) return;
 
   clearPlanDataForSession();
   planScreenState.currentDir = dirPath;
@@ -649,7 +635,6 @@ export async function bindPlanScreenToDir(dirPath: string | null, context?: View
   hidePlanDeleteConfirm();
   getWindowCallbacks().draftEditorCloser?.();
   await loadPlanData(dirPath, context);
-  if (!requestIsCurrent(generation)) return;
 }
 
 /** Tell the bridge whether the dock owns a rendered plan canvas. */
@@ -657,7 +642,6 @@ export function setPlanScreenPaneMounted(mounted: boolean): void {
   dockPaneMounted = mounted;
   planScreenState.visible = dockPaneMounted || overlayMounted;
   if (!mounted && !overlayMounted) {
-    ++requestGeneration;
     ++latestPlanDataLoadToken;
     closePlannerOverlay();
   }
@@ -676,7 +660,6 @@ async function mountPlanScreen(params?: unknown, context?: ViewMountContext): Pr
 
 function unmountPlanScreen(): void {
   getWindowCallbacks().draftEditorCloser?.();
-  ++requestGeneration;
   ++latestPlanDataLoadToken;
   closePlannerOverlay();
   if (fitActiveCallback) {

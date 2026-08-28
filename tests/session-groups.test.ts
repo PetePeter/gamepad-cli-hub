@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import type { Session } from '../renderer/state';
 import {
   dirDisplayName,
+  pathsMatch,
   resolveGroupDisplayName,
   groupSessionsByDirectory,
   buildFlatNavList,
@@ -113,6 +114,12 @@ describe('resolveGroupDisplayName', () => {
       expect(resolveGroupDisplayName('X:\\coding\\project-a', dirs)).toBe('My Project');
       expect(resolveGroupDisplayName('X:\\coding\\unknown', [])).toBe('unknown');
     });
+  });
+});
+
+describe('pathsMatch', () => {
+  it('matches equivalent separator spellings', () => {
+    expect(pathsMatch('X:\\coding\\gamepad-cli-hub', 'X:/coding/gamepad-cli-hub')).toBe(true);
   });
 });
 

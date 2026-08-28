@@ -68,15 +68,18 @@ export function dirDisplayName(dirPath: string): string {
 
 /**
  * Path equality that respects the platform's filesystem case sensitivity.
- * Lowercases both sides on Windows and macOS (case-insensitive by default) so
- * that mixed-case paths from different sources (project store vs session
- * config) match reliably; exact match on Linux.
+ * Normalizes separator spelling from different sources (project store vs
+ * session config). Lowercases both sides on Windows and macOS
+ * (case-insensitive by default); exact casing is retained on Linux.
  */
 export function pathsMatch(a: string, b: string): boolean {
+  const normalize = (path: string): string => path.replace(/[\\/]+/g, '/');
+  const left = normalize(a);
+  const right = normalize(b);
   if (hasCaseInsensitivePaths()) {
-    return a.toLowerCase() === b.toLowerCase();
+    return left.toLowerCase() === right.toLowerCase();
   }
-  return a === b;
+  return left === right;
 }
 
 /**
