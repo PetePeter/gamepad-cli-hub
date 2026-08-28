@@ -89,8 +89,11 @@ export function useSidebarController(deps: SidebarControllerDeps) {
     void toggleGroupCollapse(dirPath);
   }
 
-  function onShowPlans(dirPath: string): void {
-    void deps.navStore.openPlan(dirPath);
+  function onShowPlans(_dirPath: string): void {
+    const session = state.activeSessionId
+      ? state.sessions.find((entry) => entry.id === state.activeSessionId)
+      : undefined;
+    if (session?.workingDir) void deps.navStore.openPlan(session.workingDir);
   }
 
   function onShowOverview(dirPath: string): void {

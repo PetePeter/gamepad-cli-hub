@@ -260,11 +260,11 @@ describe('useInputRouter', () => {
     mocks.modalStack.topInterceptKeys.value = new Set(['arrows', 'tab', 'enter', 'space', 'escape']);
     const { router } = createRouter();
     const event = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true });
-    const preventDefault = vi.spyOn(event, 'preventDefault');
 
-    router.handleModalKeyboardBridge(event);
+    // The bridge reports consumption; the keyboard router suppresses the event.
+    const consumed = router.handleModalKeyboardBridge(event);
 
-    expect(preventDefault).toHaveBeenCalled();
+    expect(consumed).toBe(true);
     expect(mocks.modalStack.handleInput).toHaveBeenCalledWith('DPadDown');
   });
 
@@ -273,13 +273,10 @@ describe('useInputRouter', () => {
     mocks.escProtection.isProtecting.value = true;
     const { router } = createRouter();
     const event = new KeyboardEvent('keydown', { key: 'x', bubbles: true });
-    const preventDefault = vi.spyOn(event, 'preventDefault');
-    const stopPropagation = vi.spyOn(event, 'stopPropagation');
 
-    router.handleModalKeyboardBridge(event);
+    const consumed = router.handleModalKeyboardBridge(event);
 
-    expect(preventDefault).toHaveBeenCalled();
-    expect(stopPropagation).toHaveBeenCalled();
+    expect(consumed).toBe(true);
     expect(mocks.escProtection.dismissProtection).toHaveBeenCalled();
     expect(mocks.modalStack.handleInput).not.toHaveBeenCalled();
   });

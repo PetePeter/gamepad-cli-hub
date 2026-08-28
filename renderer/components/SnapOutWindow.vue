@@ -5,8 +5,12 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { TerminalView } from '../terminal/terminal-view.js';
 import { fitAndSyncPty } from '../terminal/fit-and-sync-pty.js';
-import { useKeyboardRelay } from '../composables/useKeyboardRelay.js';
-import { useNumberAccelerator, slotToIndex } from '../composables/useNumberAccelerator.js';
+import { useTerminalKeys } from '../composables/useTerminalKeys.js';
+import { slotToIndex } from '../composables/useNumberAccelerator.js';
+import { registerKeyHandler } from '../keyboard/router.js';
+import { createNumberKeyHandlers } from '../keyboard/handlers/number-keys.js';
+import { installSinglePaneKeyRouter } from '../keyboard/install.js';
+import { PANE_TERMINAL } from '../dock-types.js';
 import { useAppStore } from '../stores/app.js';
 import { useChipBarStore } from '../stores/chip-bar.js';
 import { deliverBulkText, deliverViaClipboardPaste } from '../paste-handler.js';
@@ -23,9 +27,6 @@ import TerminalChips from './chips/TerminalChips.vue';
 import ContextMenu from './modals/ContextMenu.vue';
 import EscProtectionModal from './modals/EscProtectionModal.vue';
 import DraftEditor from './panels/DraftEditor.vue';
-import ArtifactViewer from './panels/ArtifactViewer.vue';
-import { useArtifactViewer } from '../composables/useArtifactViewer.js';
-import { usePanelResize } from '../composables/usePanelResize.js';
 import {
   setPlanEditorOpener as setChipBarPlanEditorOpener,
 } from '../stores/chip-bar.js';
@@ -69,30 +70,6 @@ const draftEditorPlanStateInfo = ref('');
 const draftEditorPlanCallbacks = ref<import('./panels/DraftEditor.vue').PlanCallbacks | null>(null);
 const draftEditorRef = ref<InstanceType<typeof DraftEditor> | null>(null);
 
-// Artifact panel — bound to THIS popout's session so its artifacts travel with
-// the terminal. Ctrl+Shift+A is an explicit show action, never a toggle.
-const artifactViewer = useArtifactViewer();
-const artifactBadge = computed(() => artifactViewer.artifacts.value.length);
-const artifactHasUnread = computed(() => artifactViewer.unreadCount.value > 0);
-function onArtifactShortcut(e: KeyboardEvent): void {
-  if (!(e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a'))) return;
-  if (draftEditorVisible.value || contextMenuVisible.value || promptTree.visible || editorPopupStore.visible) return;
-  e.preventDefault();
-  e.stopPropagation();
-  artifactViewer.showPanel();
-}
-const { splitterRef: artifactSplitterRef, panelRef: artifactPanelRef } = usePanelResize({
-  onResized: () => { view?.fit(); },
-  minWidth: 320,
-  // No max — the panel may grow to cover the whole terminal (viewport-clamped).
-  defaultWidth: 480,
-  storageKey: 'helm:artifact-panel-width',
-  fromRight: true,
-});
-watch(() => artifactViewer.panelVisible.value, () => {
-  requestAnimationFrame(() => { view?.fit(); });
-});
-
 const chipBarStore = useChipBarStore();
 
 const contextMenuVisible = ref(false);
@@ -104,20 +81,16 @@ async function getEscProtectionEnabled(): Promise<boolean> {
   catch (error) { console.error('Failed to get ESC protection setting for snapped-out window:', error); return true; }
 }
 
-useKeyboardRelay({ getActiveSessionId: () => props.sessionId, getEscProtectionEnabled });
+useTerminalKeys({ getActiveSessionId: () => props.sessionId, getEscProtectionEnabled });
 
 // Ctrl+<n>: ask the main window to focus the Nth session wherever it lives.
 // Alt+<n>: fire the Nth chip action for this popped-out session.
-// Resolution is async (round-trip to the main window), so we always consume
-// the key here — Ctrl+<n> is reserved for navigation in a popout and must
-// never leak a digit into the terminal, even when the slot maps to nothing.
-useNumberAccelerator({
-  modifier: 'ctrl',
-  onSlot: (slot) => { void sessionsClient.sessionRequestFocusSlot(slot); return true; },
-});
-useNumberAccelerator({
-  modifier: 'alt',
-  onSlot: (slot) => {
+// Resolution is async (round-trip to the main window), so Ctrl+<n> is always
+// consumed here — it is reserved for navigation in a popout and must never
+// leak a digit into the terminal, even when the slot maps to nothing.
+const numberKeyHandlers = createNumberKeyHandlers({
+  jumpToSession: (slot) => { void sessionsClient.sessionRequestFocusSlot(slot); return true; },
+  fireChipAction: (slot) => {
     const action = chipBarStore.actions[slotToIndex(slot)];
     if (!action) return false;
     void chipBarStore.triggerAction(action.sequence);
@@ -286,19 +259,22 @@ onMounted(async () => {
   };
   containerRef.value.addEventListener('contextmenu', handleContextMenu);
 
-  // Capture-phase modal-stack bridge so arrows/enter/escape/space/digits reach
-  // open modals (e.g. the context menu) before the keyboard relay swallows them.
-  window.addEventListener('keydown', handleModalKeyboardBridge, true);
-
-  // Artifact panel bound to this popout's session.
-  artifactViewer.ensureSubscribed();
-  void artifactViewer.setActiveSession(props.sessionId);
-  window.addEventListener('keydown', onArtifactShortcut, true);
+  // This window is nothing but a terminal, so its one pane is always focused
+  // and visible. The modal bridge registers at `modal` scope, which is what
+  // guarantees an open picker outranks the terminal without a listener race.
+  const unregisterModalBridge = registerKeyHandler({
+    id: 'modal-stack-bridge',
+    scope: 'modal',
+    handle: (ctx) => handleModalKeyboardBridge(ctx.event),
+  });
+  const unregisterNumberKeys = numberKeyHandlers.map(registerKeyHandler);
+  const uninstallRouter = installSinglePaneKeyRouter(PANE_TERMINAL, () => props.sessionId);
 
   onUnmounted(() => {
     window.removeEventListener('resize', handleResize);
-    window.removeEventListener('keydown', handleModalKeyboardBridge, true);
-    window.removeEventListener('keydown', onArtifactShortcut, true);
+    unregisterModalBridge();
+    for (const unregister of unregisterNumberKeys) unregister();
+    uninstallRouter();
     containerRef.value?.removeEventListener('contextmenu', handleContextMenu);
     resizeObserver?.disconnect();
     if (fitDebounceTimer !== null) clearTimeout(fitDebounceTimer);
@@ -358,14 +334,6 @@ function onContextMenuCancel(): void { contextMenuVisible.value = false; }
     <DraftEditor v-if="draftEditorVisible" ref="draftEditorRef" :visible="draftEditorVisible" :mode="draftEditorMode" :session-id="draftEditorSessionId" :draft-id="draftEditorDraftId" :initial-label="draftEditorLabel" :initial-text="draftEditorText" :plan-status="draftEditorPlanStatus" :plan-state-info="draftEditorPlanStateInfo" :plan-callbacks="draftEditorPlanCallbacks" @save="onDraftSave" @apply="onDraftApply" @delete="onDraftDelete" @close="onDraftClose" />
     <div class="snap-out-body">
       <div ref="containerRef" class="snap-out-terminal"></div>
-      <div v-show="artifactViewer.panelVisible.value" class="artifact-splitter" ref="artifactSplitterRef" title="Drag to resize"></div>
-      <div v-show="artifactViewer.panelVisible.value" class="artifact-panel-dock" ref="artifactPanelRef">
-        <ArtifactViewer :session-id="props.sessionId" @pop-out="artifactViewer.hidePanel()" />
-      </div>
-      <div v-show="!artifactViewer.panelVisible.value" class="artifact-edge" title="Show artifacts" @click="artifactViewer.showPanel()">
-        <span v-if="artifactBadge > 0" class="artifact-edge-badge" :class="{ 'artifact-edge-badge--pulse': artifactHasUnread }">{{ artifactBadge }}</span>
-        <span class="artifact-edge-tab" aria-hidden="true">📄</span>
-      </div>
     </div>
     <TerminalChips />
     <ContextMenu v-model:visible="contextMenuVisible" :has-selection="contextMenuHasSelection" :has-active-session="true" :has-sequences="false" :has-drafts="false" :is-snapped-out="true" @action="onContextMenuAction" @cancel="onContextMenuCancel" />

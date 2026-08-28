@@ -675,34 +675,33 @@ async function loadRepeatConfig(): Promise<void> {
 }
 
 // ============================================================================
-// Ctrl+Tab terminal cycling
+// Session cycling
 // ============================================================================
 
-function setupTabCycling(): void {
-  document.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.key === 'Tab' && e.ctrlKey) {
-      if (document.querySelector('.modal-overlay.modal--visible')) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const tm = getTerminalManager();
-      if (!tm) return;
+/**
+ * Move the session spine one step in visual sidebar order.
+ *
+ * Sessions are the spine; terminal/overview/memories/artifacts/plans are
+ * aspects onto whichever session is selected. Cycling therefore moves the
+ * selection and deliberately leaves the focused pane alone, so you keep looking
+ * at the same aspect of the next session.
+ *
+ * `activateSession` (not `navigateToSession`) is what preserves that: it swaps
+ * the terminal and sidebar without dismissing the overlays a full navigation
+ * would.
+ */
+export function cycleActiveSession(direction: 1 | -1): void {
+  const tm = getTerminalManager();
+  if (!tm) return;
 
-      const nextId = resolveNextTerminalId(
-        getTabCycleSessionIds(), tm.getSessionIds(), tm.getActiveSessionId(), e.shiftKey ? -1 : 1,
-      );
-      const navStore = useNavigationStore();
-      if (document.querySelector('.plan-screen.visible')) {
-        const currentId = tm.getActiveSessionId();
-        if (currentId) {
-          void navStore.navigateToSession(currentId);
-          navStore.syncSidebarToSession(currentId);
-        }
-      } else if (nextId) {
-        navStore.activateSession(nextId);
-        navStore.syncSidebarToSession(nextId);
-      }
-    }
-  }, true);
+  const nextId = resolveNextTerminalId(
+    getTabCycleSessionIds(), tm.getSessionIds(), tm.getActiveSessionId(), direction,
+  );
+  if (!nextId) return;
+
+  const navStore = useNavigationStore();
+  navStore.activateSession(nextId);
+  navStore.syncSidebarToSession(nextId);
 }
 
 // ============================================================================
@@ -776,23 +775,6 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
     });
   }
 
-  // Keyboard relay
-  setupKeyboardRelay(
-    () => tm.getActiveSessionId() ?? null,
-    (sessionId) => {
-      const session = state.sessions.find(s => s.id === sessionId);
-      return session ? (session as any).questionPending ?? false : false;
-    },
-    async () => {
-      try {
-        return await configClient.configGetEscProtectionEnabled();
-      } catch (err) {
-        console.error('Failed to get ESC protection setting:', err);
-        return true;
-      }
-    },
-  );
-
   // Overview + Plan screen dependencies
   setOverviewTerminalManagerGetter(() => tm);
   setOutputBuffer(tm.getOutputBuffer());
@@ -809,9 +791,6 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
     const activeId = getTerminalManager()?.getActiveSessionId() ?? null;
     void useChipBarStore().refresh(activeId);
   });
-
-  // Tab cycling
-  setupTabCycling();
 
   // IPC push listeners
   setupIpcListeners();

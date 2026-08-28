@@ -5,8 +5,8 @@
 import { mount, flushPromises } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockUseKeyboardRelay, mockRefresh, mockShowEditorPopup } = vi.hoisted(() => ({
-  mockUseKeyboardRelay: vi.fn(),
+const { mockUseTerminalKeys, mockRefresh, mockShowEditorPopup } = vi.hoisted(() => ({
+  mockUseTerminalKeys: vi.fn(),
   mockRefresh: vi.fn().mockResolvedValue(undefined),
   mockShowEditorPopup: vi.fn(),
 }));
@@ -17,8 +17,8 @@ vi.mock('../../renderer/editor/editor-popup.js', () => ({
   isEditorPopupVisible: vi.fn(() => false),
 }));
 
-vi.mock('../../renderer/composables/useKeyboardRelay.js', () => ({
-  useKeyboardRelay: mockUseKeyboardRelay,
+vi.mock('../../renderer/composables/useTerminalKeys.js', () => ({
+  useTerminalKeys: mockUseTerminalKeys,
 }));
 
 vi.mock('../../renderer/terminal/terminal-view.js', () => ({
@@ -50,6 +50,8 @@ vi.mock('../../renderer/stores/chip-bar.js', () => ({
 
 vi.mock('../../renderer/paste-handler.js', () => ({
   deliverBulkText: vi.fn(),
+  deliverViaClipboardPaste: vi.fn(),
+  readSelectionInfo: vi.fn(() => ({ collapsed: true, inArtifactDoc: false })),
 }));
 
 vi.mock('../../renderer/stores/draft-editor-registry.js', () => ({
@@ -130,7 +132,7 @@ describe('SnapOutWindow', () => {
     };
   });
 
-  it('registers the shared keyboard relay for the snapped-out session', async () => {
+  it('registers the shared terminal key handlers for the snapped-out session', async () => {
     mount(SnapOutWindow, {
       props: {
         sessionId: 'session-1',
@@ -147,8 +149,8 @@ describe('SnapOutWindow', () => {
 
     await flushPromises();
 
-    expect(mockUseKeyboardRelay).toHaveBeenCalledTimes(1);
-    const options = mockUseKeyboardRelay.mock.calls[0][0];
+    expect(mockUseTerminalKeys).toHaveBeenCalledTimes(1);
+    const options = mockUseTerminalKeys.mock.calls[0][0];
     expect(options.getActiveSessionId()).toBe('session-1');
     await expect(options.getEscProtectionEnabled()).resolves.toBe(true);
     expect(window.gamepadCli.configGetEscProtectionEnabled).toHaveBeenCalledTimes(1);

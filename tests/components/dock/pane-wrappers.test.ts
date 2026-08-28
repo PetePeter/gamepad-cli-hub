@@ -171,6 +171,8 @@ describe('pane wrappers render their view', () => {
   });
 
   it('PlanDirectoriesPane renders the planner directory grid', () => {
+    appState.sessions = [{ id: 's-1', workingDir: 'X:\\coding\\gamepad-cli-hub' }] as any;
+    appState.activeSessionId = 's-1';
     sessionsState.directories = [{ name: 'Hub', path: 'X:\\coding\\gamepad-cli-hub' }] as any;
     const wrapper = mountPane(PlanDirectoriesPane, fake.context);
     expect(wrapper.findComponent(PlansGrid).props('directories').length).toBeGreaterThan(0);

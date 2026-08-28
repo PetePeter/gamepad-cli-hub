@@ -4,10 +4,11 @@
  * Translates raw keyboard events into modal-stack gamepad inputs so that
  * keyboard users can drive selection-mode modals (context menu, pickers,
  * confirm dialogs) exactly like the gamepad does. Used by both the main
- * window (via useInputRouter) and the snap-out popout window so behaviour
- * stays identical across windows.
+ * window and the snap-out popout window so behaviour stays identical across
+ * windows.
  *
- * Register `handler` as a capture-phase `keydown` listener on `window`.
+ * Registered with the keyboard router as a `modal`-scope handler. `handler`
+ * reports whether it consumed the key; suppression is the router's job.
  */
 
 import { useModalStack } from './useModalStack.js';
@@ -28,12 +29,12 @@ function isEditableElementInsideModal(element: Element | null): element is HTMLE
 
 export function useModalKeyboardBridge() {
   /**
-   * Capture-phase keydown handler. No-op unless a modal is open and the modal
-   * declares interest in the pressed key via its interceptKeys policy.
+   * Returns true when the key was consumed. No-op unless a modal is open and
+   * the modal declares interest in the pressed key via its interceptKeys policy.
    */
-  function handler(e: KeyboardEvent): void {
+  function handler(e: KeyboardEvent): boolean {
     const stack = useModalStack();
-    if (!stack.isOpen.value) return;
+    if (!stack.isOpen.value) return false;
 
     const active = document.activeElement;
     const activeContext = getActiveInputContext({
@@ -46,57 +47,49 @@ export function useModalKeyboardBridge() {
 
     // While ESC protection is up, any non-Escape key dismisses it and is swallowed.
     if (escProtection.isProtecting.value && e.key !== 'Escape') {
-      e.preventDefault();
-      e.stopPropagation();
       escProtection.dismissProtection();
-      return;
+      return true;
     }
 
     if (e.key === 'ArrowUp') {
-      if (!interceptKeys.has('arrows') || editableInModal) return;
-      e.preventDefault();
+      if (!interceptKeys.has('arrows') || editableInModal) return false;
       stack.handleInput('DPadUp');
     } else if (e.key === 'ArrowDown') {
-      if (!interceptKeys.has('arrows') || editableInModal) return;
-      e.preventDefault();
+      if (!interceptKeys.has('arrows') || editableInModal) return false;
       stack.handleInput('DPadDown');
     } else if (e.key === 'ArrowLeft') {
-      if (!interceptKeys.has('arrows') || editableInModal) return;
-      e.preventDefault();
+      if (!interceptKeys.has('arrows') || editableInModal) return false;
       stack.handleInput('DPadLeft');
     } else if (e.key === 'ArrowRight') {
-      if (!interceptKeys.has('arrows') || editableInModal) return;
-      e.preventDefault();
+      if (!interceptKeys.has('arrows') || editableInModal) return false;
       stack.handleInput('DPadRight');
     } else if (e.key === 'Tab') {
-      if (!interceptKeys.has('tab')) return;
-      e.preventDefault();
+      if (!interceptKeys.has('tab')) return false;
       stack.handleInput(e.shiftKey ? 'ShiftTab' : 'Tab');
     } else if (e.key === 'Enter') {
-      if (!interceptKeys.has('enter') || (editableInModal && document.activeElement?.tagName === 'TEXTAREA')) return;
-      e.preventDefault();
+      if (!interceptKeys.has('enter') || (editableInModal && document.activeElement?.tagName === 'TEXTAREA')) return false;
       stack.handleInput('A');
     } else if (e.key === ' ' || e.key === 'Spacebar') {
-      if (!interceptKeys.has('space') || editableInModal) return;
-      e.preventDefault();
+      if (!interceptKeys.has('space') || editableInModal) return false;
       stack.handleInput('A');
     } else if (e.key === 'Escape') {
-      if (!interceptKeys.has('escape')) return;
-      e.preventDefault();
+      if (!interceptKeys.has('escape')) return false;
       stack.handleInput('B');
     } else if (e.key >= '0' && e.key <= '9' && e.key.length === 1) {
       // Jump numbers: bare digit selects the Nth row in a selection modal.
-      if (!interceptKeys.has('digits') || editableInModal) return;
-      if (e.ctrlKey || e.altKey || e.metaKey) return;
-      e.preventDefault();
+      if (!interceptKeys.has('digits') || editableInModal) return false;
+      if (e.ctrlKey || e.altKey || e.metaKey) return false;
       stack.handleInput(`Digit${e.key}`);
     } else if (e.key.length === 1 && e.key >= 'a' && e.key <= 'z') {
       // Jump letters: bare letter selects the Nth row in a tree picker (positions 10-35).
-      if (!interceptKeys.has('letters') || editableInModal) return;
-      if (e.ctrlKey || e.altKey || e.metaKey) return;
-      e.preventDefault();
+      if (!interceptKeys.has('letters') || editableInModal) return false;
+      if (e.ctrlKey || e.altKey || e.metaKey) return false;
       stack.handleInput(`Key${e.key.toUpperCase()}`);
+    } else {
+      return false;
     }
+
+    return true;
   }
 
   return { handler };

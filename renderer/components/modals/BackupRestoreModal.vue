@@ -14,6 +14,7 @@
 
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import type { BackupMetadata } from '../../../src/types/plan-backup.js';
+import { registerKeyHandler } from '../../keyboard/router.js';
 
 const props = defineProps<{
   visible: boolean;
@@ -125,45 +126,46 @@ function handleClose(): void {
   emit('close');
 }
 
-function handleKeyDown(event: KeyboardEvent): void {
-  if (!props.visible) return;
-
+/**
+ * Snapshot-list keys. Registered at `modal` scope, so an open restore dialog
+ * outranks workspace, pane and terminal bindings without racing them.
+ *
+ * Returns whether the key was consumed; the router suppresses it.
+ */
+function handleKeyDown(event: KeyboardEvent): boolean {
   switch (event.key) {
     case 'ArrowUp':
     case 'ArrowLeft':
-      event.preventDefault();
       if (selectedIndex.value > 0) {
         selectedIndex.value--;
       } else if (sortedSnapshots.value.length > 0) {
         selectedIndex.value = sortedSnapshots.value.length - 1;
       }
-      break;
+      return true;
     case 'ArrowDown':
     case 'ArrowRight':
-      event.preventDefault();
       if (selectedIndex.value < sortedSnapshots.value.length - 1) {
         selectedIndex.value++;
       } else if (sortedSnapshots.value.length > 0) {
         selectedIndex.value = 0;
       }
-      break;
+      return true;
     case 'a':
     case 'A':
     case 'Enter':
-      event.preventDefault();
       handleRestore();
-      break;
+      return true;
     case 'b':
     case 'B':
     case 'Escape':
-      event.preventDefault();
       handleClose();
-      break;
+      return true;
     case 'Backspace':
     case 'Delete':
-      event.preventDefault();
       handleDelete();
-      break;
+      return true;
+    default:
+      return false;
   }
 }
 
@@ -172,12 +174,20 @@ function getSnapshotPath(metadata: BackupMetadata): string {
 }
 
 // Lifecycle
+let unregisterKeys: (() => void) | null = null;
+
 onMounted(() => {
-  document.addEventListener('keydown', handleKeyDown);
+  unregisterKeys = registerKeyHandler({
+    id: 'backup-restore-modal',
+    scope: 'modal',
+    claims: () => props.visible,
+    handle: (ctx) => handleKeyDown(ctx.event),
+  });
 });
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeyDown);
+  unregisterKeys?.();
+  unregisterKeys = null;
 });
 </script>
 

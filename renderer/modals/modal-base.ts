@@ -10,6 +10,8 @@
  *    modal-internal textarea; arrows cycle DOM focus.
  */
 
+import { registerKeyHandler } from '../keyboard/router.js';
+
 /** Selection mode — list/button pickers that track selectedIndex internally. */
 export interface SelectionModalHandlers {
   mode: 'selection';
@@ -38,32 +40,49 @@ function isSelectionMode(h: ModalHandlers): h is SelectionModalHandlers {
 
 const FOCUSABLE_SELECTOR = 'input, select, textarea, button:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+/** Live count of attached imperative modals — the router's "a modal owns the keyboard" signal. */
+let attachedModals = 0;
+
+/**
+ * True while any imperative modal has keyboard handlers attached.
+ *
+ * Replaces `querySelector('.modal-overlay.modal--visible')` probes: the count
+ * follows the modal's own lifecycle instead of guessing from the DOM.
+ */
+export function hasAttachedModal(): boolean {
+  return attachedModals > 0;
+}
+
 /**
  * Attach keyboard handlers to a modal. Returns a cleanup function.
  *
- * Selection mode: blocks ALL keys, Enter always accepts, arrows use callbacks.
+ * Selection mode: claims ALL keys, Enter always accepts, arrows use callbacks.
  * Form mode: Enter accepts (unless in a modal-internal textarea), arrows cycle focus.
+ *
+ * Registered at `modal` scope, the top of the router's precedence chain, so an
+ * open modal outranks every workspace, pane and terminal binding.
  */
 export function attachModalKeyboard(handlers: ModalHandlers): () => void {
-  function onKeyDown(e: KeyboardEvent): void {
-    if (isSelectionMode(handlers)) {
-      handleSelectionKey(e, handlers);
-    } else {
-      handleFormKey(e, handlers);
-    }
-  }
-  document.addEventListener('keydown', onKeyDown, true);
-  return () => document.removeEventListener('keydown', onKeyDown, true);
+  attachedModals += 1;
+  const unregister = registerKeyHandler({
+    id: `modal:${handlers.mode ?? 'form'}`,
+    scope: 'modal',
+    handle: (ctx) => isSelectionMode(handlers)
+      ? handleSelectionKey(ctx.event, handlers)
+      : handleFormKey(ctx.event, handlers),
+  });
+
+  return () => {
+    attachedModals = Math.max(0, attachedModals - 1);
+    unregister();
+  };
 }
 
 // ============================================================================
 // Selection mode — all keys blocked, simple dispatch
 // ============================================================================
 
-function handleSelectionKey(e: KeyboardEvent, h: SelectionModalHandlers): void {
-  e.preventDefault();
-  e.stopPropagation();
-
+function handleSelectionKey(e: KeyboardEvent, h: SelectionModalHandlers): boolean {
   switch (e.key) {
     case 'Escape':  h.onCancel(); break;
     case 'Enter':
@@ -80,50 +99,55 @@ function handleSelectionKey(e: KeyboardEvent, h: SelectionModalHandlers): void {
       }
       break;
   }
+
+  // Selection modals swallow everything, mapped or not — a stray keystroke must
+  // never leak past a picker into a pane or a PTY.
+  return true;
 }
 
 // ============================================================================
 // Form mode — textarea-aware, DOM focus cycling
 // ============================================================================
 
-function handleFormKey(e: KeyboardEvent, h: FormModalHandlers): void {
+function handleFormKey(e: KeyboardEvent, h: FormModalHandlers): boolean {
   if (e.key === 'Escape') {
-    e.preventDefault();
-    e.stopPropagation();
     h.onCancel();
-  } else if (e.key === 'Enter' && e.ctrlKey) {
+    return true;
+  }
+
+  if (e.key === 'Enter' && e.ctrlKey) {
     // Ctrl+Enter always accepts — even inside textareas
-    e.preventDefault();
-    e.stopPropagation();
     h.onAccept();
-  } else if (e.key === 'Enter') {
+    return true;
+  }
+
+  if (e.key === 'Enter') {
     const active = document.activeElement;
     const container = h.container || document.querySelector('.modal-overlay.modal--visible .modal');
     // Guard: let Enter create newlines inside modal-internal textareas
-    if (active?.tagName === 'TEXTAREA' && container?.contains(active)) return;
-    e.preventDefault();
-    e.stopPropagation();
+    if (active?.tagName === 'TEXTAREA' && container?.contains(active)) return false;
     h.onAccept();
-  } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Tab') {
+    return true;
+  }
+
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Tab') {
     const active = document.activeElement;
     // Arrows skip textarea/select; Tab always cycles (browser default Tab is suppressed)
-    if (e.key !== 'Tab' && (active?.tagName === 'TEXTAREA' || active?.tagName === 'SELECT')) return;
+    if (e.key !== 'Tab' && (active?.tagName === 'TEXTAREA' || active?.tagName === 'SELECT')) return false;
 
     const container = h.container || document.querySelector('.modal-overlay.modal--visible .modal');
-    if (!container) return;
+    if (!container) return false;
     const focusables = Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR)) as HTMLElement[];
-    if (focusables.length === 0) return;
+    if (focusables.length === 0) return false;
 
     const currentIndex = focusables.indexOf(active as HTMLElement);
     const forward = e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey);
-    let nextIndex: number;
-    if (forward) {
-      nextIndex = currentIndex < focusables.length - 1 ? currentIndex + 1 : 0;
-    } else {
-      nextIndex = currentIndex > 0 ? currentIndex - 1 : focusables.length - 1;
-    }
-    e.preventDefault();
-    e.stopPropagation();
+    const nextIndex = forward
+      ? (currentIndex < focusables.length - 1 ? currentIndex + 1 : 0)
+      : (currentIndex > 0 ? currentIndex - 1 : focusables.length - 1);
     focusables[nextIndex]?.focus();
+    return true;
   }
+
+  return false;
 }

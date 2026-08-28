@@ -109,6 +109,17 @@ export const useNavigationStore = defineStore('navigation', () => {
 
   // ── Navigation actions ───────────────────────────────────────────────
 
+  /** Keep the main-process session authority aligned with renderer navigation. */
+  async function setMainActiveSession(sessionId: string): Promise<void> {
+    try {
+      await sessionsClient.sessionSetActive?.(sessionId);
+    } catch (error) {
+      // Local navigation should remain usable if the authority sync fails;
+      // the next explicit navigation will retry it.
+      console.warn(`[Navigation] Failed to sync active session ${sessionId}:`, error);
+    }
+  }
+
   /**
    * Full UX transition — dismiss overlays, switch terminal, sync sidebar,
    * hide draft/editor, clear chip bar.
@@ -151,11 +162,7 @@ export const useNavigationStore = defineStore('navigation', () => {
     // 3. Focus snapped-out sessions via the main process so their owning
     // window is activated instead of assuming the terminal lives locally.
     if (state.snappedOutSessions.has(sessionId)) {
-      try {
-        await sessionsClient.sessionSetActive(sessionId);
-      } catch {
-        // Ignore focus failures and still sync local selection state.
-      }
+      await setMainActiveSession(sessionId);
       if (!isLatestRequest()) return { kind: 'failed', sessionId, error: 'stale request' };
       state.activeSessionId = sessionId;
       syncSidebarToSession(sessionId);
@@ -169,6 +176,8 @@ export const useNavigationStore = defineStore('navigation', () => {
     if (tm) {
       tm.ensureTerminal(sessionId);
       if (tm.hasTerminal(sessionId)) {
+        await setMainActiveSession(sessionId);
+        if (!isLatestRequest()) return { kind: 'failed', sessionId, error: 'stale request' };
         tm.switchTo(sessionId);
         state.activeSessionId = sessionId;
         syncSidebarToSession(sessionId);
@@ -191,6 +200,7 @@ export const useNavigationStore = defineStore('navigation', () => {
     ++navigationRequestId;
 
     if (state.snappedOutSessions.has(sessionId)) {
+      void setMainActiveSession(sessionId);
       state.activeSessionId = sessionId;
       void useChipBarStore().refresh(sessionId);
       return { kind: 'snapped-out', sessionId };
@@ -198,6 +208,7 @@ export const useNavigationStore = defineStore('navigation', () => {
 
     const tm = getTerminalManager();
     if (tm?.hasTerminal(sessionId)) {
+      void setMainActiveSession(sessionId);
       tm.switchTo(sessionId);
       state.activeSessionId = sessionId;
       void useChipBarStore().refresh(sessionId);

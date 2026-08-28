@@ -22,9 +22,14 @@ import { initConfigCache } from './bindings.js';
 import { doSpawn, doSpawnShell, switchToSession, doCloseSession,
   bootstrap, teardown, startTimerRefresh, stopTimerRefresh,
   setPendingContextText, restoreSnappedBackSession, refreshProjects, refreshSessions,
+  cycleActiveSession,
 } from './composables/useAppBootstrap.js';
+import { createWorkspaceKeyHandlers } from './keyboard/handlers/workspace-keys.js';
+import { registerKeyHandler } from './keyboard/router.js';
+import { installDockKeyRouter } from './keyboard/install.js';
+import { useTerminalKeys } from './composables/useTerminalKeys.js';
 import { resolveGroupDisplayName } from './session-groups.js';
-import { getCurrentPlanDirPath, onPlanContextSave } from './plans/plan-screen.js';
+import { onPlanContextSave, refreshPlanScreenForActiveSession } from './plans/plan-screen.js';
 import { onViewChange, type MainView as ViewName } from './main-view/main-view-manager.js';
 import { useToast } from './composables/useToast.js';
 import { useSettingsController } from './composables/useSettingsController.js';
@@ -82,7 +87,7 @@ import {
   PANE_PLAN_SCREEN,
   PANE_TERMINAL,
 } from './dock-types.js';
-import { getDockShortcutPane } from './dock-shortcuts.js';
+import { confirmCloseSessionById } from './screens/sessions.js';
 
 // Sidebar components
 import StatusStrip from './components/sidebar/StatusStrip.vue';
@@ -111,7 +116,7 @@ const state = appStore.state;
 import { useChipBarStore } from './stores/chip-bar.js';
 import { useNavigationStore } from './stores/navigation.js';
 import { useSessionsScreenStore } from './stores/sessions-screen.js';
-import { useNumberAccelerator, slotToIndex } from './composables/useNumberAccelerator.js';
+import { slotToIndex } from './composables/useNumberAccelerator.js';
 import { resolveFocusSlot } from './composables/focus-slot.js';
 import { useLlmNotificationsStore } from './stores/llmNotifications.js';
 import { useFlashAttention } from './composables/useFlashAttention.js';
@@ -192,12 +197,7 @@ function fallbackToOpenView(): void {
 
 function resolveDockPlanDirPath(): string | null {
   const session = state.sessions.find(item => item.id === state.activeSessionId);
-  return session?.projectPath
-    ?? session?.workingDir
-    ?? getCurrentPlanDirPath()
-    ?? sessionsState.groups[0]?.dirPath
-    ?? sessionsState.directories[0]?.path
-    ?? null;
+  return session?.workingDir ?? null;
 }
 
 let dockNavigationRequest = 0;
@@ -521,6 +521,7 @@ function refitTerminalsSoon(): void {
 // Keep the panel bound to whichever session is active; reload on switch.
 watch(() => state.activeSessionId, (id) => {
   void artifactViewer.setActiveSession(id ?? null);
+  void refreshPlanScreenForActiveSession();
 });
 const { addToast } = useToast();
 const planWorkspaceController = usePlanWorkspaceController({ addToast });
@@ -579,26 +580,6 @@ watch(() => state.activeSessionId, (next, prev) => {
   state.recentSessionId = next;
 });
 
-// Ctrl+<n> jumps to the Nth visible session; Alt+<n> fires the Nth chip action.
-useNumberAccelerator({
-  modifier: 'ctrl',
-  onSlot: (slot) => {
-    for (const [sessionId, assignedSlot] of sessionsScreenStore.sessionShortcutMap) {
-      if (assignedSlot === slot) { void navStore.navigateToSession(sessionId); return true; }
-    }
-    return false;
-  },
-});
-useNumberAccelerator({
-  modifier: 'alt',
-  onSlot: (slot) => {
-    const action = chipBarStore.actions[slotToIndex(slot)];
-    if (!action) return false;
-    void chipBarStore.triggerAction(action.sequence);
-    return true;
-  },
-});
-
 const { handleButton, handleRelease, handleModalKeyboardBridge } = useInputRouter({
   settingsVisible,
   activeView,
@@ -614,40 +595,61 @@ const { handleButton, handleRelease, handleModalKeyboardBridge } = useInputRoute
   getFocusedItemId: dockWorkspace.getFocusedItemId,
 });
 
-function handleRenameRequest(e: Event): void {
-  const detail = (e as CustomEvent).detail as { sessionId: string } | undefined;
-  if (detail?.sessionId) {
-    onSessionRename(detail.sessionId);
-  }
-}
-
-function handleClearSessionNotifications(e: Event): void {
-  const detail = (e as CustomEvent).detail as { sessionId: string } | undefined;
-  if (detail?.sessionId) {
-    llmNotificationsStore.dismissSession(detail.sessionId);
-  }
-}
+// Router registrations, released on unmount.
+const keyHandlerCleanups: Array<() => void> = [];
+let uninstallKeyRouter: (() => void) | null = null;
 
 // Prompt-template apply flow (picker → editor → deliverPromptSequence).
 const { openPromptPicker } = usePromptApplyFlow(() => state.activeSessionId);
 
-function isEditableShortcutTarget(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement
-    && Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
-}
+/**
+ * Workspace keys, owned by the router.
+ *
+ * Eligibility (modal open, editable field, which pane is focused or visible) is
+ * resolved once per event by the router and handed to each handler, replacing
+ * the per-listener DOM probes that used to guess it. Ctrl+Shift+A shows
+ * Artifacts; it never toggles.
+ */
+const workspaceKeyHandlers = createWorkspaceKeyHandlers({
+  activatePane: (paneId) => { void activateDockPane(paneId, paneId === PANE_ARTIFACTS); },
+  cycleSession: (direction) => { cycleActiveSession(direction); },
+  jumpToSession: (slot) => {
+    for (const [sessionId, assignedSlot] of sessionsScreenStore.sessionShortcutMap) {
+      if (assignedSlot === slot) { void navStore.navigateToSession(sessionId); return true; }
+    }
+    return false;
+  },
+  fireChipAction: (slot) => {
+    const action = chipBarStore.actions[slotToIndex(slot)];
+    if (!action) return false;
+    void chipBarStore.triggerAction(action.sequence);
+    return true;
+  },
+  spawnSession: () => {
+    setPendingContextText(null);
+    openQuickSpawn((cliType) => { void onSpawn(cliType); });
+  },
+  closeActiveSession: () => {
+    if (state.activeSessionId) confirmCloseSessionById(state.activeSessionId);
+  },
+});
 
-/** Global workspace navigation. Ctrl+Shift+A shows Artifacts; it never toggles. */
-function onDockShortcut(e: KeyboardEvent): void {
-  const paneId = getDockShortcutPane(e);
-  if (!paneId) return;
-  if (settingsVisible.value || draftEditorVisible.value || isAnyBridgeModalVisible()) return;
-  if (document.querySelector('.modal-overlay.modal--visible')) return;
-  if (isEditableShortcutTarget(e.target)) return;
-
-  e.preventDefault();
-  e.stopPropagation();
-  void activateDockPane(paneId, paneId === PANE_ARTIFACTS);
-}
+// Terminal-owned keys (Esc, Ctrl+V, Ctrl+G, key relay). Rename and
+// notification-clear are passed straight in; they used to travel as window
+// CustomEvents purely because the relay had no way to reach the shell.
+useTerminalKeys({
+  getActiveSessionId: () => getTerminalManager()?.getActiveSessionId() ?? null,
+  getEscProtectionEnabled: async () => {
+    try {
+      return await configClient.configGetEscProtectionEnabled();
+    } catch (error) {
+      console.error('Failed to get ESC protection setting:', error);
+      return true;
+    }
+  },
+  renameSession: (sessionId) => { onSessionRename(sessionId); },
+  clearNotifications: (sessionId) => { llmNotificationsStore.dismissSession(sessionId); },
+});
 
 // ⧉ pop-out: the panel travels with its terminal. Snapping the active session
 // out mounts a SnapOutWindow that renders its own ArtifactViewer, so the panel
@@ -930,7 +932,41 @@ onMounted(async () => {
   // raise its dialog even when Settings has never been opened this session.
   peers.ensureSubscribed();
   void artifactViewer.setActiveSession(state.activeSessionId ?? null);
-  window.addEventListener('keydown', onDockShortcut, true);
+
+  // One listener for the whole window. Workspace keys and the modal bridge
+  // register as handlers; the router resolves context and decides precedence.
+  for (const handler of workspaceKeyHandlers) {
+    keyHandlerCleanups.push(registerKeyHandler(handler));
+  }
+  keyHandlerCleanups.push(registerKeyHandler({
+    id: 'modal-stack-bridge',
+    scope: 'modal',
+    handle: (ctx) => handleModalKeyboardBridge(ctx.event),
+  }));
+
+  // Arrow/Enter/Delete/F5 are the keyboard spelling of gamepad buttons, so they
+  // go through the same pane dispatch. The terminal is excluded explicitly
+  // rather than by registration order: its own Escape handler owns that key.
+  keyHandlerCleanups.push(registerKeyHandler({
+    id: 'pane-navigation',
+    scope: 'pane',
+    // `ctx.scope === 'terminal'` means the keystroke landed inside xterm, which
+    // owns arrows itself (TUI navigation) regardless of which pane is focused.
+    claims: (ctx) => !ctx.isFocused(PANE_TERMINAL) && ctx.scope !== 'terminal',
+    handle: (ctx) => {
+      if (ctx.event.ctrlKey || ctx.event.altKey || ctx.event.metaKey) return false;
+      const button = NAVIGATION_KEY_BUTTONS[ctx.key];
+      if (!button) return false;
+      handleButton(button);
+      return true;
+    },
+  }));
+  uninstallKeyRouter = installDockKeyRouter({
+    getActiveSessionId: () => state.activeSessionId ?? null,
+    getFocusedPane: () => dockWorkspace.focusedPaneId.value,
+    isPaneVisible: (pane) => dockWorkspace.isVisible(pane),
+    isPanelOpen: () => settingsVisible.value || draftEditorVisible.value || bindingEditorVisible.value,
+  });
 
   if (!terminalContainerRef.value) {
     await appClient.appStartupReady();
@@ -957,15 +993,6 @@ onMounted(async () => {
     });
 
     installDirPickerBridge();
-
-    // Keyboard → modal stack bridge (all navigation keys reach modals via unified path)
-    window.addEventListener('keydown', handleModalKeyboardBridge, true);
-
-    // Ctrl+Shift+R → inline rename request from paste-handler
-    window.addEventListener('rename-session-request', handleRenameRequest);
-
-    // Ctrl+Shift+B → clear all notifications for active session
-    window.addEventListener('clear-session-notifications', handleClearSessionNotifications);
 
     // Snap-out / snap-back IPC listeners
     unsubSnapOut = eventsClient.onSnapOut
@@ -1055,10 +1082,9 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-  window.removeEventListener('keydown', handleModalKeyboardBridge, true);
-  window.removeEventListener('keydown', onDockShortcut, true);
-  window.removeEventListener('rename-session-request', handleRenameRequest);
-  window.removeEventListener('clear-session-notifications', handleClearSessionNotifications);
+  for (const cleanup of keyHandlerCleanups.splice(0)) cleanup();
+  uninstallKeyRouter?.();
+  uninstallKeyRouter = null;
   unsubSnapOut?.();
   unsubSnapOut = null;
   unsubSnapBack?.();

@@ -8,6 +8,8 @@ import { hidePlanDeleteConfirm, showPlanDeleteConfirm } from '../stores/modal-br
 import { clearDonePlans, setClearDonePlansCallback, showPlanHelpModal, hidePlanHelpModal, isPlanHelpVisible } from '../stores/modal-bridge.js';
 import { state } from '../state.js';
 import { registerView, showView, currentView, type ViewMountContext } from '../main-view/main-view-manager.js';
+import { registerKeyHandler, type KeyContext } from '../keyboard/router.js';
+import { PANE_PLAN_SCREEN } from '../dock-types.js';
 import { pathsMatch } from '../session-groups.js';
 import {
   attachmentsClient,
@@ -106,8 +108,6 @@ function getWindowCallbacks(): WindowCallbacks {
   }
   return callbackRegistry.get(key)!;
 }
-
-const PLAN_SCREEN_KEY_HANDLER_KEY = Symbol.for('helm.planScreen.keyHandler');
 
 let filtersLoaded = false;
 
@@ -518,22 +518,40 @@ function closePlannerOverlay(): void {
   clearNotice();
 }
 
-function planScreenKeyHandler(e: KeyboardEvent): void {
-  if (!planScreenState.visible) return;
+function activeSessionPlanDir(): string | null {
+  const session = state.activeSessionId
+    ? state.sessions.find((entry) => entry.id === state.activeSessionId)
+    : undefined;
+  return session?.workingDir ?? null;
+}
 
-  const target = e.target as HTMLElement | null;
-  const editable = !!target && (
-    target.tagName === 'INPUT' ||
-    target.tagName === 'TEXTAREA' ||
-    target.tagName === 'SELECT' ||
-    target.isContentEditable
-  );
+function clearPlanDataForSession(): void {
+  planScreenState.currentDir = '';
+  planScreenState.items = [];
+  planScreenState.deps = [];
+  planScreenState.sequences = [];
+  planScreenState.contexts = [];
+  planScreenState.attachmentHasAny = {};
+  planScreenState.layout = { nodes: [], width: 0, height: 0 };
+  planScreenState.selectedId = null;
+  planScreenState.selectedContextId = null;
+  planScreenState.selectedIds.clear();
+  planScreenState.relatedFocusRootId = null;
+  planScreenState.relatedFocusIds = new Set();
+  setRelatedTransientIds([]);
+}
 
-  if (e.key === 'Escape') {
-    e.preventDefault();
+/**
+ * Planner keys. Registered with the router at `pane` scope and claimed only
+ * while the planner is open, so a merely-mounted plan pane never swallows keys.
+ *
+ * Returns whether the key was consumed; the router suppresses it.
+ */
+function planScreenKeyHandler(ctx: KeyContext): boolean {
+  if (ctx.key === 'Escape') {
     if (isPlanHelpVisible()) {
       hidePlanHelpModal();
-      return;
+      return true;
     }
     if (planScreenState.editingId || planScreenState.editingContextId) {
       getWindowCallbacks().draftEditorCloser?.();
@@ -541,63 +559,88 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
       planScreenState.selectedContextId = null;
       planScreenState.editingId = null;
       planScreenState.editingContextId = null;
-      return;
+      return true;
     }
     if (planScreenState.selectedContextId) {
       planScreenState.selectedContextId = null;
-      return;
+      return true;
     }
     if (planScreenState.selectedId) {
       planScreenState.selectedId = null;
-      return;
+      return true;
     }
     if (planScreenState.selectedIds.size > 0) {
       planScreenState.selectedIds.clear();
-      return;
+      return true;
     }
-    return;
+    return true;
   }
 
-  if (e.key.toLowerCase() === 'n' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
-    e.preventDefault();
+  if (ctx.combo === 'ctrl+n') {
     void handleAddNode({ fromShortcut: true });
-    return;
+    return true;
   }
 
-  if (getWindowCallbacks().draftEditorVisibilityChecker?.() ?? false) return;
-  if (editable) return;
+  // The draft editor is a full panel over the canvas; while it is up the
+  // planner's bare-letter keys would collide with typing.
+  if (getWindowCallbacks().draftEditorVisibilityChecker?.() ?? false) return false;
 
-  if (e.key === 'f' || e.key === 'F') {
-    e.preventDefault();
+  if (ctx.key === 'f' || ctx.key === 'F') {
     toggleRelatedFocus();
-    return;
+    return true;
   }
 
-  if (e.key === 'r' || e.key === 'R') {
-    if (isPlanScreenVisible()) {
-      openBackupRestoreModal();
-      return;
-    }
+  if (ctx.key === 'r' || ctx.key === 'R') {
+    openBackupRestoreModal();
+    return true;
   }
 
-  if (e.key === 'Delete' && planScreenState.selectedId) {
-    e.preventDefault();
+  if (ctx.key === 'Delete' && planScreenState.selectedId) {
     requestDelete(planScreenState.selectedId);
-  } else if (e.key === 'Delete' && planScreenState.selectedContextId) {
-    e.preventDefault();
-    requestContextDelete(planScreenState.selectedContextId);
+    return true;
   }
+
+  if (ctx.key === 'Delete' && planScreenState.selectedContextId) {
+    requestContextDelete(planScreenState.selectedContextId);
+    return true;
+  }
+
+  return false;
 }
 
-const previousPlanScreenKeyHandler = (globalThis as { [PLAN_SCREEN_KEY_HANDLER_KEY]?: typeof planScreenKeyHandler })[PLAN_SCREEN_KEY_HANDLER_KEY];
-if (previousPlanScreenKeyHandler) {
-  document.removeEventListener('keydown', previousPlanScreenKeyHandler, true);
-}
-document.addEventListener('keydown', planScreenKeyHandler, true);
-(globalThis as { [PLAN_SCREEN_KEY_HANDLER_KEY]?: typeof planScreenKeyHandler })[PLAN_SCREEN_KEY_HANDLER_KEY] = planScreenKeyHandler;
+// A module-scope registration, so it survives re-imports without the
+// `globalThis` de-duplication hack the raw listener needed.
+registerKeyHandler({
+  id: 'plan-screen',
+  scope: 'pane',
+  claims: (ctx) => planScreenState.visible && ctx.isFocused(PANE_PLAN_SCREEN),
+  handle: planScreenKeyHandler,
+});
 
 export async function showPlanScreen(dirPath: string): Promise<void> {
   await showView('plan', { dir: dirPath });
+}
+
+/** Keep the docked plan view bound to the currently selected session. */
+export async function refreshPlanScreenForActiveSession(): Promise<void> {
+  const dirPath = activeSessionPlanDir();
+  if (!dirPath) {
+    clearPlanDataForSession();
+    return;
+  }
+  if (!planScreenState.visible) return;
+  if (planScreenState.currentDir && pathsMatch(planScreenState.currentDir, dirPath)) return;
+
+  planScreenState.currentDir = dirPath;
+  planScreenState.items = [];
+  planScreenState.deps = [];
+  planScreenState.sequences = [];
+  planScreenState.contexts = [];
+  planScreenState.layout = { nodes: [], width: 0, height: 0 };
+  planScreenState.selectedId = null;
+  planScreenState.selectedContextId = null;
+  planScreenState.selectedIds.clear();
+  await loadPlanData(dirPath);
 }
 
 async function mountPlanScreen(params?: unknown, context?: ViewMountContext): Promise<void> {

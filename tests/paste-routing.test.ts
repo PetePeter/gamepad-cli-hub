@@ -89,17 +89,52 @@ vi.mock('../renderer/composables/useEscProtection.js', () => ({
   }),
 }));
 
-import { setupKeyboardRelay, teardownKeyboardRelay, deliverBulkText, parseSubmitSuffix } from '../renderer/paste-handler';
+import { deliverBulkText, parseSubmitSuffix, readSelectionInfo } from '../renderer/paste-handler';
+import { createTerminalKeyHandlers } from '../renderer/keyboard/handlers/terminal-keys.js';
+import { installKeyRouter, registerKeyHandler, resetKeyHandlers } from '../renderer/keyboard/router.js';
+import { PANE_ARTIFACTS, PANE_TERMINAL } from '../renderer/dock-types.js';
 
 // ============================================================================
 // Tests
 // ============================================================================
 
-describe('keyboard relay', () => {
+describe('terminal keys', () => {
   let mockPtyWrite: ReturnType<typeof vi.fn>;
   let getActiveSessionId: ReturnType<typeof vi.fn>;
   let hasPendingQuestion: ReturnType<typeof vi.fn>;
+  let clearNotifications: ReturnType<typeof vi.fn>;
   let restoreRequestAnimationFrame: (() => void) | null = null;
+  let uninstallRouter: (() => void) | null = null;
+  let focusedPane: typeof PANE_TERMINAL | typeof PANE_ARTIFACTS = PANE_TERMINAL;
+
+  /**
+   * Registers the real terminal handlers on the shared router.
+   *
+   * `isModalOpen` reads the DOM here only to stand in for the modal systems the
+   * shell consults (`isKeyboardModalOpen`), keeping these tests' existing
+   * "a modal is on screen" setup meaningful.
+   */
+  function installTerminalKeys(): void {
+    for (const handler of createTerminalKeyHandlers({
+      writePty: (sessionId, data) => { void (window as any).gamepadCli.ptyWrite(sessionId, data); },
+      deliverText: (sessionId, text) => deliverBulkText(sessionId, text),
+      readClipboardText: () => navigator.clipboard.readText(),
+      readSelection: readSelectionInfo,
+      openPromptEditor: (sessionId) => { void mockShowEditorPopup(sessionId); },
+      isEscProtectionArmed: () => false,
+      openEscProtection: () => {},
+      clearNotifications,
+    })) {
+      registerKeyHandler(handler);
+    }
+
+    uninstallRouter = installKeyRouter({
+      getActiveSessionId: () => getActiveSessionId(),
+      getFocusedPane: () => focusedPane,
+      isPaneVisible: () => true,
+      isModalOpen: () => document.querySelector('.modal-overlay.modal--visible') !== null,
+    });
+  }
 
   beforeEach(() => {
     mockPtyWrite = vi.fn().mockResolvedValue({ success: true });
@@ -129,11 +164,16 @@ describe('keyboard relay', () => {
       globalThis.requestAnimationFrame = originalRequestAnimationFrame;
     };
 
-    setupKeyboardRelay(getActiveSessionId, hasPendingQuestion, async () => false);
+    clearNotifications = vi.fn();
+    focusedPane = PANE_TERMINAL;
+    resetKeyHandlers();
+    installTerminalKeys();
   });
 
   afterEach(() => {
-    teardownKeyboardRelay();
+    uninstallRouter?.();
+    uninstallRouter = null;
+    resetKeyHandlers();
     restoreRequestAnimationFrame?.();
     restoreRequestAnimationFrame = null;
     vi.restoreAllMocks();
@@ -165,8 +205,11 @@ describe('keyboard relay', () => {
       expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'pasted text');
     });
 
+    // Ownership is by focused pane now: the artifact pane turns a paste into a
+    // new artifact, so the terminal must not reduce it to text/plain first.
     it('leaves Ctrl+V to the artifact pane for native image/file paste', async () => {
       getActiveSessionId.mockReturnValue('sess-1');
+      focusedPane = PANE_ARTIFACTS;
       const panel = document.createElement('div');
       panel.className = 'artifact-panel';
       const button = document.createElement('button');
@@ -211,7 +254,7 @@ describe('keyboard relay', () => {
       fireKey('v', { ctrlKey: true });
       await new Promise(r => setTimeout(r, 10));
 
-      expect(warnSpy).toHaveBeenCalledWith('[KeyRelay] clipboard read failed:', expect.any(Error));
+      expect(warnSpy).toHaveBeenCalledWith('[Keyboard] clipboard read failed:', expect.any(Error));
       expect(mockPtyWrite).not.toHaveBeenCalled();
 
       warnSpy.mockRestore();
@@ -523,46 +566,32 @@ describe('keyboard relay', () => {
   // ---------------------------------------------------------------------------
 
   describe('Ctrl+Shift+B', () => {
-    it('dispatches clear-session-notifications event when no modal is active', () => {
+    it('clears notifications for the active session when no modal is active', () => {
       getActiveSessionId.mockReturnValue('sess-1');
-      const handler = vi.fn();
-      window.addEventListener('clear-session-notifications', handler);
 
       fireKey('B', { ctrlKey: true, shiftKey: true });
 
-      expect(handler).toHaveBeenCalledWith(expect.objectContaining({
-        detail: { sessionId: 'sess-1' },
-      }));
-
-      window.removeEventListener('clear-session-notifications', handler);
+      expect(clearNotifications).toHaveBeenCalledWith('sess-1');
     });
 
-    it('does not dispatch when a modal overlay is visible', () => {
+    it('stands down while a modal owns the keyboard', () => {
       getActiveSessionId.mockReturnValue('sess-1');
       const modal = document.createElement('div');
       modal.className = 'modal-overlay modal--visible';
       document.body.appendChild(modal);
-      const handler = vi.fn();
-      window.addEventListener('clear-session-notifications', handler);
 
       fireKey('B', { ctrlKey: true, shiftKey: true });
 
-      expect(handler).not.toHaveBeenCalled();
-
-      window.removeEventListener('clear-session-notifications', handler);
+      expect(clearNotifications).not.toHaveBeenCalled();
       document.body.removeChild(modal);
     });
 
-    it('does not dispatch when no session is active', () => {
+    it('does nothing when no session is active', () => {
       getActiveSessionId.mockReturnValue(null);
-      const handler = vi.fn();
-      window.addEventListener('clear-session-notifications', handler);
 
       fireKey('B', { ctrlKey: true, shiftKey: true });
 
-      expect(handler).not.toHaveBeenCalled();
-
-      window.removeEventListener('clear-session-notifications', handler);
+      expect(clearNotifications).not.toHaveBeenCalled();
     });
   });
 
@@ -570,11 +599,12 @@ describe('keyboard relay', () => {
   // Idempotency
   // ---------------------------------------------------------------------------
 
-  describe('idempotency', () => {
-    it('calling setup twice only registers one listener', () => {
+  describe('single delivery', () => {
+    // Several terminal handlers are registered at once; the router stops at the
+    // first that consumes the key, so a character is never written twice.
+    it('writes a relayed character to the PTY exactly once', () => {
       getActiveSessionId.mockReturnValue('sess-1');
 
-      setupKeyboardRelay(getActiveSessionId, () => false, async () => false);
       fireKey('a');
 
       expect(mockPtyWrite).toHaveBeenCalledTimes(1);

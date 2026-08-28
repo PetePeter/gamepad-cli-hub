@@ -11,7 +11,7 @@ import { sessionsState } from './sessions-state.js';
 import { logEvent, getCliDisplayName, toDirection } from '../utils.js';
 import type { Session } from '../state.js';
 import { closeConfirm, setCloseConfirmCallback } from '../stores/modal-bridge.js';
-import { sortSessions, type SessionSortField, type SortDirection } from '../sort-logic.js';
+import { sortSessions } from '../sort-logic.js';
 import { getOrderedSessionIds } from '../utils/session-shortcut-map.js';
 import {
   toggleCollapse,
@@ -19,11 +19,10 @@ import {
 } from '../session-groups.js';
 import { useRuntimeGroups } from '../composables/useRuntimeGroups.js';
 import {
-  getOverviewSessions, handleOverviewInput, hideOverview, isOverviewVisible, refreshOverview,
+  getOverviewSessions, hideOverview, isOverviewVisible, refreshOverview,
 } from './group-overview.js';
 import { useNavigationStore } from '../stores/navigation.js';
-import { isPlanScreenVisible, handlePlanScreenDpad, handlePlanScreenAction, hidePlanScreen } from '../plans/plan-screen.js';
-import { currentView } from '../main-view/main-view-manager.js';
+import { isPlanScreenVisible, hidePlanScreen } from '../plans/plan-screen.js';
 import { loadStoredSessions } from '../session-store.js';
 
 // Sub-module imports — circular at module level, safe because all usages are in function bodies.
@@ -34,11 +33,7 @@ import {
 } from '../sidebar/session-services.js';
 
 import {
-  doSpawn, showTerminalArea, hideTerminalArea,
-  setDirPickerBridge, setTerminalManagerGetter, setPendingContextText,
-  spawnNewSession, switchToSession,
   getSessionCwd, getTerminalManager,
-  autoSelectFocusedSession,
   handleSessionsZone, handleSpawnZone, handleSpawnZoneButton,
   clamp,
 } from './sessions-spawn.js';
@@ -46,8 +41,6 @@ import {
 import {
   handlePlansZone, handlePlansZoneButton, updatePlansFocus, refreshPlanBadges,
 } from './sessions-plans.js';
-import { useChipBarStore } from '../stores/chip-bar.js';
-import { openQuickSpawn } from '../stores/modal-bridge.js';
 
 // Re-export public API from sub-modules so all consumers import from sessions.ts only.
 export {
@@ -311,7 +304,7 @@ function confirmCloseSession(): void {
   confirmCloseSessionById(session.id);
 }
 
-function confirmCloseSessionById(sessionId: string): void {
+export function confirmCloseSessionById(sessionId: string): void {
   const session = state.sessions.find(s => s.id === sessionId);
   if (!session) return;
   const displayName = session.name !== session.cliType
@@ -712,85 +705,25 @@ export function refreshSessions(): void {
 }
 
 // ============================================================================
-// Keyboard fallback — arrow keys, Enter, Escape, Delete, F5
+// Keyboard navigation
 // ============================================================================
 
-function onKeyDown(e: KeyboardEvent): void {
-  if (state.currentScreen !== 'sessions') return;
-
-  const active = document.activeElement;
-  const view = currentView();
-  // Bridge/Vue modals own keyboard navigation while visible.
-  if (document.querySelector('.modal-overlay.modal--visible')) return;
-
-  // Ctrl+Shift+N creates new sessions
-  if (e.key.toLowerCase() === 'n' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
-    const draftEditor = document.getElementById('draftEditor');
-    if (draftEditor && draftEditor.style.display !== 'none') return;
-    // Always open the CLI picker then folder picker to spawn a new session.
-    e.preventDefault();
-    e.stopPropagation();
-    openQuickSpawn((cliType) => {
-      void spawnNewSession(cliType);
-    });
-    return;
-  }
-
-  if (e.key.toLowerCase() === 'w' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
-    // Close the active session when in terminal view.
-    if (view === 'terminal' && state.activeSessionId) {
-      e.preventDefault();
-      e.stopPropagation();
-      confirmCloseSessionById(state.activeSessionId);
-      return;
-    }
-  }
-
-  // Don't intercept keyboard when xterm.js or an editable element has DOM focus
-  if (active && active.closest('.xterm')) return;
-  const tag = active?.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-
-  const keyMap: Record<string, string> = {
-    ArrowUp: 'DPadUp', ArrowDown: 'DPadDown', ArrowLeft: 'DPadLeft', ArrowRight: 'DPadRight',
-    Enter: 'A', Escape: 'B', Delete: 'X', F5: 'Y',
-  };
-
-  const mapped = keyMap[e.key];
-  if (!mapped) return;
-
-  // Route through the active main-view so plan/overview handlers run instead
-  // of being bypassed by this capture-phase listener.
-  if (view === 'plan') {
-    // Plan screen has its own bubble-phase key handler for Delete/Escape;
-    // arrow keys + Enter need to be forwarded because nothing else handles them.
-    const dir = toDirection(mapped);
-    if (dir) {
-      e.preventDefault();
-      e.stopPropagation();
-      handlePlanScreenDpad(dir);
-      return;
-    }
-    if (mapped === 'A') {
-      e.preventDefault();
-      e.stopPropagation();
-      handlePlanScreenAction('A');
-      return;
-    }
-    // B/X/Y/Escape/Delete — let the plan-screen's own bubble handler process them.
-    return;
-  }
-
-  if (view === 'overview') {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!handleOverviewInput(mapped)) handleSessionsScreenButton(mapped);
-    return;
-  }
-
-  e.preventDefault();
-  e.stopPropagation();
-  handleSessionsScreenButton(mapped);
-}
-
-document.addEventListener('keydown', onKeyDown, true);
+/**
+ * Navigation keys, expressed as the gamepad buttons they stand for.
+ *
+ * Keyboard and gamepad navigation are the same operation, so they share one
+ * router (`useInputRouter`) that dispatches by focused pane. This map used to
+ * be a capture-phase `document` listener here that re-implemented that pane
+ * dispatch — plan, overview and sessions branches inline — and gated it on
+ * `state.currentScreen`, a concept the dock replaced.
+ */
+export const NAVIGATION_KEY_BUTTONS: Readonly<Record<string, string>> = Object.freeze({
+  ArrowUp: 'DPadUp',
+  ArrowDown: 'DPadDown',
+  ArrowLeft: 'DPadLeft',
+  ArrowRight: 'DPadRight',
+  Enter: 'A',
+  Escape: 'B',
+  Delete: 'X',
+  F5: 'Y',
+});

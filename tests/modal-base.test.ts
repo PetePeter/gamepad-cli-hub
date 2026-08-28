@@ -2,11 +2,27 @@
 vi.mock('vue', () => ({ reactive: (obj: any) => obj }));
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { attachModalKeyboard } from '../renderer/modals/modal-base.js';
+import { attachModalKeyboard, hasAttachedModal } from '../renderer/modals/modal-base.js';
+import { installKeyRouter } from '../renderer/keyboard/router.js';
 import { showFormModal } from '../renderer/utils.js';
 import { formModal } from '../renderer/stores/modal-bridge.js';
 
 describe('modal-base', () => {
+  // Modal keys now reach the shared keyboard router rather than a private
+  // document listener, so the suite installs the router that dispatches to them.
+  let uninstallRouter: () => void;
+
+  beforeEach(() => {
+    uninstallRouter = installKeyRouter({
+      getActiveSessionId: () => null,
+      getFocusedPane: () => null,
+      isPaneVisible: () => true,
+      isModalOpen: hasAttachedModal,
+    });
+  });
+
+  afterEach(() => uninstallRouter());
+
   describe('attachModalKeyboard', () => {
     let onAccept: ReturnType<typeof vi.fn>;
     let onCancel: ReturnType<typeof vi.fn>;

@@ -128,14 +128,22 @@ describe('useModalKeyboardBridge', () => {
     expect(mocks.modalStack.handleInput).not.toHaveBeenCalled();
   });
 
+  // The bridge reports consumption and the keyboard router suppresses the
+  // event; handlers no longer call preventDefault/stopPropagation themselves.
   it('dismisses ESC protection on non-Escape key without forwarding', () => {
     mocks.escProtection.isProtecting.value = true;
     const { handler } = useModalKeyboardBridge();
-    const event = fire('x');
-    const stop = vi.spyOn(event, 'stopPropagation');
-    handler(event);
+
+    const consumed = handler(fire('x'));
+
     expect(mocks.escProtection.dismissProtection).toHaveBeenCalled();
-    expect(stop).toHaveBeenCalled();
+    expect(consumed).toBe(true);
     expect(mocks.modalStack.handleInput).not.toHaveBeenCalled();
+  });
+
+  it('reports a key it did not consume so later handlers still see it', () => {
+    const { handler } = useModalKeyboardBridge();
+
+    expect(handler(fire('F7'))).toBe(false);
   });
 });

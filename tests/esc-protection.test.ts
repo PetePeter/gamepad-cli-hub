@@ -18,7 +18,9 @@ vi.mock('vue', async () => {
 });
 
 import { useEscProtection } from '../renderer/composables/useEscProtection.js';
-import { setupKeyboardRelay, teardownKeyboardRelay } from '../renderer/paste-handler.js';
+import { createTerminalKeyHandlers } from '../renderer/keyboard/handlers/terminal-keys.js';
+import { installKeyRouter, registerKeyHandler, resetKeyHandlers } from '../renderer/keyboard/router.js';
+import { PANE_MEMORIES, PANE_TERMINAL, type PaneId } from '../renderer/dock-types.js';
 
 describe('useEscProtection', () => {
   beforeEach(() => {
@@ -60,326 +62,147 @@ describe('useEscProtection', () => {
   });
 });
 
-describe('keyboard relay ESC handling', () => {
-  let activeSessionId: string | null = null;
-  let ptyWriteData: Array<{ sessionId: string; data: string }> = [];
+// ---------------------------------------------------------------------------
+// Escape routing
+//
+// Escape reaches the PTY through the keyboard router's `terminal-escape`
+// handler. It used to live in the relay's own capture listener, where an
+// up-front preventDefault followed by a stale planner guard meant a press could
+// be swallowed and then dropped — reaching neither the PTY nor xterm.
+// ---------------------------------------------------------------------------
+
+describe('Escape routing', () => {
+  let ptyWrites: Array<{ sessionId: string; data: string }> = [];
+  let uninstallRouter: (() => void) | null = null;
+
+  interface RelayOptions {
+    sessionId?: string | null;
+    escProtectionEnabled?: boolean;
+    focusedPane?: PaneId;
+    modalOpen?: boolean;
+  }
+
+  function installRelay(options: RelayOptions = {}): void {
+    const {
+      sessionId = 'test-session',
+      escProtectionEnabled = true,
+      focusedPane = PANE_TERMINAL,
+      modalOpen = false,
+    } = options;
+
+    const protection = useEscProtection();
+
+    for (const handler of createTerminalKeyHandlers({
+      writePty: (id, data) => { ptyWrites.push({ sessionId: id, data }); },
+      deliverText: async () => {},
+      readClipboardText: async () => '',
+      openPromptEditor: () => {},
+      isEscProtectionArmed: () => escProtectionEnabled,
+      openEscProtection: (id) => protection.openProtection(id),
+      isEscProtectionActive: () => protection.isProtecting.value,
+      dismissEscProtection: () => protection.dismissProtection(),
+    })) {
+      registerKeyHandler(handler);
+    }
+
+    uninstallRouter = installKeyRouter({
+      getActiveSessionId: () => sessionId,
+      getFocusedPane: () => focusedPane,
+      isPaneVisible: () => true,
+      isModalOpen: () => modalOpen,
+    });
+  }
+
+  function pressEscape(target: EventTarget = document): KeyboardEvent {
+    const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    target.dispatchEvent(event);
+    return event;
+  }
 
   beforeEach(() => {
-    // Reset protection state between tests
-    const protection = useEscProtection();
-    protection.dismissProtection();
+    resetKeyHandlers();
+    ptyWrites = [];
+    useEscProtection().dismissProtection();
+    document.body.innerHTML = '';
   });
 
   afterEach(() => {
-    teardownKeyboardRelay();
-    ptyWriteData = [];
+    uninstallRouter?.();
+    uninstallRouter = null;
+    resetKeyHandlers();
   });
 
-  it('first ESC opens protection modal when enabled', async () => {
-    activeSessionId = 'test-session';
-    ptyWriteData = [];
+  it('first Escape opens the protection dialog instead of interrupting', () => {
+    installRelay();
 
-    window.gamepadCli = {
-      ptyWrite: vi.fn((sessionId: string, data: string) => {
-        ptyWriteData.push({ sessionId, data });
-      }),
-    } as any;
+    pressEscape();
 
-    setupKeyboardRelay(
-      () => activeSessionId,
-      () => false,
-      async () => true,
-    );
-
-    const protection = useEscProtection();
-    const escEvent = new KeyboardEvent('keydown', { key: 'Escape' });
-
-    document.dispatchEvent(escEvent);
-
-    // Allow async handler to process
-    await new Promise(resolve => setTimeout(resolve, 10));
-
-    expect(protection.isProtecting.value).toBe(true);
-    expect(ptyWriteData).toHaveLength(0); // No ESC sent yet
+    expect(useEscProtection().isProtecting.value).toBe(true);
+    expect(ptyWrites).toHaveLength(0);
   });
 
-  it('first ESC opens protection modal even when the terminal has focus', async () => {
-    activeSessionId = 'test-session';
-    ptyWriteData = [];
+  // Protection must pre-empt xterm, which would otherwise send ESC itself.
+  it('opens protection even when the keystroke lands inside xterm', () => {
+    installRelay();
+    document.body.innerHTML = '<div class="xterm" tabindex="0"><textarea class="xterm-helper-textarea"></textarea></div>';
 
-    window.gamepadCli = {
-      ptyWrite: vi.fn((sessionId: string, data: string) => {
-        ptyWriteData.push({ sessionId, data });
-      }),
-    } as any;
+    pressEscape(document.querySelector('.xterm-helper-textarea')!);
 
-    setupKeyboardRelay(
-      () => activeSessionId,
-      () => false,
-      async () => true,
-    );
-
-    const protection = useEscProtection();
-    const xterm = document.createElement('div');
-    xterm.className = 'xterm';
-    xterm.tabIndex = 0;
-    document.body.appendChild(xterm);
-    xterm.focus();
-
-    const escEvent = new KeyboardEvent('keydown', {
-      key: 'Escape',
-      bubbles: true,
-      cancelable: true,
-    });
-    xterm.dispatchEvent(escEvent);
-
-    await new Promise(resolve => setTimeout(resolve, 10));
-
-    expect(protection.isProtecting.value).toBe(true);
-    expect(ptyWriteData).toHaveLength(0);
-
-    document.body.removeChild(xterm);
+    expect(useEscProtection().isProtecting.value).toBe(true);
+    expect(ptyWrites).toHaveLength(0);
   });
 
-  it('does not open protection when disabled', async () => {
-    activeSessionId = 'test-session';
-    ptyWriteData = [];
+  it('sends ESC straight through when protection is disabled', () => {
+    installRelay({ escProtectionEnabled: false });
 
-    window.gamepadCli = {
-      ptyWrite: vi.fn((sessionId: string, data: string) => {
-        ptyWriteData.push({ sessionId, data });
-      }),
-    } as any;
-
-    teardownKeyboardRelay();
-    setupKeyboardRelay(
-      () => activeSessionId,
-      () => false,
-      async () => false,
-    );
-
-    // Reset protection state before test
-    const protection = useEscProtection();
-    protection.dismissProtection();
-
-    const escEvent = new KeyboardEvent('keydown', { key: 'Escape' });
-    document.dispatchEvent(escEvent);
-
-    await new Promise(resolve => setTimeout(resolve, 10));
-
-    expect(protection.isProtecting.value).toBe(false);
-    expect(ptyWriteData).toHaveLength(1);
-    expect(ptyWriteData[0]).toEqual({ sessionId: 'test-session', data: '\x1b' });
-  });
-
-  it('second ESC confirms while the protection modal overlay is visible', async () => {
-    activeSessionId = 'test-session';
-    ptyWriteData = [];
-
-    window.gamepadCli = {
-      ptyWrite: vi.fn((sessionId: string, data: string) => {
-        ptyWriteData.push({ sessionId, data });
-      }),
-    } as any;
-
-    setupKeyboardRelay(
-      () => activeSessionId,
-      () => false,
-      async () => true,
-    );
-
-    const protection = useEscProtection();
-    protection.openProtection('test-session');
-
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay modal--visible';
-    document.body.appendChild(overlay);
-
-    const escEvent = new KeyboardEvent('keydown', {
-      key: 'Escape',
-      bubbles: true,
-      cancelable: true,
-    });
-    document.dispatchEvent(escEvent);
-
-    await new Promise(resolve => setTimeout(resolve, 10));
-
-    expect(ptyWriteData).toEqual([{ sessionId: 'test-session', data: '\x1b' }]);
-    expect(protection.isProtecting.value).toBe(false);
-
-    document.body.removeChild(overlay);
-  });
-
-  it('does not open terminal protection behind a normal modal', async () => {
-    activeSessionId = 'test-session';
-    ptyWriteData = [];
-
-    window.gamepadCli = {
-      ptyWrite: vi.fn((sessionId: string, data: string) => {
-        ptyWriteData.push({ sessionId, data });
-      }),
-    } as any;
-
-    setupKeyboardRelay(
-      () => activeSessionId,
-      () => false,
-      async () => true,
-    );
-
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay modal--visible';
-    document.body.appendChild(overlay);
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    await new Promise(resolve => setTimeout(resolve, 10));
+    pressEscape();
 
     expect(useEscProtection().isProtecting.value).toBe(false);
-    expect(ptyWriteData).toHaveLength(0);
-    document.body.removeChild(overlay);
+    expect(ptyWrites).toEqual([{ sessionId: 'test-session', data: '\x1b' }]);
   });
 
-  it('first ESC prevents default before async protection work resolves', async () => {
-    activeSessionId = 'test-session';
-    ptyWriteData = [];
+  it('second Escape confirms: sends ESC and closes the dialog', () => {
+    installRelay();
+    useEscProtection().openProtection('test-session');
 
-    let releaseProtectionCheck: (() => void) | null = null;
-    const protectionCheck = new Promise<boolean>((resolve) => {
-      releaseProtectionCheck = () => resolve(true);
-    });
+    pressEscape();
 
-    window.gamepadCli = {
-      ptyWrite: vi.fn((sessionId: string, data: string) => {
-        ptyWriteData.push({ sessionId, data });
-      }),
-    } as any;
-
-    setupKeyboardRelay(
-      () => activeSessionId,
-      () => false,
-      async () => protectionCheck,
-    );
-
-    const escEvent = new KeyboardEvent('keydown', {
-      key: 'Escape',
-      bubbles: true,
-      cancelable: true,
-    });
-    document.dispatchEvent(escEvent);
-
-    expect(escEvent.defaultPrevented).toBe(true);
-    expect(ptyWriteData).toHaveLength(0);
-
-    releaseProtectionCheck?.();
-    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(ptyWrites).toEqual([{ sessionId: 'test-session', data: '\x1b' }]);
+    expect(useEscProtection().isProtecting.value).toBe(false);
   });
 
-  it('normal keys sent to PTY when protection not active', async () => {
-    activeSessionId = 'test-session';
-    ptyWriteData = [];
+  it('stands down behind an ordinary modal', () => {
+    installRelay({ modalOpen: true });
 
-    window.gamepadCli = {
-      ptyWrite: vi.fn((sessionId: string, data: string) => {
-        ptyWriteData.push({ sessionId, data });
-      }),
-    } as any;
+    pressEscape();
 
-    setupKeyboardRelay(
-      () => activeSessionId,
-      () => false,
-      async () => true,
-    );
-
-    const keyEvent = new KeyboardEvent('keydown', { key: 'a' });
-    document.dispatchEvent(keyEvent);
-
-    expect(ptyWriteData).toHaveLength(1);
-    expect(ptyWriteData[0].data).toBe('a');
+    expect(useEscProtection().isProtecting.value).toBe(false);
+    expect(ptyWrites).toHaveLength(0);
   });
 
-  it('blocks relay when no session active', async () => {
-    activeSessionId = null;
-    ptyWriteData = [];
+  // The regression that made Escape feel dead: it must never be suppressed
+  // unless a handler actually consumed it.
+  it('suppresses Escape only when it is consumed', () => {
+    installRelay();
 
-    window.gamepadCli = {
-      ptyWrite: vi.fn((sessionId: string, data: string) => {
-        ptyWriteData.push({ sessionId, data });
-      }),
-    } as any;
-
-    setupKeyboardRelay(
-      () => activeSessionId,
-      () => false,
-      async () => true,
-    );
-
-    const keyEvent = new KeyboardEvent('keydown', { key: 'a' });
-    document.dispatchEvent(keyEvent);
-
-    expect(ptyWriteData).toHaveLength(0);
+    expect(pressEscape().defaultPrevented).toBe(true);
   });
 
-  it('blocks relay when modal overlay visible', async () => {
-    activeSessionId = 'test-session';
-    ptyWriteData = [];
+  it('leaves Escape untouched when no session is active', () => {
+    installRelay({ sessionId: null });
 
-    window.gamepadCli = {
-      ptyWrite: vi.fn((sessionId: string, data: string) => {
-        ptyWriteData.push({ sessionId, data });
-      }),
-    } as any;
+    const event = pressEscape();
 
-    setupKeyboardRelay(
-      () => activeSessionId,
-      () => false,
-      async () => true,
-    );
-
-    const div = document.createElement('div');
-    div.className = 'modal-overlay modal--visible';
-    document.body.appendChild(div);
-
-    const keyEvent = new KeyboardEvent('keydown', { key: 'a' });
-    document.dispatchEvent(keyEvent);
-
-    expect(ptyWriteData).toHaveLength(0);
-    document.body.removeChild(div);
-  });
-});
-
-describe('modal keyboard bridge ESC handling', () => {
-  let ptyWriteData: Array<{ sessionId: string; data: string }> = [];
-
-  beforeEach(() => {
-    ptyWriteData = [];
-    window.gamepadCli = {
-      ptyWrite: vi.fn((sessionId: string, data: string) => {
-        ptyWriteData.push({ sessionId, data });
-      }),
-    } as any;
+    expect(event.defaultPrevented).toBe(false);
+    expect(ptyWrites).toHaveLength(0);
   });
 
-  it('second ESC sends escape sequence to active terminal', () => {
-    const protection = useEscProtection();
-    protection.openProtection('test-session');
+  it('leaves Escape to the pane when the terminal is not focused', () => {
+    installRelay({ focusedPane: PANE_MEMORIES });
 
-    // Simulate the keyboard bridge logic for second ESC
-    if (protection.isProtecting.value) {
-      window.gamepadCli.ptyWrite('test-session', '\x1b');
-      protection.dismissProtection();
-    }
+    const event = pressEscape();
 
-    expect(ptyWriteData).toHaveLength(1);
-    expect(ptyWriteData[0].data).toBe('\x1b');
-    expect(protection.isProtecting.value).toBe(false);
-  });
-
-  it('any other key closes protection without sending ESC', () => {
-    const protection = useEscProtection();
-    protection.openProtection('test-session');
-
-    // Simulate other key press
-    protection.dismissProtection();
-
-    expect(ptyWriteData).toHaveLength(0);
-    expect(protection.isProtecting.value).toBe(false);
+    expect(event.defaultPrevented).toBe(false);
+    expect(ptyWrites).toHaveLength(0);
   });
 });

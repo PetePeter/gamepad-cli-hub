@@ -56,17 +56,26 @@ The same flag the `session_set_locked` MCP tool writes.
 | Ctrl+Shift+S | Focus the Sessions pane |
 | Ctrl+Shift+A | Show/focus the Artifacts pane; never toggles it |
 | Ctrl+Shift+N | Terminal: open quick spawn / Sessions or Overview: create a new plan for the current directory |
-| Ctrl+Shift+W | Close the active session while terminal view is active |
-| Arrow keys | Navigate sessions (mapped to D-pad equivalents) |
+| Ctrl+Shift+W | Close the active session; needs a terminal **visible**, not focused |
+| Ctrl+Tab / Ctrl+Shift+Tab | Cycle the selected session forward/back. Moves the session spine only — the focused pane stays put and re-points at the new session |
+| Arrow keys | Navigate the focused pane (mapped to D-pad equivalents). xterm owns arrows when the keystroke lands in it |
 | Enter | Mapped to A button |
-| Escape | Mapped to B button |
+| Escape | Focused terminal: ESC protection, else ESC to the PTY. Any other pane: the pane's own business (mapped to B button) |
 | Delete | Mapped to X button |
 | F5 | Mapped to Y button |
-| Ctrl+V | Paste clipboard text to active terminal (PTY stdin) |
-| Ctrl+G | Open in-app Prompt Editor (`EditorPopup.vue`) — multi-line textarea + recent-prompts list + prompt-template tree pane; Ctrl+Enter / Send delivers to active terminal via `deliverPromptSequence()` |
+| Ctrl+V | Focused terminal: managed paste to PTY stdin (bracketed-paste framing, chunking). Focused Artifacts pane: creates a new artifact from the clipboard |
+| Ctrl+G | Open in-app Prompt Editor (`EditorPopup.vue`) — multi-line textarea + recent-prompts list + prompt-template tree pane; Ctrl+Enter / Send delivers to active terminal via `deliverPromptSequence()`. Works from any pane while a terminal is **visible**; a no-op when none is |
 | Ctrl+1-9, Ctrl+0 | Jump directly to the Nth session in sidebar order (badge: `^n`) |
 | Alt+1-9 | Fire the Nth chip bar quick-action for the active session (badge: `⌥n`) |
 | Tab / Shift+Tab (selection-mode modal) | Cycle buttons in close-confirm, context-menu, prompt-tree picker, or quick-spawn |
+
+## Keyboard Ownership
+
+Keyboard input is routed by a single capture-phase listener with an explicitly
+declared precedence chain — `modal` > `global` > `pane` > `terminal`. Each screen
+registers its own handlers and decides whether it is eligible, asking whether it
+is **focused** (keys that send input) or **visible** (keys that render over a
+pane). See [docs/keyboard-routing.md](keyboard-routing.md).
 
 ## Navigation Priority Chain
 

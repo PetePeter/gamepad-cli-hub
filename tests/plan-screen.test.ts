@@ -4,7 +4,7 @@
  * @vitest-environment jsdom
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockPlanList = vi.fn();
 const mockPlanDeps = vi.fn();
@@ -117,9 +117,30 @@ async function flushAsyncHandlers(): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, 0));
 }
 
+let uninstallKeyRouter: (() => void) | null = null;
+
+/**
+ * Planner keys are a `pane`-scope router handler registered at module load, so
+ * the router must be installed from the same module graph — after
+ * `vi.resetModules()` — for dispatched events to reach it.
+ */
 async function getModule() {
-  return await import('../renderer/plans/plan-screen.js');
+  const mod = await import('../renderer/plans/plan-screen.js');
+  const { installKeyRouter } = await import('../renderer/keyboard/router.js');
+  uninstallKeyRouter?.();
+  uninstallKeyRouter = installKeyRouter({
+    getActiveSessionId: () => 'session-1',
+    getFocusedPane: () => 'plan-screen',
+    isPaneVisible: () => true,
+    isModalOpen: () => false,
+  });
+  return mod;
 }
+
+afterEach(() => {
+  uninstallKeyRouter?.();
+  uninstallKeyRouter = null;
+});
 
 describe('plan screen bridge', () => {
   beforeEach(() => {
@@ -1333,7 +1354,7 @@ describe('plan screen keyboard shortcuts', () => {
   });
 
   it('Ctrl+N is captured by the planner and prevented from propagating', async () => {
-    const mod = await import('../renderer/plans/plan-screen.js');
+    const mod = await getModule();
     mod.planScreenState.visible = true;
 
     const evt = dispatch({ key: 'n', ctrlKey: true, shiftKey: false });
@@ -1342,7 +1363,7 @@ describe('plan screen keyboard shortcuts', () => {
   });
 
   it('Ctrl+Shift+N falls through — not captured by the planner', async () => {
-    const mod = await import('../renderer/plans/plan-screen.js');
+    const mod = await getModule();
     mod.planScreenState.visible = true;
 
     const evt = dispatch({ key: 'N', ctrlKey: true, shiftKey: true });
@@ -1351,7 +1372,7 @@ describe('plan screen keyboard shortcuts', () => {
   });
 
   it('Ctrl+Shift+n (lowercase key) also falls through', async () => {
-    const mod = await import('../renderer/plans/plan-screen.js');
+    const mod = await getModule();
     mod.planScreenState.visible = true;
 
     const evt = dispatch({ key: 'n', ctrlKey: true, shiftKey: true });
@@ -1360,7 +1381,7 @@ describe('plan screen keyboard shortcuts', () => {
   });
 
   it('plain N key is not captured', async () => {
-    const mod = await import('../renderer/plans/plan-screen.js');
+    const mod = await getModule();
     mod.planScreenState.visible = true;
 
     const evt = dispatch({ key: 'n', ctrlKey: false, shiftKey: false });

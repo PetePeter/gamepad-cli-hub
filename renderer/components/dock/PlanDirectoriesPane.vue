@@ -18,17 +18,21 @@ import { useHelmPaneContext } from '../../dock-pane-context.js';
 const sidebar = useHelmPaneContext().sidebar;
 const state = useAppStore().state;
 
-const directories = computed(() =>
-  buildPlannerDirectories(sessionsState.directories).map(d => ({
-    name: d.name,
-    path: d.path,
-    startableCount: state.planDirStartableCounts.get(d.path) ?? 0,
-    codingCount: state.planDirCodingCounts.get(d.path) ?? 0,
-    blockedCount: state.planDirBlockedCounts.get(d.path) ?? 0,
-    reviewCount: state.planDirReviewCounts.get(d.path) ?? 0,
-    planningCount: state.planDirPlanningCounts.get(d.path) ?? 0,
-  })),
-);
+const directories = computed(() => {
+  const session = state.sessions.find(entry => entry.id === state.activeSessionId);
+  if (!session?.workingDir) return [];
+  const directory = buildPlannerDirectories([{ name: session.workingDir, path: session.workingDir }])[0];
+  if (!directory) return [];
+  return [{
+    name: directory.name,
+    path: directory.path,
+    startableCount: state.planDirStartableCounts.get(directory.path) ?? 0,
+    codingCount: state.planDirCodingCounts.get(directory.path) ?? 0,
+    blockedCount: state.planDirBlockedCounts.get(directory.path) ?? 0,
+    reviewCount: state.planDirReviewCounts.get(directory.path) ?? 0,
+    planningCount: state.planDirPlanningCounts.get(directory.path) ?? 0,
+  }];
+});
 </script>
 
 <template>

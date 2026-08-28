@@ -1,25 +1,19 @@
 /**
- * Keyboard relay — routes keyboard input to the active terminal's PTY.
+ * Text delivery to a session's PTY — the one way bulk text reaches a CLI.
  *
- * Handles two scenarios where keyboard input misses the embedded terminal:
- * 1. Ctrl+V paste when xterm.js doesn't have DOM focus (e.g. sidebar focused)
- * 2. Simulated typing from external tools (e.g. OpenWhisper voice transcription)
+ * Serves the user's Ctrl+V, the prompt editor, gamepad bindings, sequence
+ * delivery and inter-session messages. Text is written to PTY stdin, framed in
+ * DEC 2004 markers when the CLI has bracketed paste on, with the submit suffix
+ * as a separate later write.
  *
- * Skips relay when: an input/textarea/modal has focus, or no terminal is active.
+ * Deciding WHICH keys get here is not this module's job — see
+ * `keyboard/router.ts` and `keyboard/handlers/terminal-keys.ts`. This file used
+ * to own a capture-phase `document` listener as well, which is how a stale
+ * planner check in the middle of it could silently kill Escape and Ctrl+G.
  */
 
-import { keyToPtyEscape, comboToPtyEscape } from './bindings.js';
-import { parseSequence, type SequenceAction } from '../src/input/sequence-parser.js';
-import { isDraftEditorVisible } from './stores/draft-editor-registry.js';
-import { showEditorPopup } from './editor/editor-popup.js';
-import {
-  getActiveInputContext,
-  isArtifactTargetFromEvent,
-  isEditableElement,
-  isElementWithinSelectors,
-  isTerminalTargetFromEvent,
-  MODAL_NAVIGATION_SELECTOR,
-} from './input/input-ownership.js';
+import { keyToPtyEscape } from './bindings.js';
+import { parseSequence } from '../src/input/sequence-parser.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { state } from './state.js';
 import { resolveCliTypeRecord } from './utils.js';
@@ -74,15 +68,7 @@ export function parseSubmitSuffix(suffix?: string): string {
   return suffix;
 }
 
-type GetActiveSessionId = () => string | null;
-type HasPendingQuestion = (sessionId: string) => boolean;
-type GetEscProtectionEnabled = () => Promise<boolean>;
-
-let registeredHandler: ((e: KeyboardEvent) => void) | null = null;
-let pasteInFlight = false;
-let editorInFlight = false;
 let clipboardPasteInFlight = false;
-let getEscProtectionEnabled: GetEscProtectionEnabled = async () => true;
 
 interface BracketedPasteReadable {
   isBracketedPasteEnabled: () => boolean;
@@ -247,7 +233,7 @@ export function shouldAllowNativeCopy(evt: Pick<KeyboardEvent, 'key' | 'ctrlKey'
 }
 
 /** Reads the live DOM selection and builds a SelectionInfo. */
-function readSelectionInfo(): SelectionInfo {
+export function readSelectionInfo(): SelectionInfo {
   const sel = window.getSelection();
   if (!sel) return { collapsed: true, inArtifactDoc: false };
   const anchor = sel.anchorNode;
@@ -258,211 +244,4 @@ function readSelectionInfo(): SelectionInfo {
     : anchor as Element;
   const inArtifactDoc = !!el?.closest('.ap-doc');
   return { collapsed: sel.isCollapsed, inArtifactDoc };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-function isEditableOrModalFocused(): boolean {
-  const el = document.activeElement;
-  if (!el) return false;
-  if (isEditableElement(el)) return true;
-  if (isElementWithinSelectors(el, '.modal-overlay, .dir-picker-overlay, .binding-editor, .scheduler-popup-backdrop')) return true;
-  return false;
-}
-
-function isXtermTarget(e: KeyboardEvent): boolean {
-  return isTerminalTargetFromEvent(e);
-}
-
-export function setupKeyboardRelay(
-  getActiveSessionId: GetActiveSessionId,
-  hasPendingQuestion: HasPendingQuestion = () => false,
-  getEscProtectionEnabledFn: GetEscProtectionEnabled = async () => true,
-): void {
-  if (registeredHandler) return;
-
-  getEscProtectionEnabled = getEscProtectionEnabledFn;
-
-  registeredHandler = async (e: KeyboardEvent) => {
-    const sessionId = getActiveSessionId();
-    if (!sessionId) return;
-
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const { useEscProtection } = await import('./composables/useEscProtection.js');
-      const escProtection = useEscProtection();
-
-      if (escProtection.isProtecting.value) {
-        terminalClient.ptyWrite(sessionId, '\x1b');
-        escProtection.dismissProtection();
-        return;
-      }
-
-      // A normal modal owns Escape through the window-level modal bridge. Do
-      // not open terminal protection behind it; the exception above preserves
-      // the second press of the protection dialog itself.
-      if (document.querySelector('.modal-overlay.modal--visible')) return;
-    }
-
-    if (e.ctrlKey && e.shiftKey && e.key === 'R') {
-      e.preventDefault();
-      e.stopPropagation();
-      const session = state.sessions.find(s => s.id === sessionId);
-      if (session) {
-        window.dispatchEvent(new CustomEvent('rename-session-request', {
-          detail: { sessionId },
-        }));
-      }
-      return;
-    }
-
-    if (e.ctrlKey && e.shiftKey && e.key === 'B') {
-      e.preventDefault();
-      e.stopPropagation();
-      if (document.querySelector('.modal-overlay.modal--visible')) return;
-      window.dispatchEvent(new CustomEvent('clear-session-notifications', {
-        detail: { sessionId },
-      }));
-      return;
-    }
-
-    if (e.ctrlKey && e.key === 'v') {
-      if (clipboardPasteInFlight) return;
-      if (document.querySelector('.plan-screen.visible')) return;
-      if (isDraftEditorVisible()) return;
-      // ArtifactViewer owns native paste for images and files. Do not reduce
-      // those clipboard items to text/plain in the terminal relay first.
-      if (isArtifactTargetFromEvent(e)) return;
-      const activeContext = getActiveInputContext({
-        activeElement: document.activeElement,
-        modalNavigationSelectors: MODAL_NAVIGATION_SELECTOR,
-      });
-      if (activeContext === 'editable-field') return;
-      if (document.querySelector('.scheduler-popup-backdrop')) {
-        e.stopPropagation();
-        return;
-      }
-      // A visible selection-mode modal owns all keyboard input, paste included.
-      if (document.querySelector('.modal-overlay.modal--visible')) {
-        e.stopPropagation();
-        return;
-      }
-      e.preventDefault();
-      e.stopPropagation();
-      if (pasteInFlight) return;
-      pasteInFlight = true;
-      try {
-        const text = await navigator.clipboard.readText();
-        if (text.length > 0) {
-          await deliverBulkText(sessionId, text);
-        }
-      } catch (err) {
-        console.warn('[KeyRelay] clipboard read failed:', err);
-      } finally {
-        pasteInFlight = false;
-      }
-      return;
-    }
-
-    if (document.querySelector('.scheduler-popup-backdrop')) {
-      if (getActiveInputContext({
-        activeElement: document.activeElement,
-        modalNavigationSelectors: MODAL_NAVIGATION_SELECTOR,
-      }) === 'editable-field') return;
-      e.stopPropagation();
-      return;
-    }
-
-    if (document.querySelector('.modal-overlay.modal--visible')) {
-      if (getActiveInputContext({
-        activeElement: document.activeElement,
-        modalNavigationSelectors: MODAL_NAVIGATION_SELECTOR,
-      }) === 'editable-field') return;
-      e.stopPropagation();
-      return;
-    }
-
-    if (document.querySelector('.plan-screen.visible')) return;
-    if (isDraftEditorVisible()) return;
-
-    if (e.ctrlKey && e.key === 'g') {
-      e.preventDefault();
-      e.stopPropagation();
-      if (editorInFlight) return;
-      editorInFlight = true;
-      try {
-        const { deliverPromptSequence } = await import('./sequence-delivery.js');
-        await showEditorPopup(async (t) => {
-          if (t && t.length > 0) {
-            await deliverPromptSequence(sessionId, t);
-          }
-        });
-      } catch (err) {
-        console.warn('[KeyRelay] editor popup failed:', err);
-      } finally {
-        editorInFlight = false;
-      }
-      return;
-    }
-
-    if (e.key === 'Escape') {
-      const protected_ = await getEscProtectionEnabled();
-      if (protected_) {
-        const { useEscProtection } = await import('./composables/useEscProtection.js');
-        const escProtection = useEscProtection();
-
-        escProtection.openProtection(sessionId);
-        return;
-      }
-
-      terminalClient.ptyWrite(sessionId, '\x1b');
-      return;
-    }
-
-    if (isXtermTarget(e)) return;
-    if (getActiveInputContext({
-      activeElement: document.activeElement,
-      modalNavigationSelectors: MODAL_NAVIGATION_SELECTOR,
-    }) === 'editable-field') return;
-
-    if (e.metaKey) return;
-    if (e.altKey) return;
-    if (e.ctrlKey) {
-      if (e.key.toLowerCase() === 'n') return;
-      if (e.key.length === 1) {
-        // Allow native copy/cut when the user has selected text inside the
-        // artifact viewer — mirrors the xterm Ctrl+C-with-selection carve-out.
-        if (shouldAllowNativeCopy(e, readSelectionInfo())) return;
-        e.preventDefault();
-        terminalClient.ptyWrite(sessionId, comboToPtyEscape(['Ctrl', e.key]));
-      }
-      return;
-    }
-
-    if (['Control', 'Shift', 'Alt', 'Meta', 'CapsLock', 'NumLock', 'ScrollLock',
-         'Dead', 'Unidentified', 'Process', 'Compose'].includes(e.key)) return;
-
-    const esc = keyToPtyEscape(e.key);
-    if (esc !== e.key || e.key.length > 1) {
-      e.preventDefault();
-      terminalClient.ptyWrite(sessionId, esc);
-      return;
-    }
-
-    if (e.key.length === 1) {
-      e.preventDefault();
-      terminalClient.ptyWrite(sessionId, e.key);
-    }
-  };
-
-  document.addEventListener('keydown', registeredHandler, true);
-}
-
-export function teardownKeyboardRelay(): void {
-  if (registeredHandler) {
-    document.removeEventListener('keydown', registeredHandler, true);
-    registeredHandler = null;
-  }
 }

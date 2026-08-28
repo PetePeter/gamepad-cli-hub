@@ -237,6 +237,11 @@ describe('Sessions Screen', () => {
   let state: Awaited<ReturnType<typeof getState>>;
   let sessions: Awaited<ReturnType<typeof getSessions>>;
   let sessionsState: Awaited<ReturnType<typeof getSessionsState>>;
+  const keyHandlerCleanups: Array<() => void> = [];
+  let uninstallKeyRouter: (() => void) | null = null;
+  /** Stands in for the modal systems the shell reads via isKeyboardModalOpen(). */
+  let modalOpenForTest = false;
+  let focusedPaneForTest = 'sessions';
 
   /** Set terminal manager sessions for loadAndFlush. */
   function setMockTerminalSessions(sessionsData: ReturnType<typeof makeSessions>): void {
@@ -304,9 +309,53 @@ describe('Sessions Screen', () => {
     mockCurrentView = 'terminal';
     state.recentSessionId = null;
     state.lastSelectedSessionId = null;
+    modalOpenForTest = false;
+    focusedPaneForTest = 'sessions';
+
+    // Navigation keys and Ctrl+Shift+W are workspace/pane handlers on the shared
+    // keyboard router now, not a listener owned by sessions.ts. Register the
+    // same wiring the shell uses so these tests still exercise the real path.
+    const { installKeyRouter, registerKeyHandler } = await import('../renderer/keyboard/router.js');
+    const { createWorkspaceKeyHandlers } = await import('../renderer/keyboard/handlers/workspace-keys.js');
+
+    for (const handler of createWorkspaceKeyHandlers({
+      activatePane: () => {},
+      cycleSession: () => {},
+      jumpToSession: () => false,
+      fireChipAction: () => false,
+      spawnSession: () => {},
+      closeActiveSession: () => {
+        if (state.activeSessionId) sessions.confirmCloseSessionById(state.activeSessionId);
+      },
+    })) {
+      keyHandlerCleanups.push(registerKeyHandler(handler));
+    }
+
+    keyHandlerCleanups.push(registerKeyHandler({
+      id: 'pane-navigation',
+      scope: 'pane',
+      claims: (ctx) => !ctx.isFocused('terminal') && ctx.scope !== 'terminal',
+      handle: (ctx) => {
+        if (ctx.event.ctrlKey || ctx.event.altKey || ctx.event.metaKey) return false;
+        const button = sessions.NAVIGATION_KEY_BUTTONS[ctx.key];
+        if (!button) return false;
+        sessions.handleSessionsScreenButton(button);
+        return true;
+      },
+    }));
+
+    uninstallKeyRouter = installKeyRouter({
+      getActiveSessionId: () => state.activeSessionId ?? null,
+      getFocusedPane: () => focusedPaneForTest,
+      isPaneVisible: () => true,
+      isModalOpen: () => modalOpenForTest,
+    });
   });
 
   afterEach(() => {
+    for (const cleanup of keyHandlerCleanups.splice(0)) cleanup();
+    uninstallKeyRouter?.();
+    uninstallKeyRouter = null;
     vi.useRealTimers();
     vi.clearAllMocks();
     // Reset module-level bridges so tests don't leak state
@@ -923,15 +972,12 @@ describe('Sessions Screen', () => {
       expect(mockSwitchTo).not.toHaveBeenCalled();
     });
 
-    it('stands down when a modal overlay is visible', () => {
-      const overlay = document.createElement('div');
-      overlay.className = 'modal-overlay modal--visible';
-      document.body.appendChild(overlay);
+    it('stands down while a modal owns the keyboard', () => {
+      modalOpenForTest = true;
 
       pressKey('ArrowDown');
-      expect(sessionsState.sessionsFocusIndex).toBe(0);
 
-      overlay.remove();
+      expect(sessionsState.sessionsFocusIndex).toBe(0);
     });
 
     it('Escape maps to B (no-op on sessions zone)', () => {
@@ -957,11 +1003,12 @@ describe('Sessions Screen', () => {
       expect(sessionsState.sessionsFocusIndex).toBe(before);
     });
 
-    it('keyboard is ignored when not on sessions screen', () => {
-      state.currentScreen = 'settings';
+    it('keyboard is ignored when the terminal pane holds focus', () => {
+      focusedPaneForTest = 'terminal';
       const indexBefore = sessionsState.sessionsFocusIndex;
 
       pressKey('ArrowDown');
+
       expect(sessionsState.sessionsFocusIndex).toBe(indexBefore);
     });
 

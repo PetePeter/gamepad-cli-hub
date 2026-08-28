@@ -26,6 +26,7 @@ import { buildArtifactDocument, OPEN_URL_MESSAGE, READY_MESSAGE } from '../../ar
 import { formatHelmRef } from '../../lib/helm-ref.js';
 import { artifactsClient, systemClient } from '../../ipc/clients.js';
 import { clipboardFileInput } from '../../artifacts/clipboard-file.js';
+import { isEditableElement } from '../../input/input-ownership.js';
 import { buildTextArtifact, isTextLikeFile, TEXT_INLINE_MAX_BYTES } from '../../artifacts/text-file-drop.js';
 import type { Artifact } from '../../../src/types/artifact.js';
 import { parseAttachmentHref } from '../../../src/types/artifact-attachment.js';
@@ -414,11 +415,13 @@ async function onAttachFile(): Promise<void> {
 
 async function handlePaste(e: ClipboardEvent): Promise<void> {
   // Let editable controls keep their native paste behaviour.
-  if (isCreatingText.value || isEditablePasteTarget(e.target)) return;
+  if (isCreatingText.value || isEditableElement(e.target)) return;
 
   const items = e.clipboardData?.items;
   if (!items) return;
 
+  // Files first: a copied screenshot carries both an image and a text/plain
+  // fallback, and the image is the one worth keeping.
   for (const item of items) {
     if (item.kind !== 'file') continue;
     const file = item.getAsFile();
@@ -428,11 +431,16 @@ async function handlePaste(e: ClipboardEvent): Promise<void> {
     void createArtifactFromBlob(file, file.name);
     return;
   }
-}
 
-function isEditablePasteTarget(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement
-    && Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
+  // Pasting into the artifact pane means "make this an artifact", so text lands
+  // in the note editor rather than doing nothing.
+  const text = e.clipboardData?.getData('text/plain') ?? '';
+  if (!text.trim()) return;
+  e.preventDefault();
+  e.stopPropagation();
+  isCreatingText.value = true;
+  newTextTitle.value = 'Pasted note';
+  newTextContent.value = text;
 }
 
 /**

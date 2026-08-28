@@ -326,6 +326,7 @@ describe('useNavigationStore', () => {
       await store.navigateToSession('sess-2');
 
       expect(mockTm.switchTo).toHaveBeenCalledWith('sess-2');
+      expect(mockSessionSetActive).toHaveBeenCalledWith('sess-2');
       expect(state.activeSessionId).toBe('sess-2');
     });
 
@@ -437,6 +438,7 @@ describe('useNavigationStore', () => {
       store.activateSession('sess-1');
 
       expect(mockTm.switchTo).toHaveBeenCalledWith('sess-1');
+      expect(mockSessionSetActive).toHaveBeenCalledWith('sess-1');
       expect(state.activeSessionId).toBe('sess-1');
     });
 
