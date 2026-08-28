@@ -561,14 +561,15 @@ describe('useNavigationStore', () => {
   // ──────────────────────────────────────────────────────────────────────
 
   describe('openPlan', () => {
-    it('saves restore context', async () => {
+    it('leaves the active session unchanged and does not save plan restore context', async () => {
       state.activeSessionId = 'sess-1';
       store.focusedNavItem = { id: 'sess-1', type: 'session-card' };
 
       await store.openPlan('/projects');
 
       const ctx = store.__getRestoreContext();
-      expect(ctx.previousSessionId).toBe('sess-1');
+      expect(state.activeSessionId).toBe('sess-1');
+      expect(ctx.previousSessionId).toBeNull();
       expect(ctx.savedFocusItem).toEqual({ id: 'sess-1', type: 'session-card' });
     });
 
@@ -596,18 +597,18 @@ describe('useNavigationStore', () => {
       expect(showView).toHaveBeenCalledWith('terminal');
     });
 
-    it('restores previous terminal session', async () => {
+    it('does not switch terminals or rewrite the active session', async () => {
       state.activeSessionId = 'sess-1';
       store.focusedNavItem = { id: 'sess-1', type: 'session-card' };
       await store.openPlan('/projects');
 
-      // Simulate plan deselecting the terminal (as openCallback does)
-      state.activeSessionId = null;
+      state.activeSessionId = 'sess-2';
+      mockTm.switchTo.mockClear();
 
       await store.closePlan();
 
-      expect(mockTm.switchTo).toHaveBeenCalledWith('sess-1');
-      expect(state.activeSessionId).toBe('sess-1');
+      expect(mockTm.switchTo).not.toHaveBeenCalled();
+      expect(state.activeSessionId).toBe('sess-2');
     });
 
     it('restores sidebar focus', async () => {
@@ -768,7 +769,7 @@ describe('useNavigationStore', () => {
       expect(ctx.savedFocusItem).toEqual({ id: 'original', type: 'session-card' });
     });
 
-    it('closing chained plan restores original session', async () => {
+    it('closing chained plan does not restore the old session', async () => {
       buildNavList(
         { type: 'session-card', id: 'original' },
         { type: 'session-card', id: 'other' },
@@ -783,8 +784,8 @@ describe('useNavigationStore', () => {
 
       await store.closePlan();
 
-      expect(mockTm.switchTo).toHaveBeenCalledWith('original');
-      expect(state.activeSessionId).toBe('original');
+      expect(mockTm.switchTo).not.toHaveBeenCalled();
+      expect(state.activeSessionId).toBeNull();
     });
 
     it('navigateToSession from overlay clears all restore context', async () => {
@@ -861,7 +862,7 @@ describe('useNavigationStore', () => {
       expect(ctx.savedFocusItem).toBeNull();
     });
 
-    it('session → plan → session with no stale views', async () => {
+    it('session → plan → session leaves session navigation authoritative', async () => {
       store.init();
       buildNavList(
         { type: 'session-card', id: 'sess-1' },
@@ -874,8 +875,7 @@ describe('useNavigationStore', () => {
       await store.openPlan('/projects');
       expect(store.panelView).toBe('plan');
 
-      // Simulate plan deselecting the terminal
-      state.activeSessionId = null;
+      state.activeSessionId = 'sess-2';
 
       (showView as MockedFunction<typeof showView>).mockClear();
       mockTm.switchTo.mockClear();
@@ -883,12 +883,12 @@ describe('useNavigationStore', () => {
       await store.closePlan();
 
       expect(showView).toHaveBeenCalledWith('terminal');
-      expect(mockTm.switchTo).toHaveBeenCalledWith('sess-1');
-      expect(state.activeSessionId).toBe('sess-1');
+      expect(mockTm.switchTo).not.toHaveBeenCalled();
+      expect(state.activeSessionId).toBe('sess-2');
       expect(store.focusedNavItem).toEqual({ id: 'sess-1', type: 'session-card' });
     });
 
-    it('overview → plan → session (chained overlays)', async () => {
+    it('overview → plan does not make plan close restore a session', async () => {
       store.init();
       buildNavList(
         { type: 'session-card', id: 'sess-1' },
@@ -900,15 +900,13 @@ describe('useNavigationStore', () => {
 
       // Open overview, then chain into plan
       await store.openOverview('/projects');
-      state.activeSessionId = null;
       await store.openPlan('/projects');
-      state.activeSessionId = null;
+      state.activeSessionId = 'sess-2';
 
-      // Close plan — should restore original sess-1, not overview state
       await store.closePlan();
 
-      expect(mockTm.switchTo).toHaveBeenCalledWith('sess-1');
-      expect(state.activeSessionId).toBe('sess-1');
+      expect(mockTm.switchTo).not.toHaveBeenCalled();
+      expect(state.activeSessionId).toBe('sess-2');
     });
 
     it('Ctrl+Tab sidebar sync', () => {

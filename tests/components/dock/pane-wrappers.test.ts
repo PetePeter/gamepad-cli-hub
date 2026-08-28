@@ -10,7 +10,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { ref, type Ref } from 'vue';
+import { nextTick, ref, type Ref } from 'vue';
 
 import TerminalPane from '../../../renderer/components/dock/TerminalPane.vue';
 import TerminalChips from '../../../renderer/components/chips/TerminalChips.vue';
@@ -34,6 +34,7 @@ import ArtifactViewer from '../../../renderer/components/panels/ArtifactViewer.v
 import { HELM_PANE_CONTEXT, type HelmPaneContext } from '../../../renderer/dock-pane-context.js';
 import { sessionsState } from '../../../renderer/screens/sessions-state.js';
 import { appState } from '../../../renderer/stores/app.js';
+import { planScreenState } from '../../../renderer/plans/plan-screen.js';
 
 interface Fake {
   context: HelmPaneContext;
@@ -123,6 +124,15 @@ beforeEach(() => {
   // groups/navList are derived getters on the store — they follow from sessions.
   sessionsState.overviewIsGlobal = false;
   sessionsState.overviewGroup = null;
+  (window as any).gamepadCli = {
+    planList: vi.fn().mockResolvedValue([]),
+    planDeps: vi.fn().mockResolvedValue([]),
+    planSequenceList: vi.fn().mockResolvedValue([]),
+    planContextList: vi.fn().mockResolvedValue([]),
+    planAttachmentHasAny: vi.fn().mockResolvedValue({}),
+    configGetPlanFilters: vi.fn().mockResolvedValue({}),
+    configSetPlanFilters: vi.fn().mockResolvedValue(undefined),
+  };
 });
 
 describe('pane wrappers render their view', () => {
@@ -182,6 +192,33 @@ describe('pane wrappers render their view', () => {
     appState.activeSessionId = 's-42';
     const wrapper = mountPane(ArtifactsPane, fake.context);
     expect(wrapper.findComponent(ArtifactViewer).props('sessionId')).toBe('s-42');
+  });
+
+  it('session-scoped panes follow the same selected session after a switch', async () => {
+    appState.sessions = [
+      { id: 's-1', workingDir: 'X:/one' },
+      { id: 's-2', workingDir: 'X:/two' },
+    ] as any;
+    appState.activeSessionId = 's-1';
+    const plan = mountPane(PlanScreenPane, fake.context);
+    const artifacts = mountPane(ArtifactsPane, fake.context);
+
+    appState.activeSessionId = 's-2';
+    await nextTick();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(plan.findComponent(PlanScreen).props('dirPath')).toBe('X:/two');
+    expect(artifacts.findComponent(ArtifactViewer).props('sessionId')).toBe('s-2');
+    expect(appState.activeSessionId).toBe('s-2');
+  });
+
+  it('PlanScreen visibility follows the rendered canvas state for keyboard routing', async () => {
+    const wrapper = mountPane(PlanScreenPane, fake.context);
+    planScreenState.visible = false;
+    await nextTick();
+
+    expect(wrapper.findComponent(PlanScreen).props('visible')).toBe(false);
+    wrapper.unmount();
   });
 
   it('ArtifactsPane renders nothing without an active session', () => {

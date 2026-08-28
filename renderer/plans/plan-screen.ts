@@ -7,6 +7,7 @@ import { deliverPromptSequence } from '../sequence-delivery.js';
 import { hidePlanDeleteConfirm, showPlanDeleteConfirm } from '../stores/modal-bridge.js';
 import { clearDonePlans, setClearDonePlansCallback, showPlanHelpModal, hidePlanHelpModal, isPlanHelpVisible } from '../stores/modal-bridge.js';
 import { state } from '../state.js';
+import { getActiveSessionDir } from '../stores/app.js';
 import { registerView, showView, currentView, type ViewMountContext } from '../main-view/main-view-manager.js';
 import { registerKeyHandler, type KeyContext } from '../keyboard/router.js';
 import { PANE_PLAN_SCREEN } from '../dock-types.js';
@@ -73,9 +74,11 @@ interface RefreshCanvasOptions {
 
 let fitActiveCallback: (() => void) | null = null;
 let closeCallback: (() => void) | null = null;
-let openCallback: (() => void) | null = null;
 let noticeTimer: ReturnType<typeof setTimeout> | null = null;
 let latestPlanDataLoadToken = 0;
+let requestGeneration = 0;
+let dockPaneMounted = false;
+let overlayMounted = false;
 
 type WindowKey = 'main' | 'popout';
 
@@ -184,7 +187,6 @@ void loadFilterPreferences();
 
 export function setPlanScreenFitCallback(fn: () => void): void { fitActiveCallback = fn; }
 export function setPlanScreenCloseCallback(fn: () => void): void { closeCallback = fn; }
-export function setPlanScreenOpenCallback(fn: () => void): void { openCallback = fn; }
 export function setPlanEditorOpener(fn: WindowCallbacks['planEditorOpener']) { getWindowCallbacks().planEditorOpener = fn; }
 export function setDraftEditorCloser(fn: WindowCallbacks['draftEditorCloser']) { getWindowCallbacks().draftEditorCloser = fn; }
 export function setDraftEditorVisibilityChecker(fn: WindowCallbacks['draftEditorVisibilityChecker']) { getWindowCallbacks().draftEditorVisibilityChecker = fn; }
@@ -498,7 +500,9 @@ function requestContextDelete(id: string): void {
 }
 
 function closePlannerOverlay(): void {
-  planScreenState.visible = false;
+  overlayMounted = false;
+  planScreenState.visible = dockPaneMounted;
+  if (dockPaneMounted) return;
   planScreenState.currentDir = '';
   planScreenState.items = [];
   planScreenState.deps = [];
@@ -518,13 +522,6 @@ function closePlannerOverlay(): void {
   clearNotice();
 }
 
-function activeSessionPlanDir(): string | null {
-  const session = state.activeSessionId
-    ? state.sessions.find((entry) => entry.id === state.activeSessionId)
-    : undefined;
-  return session?.workingDir ?? null;
-}
-
 function clearPlanDataForSession(): void {
   planScreenState.currentDir = '';
   planScreenState.items = [];
@@ -536,6 +533,8 @@ function clearPlanDataForSession(): void {
   planScreenState.selectedId = null;
   planScreenState.selectedContextId = null;
   planScreenState.selectedIds.clear();
+  planScreenState.editingId = null;
+  planScreenState.editingContextId = null;
   planScreenState.relatedFocusRootId = null;
   planScreenState.relatedFocusIds = new Set();
   setRelatedTransientIds([]);
@@ -543,7 +542,7 @@ function clearPlanDataForSession(): void {
 
 /**
  * Planner keys. Registered with the router at `pane` scope and claimed only
- * while the planner is open, so a merely-mounted plan pane never swallows keys.
+ * while the rendered canvas is focused, so inactive dock tabs never swallow keys.
  *
  * Returns whether the key was consumed; the router suppresses it.
  */
@@ -621,46 +620,64 @@ export async function showPlanScreen(dirPath: string): Promise<void> {
   await showView('plan', { dir: dirPath });
 }
 
-/** Keep the docked plan view bound to the currently selected session. */
-export async function refreshPlanScreenForActiveSession(): Promise<void> {
-  const dirPath = activeSessionPlanDir();
+function normalizePlanDir(dirPath: string): string {
+  return dirPath.replace(/[\\/]+/g, '/').toLowerCase();
+}
+
+function planDirsMatch(a: string, b: string): boolean {
+  return normalizePlanDir(a) === normalizePlanDir(b);
+}
+
+function requestIsCurrent(generation: number): boolean {
+  return generation === requestGeneration;
+}
+
+/** Bind the singleton canvas to one directory, regardless of how it is rendered. */
+export async function bindPlanScreenToDir(dirPath: string | null, context?: ViewMountContext): Promise<void> {
+  const generation = ++requestGeneration;
   if (!dirPath) {
+    ++latestPlanDataLoadToken;
     clearPlanDataForSession();
     return;
   }
-  if (!planScreenState.visible) return;
-  if (planScreenState.currentDir && pathsMatch(planScreenState.currentDir, dirPath)) return;
+  if (planScreenState.currentDir && planDirsMatch(planScreenState.currentDir, dirPath)) return;
 
+  clearPlanDataForSession();
   planScreenState.currentDir = dirPath;
-  planScreenState.items = [];
-  planScreenState.deps = [];
-  planScreenState.sequences = [];
-  planScreenState.contexts = [];
-  planScreenState.layout = { nodes: [], width: 0, height: 0 };
-  planScreenState.selectedId = null;
-  planScreenState.selectedContextId = null;
-  planScreenState.selectedIds.clear();
-  await loadPlanData(dirPath);
+  planScreenState.editingId = null;
+  planScreenState.editingContextId = null;
+  hidePlanDeleteConfirm();
+  getWindowCallbacks().draftEditorCloser?.();
+  await loadPlanData(dirPath, context);
+  if (!requestIsCurrent(generation)) return;
+}
+
+/** Tell the bridge whether the dock owns a rendered plan canvas. */
+export function setPlanScreenPaneMounted(mounted: boolean): void {
+  dockPaneMounted = mounted;
+  planScreenState.visible = dockPaneMounted || overlayMounted;
+  if (!mounted && !overlayMounted) {
+    ++requestGeneration;
+    ++latestPlanDataLoadToken;
+    closePlannerOverlay();
+  }
 }
 
 async function mountPlanScreen(params?: unknown, context?: ViewMountContext): Promise<void> {
-  const dirPath = (params as { dir?: string } | undefined)?.dir ?? '';
-  planScreenState.currentDir = dirPath;
-  planScreenState.selectedId = null;
-  planScreenState.selectedContextId = null;
-  planScreenState.selectedIds.clear();
-  planScreenState.editingId = null;
+  const requestedDir = (params as { dir?: string } | undefined)?.dir ?? getActiveSessionDir() ?? '';
+  overlayMounted = true;
+  planScreenState.visible = true;
   hidePlanDeleteConfirm();
   getWindowCallbacks().draftEditorCloser?.();
-  openCallback?.();
   await loadFilterPreferences();
-  await loadPlanData(dirPath, context);
+  await bindPlanScreenToDir(requestedDir || null, context);
   if (context && !context.isActive()) return;
-  planScreenState.visible = true;
 }
 
 function unmountPlanScreen(): void {
   getWindowCallbacks().draftEditorCloser?.();
+  ++requestGeneration;
+  ++latestPlanDataLoadToken;
   closePlannerOverlay();
   if (fitActiveCallback) {
     requestAnimationFrame(fitActiveCallback);

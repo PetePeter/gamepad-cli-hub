@@ -27,7 +27,7 @@ import { loadStoredSessions } from '../session-store.js';
 
 // Sub-module imports — circular at module level, safe because all usages are in function bodies.
 import {
-  initSessionsSortControl, updateStatusCounts,
+  updateStatusCounts,
   startRename, commitRename, cancelRename,
   sessionsSortField, sessionsSortDirection,
 } from '../sidebar/session-services.js';
@@ -394,7 +394,6 @@ export async function triggerNewPlanShortcut(preferredSessionId?: string): Promi
 export async function loadSessions(): Promise<void> {
   await initSessionGroupPrefs();
   await loadSessionsData();
-  await initSessionsSortControl();
   void refreshPlanBadges();
   updateStatusCounts();
 }

@@ -16,12 +16,13 @@ import { buildPlannerDirectories } from '../../screens/planner-directories.js';
 import { useHelmPaneContext } from '../../dock-pane-context.js';
 
 const sidebar = useHelmPaneContext().sidebar;
-const state = useAppStore().state;
+const appStore = useAppStore();
+const state = appStore.state;
 
 const directories = computed(() => {
-  const session = state.sessions.find(entry => entry.id === state.activeSessionId);
-  if (!session?.workingDir) return [];
-  const directory = buildPlannerDirectories([{ name: session.workingDir, path: session.workingDir }])[0];
+  const workingDir = appStore.activeSessionDir;
+  if (!workingDir) return [];
+  const directory = buildPlannerDirectories([{ name: workingDir, path: workingDir }])[0];
   if (!directory) return [];
   return [{
     name: directory.name,

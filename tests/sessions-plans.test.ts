@@ -76,7 +76,6 @@ function buildDom(): void {
 
   document.body.innerHTML = `
     <section id="screen-sessions" class="screen screen--active">
-      <div id="sessionsSortBar"></div>
       <div class="sessions-list" id="sessionsList"></div>
       <div class="sessions-empty" id="sessionsEmpty" style="display:none">
         No active sessions

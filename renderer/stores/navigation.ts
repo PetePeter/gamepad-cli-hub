@@ -272,10 +272,8 @@ export const useNavigationStore = defineStore('navigation', () => {
     // Re-read legacy focus before saving (D-pad may have moved it)
     captureCurrentFocus();
 
-    // Save restore context (preserve existing if chaining overlay → overlay)
-    if (_previousSessionId.value === null) {
-      _previousSessionId.value = state.activeSessionId;
-    }
+    // Plan is a session aspect, not a selection UI: opening it must not save
+    // or later rewrite the selected session.
     if (!_savedFocusItem.value) {
       _savedFocusItem.value = focusedNavItem.value ? { ...focusedNavItem.value } : null;
     }
@@ -284,25 +282,17 @@ export const useNavigationStore = defineStore('navigation', () => {
   }
 
   /**
-   * Close plan and restore previous terminal + sidebar focus.
-   * Plan has no internal restore logic (unlike overview), so the
-   * store handles it entirely.
+   * Close plan and return to the terminal without changing session selection.
+   * Plan has no selection restore logic; only the sidebar focus identity is
+   * retained for the dock navigation cursor.
    */
   async function closePlan(): Promise<void> {
     ++navigationRequestId;
-    const savedPrev = _previousSessionId.value;
     const savedFocus = _savedFocusItem.value;
     _previousSessionId.value = null;
     _savedFocusItem.value = null;
 
     await showView('terminal');
-
-    // Restore terminal (plan's openCallback deselected it during mount)
-    const tm = getTerminalManager();
-    if (savedPrev && tm?.hasTerminal(savedPrev)) {
-      tm.switchTo(savedPrev);
-      state.activeSessionId = savedPrev;
-    }
 
     // Restore sidebar focus
     if (savedFocus) {
@@ -310,9 +300,9 @@ export const useNavigationStore = defineStore('navigation', () => {
       syncFocusIndex();
     }
 
-    // Refresh chip bar for restored session
+    // Refresh the chip bar for the session that remains selected.
     const { useChipBarStore } = await import('../stores/chip-bar.js');
-    void useChipBarStore().refresh(savedPrev);
+    void useChipBarStore().refresh(state.activeSessionId);
   }
 
   function openSettings(): void {

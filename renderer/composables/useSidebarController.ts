@@ -1,5 +1,6 @@
 import { ref, type Ref } from 'vue';
 import { state } from '../state.js';
+import { getActiveSessionDir } from '../stores/app.js';
 import { sessionsState } from '../screens/sessions-state.js';
 import { patternsClient, schedulerClient, sessionsClient } from '../ipc/clients.js';
 import { setDirPickerBridge } from '../screens/sessions-spawn.js';
@@ -90,10 +91,8 @@ export function useSidebarController(deps: SidebarControllerDeps) {
   }
 
   function onShowPlans(_dirPath: string): void {
-    const session = state.activeSessionId
-      ? state.sessions.find((entry) => entry.id === state.activeSessionId)
-      : undefined;
-    if (session?.workingDir) void deps.navStore.openPlan(session.workingDir);
+    const dirPath = getActiveSessionDir();
+    if (dirPath) void deps.navStore.openPlan(dirPath);
   }
 
   function onShowOverview(dirPath: string): void {

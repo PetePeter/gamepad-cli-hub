@@ -2,8 +2,8 @@
 /**
  * SortBar.vue — Sort field dropdown + direction toggle.
  *
- * Replaces the imperative createSortControl() in sort-control.ts with a
- * reactive Vue component. Dropdown opens on click, closes on outside click
+ * Replaces the legacy imperative sort control with a reactive Vue component.
+ * Dropdown opens on click, closes on outside click
  * or selection.
  */
 import { ref, onMounted, onUnmounted } from 'vue';

@@ -46,6 +46,8 @@ export const useAppStore = defineStore('app', () => {
     () => state.sessions.find(s => s.id === state.activeSessionId),
   );
 
+  const activeSessionDir = computed<string | null>(() => getActiveSessionDir());
+
   const sessionCount = computed(() => state.sessions.length);
 
   const hasActiveSession = computed(() => state.activeSessionId !== null);
@@ -100,6 +102,7 @@ export const useAppStore = defineStore('app', () => {
   return {
     state,
     activeSession,
+    activeSessionDir,
     sessionCount,
     hasActiveSession,
     setScreen,
@@ -114,3 +117,11 @@ export const useAppStore = defineStore('app', () => {
     logEvent,
   };
 });
+
+/** Resolve the working directory for the currently selected session. */
+export function getActiveSessionDir(): string | null {
+  const session = appState.activeSessionId
+    ? appState.sessions.find(entry => entry.id === appState.activeSessionId)
+    : undefined;
+  return session?.workingDir ?? null;
+}

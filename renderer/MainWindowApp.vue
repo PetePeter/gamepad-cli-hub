@@ -29,7 +29,8 @@ import { registerKeyHandler } from './keyboard/router.js';
 import { installDockKeyRouter } from './keyboard/install.js';
 import { useTerminalKeys } from './composables/useTerminalKeys.js';
 import { resolveGroupDisplayName } from './session-groups.js';
-import { onPlanContextSave, refreshPlanScreenForActiveSession } from './plans/plan-screen.js';
+import { onPlanContextSave } from './plans/plan-screen.js';
+import { getActiveSessionDir } from './stores/app.js';
 import { onViewChange, type MainView as ViewName } from './main-view/main-view-manager.js';
 import { useToast } from './composables/useToast.js';
 import { useSettingsController } from './composables/useSettingsController.js';
@@ -195,11 +196,6 @@ function fallbackToOpenView(): void {
   if (view) activeView.value = view;
 }
 
-function resolveDockPlanDirPath(): string | null {
-  const session = state.sessions.find(item => item.id === state.activeSessionId);
-  return session?.workingDir ?? null;
-}
-
 let dockNavigationRequest = 0;
 
 /**
@@ -220,7 +216,7 @@ async function activateDockPane(paneId: PaneId, reveal = false, focusedItemId?: 
   if (paneId === PANE_OVERVIEW) {
     await navStore.openOverview(null, state.activeSessionId ?? undefined);
   } else if (paneId === PANE_PLAN_SCREEN) {
-    const dirPath = resolveDockPlanDirPath();
+    const dirPath = getActiveSessionDir();
     if (dirPath) await navStore.openPlan(dirPath);
   } else if (paneId === PANE_TERMINAL) {
     if (activeView.value === 'overview') await navStore.closeOverview();
@@ -518,10 +514,10 @@ function refitTerminalsSoon(): void {
   requestAnimationFrame(() => { getTerminalManager()?.fitActive(); });
 }
 
-// Keep the panel bound to whichever session is active; reload on switch.
+// Keep artifacts bound to whichever session is active; the plan pane owns its
+// own session binding because it can remain mounted alongside the terminal.
 watch(() => state.activeSessionId, (id) => {
   void artifactViewer.setActiveSession(id ?? null);
-  void refreshPlanScreenForActiveSession();
 });
 const { addToast } = useToast();
 const planWorkspaceController = usePlanWorkspaceController({ addToast });
@@ -651,9 +647,8 @@ useTerminalKeys({
   clearNotifications: (sessionId) => { llmNotificationsStore.dismissSession(sessionId); },
 });
 
-// ⧉ pop-out: the panel travels with its terminal. Snapping the active session
-// out mounts a SnapOutWindow that renders its own ArtifactViewer, so the panel
-// is available there and never shown in two windows at once.
+// ⧉ pop-out: snap the active terminal into its own window. The artifact pane
+// remains owned by the dock; SnapOutWindow renders only the terminal surface.
 function onArtifactPopOut(): void {
   if (state.activeSessionId) void onSessionSnapOut(state.activeSessionId);
 }
@@ -983,7 +978,7 @@ onMounted(async () => {
         if (sessionId) activeView.value = 'terminal';
       },
       onTerminalEmpty() {
-        state.activeSessionId = null;
+        void navStore.reconcileTerminalSwitch(null);
         chipBarStore.clear();
       },
       onTerminalTitleChange(sessionId, title) {

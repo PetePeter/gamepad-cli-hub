@@ -47,7 +47,7 @@ import {
   setSelectCardCallback, setOverviewDismissCallback,
 } from '../screens/group-overview.js';
 import {
-  setPlanScreenFitCallback, setPlanScreenCloseCallback, setPlanScreenOpenCallback,
+  setPlanScreenFitCallback, setPlanScreenCloseCallback,
   refreshCanvasIfVisible,
 } from '../plans/plan-screen.js';
 
@@ -783,10 +783,6 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
   setSelectCardCallback((sessionId) => { void useNavigationStore().navigateToSession(sessionId); });
   setOverviewDismissCallback(() => updateSessionsFocus());
   setPlanScreenFitCallback(() => tm.fitActive());
-  setPlanScreenOpenCallback(() => {
-    tm.deselect();
-    state.activeSessionId = null;
-  });
   setPlanScreenCloseCallback(() => {
     const activeId = getTerminalManager()?.getActiveSessionId() ?? null;
     void useChipBarStore().refresh(activeId);

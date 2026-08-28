@@ -123,7 +123,6 @@ function buildSidebarDom(): void {
 
   document.body.innerHTML = `
     <section id="screen-sessions" class="screen screen--active sessions-screen-section">
-      <div id="sessionsSortBar"></div>
       <div class="sessions-list-shell">
         <div class="sessions-list" id="sessionsList"></div>
         <div class="sessions-empty" id="sessionsEmpty" style="display:none">
@@ -1646,4 +1645,3 @@ describe('Sessions Screen', () => {
   });
 
 });
-

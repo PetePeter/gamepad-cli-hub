@@ -4,11 +4,13 @@
  *
  * Plan state and handlers are module singletons in `plans/plan-screen.js`; the
  * filter/pop-out/backup actions come from the shell's plan workspace controller.
- * The pane adds no state of its own, so the canvas behaves identically whether
- * it is docked here or rendered by PlannerPopOutWindow.
+ * The pane owns the rendered-canvas lifecycle and keeps the shared canvas bound
+ * to the selected session, so docked and pop-out rendering share one contract.
  */
+import { onMounted, onUnmounted, watch } from 'vue';
 import PlanScreen from '../panels/PlanScreen.vue';
 import { useNavigationStore } from '../../stores/navigation.js';
+import { useAppStore } from '../../stores/app.js';
 import {
   onPlanAddContext,
   onPlanAddDependency,
@@ -35,17 +37,31 @@ import {
   onPlanOpenExternal,
   onPlanRemoveDependency,
   onPlanUpdateSequence,
+  bindPlanScreenToDir,
   planScreenState,
+  setPlanScreenPaneMounted,
 } from '../../plans/plan-screen.js';
 import { useHelmPaneContext } from '../../dock-pane-context.js';
 
 const planWorkspace = useHelmPaneContext().planWorkspace;
 const navStore = useNavigationStore();
+const appStore = useAppStore();
+
+onMounted(() => {
+  setPlanScreenPaneMounted(true);
+  void bindPlanScreenToDir(appStore.activeSessionDir);
+});
+
+watch(() => appStore.state.activeSessionId, () => {
+  void bindPlanScreenToDir(appStore.activeSessionDir);
+});
+
+onUnmounted(() => { setPlanScreenPaneMounted(false); });
 </script>
 
 <template>
   <PlanScreen
-    :visible="true"
+    :visible="planScreenState.visible"
     :dir-path="planScreenState.currentDir"
     :items="planScreenState.items"
     :deps="planScreenState.deps"
