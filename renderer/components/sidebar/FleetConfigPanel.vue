@@ -158,7 +158,7 @@ async function copyAddress(address: string): Promise<void> {
   flex-direction: column;
   gap: 6px;
   padding: 8px 10px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-primary);
 }
@@ -180,7 +180,7 @@ async function copyAddress(address: string): Promise<void> {
 .fcp-input {
   min-width: 140px;
   padding: 6px 8px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-primary);
   color: var(--text-primary);
@@ -229,7 +229,7 @@ async function copyAddress(address: string): Promise<void> {
 }
 .fcp-address {
   padding: 2px 6px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-tertiary);
   color: var(--text-primary);
@@ -237,5 +237,5 @@ async function copyAddress(address: string): Promise<void> {
   font-size: 0.8rem;
   cursor: pointer;
 }
-.fcp-address:hover { border-color: var(--accent-primary); }
+.fcp-address:hover { border-color: var(--accent); }
 </style>

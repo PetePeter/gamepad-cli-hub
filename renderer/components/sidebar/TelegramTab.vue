@@ -300,7 +300,7 @@ async function browseFilePath(
   flex-shrink: 0;
   padding: 0 var(--spacing-xs);
   background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: var(--font-size-sm);

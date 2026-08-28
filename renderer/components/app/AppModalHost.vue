@@ -405,7 +405,7 @@ function onRuntimeGroupMoveCancel(): void {
   width: min(760px, calc(100vw - 48px));
   max-height: calc(100vh - 48px);
   overflow: hidden;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-primary);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);

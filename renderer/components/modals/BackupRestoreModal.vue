@@ -328,7 +328,7 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-header h2 {
@@ -392,7 +392,7 @@ onUnmounted(() => {
 }
 
 .backup-row--selected {
-  border-color: var(--accent-primary);
+  border-color: var(--accent);
   background: var(--bg-tertiary);
 }
 
@@ -419,7 +419,7 @@ onUnmounted(() => {
 .backup-preview {
   margin-top: 14px;
   padding: 12px 14px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg-primary);
 }
@@ -464,7 +464,7 @@ onUnmounted(() => {
   display: flex;
   gap: 12px;
   padding: 16px 20px;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--border);
   flex-wrap: wrap;
 }
 
@@ -484,7 +484,7 @@ onUnmounted(() => {
 }
 
 .btn--primary {
-  background: var(--accent-primary);
+  background: var(--accent);
   color: white;
 }
 

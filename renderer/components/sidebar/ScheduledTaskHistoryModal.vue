@@ -239,7 +239,7 @@ defineExpose({ handleButton });
 
 <style scoped>
 .sth-modal {
-  border: 2px solid var(--accent-primary);
+  border: 2px solid var(--accent);
   border-radius: 10px;
   background: var(--bg-secondary);
   width: min(760px, 92vw);
@@ -251,16 +251,16 @@ defineExpose({ handleButton });
   align-items: center;
   gap: 10px;
   padding: 14px 18px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border);
 }
 .sth-title { margin: 0; font-size: 1.1rem; color: var(--text-primary); }
 .sth-count { color: var(--text-secondary); font-size: 0.8rem; }
 .sth-spacer { margin-left: auto; }
 .sth-clear {
-  background: none; border: 1px solid var(--border-color); color: var(--text-secondary);
+  background: none; border: 1px solid var(--border); color: var(--text-secondary);
   border-radius: 4px; padding: 5px 10px; cursor: pointer; font-size: 0.78rem;
 }
-.sth-clear:hover:not(:disabled) { border-color: var(--accent-primary); color: var(--text-primary); }
+.sth-clear:hover:not(:disabled) { border-color: var(--accent); color: var(--text-primary); }
 .sth-clear:disabled { opacity: 0.5; cursor: not-allowed; }
 .sth-x { background: none; border: none; color: var(--text-secondary); font-size: 1.2rem; cursor: pointer; }
 .sth-x:hover { color: var(--text-primary); }
@@ -275,7 +275,7 @@ defineExpose({ handleButton });
 .sth-day-label:first-child { margin-top: 0; }
 
 .sth-run {
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; background: var(--bg-primary);
 }
 .sth-run-top { display: flex; align-items: center; gap: 8px; }
@@ -297,7 +297,7 @@ defineExpose({ handleButton });
 }
 .sth-err { margin-top: 8px; padding: 7px 10px; background: rgba(255,68,68,0.1); color: #ff6666; border-radius: 4px; font-size: 0.82rem; }
 
-.sth-details { margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.sth-details { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
 .sth-detail-row { display: flex; flex-direction: column; gap: 2px; }
 .sth-detail-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-secondary); }
 .sth-detail-val { font-size: 0.85rem; color: var(--text-primary); word-break: break-word; }
@@ -309,10 +309,10 @@ defineExpose({ handleButton });
 
 .sth-actions { margin-top: 10px; display: flex; gap: 8px; }
 .sth-btn {
-  padding: 6px 14px; border-radius: 4px; border: 1px solid var(--border-color);
+  padding: 6px 14px; border-radius: 4px; border: 1px solid var(--border);
   background: var(--bg-tertiary); color: var(--text-primary); cursor: pointer; font-size: 0.82rem;
 }
-.sth-btn:hover { border-color: var(--accent-primary); }
-.sth-btn--primary { background: var(--accent-primary); border-color: var(--accent-primary); color: #fff; }
+.sth-btn:hover { border-color: var(--accent); }
+.sth-btn--primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .sth-btn--primary:hover { opacity: 0.9; }
 </style>

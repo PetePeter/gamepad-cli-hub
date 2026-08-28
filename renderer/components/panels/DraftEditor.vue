@@ -601,7 +601,7 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
 .plan-edit-rows { display: flex; flex-direction: column; gap: 6px; }
 .plan-edit-row-title input { width: 100%; }
 .plan-edit-row-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.tooltip-icon { color: var(--text-muted, #8b949e); font-size: 11px; cursor: help; }
+.tooltip-icon { color: var(--text-dim); font-size: 11px; cursor: help; }
 .draft-editor-plan-checkbox:hover .tooltip-icon { color: var(--accent, #58a6ff); }
 .draft-editor-attachments { border-top: 1px solid #2a2a2a; padding-top: 10px; margin-top: 4px; display: flex; flex-direction: column; gap: 6px; }
 .draft-editor-attachments__header { display: flex; align-items: center; justify-content: space-between; }

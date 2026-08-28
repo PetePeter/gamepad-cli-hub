@@ -1,10 +1,15 @@
 /* Helm - Dark Theme */
 
 :root {
+  /* Native form controls (select, input, checkbox) follow the dark palette.
+     Without this Chromium renders them in light chrome on our dark surfaces. */
+  color-scheme: dark;
+
   /* Colors */
   --bg-primary: #0a0a0a;
   --bg-secondary: #111111;
   --bg-tertiary: #1a1a1a;
+  --bg-hover: #252525;
   --accent: #4fd08b;
   --accent-hover: #73df9f;
   /* Readable text on --accent (light green) — used as the flash fallback text colour. */
@@ -15,6 +20,21 @@
   --border: #222222;
   --focus: rgba(79, 208, 139, 0.3);
 
+  /* Semantic colours. One red and one blue, so the same meaning cannot drift
+     into four different literals across the app. */
+  --danger: #ff5f5f;
+  --danger-border: #663333;
+  --info: #6c8cff;
+
+  /* Plan / session status palette. Mirrors renderer/state-colors.ts, which is
+     the source of truth for the TypeScript side. */
+  --status-planning: #555555;
+  --status-ready: #4488ff;
+  --status-coding: #44cc44;
+  --status-review: #44ccff;
+  --status-blocked: #ff9f1a;
+  --status-done: #555555;
+
   /* Spacing */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
@@ -23,6 +43,8 @@
   --spacing-xl: 32px;
 
   /* Typography */
+  --font-mono: Consolas, 'Cascadia Mono', monospace;
+  --font-size-xs: 10px;
   --font-size-sm: 12px;
   --font-size-md: 14px;
   --font-size-lg: 16px;
@@ -59,6 +81,41 @@ button {
   border: none;
   background: none;
   color: inherit;
+}
+
+/* Base form controls.
+   Previously there was no rule here at all, so any native control that a panel
+   did not style locally fell back to Chromium's default light chrome on our
+   dark surfaces. Panels may still override; this is the floor, not a ceiling. */
+input,
+select,
+textarea {
+  font: inherit;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-dim);
+}
+
+/* Checkboxes and radios keep their native box; only the accent needs steering. */
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--accent);
+  padding: 0;
 }
 
 /* App Layout — horizontal split */
@@ -2196,7 +2253,7 @@ kbd {
 }
 
 .settings-back-btn {
-  background: var(--bg-surface);
+  background: var(--bg-secondary);
   border: 1px solid var(--border);
   color: var(--text-primary);
   padding: var(--spacing-xs) var(--spacing-sm);
@@ -2409,7 +2466,7 @@ kbd {
 .settings-form__checkbox-wrap input[type="checkbox"] {
   width: 16px;
   height: 16px;
-  accent-color: var(--accent-color, #4488ff);
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
@@ -2542,7 +2599,7 @@ kbd {
   align-items: center;
   gap: var(--spacing-md);
   padding-top: var(--spacing-xs);
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--border);
 }
 
 .settings-skill-badge {
@@ -3039,7 +3096,7 @@ kbd {
 .binding-picker {
   margin-top: 12px;
   padding: 12px;
-  background: var(--surface-hover);
+  background: var(--bg-hover);
   border-radius: 8px;
   border: 1px solid var(--border);
 }

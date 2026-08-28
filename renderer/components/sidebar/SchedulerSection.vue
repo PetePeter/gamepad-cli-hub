@@ -90,7 +90,7 @@ onUnmounted(() => {
 .scheduler-row {
   width: 100%;
   min-height: 30px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-secondary);
   color: var(--text-primary);
@@ -101,14 +101,14 @@ onUnmounted(() => {
   display: flex;
   width: 100%;
   min-height: 30px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 4px;
   overflow: hidden;
 }
 .scheduler-create {
   border: none;
   background: var(--bg-secondary);
-  color: var(--accent-primary);
+  color: var(--accent);
   cursor: pointer;
   font-size: 0.82rem;
 }
@@ -120,7 +120,7 @@ onUnmounted(() => {
 .scheduler-create--hist {
   width: 32px;
   flex: 0 0 32px;
-  border-left: 1px solid var(--border-color);
+  border-left: 1px solid var(--border);
   background: var(--bg-tertiary);
   color: var(--text-secondary);
   font-size: 0.95rem;
@@ -141,7 +141,7 @@ onUnmounted(() => {
   cursor: default;
 }
 .scheduler-row:hover {
-  border-color: var(--border-color);
+  border-color: var(--border);
 }
 .scheduler-row--running {
   border-color: #ff9f1a;
@@ -162,7 +162,7 @@ onUnmounted(() => {
 .scheduler-action {
   width: 22px;
   height: 22px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-primary);
   color: var(--text-secondary);
@@ -171,7 +171,7 @@ onUnmounted(() => {
   line-height: 1;
 }
 .scheduler-action:hover {
-  border-color: var(--accent-primary);
+  border-color: var(--accent);
   color: var(--text-primary);
 }
 .scheduler-action--danger:hover {

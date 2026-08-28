@@ -167,7 +167,7 @@ async function browseBackupDir(): Promise<void> {
   flex: 1;
   min-width: 200px;
   padding: 6px 8px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-primary);
   color: var(--text-primary);
@@ -180,7 +180,7 @@ async function browseBackupDir(): Promise<void> {
 .setting-row input[type="number"] {
   width: 80px;
   padding: 6px 8px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-primary);
   color: var(--text-primary);

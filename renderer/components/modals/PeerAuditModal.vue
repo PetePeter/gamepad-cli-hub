@@ -143,7 +143,7 @@ defineExpose({ handleButton });
 
 <style scoped>
 .pa-modal {
-  border: 2px solid var(--accent-primary);
+  border: 2px solid var(--accent);
   border-radius: 10px;
   background: var(--bg-secondary);
   width: min(680px, 92vw);
@@ -152,7 +152,7 @@ defineExpose({ handleButton });
 }
 .pa-head {
   display: flex; align-items: center; gap: 10px;
-  padding: 14px 18px; border-bottom: 1px solid var(--border-color);
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
 }
 .pa-title { margin: 0; font-size: 1.1rem; color: var(--text-primary); }
 .pa-count { color: var(--text-secondary); font-size: 0.8rem; }
@@ -170,7 +170,7 @@ defineExpose({ handleButton });
 .pa-day-label:first-child { margin-top: 0; }
 
 .pa-run {
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; background: var(--bg-primary);
 }
 .pa-run-top { display: flex; align-items: center; gap: 8px; }

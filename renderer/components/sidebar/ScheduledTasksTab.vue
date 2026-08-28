@@ -364,7 +364,7 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer); modalStack.po
 .st-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
 .st-title { margin: 0; font-size: 1.5rem; color: var(--text-primary); }
 .st-count { color: var(--text-secondary); font-size: 0.85rem; }
-.st-create-btn { margin-left: auto; padding: 8px 16px; background: var(--accent-primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 0.9rem; }
+.st-create-btn { margin-left: auto; padding: 8px 16px; background: var(--accent); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 0.9rem; }
 .st-create-btn:hover { opacity: 0.9; }
 .st-create-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .st-form { background: var(--bg-secondary); padding: 20px; border-radius: 8px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 14px; }
@@ -372,25 +372,25 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer); modalStack.po
 .st-form-row--inline { flex-direction: row; gap: 12px; }
 .st-form-row--inline > .st-form-row { flex: 1; }
 .st-label { font-size: 0.8rem; font-weight: 500; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.3px; }
-.st-input, .st-textarea { padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary); font-size: 0.95rem; box-sizing: border-box; }
+.st-input, .st-textarea { padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary); font-size: 0.95rem; box-sizing: border-box; }
 .st-textarea { resize: vertical; min-height: 60px; font-family: inherit; }
 .st-form-row--picker { margin-bottom: 2px; }
-.st-picker-btn { padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-primary); color: var(--text-primary); font-size: 0.9rem; text-align: left; cursor: pointer; transition: border-color 0.2s; }
+.st-picker-btn { padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-primary); color: var(--text-primary); font-size: 0.9rem; text-align: left; cursor: pointer; transition: border-color 0.2s; }
 .st-picker-btn--disabled { opacity: 0.5; cursor: default; }
-.st-picker-btn:hover:not(.st-picker-btn--disabled) { border-color: var(--accent-primary); }
-.st-cron-box { padding: 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; }
+.st-picker-btn:hover:not(.st-picker-btn--disabled) { border-color: var(--accent); }
+.st-cron-box { padding: 12px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; }
 .st-cron-presets { display: flex; gap: 6px; flex-wrap: wrap; }
-.st-preset-btn { padding: 6px 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 0.8rem; cursor: pointer; }
-.st-preset-btn:hover { border-color: var(--accent-primary); }
+.st-preset-btn { padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 0.8rem; cursor: pointer; }
+.st-preset-btn:hover { border-color: var(--accent); }
 .st-cron-status { margin: 0; font-size: 0.82rem; color: #44cc44; }
 .st-cron-status--invalid { color: #ff6666; }
-.st-form-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border-color); }
+.st-form-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border); }
 .st-btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 0.95rem; }
-.st-btn--primary { background: var(--accent-primary); color: white; }
+.st-btn--primary { background: var(--accent); color: white; }
 .st-btn--primary:hover:not(:disabled) { opacity: 0.9; }
 .st-btn--primary:disabled { opacity: 0.5; cursor: not-allowed; }
-.st-btn--secondary { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); padding: 10px 20px; }
-.st-btn--secondary:hover:not(:disabled) { border-color: var(--accent-primary); }
+.st-btn--secondary { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); padding: 10px 20px; }
+.st-btn--secondary:hover:not(:disabled) { border-color: var(--accent); }
 .st-btn--danger { background: #ff4444; color: white; padding: 6px 12px; font-size: 0.85rem; }
 .st-btn--danger:hover:not(:disabled) { background: #cc0000; }
 .st-empty { text-align: center; padding: 40px; color: var(--text-secondary); }
@@ -412,7 +412,7 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer); modalStack.po
 .st-task-description { margin: 0 0 4px; font-size: 0.9rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-task-meta { display: flex; gap: 8px; font-size: 0.8rem; color: var(--text-secondary); flex-wrap: wrap; align-items: center; }
 .st-task-chip { background: var(--bg-tertiary); padding: 1px 6px; border-radius: 3px; }
-.st-task-countdown { margin-left: auto; font-weight: 500; color: var(--accent-primary); }
+.st-task-countdown { margin-left: auto; font-weight: 500; color: var(--accent); }
 .st-task-countdown--running { color: #ff9f1a; }
 .st-task-time { margin-left: auto; color: var(--text-secondary); }
 .st-task-error { margin-top: 8px; padding: 8px; background: rgba(255, 68, 68, 0.1); border-radius: 4px; color: #ff4444; font-size: 0.9rem; }

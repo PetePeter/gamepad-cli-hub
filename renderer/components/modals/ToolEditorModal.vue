@@ -372,7 +372,7 @@ defineExpose({ handleButton });
 .tool-editor-modal .modal-body { display: flex; flex-direction: column; gap: var(--spacing-md); }
 .te-error { margin: 0; padding: 6px 10px; border: 1px solid rgba(255, 82, 82, 0.5); border-radius: var(--radius-sm); color: #ff8a8a; background: rgba(255, 82, 82, 0.08); font-size: var(--font-size-sm); }
 .te-identity { margin: 0; color: var(--text-dim); font-size: 11px; font-family: 'Consolas', 'Courier New', monospace; user-select: text; }
-.te-params { color: var(--text-muted, #9aa3b2); font-weight: 400; font-size: 0.85em; margin-left: var(--spacing-xs); }
+.te-params { color: var(--text-dim); font-weight: 400; font-size: 0.85em; margin-left: var(--spacing-xs); }
 .te-params code { color: #ffd479; }
 .te-env-list { display: flex; flex-direction: column; gap: var(--spacing-sm); }
 .te-env-item { align-items: center; }
@@ -389,7 +389,7 @@ defineExpose({ handleButton });
 .te-section__legend { font-size: var(--font-size-sm); font-weight: 600; color: var(--accent); padding: 0 var(--spacing-xs); user-select: none; }
 .te-grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-sm); }
 .te-grid-3col { display: grid; grid-template-columns: 1fr 1fr auto; gap: var(--spacing-sm); align-items: center; }
-.te-input--mode { width: 90px; padding: 4px 6px; font-size: 11px; background: var(--input-bg, #2a2a2a); color: var(--text-secondary, #aaa); border: 1px solid var(--border, #444); border-radius: 4px; }
+.te-input--mode { width: 90px; padding: 4px 6px; font-size: 11px; background: var(--bg-primary); color: var(--text-secondary, #aaa); border: 1px solid var(--border, #444); border-radius: 4px; }
 .te-field { display: flex; flex-direction: column; gap: var(--spacing-xs); }
 .te-field label { font-size: var(--font-size-sm); color: var(--text-secondary); font-weight: 500; }
 .te-input, .te-select { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--spacing-sm) var(--spacing-md); color: var(--text-primary); font-size: var(--font-size-md); font-family: inherit; width: 100%; }
