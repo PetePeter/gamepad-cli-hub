@@ -11,6 +11,7 @@ import FilterChip from '../common/FilterChip.vue';
 import SplitAddButton from '../buttons/SplitAddButton.vue';
 import SequencePanel from './SequencePanel.vue';
 import { isEditableElement } from '../../input/input-ownership.js';
+import { getPlanStatusColor } from '../../state-colors.js';
 
 const NODE_W = 200;
 const NODE_H = 102;
@@ -26,15 +27,6 @@ function filterState(value: unknown): TriState {
   if (value === false || value === 'no') return 'no';
   return 'either';
 }
-
-const STATUS_COLORS: Record<string, string> = {
-  planning: '#555555',
-  ready: '#4488ff',
-  coding: '#44cc44',
-  review: '#44ccff',
-  blocked: '#ff9f1a',
-  done: '#555555',
-};
 
 const props = withDefaults(defineProps<{
   visible: boolean;
@@ -341,7 +333,7 @@ watch(isPanning, (panning) => {
 });
 
 function getNodeColor(status: string): string {
-  return STATUS_COLORS[status] ?? STATUS_COLORS.planning;
+  return getPlanStatusColor(status);
 }
 
 function connectorPoint(id: string, side: 'in' | 'out'): { x: number; y: number } | null {
@@ -731,7 +723,7 @@ onUnmounted(() => {
       >
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-            <polygon points="0 0, 10 3.5, 0 7" fill="#555" />
+            <polygon points="0 0, 10 3.5, 0 7" fill="var(--text-dim)" />
           </marker>
         </defs>
 
@@ -800,7 +792,7 @@ onUnmounted(() => {
           :class="{ 'plan-arrow--related-background': isDepRelatedBackground(dep) }"
           :d="depPath(dep)"
           fill="none"
-          stroke="#555"
+          stroke="var(--text-dim)"
           stroke-width="1.5"
           marker-end="url(#arrowhead)"
           @click.stop="emit('removeDep', dep.fromId, dep.toId)"
@@ -811,7 +803,7 @@ onUnmounted(() => {
           class="plan-drag-line"
           :d="dragPath"
           fill="none"
-          stroke="#ff6600"
+          stroke="var(--accent)"
           stroke-width="2"
           stroke-dasharray="6 3"
         />
@@ -821,7 +813,7 @@ onUnmounted(() => {
           class="plan-drag-line plan-drag-line--context"
           :d="contextLinkPath"
           fill="none"
-          stroke="#ffbf8a"
+          stroke="var(--status-blocked)"
           stroke-width="2"
           stroke-dasharray="6 3"
         />
@@ -849,8 +841,8 @@ onUnmounted(() => {
             height="102"
             rx="10"
             ry="10"
-            fill="#1a1a1a"
-            stroke="#333"
+            fill="var(--bg-tertiary)"
+            stroke="var(--border)"
             stroke-width="1.5"
           />
           <circle
@@ -899,8 +891,8 @@ onUnmounted(() => {
             cx="0"
             cy="51"
             :r="CONNECTOR_R"
-            fill="#333"
-            stroke="#555"
+            fill="var(--border)"
+            stroke="var(--text-dim)"
             stroke-width="1"
           />
           <circle
@@ -908,8 +900,8 @@ onUnmounted(() => {
             cx="200"
             cy="51"
             :r="CONNECTOR_R"
-            fill="#333"
-            stroke="#555"
+            fill="var(--border)"
+            stroke="var(--text-dim)"
             stroke-width="1"
             @mousedown.stop="startDragConnection(item.id, $event)"
           />
@@ -1003,7 +995,7 @@ onUnmounted(() => {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  background: #0a0a0a;
+  background: var(--bg-primary);
 }
 .plan-screen.visible {
   display: flex;
@@ -1011,10 +1003,10 @@ onUnmounted(() => {
 
 .plan-header__btn {
   padding: 4px 12px;
-  background: #1a1a1a;
-  border: 1px solid #333;
-  border-radius: 4px;
-  color: #ccc;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 12px;
 }
@@ -1027,24 +1019,24 @@ onUnmounted(() => {
   cursor: not-allowed;
 }
 .plan-header__btn:disabled:hover {
-  background: #1a1a1a;
-  border-color: #333;
-  color: #777;
+  background: var(--bg-tertiary);
+  border-color: var(--border);
+  color: var(--text-dim);
 }
 .plan-header__btn:hover {
-  background: #252525;
-  border-color: #ff6600;
-  color: #ff6600;
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .plan-header__btn--secondary {
-  border-color: #444;
-  color: #aaa;
+  border-color: var(--text-dim);
+  color: var(--text-secondary);
 }
 
 .plan-header__btn--secondary:hover {
-  border-color: #4488ff;
-  color: #4488ff;
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .plan-header__controls {
@@ -1059,16 +1051,16 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
   padding: 3px 8px;
-  background: #1a1a1a;
-  border: 1px solid #333;
-  border-radius: 4px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   flex-wrap: wrap;
 }
 .plan-header__filters :deep(.filter-chip) {
   font-size: var(--font-size-xs);
 }
 .plan-header__filter-sep {
-  color: #444;
+  color: var(--text-dim);
   font-size: 12px;
   padding: 0 2px;
   user-select: none;
@@ -1082,7 +1074,7 @@ onUnmounted(() => {
 
 .plan-notice {
   font-size: 12px;
-  color: #4fd08b;
+  color: var(--accent);
   opacity: 0;
   transition: opacity 0.2s;
   white-space: nowrap;
@@ -1107,7 +1099,7 @@ onUnmounted(() => {
 
 .plan-node { cursor: pointer; }
 .plan-node:hover rect { stroke-width: 2; }
-.plan-node--selected rect { stroke-width: 2.5; stroke: #ff6600 !important; }
+.plan-node--selected rect { stroke-width: 2.5; stroke: var(--accent) !important; }
 .plan-node--done { opacity: 0.5; }
 .plan-node--done .plan-node__title { text-decoration: line-through; }
 .plan-node--related-background:not(.plan-node--selected) {
@@ -1118,12 +1110,12 @@ onUnmounted(() => {
   stroke-dasharray: 4 4;
 }
 .plan-node--related-transient:not(.plan-node--selected) rect {
-  stroke: #4fd08b;
+  stroke: var(--accent);
   stroke-dasharray: 5 3;
 }
 
 .plan-node__title {
-  color: #fff;
+  color: var(--text-primary);
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
@@ -1135,7 +1127,7 @@ onUnmounted(() => {
 }
 
 .plan-node__meta {
-  color: #8f8f8f;
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
   line-height: 14px;
   white-space: nowrap;
@@ -1146,7 +1138,7 @@ onUnmounted(() => {
 }
 
 .plan-node__desc {
-  color: #cfcfcf;
+  color: var(--text-primary);
   font-size: 11px;
   overflow: hidden;
   display: -webkit-box;
@@ -1159,7 +1151,7 @@ onUnmounted(() => {
 }
 
 .plan-node__state-info {
-  color: #999;
+  color: var(--text-secondary);
   font-size: 10px;
   white-space: nowrap;
   overflow: hidden;
@@ -1173,14 +1165,14 @@ onUnmounted(() => {
   pointer-events: none;
 }
 .plan-sequence-lane rect {
-  fill: rgba(79, 208, 139, 0.06);
-  stroke: rgba(79, 208, 139, 0.45);
+  fill: color-mix(in srgb, var(--accent) 6%, transparent);
+  stroke: color-mix(in srgb, var(--accent) 45%, transparent);
   stroke-width: 1.5;
   stroke-dasharray: 9 5;
 }
 
 .plan-arrow { cursor: pointer; }
-.plan-arrow:hover { stroke: #888 !important; stroke-width: 2.5; }
+.plan-arrow:hover { stroke: var(--text-secondary) !important; stroke-width: 2.5; }
 .plan-arrow--related-background {
   opacity: 0.18;
   stroke-dasharray: 6 5;
@@ -1188,12 +1180,12 @@ onUnmounted(() => {
 
 .plan-canvas-empty {
   font-size: 16px;
-  fill: #666;
+  fill: var(--text-dim);
   pointer-events: none;
 }
 .plan-canvas-empty-hint {
   font-size: 12px;
-  fill: #444;
+  fill: var(--text-dim);
   pointer-events: none;
 }
 
@@ -1201,16 +1193,16 @@ onUnmounted(() => {
   display: flex;
   gap: 16px;
   padding: 6px 16px;
-  background: #0d0d0d;
-  border-top: 1px solid #1a1a1a;
+  background: var(--bg-primary);
+  border-top: 1px solid var(--bg-tertiary);
   font-size: 11px;
-  color: #444;
+  color: var(--text-dim);
   flex-wrap: wrap;
 }
 .plan-controls-hint span::before {
   content: '·';
   margin-right: 4px;
-  color: #2a2a2a;
+  color: var(--border);
 }
 
 .plan-inspector {
@@ -1218,8 +1210,8 @@ onUnmounted(() => {
   flex-direction: column;
   flex: 0 0 auto;
   max-height: min(42vh, 360px);
-  background: #111;
-  border-top: 1px solid #242424;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--bg-hover);
   overflow: hidden;
 }
 
@@ -1228,14 +1220,14 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
   padding: 8px 16px;
-  border-bottom: 1px solid #222;
+  border-bottom: 1px solid var(--border);
 }
 
 .plan-inspector__title {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  color: #eee;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 600;
   text-overflow: ellipsis;
@@ -1264,13 +1256,13 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  color: #bbb;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 700;
 }
 
 .plan-node__connector { cursor: crosshair; }
-.plan-node__connector:hover { fill: #ff6600; stroke: #ff6600; }
+.plan-node__connector:hover { fill: var(--accent); stroke: var(--accent); }
 
 @keyframes plan-shake {
   0%, 100% { transform: translateX(0); }
@@ -1286,11 +1278,11 @@ onUnmounted(() => {
 .plan-drag-line { pointer-events: none; }
 
 .plan-node--multiselected rect:first-child {
-  stroke: #4488ff;
+  stroke: var(--accent);
   stroke-width: 2;
 }
 .plan-node--drop-target rect:first-child {
-  stroke: #ffbf8a;
+  stroke: var(--status-blocked);
   stroke-width: 2.5;
 }
 .plan-node__unlink {
@@ -1298,24 +1290,24 @@ onUnmounted(() => {
 }
 .plan-node__unlink circle {
   fill: rgba(46, 58, 76, 0.92);
-  stroke: #6f86a8;
+  stroke: var(--info);
   stroke-width: 1.5;
   pointer-events: all;
 }
 .plan-node__unlink path {
   fill: none;
-  stroke: #c3d2e6;
+  stroke: var(--text-secondary);
   stroke-linecap: round;
   stroke-width: 1.4;
   pointer-events: none;
 }
 .plan-node__unlink:hover circle {
   fill: rgba(58, 75, 102, 0.96);
-  stroke: #9bb7dc;
+  stroke: var(--accent);
   stroke-width: 2;
 }
 .plan-node__unlink:hover path {
-  stroke: #f0f6ff;
+  stroke: var(--text-primary);
 }
 .plan-node__attachment-badge {
   display: inline-flex;
@@ -1324,8 +1316,8 @@ onUnmounted(() => {
   padding: 0 6px;
   border-radius: 999px;
   font-size: 10px;
-  background: #2a2a2a;
-  color: #aaa;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
   user-select: none;
 }
 .plan-node__bottom-row {
@@ -1352,8 +1344,8 @@ onUnmounted(() => {
   height: 18px;
   padding: 0 6px;
   border-radius: 999px;
-  background: rgba(255, 158, 84, 0.18);
-  color: #ffbf8a;
+  background: color-mix(in srgb, var(--status-blocked) 18%, transparent);
+  color: var(--status-blocked);
   font-size: 11px;
   font-weight: 700;
   line-height: 18px;
@@ -1365,9 +1357,9 @@ onUnmounted(() => {
   min-height: 16px;
   padding: 0 6px;
   border-radius: 999px;
-  background: rgba(68, 204, 68, 0.18);
-  border: 1px solid rgba(68, 204, 68, 0.45);
-  color: #8ff0a4;
+  background: color-mix(in srgb, var(--status-coding) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-coding) 45%, transparent);
+  color: var(--accent-hover);
   font-size: 10px;
   font-weight: 700;
 }
@@ -1375,49 +1367,49 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .plan-seq-edit-btn rect {
-  fill: #2a2a2a;
-  stroke: #555;
+  fill: var(--bg-tertiary);
+  stroke: var(--text-dim);
   stroke-width: 1;
 }
 .plan-seq-edit-btn text {
-  fill: #aaa;
+  fill: var(--text-secondary);
   font-size: 12px;
   pointer-events: none;
   user-select: none;
 }
 .plan-seq-edit-btn:hover rect {
-  fill: #383838;
-  stroke: #888;
+  fill: var(--bg-hover);
+  stroke: var(--text-secondary);
 }
 .plan-seq-edit-btn:hover text {
-  fill: #eee;
+  fill: var(--text-primary);
 }
 .plan-sequence-lane--empty rect {
   stroke-dasharray: 6 4;
-  stroke: #444;
+  stroke: var(--text-dim);
   fill: transparent;
 }
 .plan-sequence-lane--empty .plan-sequence-lane__placeholder {
-  fill: #555;
+  fill: var(--text-dim);
   font-size: 12px;
 }
 .plan-sequence-lane--drop-target rect {
-  stroke: #44cc44;
+  stroke: var(--status-coding);
   stroke-width: 2.5;
-  fill: rgba(68, 204, 68, 0.08);
+  fill: color-mix(in srgb, var(--status-coding) 8%, transparent);
 }
 .plan-sequence-lane__title {
   cursor: pointer;
   font-weight: 600;
   font-size: 13px;
-  color: var(--text-primary, #ddd);
+  color: var(--text-primary);
   line-height: 24px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .plan-sequence-lane__title:hover {
-  color: #4488ff;
+  color: var(--accent);
 }
 .plan-sequence-lane__context-dot {
   border: 0;
@@ -1429,20 +1421,20 @@ onUnmounted(() => {
   padding: 0 6px;
   margin-left: 8px;
   border-radius: 999px;
-  background: rgba(255, 158, 84, 0.18);
-  color: #ffbf8a;
+  background: color-mix(in srgb, var(--status-blocked) 18%, transparent);
+  color: var(--status-blocked);
   cursor: pointer;
   font-size: 11px;
   font-weight: 700;
 }
 .plan-sequence-lane__context-dot:hover,
 .plan-sequence-lane__context-dot:focus-visible {
-  background: rgba(255, 158, 84, 0.32);
-  color: #ffd8b8;
-  outline: 1px solid rgba(255, 191, 138, 0.7);
+  background: color-mix(in srgb, var(--status-blocked) 32%, transparent);
+  color: var(--text-primary);
+  outline: 1px solid color-mix(in srgb, var(--status-blocked) 70%, transparent);
 }
 .plan-unlinked-label {
-  fill: #666;
+  fill: var(--text-dim);
   font-size: 13px;
   font-weight: 600;
   user-select: none;
@@ -1451,16 +1443,16 @@ onUnmounted(() => {
   cursor: grab;
 }
 .plan-context-card rect {
-  fill: rgba(255, 158, 84, 0.08);
-  stroke: rgba(255, 158, 84, 0.72);
+  fill: color-mix(in srgb, var(--status-blocked) 8%, transparent);
+  stroke: color-mix(in srgb, var(--status-blocked) 72%, transparent);
   stroke-width: 1.5;
 }
 .plan-context-card--selected rect {
-  stroke: #ffbf8a;
+  stroke: var(--status-blocked);
   stroke-width: 2.5;
 }
 .plan-context-card__title {
-  color: #fff2e5;
+  color: var(--text-primary);
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
@@ -1471,16 +1463,16 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #f1caab;
+  color: var(--text-secondary);
   font-size: 11px;
 }
 .plan-context-card__permission {
-  color: #ffbf8a;
+  color: var(--status-blocked);
   font-size: 10px;
   text-transform: uppercase;
 }
 .plan-context-card__content {
-  color: #e5d7ca;
+  color: var(--text-secondary);
   font-size: 11px;
   line-height: 14px;
   overflow: hidden;
@@ -1490,17 +1482,17 @@ onUnmounted(() => {
   word-break: break-word;
 }
 .plan-context-card__bound {
-  color: #d8af8b;
+  color: var(--text-dim);
   font-size: 10px;
 }
 .plan-context-card__connector {
-  fill: #2a1b12;
-  stroke: #ffbf8a;
+  fill: var(--bg-primary);
+  stroke: var(--status-blocked);
   stroke-width: 1.5;
   cursor: crosshair;
 }
 .plan-context-card__connector:hover {
-  fill: #ffbf8a;
-  stroke: #fff2e5;
+  fill: var(--status-blocked);
+  stroke: var(--text-primary);
 }
 </style>

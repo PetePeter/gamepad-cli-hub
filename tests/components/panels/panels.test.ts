@@ -12,6 +12,13 @@ vi.mock('../../../renderer/state-colors.js', () => ({
     const map: Record<string, string> = { active: '#44cc44', inactive: '#4488ff', idle: '#555555' };
     return map[level] ?? '#555555';
   },
+  getPlanStatusColor: (status: string) => {
+    const map: Record<string, string> = {
+      planning: '#555555', ready: '#4488ff', coding: '#44cc44',
+      review: '#44ccff', blocked: '#ff9f1a', done: '#555555',
+    };
+    return map[status] ?? map.planning;
+  },
 }));
 
 import TerminalPane from '../../../renderer/components/panels/TerminalPane.vue';

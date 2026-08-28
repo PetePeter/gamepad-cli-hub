@@ -1572,11 +1572,11 @@ body.dock-dragging { cursor: grabbing; user-select: none; }
 .plans-btn-top { display: flex; align-items: center; gap: 6px; flex: 1; }
 .plans-btn-dots { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 2px; }
 .plan-dot { font-size: 0.7em; }
-.plan-dot--ready { color: #4488ff; }
-.plan-dot--coding { color: #44cc44; }
-.plan-dot--review { color: #44ccff; }
-.plan-dot--blocked { color: #ff9f1a; }
-.plan-dot--planning { color: #555555; }
+.plan-dot--ready { color: var(--status-ready); }
+.plan-dot--coding { color: var(--status-coding); }
+.plan-dot--review { color: var(--status-review); }
+.plan-dot--blocked { color: var(--status-blocked); }
+.plan-dot--planning { color: var(--status-planning); }
 
 .recycle-bin-btn {
   display: flex;

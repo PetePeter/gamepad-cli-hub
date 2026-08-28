@@ -76,8 +76,8 @@ function onSelect(value: 'plan' | 'context' | 'sequence'): void {
 
 .split-add__primary:hover,
 .split-add__toggle:hover {
-  border-color: #ff6600;
-  color: #ff6600;
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .split-add__menu {
