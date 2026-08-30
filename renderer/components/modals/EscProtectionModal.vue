@@ -26,9 +26,16 @@ const isVisible = computed(() => escProtection.isProtecting.value);
 // Watch for visibility changes and update modal stack
 watch(isVisible, (newVal) => {
   if (newVal) {
+    // The dialog owns its own confirmation. Escape arrives here as 'B' via the
+    // keyboard bridge, and the gamepad B button arrives on the same path, so
+    // both routes converge on one handler.
     stack.push({
       id: 'escProtection',
-      handler: () => false,
+      handler: (button) => {
+        if (button === 'B') escProtection.confirmProtection();
+        else escProtection.dismissProtection();
+        return true;
+      },
       interceptKeys: new Set(['escape'] as InterceptKey[]),
     });
   } else {

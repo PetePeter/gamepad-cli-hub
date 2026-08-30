@@ -36,10 +36,11 @@ export interface TerminalKeyDeps {
   openPromptEditor: (sessionId: string) => void;
   /** Is the Escape-protection setting turned on for this session's CLI? */
   isEscProtectionArmed: () => boolean;
+  /**
+   * Raise the protection dialog. Confirmation is the dialog's own business —
+   * once it is up the router gates these handlers out on `scope === 'modal'`.
+   */
   openEscProtection: (sessionId: string) => void;
-  /** Is the protection dialog already on screen? Its second Escape confirms. */
-  isEscProtectionActive?: () => boolean;
-  dismissEscProtection?: () => void;
   /** Live DOM selection, for the artifact-document copy carve-out. */
   readSelection?: () => SelectionInfo;
   /** Absent in snap-out windows, which do not own the session list. */
@@ -91,14 +92,6 @@ export function createTerminalKeyHandlers(deps: TerminalKeyDeps): KeyHandler[] {
       handle: (ctx) => {
         if (ctx.combo !== 'escape') return false;
         const sessionId = ctx.activeSessionId!;
-
-        // Second Escape, with the dialog already up: this is the confirmation,
-        // so the interrupt goes through and the dialog closes.
-        if (deps.isEscProtectionActive?.()) {
-          deps.writePty(sessionId, '\x1b');
-          deps.dismissEscProtection?.();
-          return true;
-        }
 
         // Protection turns the first Escape into a confirmation instead of an
         // interrupt. It must pre-empt xterm, which would otherwise send ESC.

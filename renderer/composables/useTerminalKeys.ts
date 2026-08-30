@@ -47,11 +47,13 @@ export function useTerminalKeys(options: TerminalKeysOptions): void {
     void refreshEscProtection();
     const escProtection = useEscProtection();
 
+    function writePty(sessionId: string, data: string): void {
+      void terminalClient.ptyWrite(sessionId, data);
+      if (data === '\x1b') void refreshEscProtection();
+    }
+
     const handlers = createTerminalKeyHandlers({
-      writePty: (sessionId, data) => {
-        void terminalClient.ptyWrite(sessionId, data);
-        if (data === '\x1b') void refreshEscProtection();
-      },
+      writePty,
       deliverText: (sessionId, text) => deliverBulkText(sessionId, text),
       readClipboardText: () => navigator.clipboard.readText(),
       readSelection: readSelectionInfo,
@@ -67,9 +69,10 @@ export function useTerminalKeys(options: TerminalKeysOptions): void {
           .finally(() => { editorOpen = false; });
       },
       isEscProtectionArmed: () => escProtectionEnabled.value,
-      openEscProtection: (sessionId) => escProtection.openProtection(sessionId),
-      isEscProtectionActive: () => escProtection.isProtecting.value,
-      dismissEscProtection: () => escProtection.dismissProtection(),
+      openEscProtection: (sessionId) => escProtection.openProtection(
+        sessionId,
+        () => writePty(sessionId, '\x1b'),
+      ),
       renameSession: options.renameSession,
       clearNotifications: options.clearNotifications,
     });
