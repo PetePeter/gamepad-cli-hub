@@ -40,6 +40,13 @@ const customFormat = winston.format.combine(
   })
 );
 
+// File transports exist to give the running app a durable log. A test run has
+// no such need, and they are actively harmful there: Vitest points APPDATA at a
+// disposable directory that teardown removes, while the rotation timer outlives
+// the suite and writes into the deleted path — surfacing as an uncaught ENOENT
+// that no test can catch. Console output alone under test.
+const useFileTransports = !process.env.VITEST;
+
 // Define transports
 const transports: winston.transport[] = [
   // Console transport with colors
@@ -49,25 +56,30 @@ const transports: winston.transport[] = [
       customFormat
     ),
   }),
-  // Daily rotating file transport for all logs
-  new DailyRotateFile({
-    filename: path.join(logDir, 'combined-%DATE%.log'),
-    level: 'info',
-    format: customFormat,
-    datePattern: 'YYYY-MM-DD',
-    maxSize: '10m',
-    maxFiles: '14d',
-  }),
-  // Daily rotating file transport for error logs only
-  new DailyRotateFile({
-    filename: path.join(logDir, 'error-%DATE%.log'),
-    level: 'error',
-    format: customFormat,
-    datePattern: 'YYYY-MM-DD',
-    maxSize: '10m',
-    maxFiles: '14d',
-  }),
 ];
+
+if (useFileTransports) {
+  transports.push(
+    // Daily rotating file transport for all logs
+    new DailyRotateFile({
+      filename: path.join(logDir, 'combined-%DATE%.log'),
+      level: 'info',
+      format: customFormat,
+      datePattern: 'YYYY-MM-DD',
+      maxSize: '10m',
+      maxFiles: '14d',
+    }),
+    // Daily rotating file transport for error logs only
+    new DailyRotateFile({
+      filename: path.join(logDir, 'error-%DATE%.log'),
+      level: 'error',
+      format: customFormat,
+      datePattern: 'YYYY-MM-DD',
+      maxSize: '10m',
+      maxFiles: '14d',
+    })
+  );
+}
 
 // Create the logger instance
 export const logger = winston.createLogger({
