@@ -285,7 +285,7 @@ function applyPreset(peer: ConfiguredPeer, globs: string[]): void {
 .peers-empty { margin: 0; color: var(--text-secondary); font-size: 0.78rem; line-height: 1.35; }
 
 .peer-row {
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg-primary);
   padding: 6px 8px;
@@ -305,7 +305,7 @@ function applyPreset(peer: ConfiguredPeer, globs: string[]): void {
 .peer-toggle-label { font-size: 0.78rem; color: var(--text-secondary); }
 
 .peer-allow-editor {
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--border);
   padding-top: 8px;
   display: flex;
   flex-direction: column;
@@ -329,13 +329,13 @@ function applyPreset(peer: ConfiguredPeer, globs: string[]): void {
 .peer-add-row { display: flex; gap: 8px; }
 .peer-add-input {
   flex: 1; min-width: 160px; padding: 6px 8px;
-  border: 1px solid var(--border-color); border-radius: 4px;
+  border: 1px solid var(--border); border-radius: 4px;
   background: var(--bg-primary); color: var(--text-primary); font-size: 0.85rem;
 }
 
 .peer-discovered-row {
   display: flex; align-items: center; gap: 8px;
-  border: 1px solid var(--border-color); border-radius: 6px;
+  border: 1px solid var(--border); border-radius: 6px;
   background: var(--bg-primary); padding: 5px 8px;
 }
 .peers-discovery-state {
@@ -347,13 +347,4 @@ function applyPreset(peer: ConfiguredPeer, globs: string[]): void {
 .peers-discovery-state--found { color: #44cc44; }
 .peer-manual { display: flex; gap: 8px; align-items: center; }
 
-.btn {
-  padding: 6px 12px; border-radius: 4px; border: 1px solid var(--border-color);
-  background: var(--bg-tertiary); color: var(--text-primary); cursor: pointer; font-size: 0.82rem;
-}
-.btn--sm { padding: 4px 10px; font-size: 0.78rem; }
-.btn--primary { background: var(--accent-primary); border-color: var(--accent-primary); color: #fff; }
-.btn--secondary { background: var(--bg-tertiary); color: var(--text-primary); }
-.btn--danger { border-color: #ff6666; color: #ff6666; background: transparent; }
-.btn--danger:hover { background: rgba(255,102,102,0.12); }
 </style>

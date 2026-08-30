@@ -46,3 +46,47 @@ function tooltip(preview: string, index: number): string {
     </button>
   </div>
 </template>
+
+<style scoped>
+.chip-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.chip-action-btn {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  color: var(--text-primary);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  user-select: none;
+}
+
+.chip-action-btn:hover {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: var(--accent);
+}
+
+.chip-action-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Alt+number accelerator badge — uses the glyph in the template to stay
+   distinct from the Ctrl-based session-jump badge. */
+.chip-action-btn__accel {
+  margin-right: 5px;
+  font-family: monospace;
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.65;
+  color: var(--accent);
+}
+</style>

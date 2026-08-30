@@ -199,3 +199,30 @@ defineExpose({ handleButton });
     </div>
   </Teleport>
 </template>
+
+<style scoped>
+#promptTreePicker {
+  max-height: 60vh;
+  overflow-y: auto;
+  min-width: 280px;
+}
+
+.prompt-tree-expand-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 14px;
+  font-size: 10px;
+  color: #888;
+  text-align: center;
+}
+
+.prompt-tree-folder .prompt-tree-name {
+  font-weight: 600;
+}
+
+.prompt-tree-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+</style>

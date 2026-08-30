@@ -327,6 +327,15 @@ describe('ArtifactViewer', () => {
     expect(titles).toEqual(['Perf Benchmark']);
   });
 
+  it('shows an empty state when the search query matches no artifacts', async () => {
+    const { w } = await mountWith([makeArtifact()]);
+
+    await w.find('.ap-search input').setValue('does-not-exist');
+    await flushPromises();
+
+    expect(w.find('.ap-rail-list .empty-state').text()).toContain('No artifacts match your search');
+  });
+
   it('emits pop-out from the header without a duplicate panel-close action', async () => {
     const { w } = await mountWith([makeArtifact()]);
 

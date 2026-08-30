@@ -128,6 +128,7 @@ python sendDeploy.py            # Commit, tag, push, upload installer via gh CLI
 | [docs/file-structure.md](docs/file-structure.md) | Complete directory tree with per-file descriptions |
 | [docs/build-and-test.md](docs/build-and-test.md) | Build commands, output paths, build notes, tech stack details |
 | [docs/config-system.md](docs/config-system.md) | Profile YAML, binding types, sequence parser syntax, stick/dpad config |
+| [docs/css-architecture.md](docs/css-architecture.md) | CSS ownership, global exceptions, tokens, primitives, and selection states |
 | [docs/config-boundary.md](docs/config-boundary.md) | Where writable config/logs/temp live, seeding, legacy migration |
 | [docs/preload-api-boundary.md](docs/preload-api-boundary.md) | IPC/contextBridge boundary rules |
 | [docs/docking.md](docs/docking.md) | Dock workspace — pane registry, tabs/splits/edge docks, rails, close & restore, chips-in-pane |

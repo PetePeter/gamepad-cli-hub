@@ -293,7 +293,7 @@ async function onSetMainDir(projectId: string, dirPath: string): Promise<void> {
 /* ── Project item ─────────────────────────────────────────────────────────── */
 
 .settings-project-item {
-  border: 1px solid var(--border-color, #333);
+  border: 1px solid var(--border);
   border-radius: 6px;
   overflow: hidden;
 }
@@ -340,7 +340,7 @@ async function onSetMainDir(projectId: string, dirPath: string): Promise<void> {
   font-size: 13px;
   background: var(--bg-primary, #111);
   color: var(--text-primary, #eee);
-  border: 1px solid var(--accent-color, #4488ff);
+  border: 1px solid var(--accent);
   border-radius: 3px;
   outline: none;
 }
@@ -362,7 +362,7 @@ async function onSetMainDir(projectId: string, dirPath: string): Promise<void> {
   gap: 0;
   padding: 8px 12px 8px 32px;
   background: var(--bg-primary, #111);
-  border-top: 1px solid var(--border-color, #333);
+  border-top: 1px solid var(--border);
 }
 
 .settings-project-dir {
@@ -370,7 +370,7 @@ async function onSetMainDir(projectId: string, dirPath: string): Promise<void> {
   align-items: center;
   gap: 8px;
   padding: 4px 0;
-  border-bottom: 1px solid var(--border-color, #222);
+  border-bottom: 1px solid var(--border);
 }
 .settings-project-dir:last-of-type {
   border-bottom: none;
@@ -384,7 +384,7 @@ async function onSetMainDir(projectId: string, dirPath: string): Promise<void> {
   font-size: 10px;
   padding: 1px 5px;
   border-radius: 3px;
-  background: var(--accent-color, #4488ff);
+  background: var(--accent);
   color: #fff;
   text-transform: uppercase;
   flex-shrink: 0;
@@ -414,7 +414,7 @@ async function onSetMainDir(projectId: string, dirPath: string): Promise<void> {
 }
 
 .settings-project-error {
-  color: var(--danger-color, #ff6b6b);
+  color: var(--danger);
   font-size: 12px;
   margin: 0;
 }

@@ -12,6 +12,13 @@ vi.mock('../../../renderer/state-colors.js', () => ({
     const map: Record<string, string> = { active: '#44cc44', inactive: '#4488ff', idle: '#555555' };
     return map[level] ?? '#555555';
   },
+  getPlanStatusColor: (status: string) => {
+    const map: Record<string, string> = {
+      planning: '#555555', ready: '#4488ff', coding: '#44cc44',
+      review: '#44ccff', blocked: '#ff9f1a', done: '#555555',
+    };
+    return map[status] ?? map.planning;
+  },
 }));
 
 import TerminalPane from '../../../renderer/components/panels/TerminalPane.vue';
@@ -1141,7 +1148,8 @@ describe('PlanScreen', () => {
 
   it('shows dir path in title', () => {
     const w = mount(PlanScreen, { props: baseProps });
-    expect(w.find('.plan-header__title').text()).toBe('/home/project - Plans');
+    expect(w.find('.panel-header h2').text()).toBe('Plans');
+    expect(w.find('.panel-header__subtitle').text()).toBe('/home/project');
   });
 
   it('renders plan nodes', () => {

@@ -167,7 +167,7 @@ async function browseBackupDir(): Promise<void> {
   flex: 1;
   min-width: 200px;
   padding: 6px 8px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-primary);
   color: var(--text-primary);
@@ -180,7 +180,7 @@ async function browseBackupDir(): Promise<void> {
 .setting-row input[type="number"] {
   width: 80px;
   padding: 6px 8px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-primary);
   color: var(--text-primary);
@@ -190,21 +190,6 @@ async function browseBackupDir(): Promise<void> {
   width: 18px;
   height: 18px;
   cursor: pointer;
-}
-.btn {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-.btn--secondary {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 .saving-indicator {
   color: var(--text-secondary);

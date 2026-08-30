@@ -135,14 +135,14 @@ defineExpose({ handleButton });
 <style scoped>
 .pp-instruction--incoming { color: var(--text-secondary); font-size: 0.8rem; }
 .peer-pairing-modal {
-  border: 2px solid var(--accent-primary);
+  border: 2px solid var(--accent);
   border-radius: 10px;
   background: var(--bg-secondary);
   width: min(420px, 92vw);
   display: flex;
   flex-direction: column;
 }
-.pp-head { padding: 16px 20px; border-bottom: 1px solid var(--border-color); }
+.pp-head { padding: 16px 20px; border-bottom: 1px solid var(--border); }
 .pp-title { margin: 0; font-size: 1.1rem; color: var(--text-primary); }
 .pp-body { padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .pp-instruction { margin: 0; color: var(--text-primary); font-size: 0.95rem; text-align: center; }
@@ -157,7 +157,7 @@ defineExpose({ handleButton });
   font-weight: 700;
   color: var(--text-primary);
   background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: 6px;
 }
 .pp-waiting { color: var(--text-secondary); font-size: 0.9rem; padding: 18px 0; }
@@ -168,20 +168,7 @@ defineExpose({ handleButton });
   display: flex;
   gap: 10px;
   padding: 14px 20px;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--border);
   justify-content: flex-end;
 }
-.btn {
-  padding: 8px 18px;
-  border-radius: 4px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  cursor: pointer;
-  font-size: 0.88rem;
-}
-.btn--primary { background: var(--accent-primary); border-color: var(--accent-primary); color: #fff; }
-.btn--primary:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn--danger { border-color: #ff6666; color: #ff6666; }
-.btn--danger:hover { background: rgba(255,102,102,0.12); }
 </style>

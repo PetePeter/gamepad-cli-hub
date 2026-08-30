@@ -401,3 +401,46 @@ function onCardClick(e: MouseEvent): void {
     />
   </div>
 </template>
+
+<style scoped>
+.draft-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 5px;
+  background: #2a2a3a;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Clickable entry point that opens the session's artifact panel. */
+.artifact-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 5px;
+  background: #2a2a3a;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.artifact-badge:hover { border-color: var(--accent); color: var(--accent); }
+.draft-badge + .artifact-badge { margin-left: 4px; }
+
+/* Natural draggability — whole card, no handle. */
+.session-card[draggable='true'] { cursor: grab; }
+.session-card[draggable='true']:active { cursor: grabbing; }
+.session-card.dragging { opacity: 0.4; }
+</style>

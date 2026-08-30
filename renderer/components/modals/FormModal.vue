@@ -193,7 +193,7 @@ defineExpose({ handleButton });
                 :aria-describedby="validationErrors[field.key] ? getFieldErrorId(field.key) : undefined"
                 @input="setFieldValue(field.key, ($event.target as HTMLInputElement).value)"
               />
-              <button v-if="field.browse" class="btn btn--small" @click="onBrowse(field.key)">📁</button>
+              <button v-if="field.browse" class="btn btn--sm" @click="onBrowse(field.key)">📁</button>
             </div>
 
             <!-- Select -->

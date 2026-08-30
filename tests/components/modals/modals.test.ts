@@ -1111,7 +1111,7 @@ describe('FormModal.vue', () => {
 
   it('renders browse button for browse-enabled fields', () => {
     const w = factory();
-    const browseBtn = w.findAll('.btn--small');
+    const browseBtn = w.findAll('.btn--sm');
     expect(browseBtn).toHaveLength(1);
     w.unmount();
   });

@@ -31,3 +31,18 @@ export const PEER_STATUS_COLORS: Record<string, string> = {
 export function getPeerStatusColor(status: string): string {
   return PEER_STATUS_COLORS[status] ?? PEER_STATUS_COLORS.offline;
 }
+
+/** Plan lifecycle colors. These values mirror the --status-* CSS tokens. */
+export const PLAN_STATUS_COLORS: Record<string, string> = {
+  planning: '#555555',
+  ready: '#4488ff',
+  coding: '#44cc44',
+  review: '#44ccff',
+  blocked: '#ff9f1a',
+  done: '#555555',
+};
+
+/** Get the color for a plan status, defaulting to planning grey. */
+export function getPlanStatusColor(status: string): string {
+  return PLAN_STATUS_COLORS[status] ?? PLAN_STATUS_COLORS.planning;
+}

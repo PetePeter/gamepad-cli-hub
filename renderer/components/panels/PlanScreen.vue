@@ -6,9 +6,12 @@ import type { PlanDependency, PlanItem, PlanSequence } from '../../../src/types/
 import type { ContextBindingTargetType, ContextNode } from '../../../src/types/context.js';
 import type { LayoutResult } from '../../plans/plan-layout.js';
 import type { TriState } from '../../plans/plan-screen.js';
+import PanelHeader from '../common/PanelHeader.vue';
+import FilterChip from '../common/FilterChip.vue';
 import SplitAddButton from '../buttons/SplitAddButton.vue';
 import SequencePanel from './SequencePanel.vue';
 import { isEditableElement } from '../../input/input-ownership.js';
+import { getPlanStatusColor } from '../../state-colors.js';
 
 const NODE_W = 200;
 const NODE_H = 102;
@@ -19,14 +22,11 @@ const EMPTY_SEQ_H = 80;
 const CONTEXT_W = 230;
 const CONTEXT_H = 130;
 
-const STATUS_COLORS: Record<string, string> = {
-  planning: '#555555',
-  ready: '#4488ff',
-  coding: '#44cc44',
-  review: '#44ccff',
-  blocked: '#ff9f1a',
-  done: '#555555',
-};
+function filterState(value: unknown): TriState {
+  if (value === true || value === 'yes') return 'yes';
+  if (value === false || value === 'no') return 'no';
+  return 'either';
+}
 
 const props = withDefaults(defineProps<{
   visible: boolean;
@@ -333,7 +333,7 @@ watch(isPanning, (panning) => {
 });
 
 function getNodeColor(status: string): string {
-  return STATUS_COLORS[status] ?? STATUS_COLORS.planning;
+  return getPlanStatusColor(status);
 }
 
 function connectorPoint(id: string, side: 'in' | 'out'): { x: number; y: number } | null {
@@ -658,51 +658,53 @@ onUnmounted(() => {
     :class="{ visible }"
     @mousedown="focusPlanScreen"
   >
-    <div class="plan-header">
-      <button class="plan-header__btn" @click="emit('close')">← Back</button>
-      <SplitAddButton @primary="emit('addNode')" @select="handleAddSelection" />
-      <span class="plan-header__title">{{ dirPath }} - Plans</span>
+    <PanelHeader title="Plans" :subtitle="dirPath" icon="📋">
+      <template #actions>
+        <div class="plan-header__controls">
+          <button class="plan-header__btn" @click="emit('close')">← Back</button>
+          <SplitAddButton @primary="emit('addNode')" @select="handleAddSelection" />
+          <button
+            class="plan-header__btn plan-header__btn--secondary"
+            :disabled="!selectedId && !relatedFocusActive"
+            title="Focus related plans (F)"
+            @click="emit('toggleRelatedFocus')"
+          >{{ relatedFocusActive ? 'Clear Focus' : 'Focus Related' }}</button>
+          <button
+            v-if="canPopOut"
+            class="plan-header__btn plan-header__btn--secondary"
+            title="Open this planner in a detached window"
+            @click="emit('popOut')"
+          >↗ Pop Out</button>
+          <button class="plan-header__btn plan-header__btn--secondary" @click="emit('openPlanExternal')" title="Open selected plan as Markdown (read-only)">📄 Open Plan</button>
+          <button class="plan-header__btn plan-header__btn--secondary" @click="emit('exportDir')">⬆ Export Dir</button>
+          <button class="plan-header__btn plan-header__btn--secondary" @click="emit('clearDone')">🧹 Clear Done</button>
+          <button class="plan-header__btn plan-header__btn--secondary" @click="emit('openBackups')" title="Backups (R)">💾 Backups</button>
+          <span v-if="notice" class="plan-notice plan-notice--visible">{{ notice }}</span>
+        </div>
+      </template>
 
-      <div class="plan-header__filters">
-        <button class="plan-header__chip" :class="filters.types.bug" @click="emit('toggleTypeFilter', 'bug')">Bug</button>
-        <button class="plan-header__chip" :class="filters.types.feature" @click="emit('toggleTypeFilter', 'feature')">Feature</button>
-        <button class="plan-header__chip" :class="filters.types.research" @click="emit('toggleTypeFilter', 'research')">Research</button>
-        <button class="plan-header__chip" :class="filters.types.untyped" @click="emit('toggleTypeFilter', 'untyped')">Untyped</button>
-        <span class="plan-header__filter-sep">|</span>
-        <button class="plan-header__chip" :class="filters.statuses.planning" @click="emit('toggleStatusFilter', 'planning')">Planning</button>
-        <button class="plan-header__chip" :class="filters.statuses.ready" @click="emit('toggleStatusFilter', 'ready')">Ready</button>
-        <button class="plan-header__chip" :class="filters.statuses.coding" @click="emit('toggleStatusFilter', 'coding')">Coding</button>
-        <button class="plan-header__chip" :class="filters.statuses.review" @click="emit('toggleStatusFilter', 'review')">Review</button>
-        <button class="plan-header__chip" :class="filters.statuses.blocked" @click="emit('toggleStatusFilter', 'blocked')">Blocked</button>
-        <button class="plan-header__chip" :class="filters.statuses.done" @click="emit('toggleStatusFilter', 'done')">Done</button>
-        <span class="plan-header__filter-sep">|</span>
-        <button class="plan-header__chip" :class="filters.hasAttachment?.yes" @click="emit('toggleHasAttachmentFilter', 'yes')">Has</button>
-        <button class="plan-header__chip" :class="filters.hasAttachment?.no" @click="emit('toggleHasAttachmentFilter', 'no')">None</button>
-        <span class="plan-header__filter-sep">|</span>
-        <button class="plan-header__chip" :class="filters.auto" @click="emit('toggleAutoFilter')">Auto</button>
-        <button class="plan-header__btn plan-header__btn--reset" title="Reset filters" @click="emit('resetFilters')">↺</button>
-      </div>
-
-      <div class="plan-header__controls">
-        <button
-          class="plan-header__btn plan-header__btn--secondary"
-          :disabled="!selectedId && !relatedFocusActive"
-          title="Focus related plans (F)"
-          @click="emit('toggleRelatedFocus')"
-        >{{ relatedFocusActive ? 'Clear Focus' : 'Focus Related' }}</button>
-        <button
-          v-if="canPopOut"
-          class="plan-header__btn plan-header__btn--secondary"
-          title="Open this planner in a detached window"
-          @click="emit('popOut')"
-        >↗ Pop Out</button>
-        <button class="plan-header__btn plan-header__btn--secondary" @click="emit('openPlanExternal')" title="Open selected plan as Markdown (read-only)">📄 Open Plan</button>
-        <button class="plan-header__btn plan-header__btn--secondary" @click="emit('exportDir')">⬆ Export Dir</button>
-        <button class="plan-header__btn plan-header__btn--secondary" @click="emit('clearDone')">🧹 Clear Done</button>
-        <button class="plan-header__btn plan-header__btn--secondary" @click="emit('openBackups')" title="Backups (R)">💾 Backups</button>
-      </div>
-      <span v-if="notice" class="plan-notice plan-notice--visible">{{ notice }}</span>
-    </div>
+      <template #toolbar>
+        <div class="plan-header__filters">
+          <FilterChip class="plan-header__chip" :class="filterState(filters.types.bug)" :state="filterState(filters.types.bug)" label="Bug" @update:state="emit('toggleTypeFilter', 'bug')" />
+          <FilterChip class="plan-header__chip" :class="filterState(filters.types.feature)" :state="filterState(filters.types.feature)" label="Feature" @update:state="emit('toggleTypeFilter', 'feature')" />
+          <FilterChip class="plan-header__chip" :class="filterState(filters.types.research)" :state="filterState(filters.types.research)" label="Research" @update:state="emit('toggleTypeFilter', 'research')" />
+          <FilterChip class="plan-header__chip" :class="filterState(filters.types.untyped)" :state="filterState(filters.types.untyped)" label="Untyped" @update:state="emit('toggleTypeFilter', 'untyped')" />
+          <span class="plan-header__filter-sep">|</span>
+          <FilterChip class="plan-header__chip" :class="filterState(filters.statuses.planning)" :state="filterState(filters.statuses.planning)" label="Planning" @update:state="emit('toggleStatusFilter', 'planning')" />
+          <FilterChip class="plan-header__chip" :class="filterState(filters.statuses.ready)" :state="filterState(filters.statuses.ready)" label="Ready" @update:state="emit('toggleStatusFilter', 'ready')" />
+          <FilterChip class="plan-header__chip" :class="filterState(filters.statuses.coding)" :state="filterState(filters.statuses.coding)" label="Coding" @update:state="emit('toggleStatusFilter', 'coding')" />
+          <FilterChip class="plan-header__chip" :class="filterState(filters.statuses.review)" :state="filterState(filters.statuses.review)" label="Review" @update:state="emit('toggleStatusFilter', 'review')" />
+          <FilterChip class="plan-header__chip" :class="filterState(filters.statuses.blocked)" :state="filterState(filters.statuses.blocked)" label="Blocked" @update:state="emit('toggleStatusFilter', 'blocked')" />
+          <FilterChip class="plan-header__chip" :class="filterState(filters.statuses.done)" :state="filterState(filters.statuses.done)" label="Done" @update:state="emit('toggleStatusFilter', 'done')" />
+          <span class="plan-header__filter-sep">|</span>
+          <FilterChip class="plan-header__chip" :class="filterState(filters.hasAttachment?.yes)" :state="filterState(filters.hasAttachment?.yes)" label="Has" @update:state="emit('toggleHasAttachmentFilter', 'yes')" />
+          <FilterChip class="plan-header__chip" :class="filterState(filters.hasAttachment?.no)" :state="filterState(filters.hasAttachment?.no)" label="None" @update:state="emit('toggleHasAttachmentFilter', 'no')" />
+          <span class="plan-header__filter-sep">|</span>
+          <FilterChip class="plan-header__chip" :class="filterState(filters.auto)" :state="filterState(filters.auto)" label="Auto" @update:state="emit('toggleAutoFilter')" />
+          <button class="plan-header__btn plan-header__btn--reset" title="Reset filters" @click="emit('resetFilters')">↺</button>
+        </div>
+      </template>
+    </PanelHeader>
 
     <div
       ref="wrapperRef"
@@ -721,7 +723,7 @@ onUnmounted(() => {
       >
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-            <polygon points="0 0, 10 3.5, 0 7" fill="#555" />
+            <polygon points="0 0, 10 3.5, 0 7" fill="var(--text-dim)" />
           </marker>
         </defs>
 
@@ -790,7 +792,7 @@ onUnmounted(() => {
           :class="{ 'plan-arrow--related-background': isDepRelatedBackground(dep) }"
           :d="depPath(dep)"
           fill="none"
-          stroke="#555"
+          stroke="var(--text-dim)"
           stroke-width="1.5"
           marker-end="url(#arrowhead)"
           @click.stop="emit('removeDep', dep.fromId, dep.toId)"
@@ -801,7 +803,7 @@ onUnmounted(() => {
           class="plan-drag-line"
           :d="dragPath"
           fill="none"
-          stroke="#ff6600"
+          stroke="var(--accent)"
           stroke-width="2"
           stroke-dasharray="6 3"
         />
@@ -811,7 +813,7 @@ onUnmounted(() => {
           class="plan-drag-line plan-drag-line--context"
           :d="contextLinkPath"
           fill="none"
-          stroke="#ffbf8a"
+          stroke="var(--status-blocked)"
           stroke-width="2"
           stroke-dasharray="6 3"
         />
@@ -839,8 +841,8 @@ onUnmounted(() => {
             height="102"
             rx="10"
             ry="10"
-            fill="#1a1a1a"
-            stroke="#333"
+            fill="var(--bg-tertiary)"
+            stroke="var(--border)"
             stroke-width="1.5"
           />
           <circle
@@ -889,8 +891,8 @@ onUnmounted(() => {
             cx="0"
             cy="51"
             :r="CONNECTOR_R"
-            fill="#333"
-            stroke="#555"
+            fill="var(--border)"
+            stroke="var(--text-dim)"
             stroke-width="1"
           />
           <circle
@@ -898,8 +900,8 @@ onUnmounted(() => {
             cx="200"
             cy="51"
             :r="CONNECTOR_R"
-            fill="#333"
-            stroke="#555"
+            fill="var(--border)"
+            stroke="var(--text-dim)"
             stroke-width="1"
             @mousedown.stop="startDragConnection(item.id, $event)"
           />
@@ -981,12 +983,306 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/*
+ * PlanScreen owns the plan canvas, header, nodes, sequences, arrows,
+ * inspector, notices, and controls-hint class families.
+ * The plan-header__chip family remains global because SkillsTab.vue also
+ * renders it. Sequence modal styles live in SequencePanel.vue because its
+ * modal is teleported to body.
+ */
+.plan-screen {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-primary);
+}
+.plan-screen.visible {
+  display: flex;
+}
+
+.plan-header__btn {
+  padding: 4px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+.plan-header__btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.plan-header__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.plan-header__btn:disabled:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border);
+  color: var(--text-dim);
+}
+.plan-header__btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.plan-header__btn--secondary {
+  border-color: var(--text-dim);
+  color: var(--text-secondary);
+}
+
+.plan-header__btn--secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.plan-header__controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.plan-header__filters {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  flex-wrap: wrap;
+}
+.plan-header__filters :deep(.filter-chip) {
+  font-size: var(--font-size-xs);
+}
+.plan-header__filter-sep {
+  color: var(--text-dim);
+  font-size: 12px;
+  padding: 0 2px;
+  user-select: none;
+}
+.plan-header__btn--reset {
+  padding: 2px 6px;
+  font-size: 13px;
+  line-height: 1;
+  margin-left: 4px;
+}
+
+.plan-notice {
+  font-size: 12px;
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+
+.plan-notice--visible {
+  opacity: 1;
+}
+
+.plan-canvas {
+  flex: 1;
+  overflow: hidden;
+  cursor: grab;
+}
+.plan-canvas:active {
+  cursor: grabbing;
+}
+.plan-canvas svg {
+  width: 100%;
+  height: 100%;
+}
+
+.plan-node { cursor: pointer; }
+.plan-node:hover rect { stroke-width: 2; }
+.plan-node--selected rect { stroke-width: 2.5; stroke: var(--accent) !important; }
+.plan-node--done { opacity: 0.5; }
+.plan-node--done .plan-node__title { text-decoration: line-through; }
+.plan-node--related-background:not(.plan-node--selected) {
+  opacity: 0.24;
+  filter: grayscale(0.8);
+}
+.plan-node--related-background:not(.plan-node--selected) rect {
+  stroke-dasharray: 4 4;
+}
+.plan-node--related-transient:not(.plan-node--selected) rect {
+  stroke: var(--accent);
+  stroke-dasharray: 5 3;
+}
+
+.plan-node__title {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 20px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.plan-node__meta {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  user-select: none;
+}
+
+.plan-node__desc {
+  color: var(--text-primary);
+  font-size: 11px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 13px;
+  pointer-events: none;
+  user-select: none;
+  word-break: break-word;
+}
+
+.plan-node__state-info {
+  color: var(--text-secondary);
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 18px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.plan-sequence-lane {
+  pointer-events: none;
+}
+.plan-sequence-lane rect {
+  fill: color-mix(in srgb, var(--accent) 6%, transparent);
+  stroke: color-mix(in srgb, var(--accent) 45%, transparent);
+  stroke-width: 1.5;
+  stroke-dasharray: 9 5;
+}
+
+.plan-arrow { cursor: pointer; }
+.plan-arrow:hover { stroke: var(--text-secondary) !important; stroke-width: 2.5; }
+.plan-arrow--related-background {
+  opacity: 0.18;
+  stroke-dasharray: 6 5;
+}
+
+.plan-canvas-empty {
+  font-size: 16px;
+  fill: var(--text-dim);
+  pointer-events: none;
+}
+.plan-canvas-empty-hint {
+  font-size: 12px;
+  fill: var(--text-dim);
+  pointer-events: none;
+}
+
+.plan-controls-hint {
+  display: flex;
+  gap: 16px;
+  padding: 6px 16px;
+  background: var(--bg-primary);
+  border-top: 1px solid var(--bg-tertiary);
+  font-size: 11px;
+  color: var(--text-dim);
+  flex-wrap: wrap;
+}
+.plan-controls-hint span::before {
+  content: '·';
+  margin-right: 4px;
+  color: var(--border);
+}
+
+.plan-inspector {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  max-height: min(42vh, 360px);
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--bg-hover);
+  overflow: hidden;
+}
+
+.plan-inspector__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.plan-inspector__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-inspector__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 12px 12px;
+}
+
+.plan-inspector__section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  gap: 8px;
+}
+
+.plan-inspector__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.plan-node__connector { cursor: crosshair; }
+.plan-node__connector:hover { fill: var(--accent); stroke: var(--accent); }
+
+@keyframes plan-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(2px); }
+}
+.plan-node--shake {
+  animation: plan-shake 0.4s ease;
+}
+
+.plan-drag-line { pointer-events: none; }
+
 .plan-node--multiselected rect:first-child {
-  stroke: #4488ff;
+  stroke: var(--accent);
   stroke-width: 2;
 }
 .plan-node--drop-target rect:first-child {
-  stroke: #ffbf8a;
+  stroke: var(--status-blocked);
   stroke-width: 2.5;
 }
 .plan-node__unlink {
@@ -994,24 +1290,24 @@ onUnmounted(() => {
 }
 .plan-node__unlink circle {
   fill: rgba(46, 58, 76, 0.92);
-  stroke: #6f86a8;
+  stroke: var(--info);
   stroke-width: 1.5;
   pointer-events: all;
 }
 .plan-node__unlink path {
   fill: none;
-  stroke: #c3d2e6;
+  stroke: var(--text-secondary);
   stroke-linecap: round;
   stroke-width: 1.4;
   pointer-events: none;
 }
 .plan-node__unlink:hover circle {
   fill: rgba(58, 75, 102, 0.96);
-  stroke: #9bb7dc;
+  stroke: var(--accent);
   stroke-width: 2;
 }
 .plan-node__unlink:hover path {
-  stroke: #f0f6ff;
+  stroke: var(--text-primary);
 }
 .plan-node__attachment-badge {
   display: inline-flex;
@@ -1020,8 +1316,8 @@ onUnmounted(() => {
   padding: 0 6px;
   border-radius: 999px;
   font-size: 10px;
-  background: #2a2a2a;
-  color: #aaa;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
   user-select: none;
 }
 .plan-node__bottom-row {
@@ -1048,8 +1344,8 @@ onUnmounted(() => {
   height: 18px;
   padding: 0 6px;
   border-radius: 999px;
-  background: rgba(255, 158, 84, 0.18);
-  color: #ffbf8a;
+  background: color-mix(in srgb, var(--status-blocked) 18%, transparent);
+  color: var(--status-blocked);
   font-size: 11px;
   font-weight: 700;
   line-height: 18px;
@@ -1061,9 +1357,9 @@ onUnmounted(() => {
   min-height: 16px;
   padding: 0 6px;
   border-radius: 999px;
-  background: rgba(68, 204, 68, 0.18);
-  border: 1px solid rgba(68, 204, 68, 0.45);
-  color: #8ff0a4;
+  background: color-mix(in srgb, var(--status-coding) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-coding) 45%, transparent);
+  color: var(--accent-hover);
   font-size: 10px;
   font-weight: 700;
 }
@@ -1071,45 +1367,49 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .plan-seq-edit-btn rect {
-  fill: #2a2a2a;
-  stroke: #555;
+  fill: var(--bg-tertiary);
+  stroke: var(--text-dim);
   stroke-width: 1;
 }
 .plan-seq-edit-btn text {
-  fill: #aaa;
+  fill: var(--text-secondary);
   font-size: 12px;
   pointer-events: none;
   user-select: none;
 }
 .plan-seq-edit-btn:hover rect {
-  fill: #383838;
-  stroke: #888;
+  fill: var(--bg-hover);
+  stroke: var(--text-secondary);
 }
 .plan-seq-edit-btn:hover text {
-  fill: #eee;
+  fill: var(--text-primary);
 }
 .plan-sequence-lane--empty rect {
   stroke-dasharray: 6 4;
-  stroke: #444;
+  stroke: var(--text-dim);
   fill: transparent;
 }
 .plan-sequence-lane--empty .plan-sequence-lane__placeholder {
-  fill: #555;
+  fill: var(--text-dim);
   font-size: 12px;
 }
 .plan-sequence-lane--drop-target rect {
-  stroke: #44cc44;
+  stroke: var(--status-coding);
   stroke-width: 2.5;
-  fill: rgba(68, 204, 68, 0.08);
+  fill: color-mix(in srgb, var(--status-coding) 8%, transparent);
 }
 .plan-sequence-lane__title {
   cursor: pointer;
   font-weight: 600;
   font-size: 13px;
-  color: var(--text-primary, #ddd);
+  color: var(--text-primary);
+  line-height: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .plan-sequence-lane__title:hover {
-  color: #4488ff;
+  color: var(--accent);
 }
 .plan-sequence-lane__context-dot {
   border: 0;
@@ -1121,20 +1421,20 @@ onUnmounted(() => {
   padding: 0 6px;
   margin-left: 8px;
   border-radius: 999px;
-  background: rgba(255, 158, 84, 0.18);
-  color: #ffbf8a;
+  background: color-mix(in srgb, var(--status-blocked) 18%, transparent);
+  color: var(--status-blocked);
   cursor: pointer;
   font-size: 11px;
   font-weight: 700;
 }
 .plan-sequence-lane__context-dot:hover,
 .plan-sequence-lane__context-dot:focus-visible {
-  background: rgba(255, 158, 84, 0.32);
-  color: #ffd8b8;
-  outline: 1px solid rgba(255, 191, 138, 0.7);
+  background: color-mix(in srgb, var(--status-blocked) 32%, transparent);
+  color: var(--text-primary);
+  outline: 1px solid color-mix(in srgb, var(--status-blocked) 70%, transparent);
 }
 .plan-unlinked-label {
-  fill: #666;
+  fill: var(--text-dim);
   font-size: 13px;
   font-weight: 600;
   user-select: none;
@@ -1143,16 +1443,16 @@ onUnmounted(() => {
   cursor: grab;
 }
 .plan-context-card rect {
-  fill: rgba(255, 158, 84, 0.08);
-  stroke: rgba(255, 158, 84, 0.72);
+  fill: color-mix(in srgb, var(--status-blocked) 8%, transparent);
+  stroke: color-mix(in srgb, var(--status-blocked) 72%, transparent);
   stroke-width: 1.5;
 }
 .plan-context-card--selected rect {
-  stroke: #ffbf8a;
+  stroke: var(--status-blocked);
   stroke-width: 2.5;
 }
 .plan-context-card__title {
-  color: #fff2e5;
+  color: var(--text-primary);
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
@@ -1163,16 +1463,16 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #f1caab;
+  color: var(--text-secondary);
   font-size: 11px;
 }
 .plan-context-card__permission {
-  color: #ffbf8a;
+  color: var(--status-blocked);
   font-size: 10px;
   text-transform: uppercase;
 }
 .plan-context-card__content {
-  color: #e5d7ca;
+  color: var(--text-secondary);
   font-size: 11px;
   line-height: 14px;
   overflow: hidden;
@@ -1182,17 +1482,17 @@ onUnmounted(() => {
   word-break: break-word;
 }
 .plan-context-card__bound {
-  color: #d8af8b;
+  color: var(--text-dim);
   font-size: 10px;
 }
 .plan-context-card__connector {
-  fill: #2a1b12;
-  stroke: #ffbf8a;
+  fill: var(--bg-primary);
+  stroke: var(--status-blocked);
   stroke-width: 1.5;
   cursor: crosshair;
 }
 .plan-context-card__connector:hover {
-  fill: #ffbf8a;
-  stroke: #fff2e5;
+  fill: var(--status-blocked);
+  stroke: var(--text-primary);
 }
 </style>

@@ -432,7 +432,7 @@ defineExpose({
   flex-direction: column;
   height: 100%;
   min-width: 0;
-  border-right: 1px solid var(--border-color);
+  border-right: 1px solid var(--border);
 }
 
 .prompt-mgmt-tree__toolbar {
@@ -440,7 +440,7 @@ defineExpose({
   flex-wrap: wrap;
   gap: 4px;
   padding: 6px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border);
 }
 
 .prompt-mgmt-tree__btn {
@@ -467,7 +467,7 @@ defineExpose({
 .link-btn {
   background: none;
   border: none;
-  color: var(--accent-color, #4488ff);
+  color: var(--accent);
   cursor: pointer;
   padding: 0;
   font: inherit;
@@ -507,7 +507,7 @@ defineExpose({
 }
 
 .prompt-mgmt-tree__item--active {
-  outline: 1px solid var(--accent-color, #4488ff);
+  outline: 1px solid var(--accent);
   outline-offset: -1px;
 }
 
