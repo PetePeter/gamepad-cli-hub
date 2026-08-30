@@ -12,9 +12,12 @@
  * - Error handling + loading state
  */
 
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import type { BackupMetadata } from '../../../src/types/plan-backup.js';
 import { registerKeyHandler } from '../../keyboard/router.js';
+import { useModalStack } from '../../composables/useModalStack.js';
+
+const stack = useModalStack();
 
 const props = defineProps<{
   visible: boolean;
@@ -132,23 +135,31 @@ function handleClose(): void {
  *
  * Returns whether the key was consumed; the router suppresses it.
  */
+function selectPrevious(): void {
+  if (selectedIndex.value > 0) {
+    selectedIndex.value--;
+  } else if (sortedSnapshots.value.length > 0) {
+    selectedIndex.value = sortedSnapshots.value.length - 1;
+  }
+}
+
+function selectNext(): void {
+  if (selectedIndex.value < sortedSnapshots.value.length - 1) {
+    selectedIndex.value++;
+  } else if (sortedSnapshots.value.length > 0) {
+    selectedIndex.value = 0;
+  }
+}
+
 function handleKeyDown(event: KeyboardEvent): boolean {
   switch (event.key) {
     case 'ArrowUp':
     case 'ArrowLeft':
-      if (selectedIndex.value > 0) {
-        selectedIndex.value--;
-      } else if (sortedSnapshots.value.length > 0) {
-        selectedIndex.value = sortedSnapshots.value.length - 1;
-      }
+      selectPrevious();
       return true;
     case 'ArrowDown':
     case 'ArrowRight':
-      if (selectedIndex.value < sortedSnapshots.value.length - 1) {
-        selectedIndex.value++;
-      } else if (sortedSnapshots.value.length > 0) {
-        selectedIndex.value = 0;
-      }
+      selectNext();
       return true;
     case 'a':
     case 'A':
@@ -165,7 +176,31 @@ function handleKeyDown(event: KeyboardEvent): boolean {
       handleDelete();
       return true;
     default:
-      return false;
+      // Swallowed rather than declined: an open dialog must not leak keystrokes
+      // to the workspace and terminal handlers behind it.
+      return true;
+  }
+}
+
+/** Gamepad equivalents of the key bindings above. */
+function handleButton(button: string): boolean {
+  switch (button) {
+    case 'DPadUp':
+    case 'DPadLeft':
+      selectPrevious();
+      return true;
+    case 'DPadDown':
+    case 'DPadRight':
+      selectNext();
+      return true;
+    case 'A':
+      handleRestore();
+      return true;
+    case 'B':
+      handleClose();
+      return true;
+    default:
+      return true;
   }
 }
 
@@ -175,6 +210,23 @@ function getSnapshotPath(metadata: BackupMetadata): string {
 
 // Lifecycle
 let unregisterKeys: (() => void) | null = null;
+
+/**
+ * Joining the modal stack is what makes `isKeyboardModalOpen()` true, and that
+ * is what puts the router into modal scope. A `scope: 'modal'` handler alone
+ * does not do it: the router would still be in pane scope, so any key this
+ * dialog declined carried on to the workspace and terminal handlers.
+ *
+ * `interceptKeys` stays empty on purpose — the keyboard bridge must not swallow
+ * keys that the handler below already owns, or they would be handled twice.
+ */
+watch(() => props.visible, (visible) => {
+  if (visible) {
+    stack.push({ id: 'backup-restore-modal', handler: handleButton, interceptKeys: new Set() });
+  } else {
+    stack.pop('backup-restore-modal');
+  }
+}, { immediate: true });
 
 onMounted(() => {
   unregisterKeys = registerKeyHandler({
@@ -186,6 +238,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  stack.pop('backup-restore-modal');
   unregisterKeys?.();
   unregisterKeys = null;
 });

@@ -50,10 +50,16 @@ let registeredMount: ((params?: unknown, context?: { isActive: () => boolean }) 
 let registeredUnmount: (() => void) | null = null;
 let currentViewName = 'terminal';
 
-vi.mock('vue', () => ({
-  reactive: (obj: unknown) => obj,
-  watch: (_source: unknown, _cb: unknown, _options?: unknown) => (() => void 0),
-}));
+// Spread the real module: a bare stub breaks any transitive import that needs
+// another Vue export (modal-bridge pulls in composables that call `ref`).
+vi.mock('vue', async () => {
+  const actual = await vi.importActual<typeof import('vue')>('vue');
+  return {
+    ...actual,
+    reactive: (obj: unknown) => obj,
+    watch: (_source: unknown, _cb: unknown, _options?: unknown) => (() => void 0),
+  };
+});
 
 vi.mock('../renderer/plans/plan-layout.js', () => ({
   computeLayout: (...args: unknown[]) => mockComputeLayout(...args),

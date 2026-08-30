@@ -8,7 +8,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const mockGetTerminalManager = vi.fn();
 
-vi.mock('vue', () => ({ reactive: (obj: any) => obj }));
+// Spread the real module: a bare stub breaks any transitive import that needs
+// another Vue export (modal-bridge pulls in composables that call `ref`).
+vi.mock('vue', async () => {
+  const actual = await vi.importActual<typeof import('vue')>('vue');
+  return { ...actual, reactive: (obj: any) => obj };
+});
 
 vi.mock('../renderer/runtime/terminal-provider.js', () => ({
   getTerminalManager: mockGetTerminalManager,

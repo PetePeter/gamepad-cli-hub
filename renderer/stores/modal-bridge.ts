@@ -10,6 +10,8 @@
 
 import { reactive } from 'vue';
 import { getTerminalManager } from '../runtime/terminal-provider.js';
+import { useEscProtection } from '../composables/useEscProtection.js';
+import { useEditorPopupStore } from './editor-popup.js';
 
 // ============================================================================
 // Close Confirm
@@ -493,9 +495,6 @@ export function closeRuntimeGroupCloseModal(): void {
 // ============================================================================
 
 export function isAnyBridgeModalVisible(): boolean {
-  // Import inside function to avoid circular dependency
-  const { useEscProtection } = require('../composables/useEscProtection.js');
-  const { useEditorPopupStore } = require('./editor-popup.js');
   const escProtection = useEscProtection();
   const editorPopupStore = useEditorPopupStore();
 
