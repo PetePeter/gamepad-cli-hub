@@ -54,9 +54,24 @@ Backups trigger automatically on `plan:changed` events with per-directory interv
 1. Open plan screen for any directory
 2. Press **R** or click **💾 Backups** button in the header
 3. Browse dated snapshots (newest first)
-4. Select a snapshot → click **Restore** (or press A)
+4. Select a snapshot → click **Restore**, or press **A** / **Enter** / gamepad **A**
 5. Plan data is replaced via `PlanManager.importAll()`
 6. Canvas reloads automatically
+
+### Dialog controls
+
+The dialog is fully drivable from the keyboard or the gamepad:
+
+| Input | Action |
+|-------|--------|
+| ↑ / ← / D-Pad Up / D-Pad Left | Select previous snapshot (wraps) |
+| ↓ / → / D-Pad Down / D-Pad Right | Select next snapshot (wraps) |
+| A / Enter / A button | Restore the selected snapshot |
+| B / Escape / B button | Close the dialog |
+| Backspace / Delete | Delete the selected snapshot |
+
+While the dialog is open it holds modal scope, so keystrokes cannot reach the
+terminal behind it — including keys the dialog itself does not recognise.
 
 ## Rolling Window Example
 

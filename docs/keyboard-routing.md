@@ -66,6 +66,46 @@ inversion is what makes "swallowed but not handled" impossible.
 Precedence is declared data in `router.ts` (`SCOPE_PRECEDENCE`), never import
 order. Within one scope, registration order applies.
 
+## Modal ownership is two-part
+
+A handler's `scope: 'modal'` and the router's `ctx.scope === 'modal'` are
+**different facts**, and a modal needs both. The handler's scope says *where I
+sit in the chain*; the context's scope says *a modal currently owns the
+keyboard*, and it is derived from the modal stack, not from the registry. A
+dialog that registers a modal-scope handler but never joins the stack has done
+half the job.
+
+Both halves have bitten, in opposite directions:
+
+```mermaid
+graph TB
+    Q{"Joined the<br/>modal stack?"}
+    Q -->|no| N["ctx.scope stays 'pane'<br/>declined keys fall through<br/>→ typing reaches the PTY"]
+    Q -->|yes| Y["ctx.scope = 'modal'<br/>global · pane · terminal all gated out<br/>→ only this dialog can act"]
+```
+
+- **Forgetting to join the stack leaks keys.** `BackupRestoreModal` registered a
+  modal-scope handler but joined no registry, so `isKeyboardModalOpen()` stayed
+  false and the router stayed in pane scope. Its `switch` ended in
+  `default: return false`, so every key it declined carried on to the workspace
+  and terminal handlers — typing behind the open dialog reached the CLI.
+- **Joining the stack makes the dialog the only actor.** The ESC-protection
+  dialog *did* hold modal scope, which correctly gated out the terminal
+  handlers — including the confirm branch that lived there. The second Escape
+  reached nothing and gamepad B was dead for the same reason.
+
+Two rules follow:
+
+1. **Push a `useModalStack` entry on open, pop it on close.** Then swallow
+   unrecognised keys (`default: return true`) — once you own the keyboard,
+   declining is not "pass it on", it is "leak it".
+2. **A modal owns its own confirmation.** Never leave the confirming branch in a
+   lower-scope handler, because your own modal scope is what makes it
+   unreachable. Store the callback with the state that opened the dialog.
+
+`interceptKeys` on the stack entry stays **empty** when a modal-scope handler is
+already registered; handing the bridge keys to swallow would double-handle them.
+
 ## Focused vs. visible
 
 `KeyContext` exposes both, and each screen picks the one that matches what its

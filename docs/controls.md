@@ -60,7 +60,7 @@ The same flag the `session_set_locked` MCP tool writes.
 | Ctrl+Tab / Ctrl+Shift+Tab | Cycle the selected session forward/back. Moves the session spine only — the focused pane stays put and re-points at the new session |
 | Arrow keys | Navigate the focused pane (mapped to D-pad equivalents). xterm owns arrows when the keystroke lands in it |
 | Enter | Mapped to A button |
-| Escape | Focused terminal: ESC protection, else ESC to the PTY. Any other pane: the pane's own business (mapped to B button) |
+| Escape | Focused terminal: ESC protection (see below), else ESC to the PTY. Any other pane: the pane's own business (mapped to B button) |
 | Delete | Mapped to X button |
 | F5 | Mapped to Y button |
 | Ctrl+V | Focused terminal: managed paste to PTY stdin (bracketed-paste framing, chunking). Focused Artifacts pane: creates a new artifact from the clipboard |
@@ -76,6 +76,40 @@ declared precedence chain — `modal` > `global` > `pane` > `terminal`. Each scr
 registers its own handlers and decides whether it is eligible, asking whether it
 is **focused** (keys that send input) or **visible** (keys that render over a
 pane). See [docs/keyboard-routing.md](keyboard-routing.md).
+
+## ESC Protection
+
+For CLI types with the setting armed, Escape in a focused terminal does **not**
+go straight to the PTY — an accidental interrupt is expensive mid-run. The first
+Escape raises a confirmation dialog instead; the interrupt is sent only if you
+confirm.
+
+| Input | Action |
+|-------|--------|
+| Escape (first press) | Raise the protection dialog. Nothing reaches the PTY |
+| Escape / B (dialog open) | Confirm — ESC goes through to the PTY, dialog closes |
+| Any other key (dialog open) | Dismiss. The interrupt is **not** sent |
+
+Both routes converge on one handler, so the keyboard Escape and the gamepad B
+button behave identically. The dialog owns its own confirmation: once it is up
+it holds modal scope, which by design gates the terminal handlers out entirely
+(see [keyboard-routing.md](keyboard-routing.md#modal-ownership-is-two-part)).
+
+## Backup & Restore Dialog
+
+Opened with **R** or the 💾 Backups button on the plan screen header. While it is
+open it holds modal scope, so no keystroke reaches the terminal behind it.
+
+| Input | Action |
+|-------|--------|
+| ↑ / ← / D-Pad Up / D-Pad Left | Select previous snapshot (wraps) |
+| ↓ / → / D-Pad Down / D-Pad Right | Select next snapshot (wraps) |
+| A / Enter / A button | Restore the selected snapshot |
+| B / Escape / B button | Close the dialog |
+| Backspace / Delete | Delete the selected snapshot |
+
+Unrecognised keys are swallowed rather than passed on. See
+[docs/plan-backup-restore.md](plan-backup-restore.md) for the snapshot model.
 
 ## Navigation Priority Chain
 
