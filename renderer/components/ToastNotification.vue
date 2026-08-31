@@ -88,7 +88,7 @@ function handleToastClick(toast: { id: number; onClick?: () => void }): void {
 .toast {
   padding: 10px 14px;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1.4;
   color: #fff;
   background: #333;

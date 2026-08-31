@@ -193,14 +193,14 @@ function formatTime(ts?: number): string {
 }
 
 .carousel-title {
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-md);
   font-weight: 600;
   overflow-wrap: anywhere;
   line-height: 1.25;
 }
 
 .carousel-text {
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-md);
   color: var(--text-secondary);
   overflow-wrap: anywhere;
   line-height: 1.25;

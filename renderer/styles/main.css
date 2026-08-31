@@ -1153,8 +1153,8 @@ body.dock-dragging { cursor: grabbing; user-select: none; }
 
 /* State icon — removed, state shown via dropdown button only */
 
-.session-card .session-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: inherit; }
-.session-card .session-meta { font-size: 11px; color: #777; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session-card .session-name { flex: 0 1 auto; min-width: 0; font-size: var(--font-size-md); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: inherit; }
+.session-card .session-meta { flex: 1 1 auto; min-width: 0; font-size: var(--font-size-sm); color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
 
 /* Pending schedule chip */
 .session-schedule-chip {
@@ -1239,6 +1239,7 @@ body.dock-dragging { cursor: grabbing; user-select: none; }
   display: flex;
   align-items: center;
   gap: 6px;
+  width: 100%;
   min-width: 0;
 }
 .session-jump-key {
@@ -1280,15 +1281,14 @@ body.dock-dragging { cursor: grabbing; user-select: none; }
   line-height: 1.5;
 }
 .session-working-plan {
-  margin-left: auto;
+  display: block;
+  width: 100%;
   min-width: 0;
-  max-width: 50%;
-  color: #9aa6c8;
-  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-align: right;
 }
 .session-top-row .session-state-btn,
 .session-top-row .session-rename,

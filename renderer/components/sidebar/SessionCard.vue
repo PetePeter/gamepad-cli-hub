@@ -349,7 +349,7 @@ function onCardClick(e: MouseEvent): void {
       </button>
     </div>
 
-    <!-- Line 2: name (editable or display) -->
+    <!-- Line 2: session identity and CLI-produced terminal title -->
     <div class="session-name-line">
       <template v-if="isEditing">
         <input
@@ -368,18 +368,19 @@ function onCardClick(e: MouseEvent): void {
         <span v-if="shortcutKey != null" class="session-jump-key">^{{ shortcutKey }}</span>
         <span v-else class="session-jump-key session-jump-key--empty" aria-hidden="true" />
         <span class="session-name">{{ displayName }}</span>
-        <span
-          v-if="workingPlanLabel"
-          class="session-working-plan"
-          :title="workingPlanTooltip"
-        >
-          {{ workingPlanLabel }}
+        <span v-if="metaText" class="session-meta" :title="metaText">
+          {{ metaText }}
         </span>
       </template>
     </div>
 
-    <!-- Line 3: terminal title meta -->
-    <span v-if="metaText" class="session-meta" :title="metaText">
+    <!-- Line 3: working plan claim -->
+    <span v-if="workingPlanLabel" class="session-working-plan" :title="workingPlanTooltip">
+      {{ workingPlanLabel }}
+    </span>
+
+    <!-- Keep the terminal title visible on its former row while renaming. -->
+    <span v-if="isEditing && metaText" class="session-meta" :title="metaText">
       {{ metaText }}
     </span>
 

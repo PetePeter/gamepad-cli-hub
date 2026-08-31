@@ -107,6 +107,39 @@ describe('SessionCard', () => {
     expect(w.find('.session-meta').exists()).toBe(false);
   });
 
+  it('keeps terminal title beside the name and puts the working plan on the next row', () => {
+    const w = mount(SessionCard, {
+      props: makeCardProps({
+        session: { id: 's1', name: 'test', cliType: 'claude-code', title: 'Terminal title' },
+        displayName: 'Session name',
+        workingPlanLabel: '🗺️ Working plan',
+        workingPlanTooltip: 'Working plan details',
+      }),
+    });
+    const identityRow = w.find('.session-name-line');
+    const plan = w.find('.session-working-plan');
+
+    expect(identityRow.find('.session-name').text()).toBe('Session name');
+    expect(identityRow.find('.session-meta').text()).toBe('Terminal title');
+    expect(plan.text()).toBe('🗺️ Working plan');
+    expect(identityRow.element.contains(w.find('.session-meta').element)).toBe(true);
+    expect(identityRow.element.compareDocumentPosition(plan.element) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+
+  it('keeps the terminal title on its own row while renaming', () => {
+    const w = mount(SessionCard, {
+      props: makeCardProps({
+        session: { id: 's1', name: 'test', cliType: 'claude-code', title: 'Terminal title' },
+        displayName: 'Session name',
+        isEditing: true,
+      }),
+    });
+
+    expect(w.find('.session-name-line .session-meta').exists()).toBe(false);
+    expect(w.find('.session-meta').text()).toBe('Terminal title');
+    expect(w.find('.session-rename-input').exists()).toBe(true);
+  });
+
   it('shows rename input when isEditing', async () => {
     const w = mount(SessionCard, { props: makeCardProps({ isEditing: true }) });
     await nextTick();
