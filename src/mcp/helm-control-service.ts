@@ -41,6 +41,7 @@ import { buildAgentPlanGuide } from './guides/agent-plan-guide.js';
 import { buildNotificationGuide } from './guides/notification-guide.js';
 import { buildTelegramGuide } from './guides/telegram-guide.js';
 import { buildStartupGuide } from './guides/startup-guide.js';
+import { buildMessGuide } from './guides/mess-guide.js';
 import type { ProjectStore } from '../session/project-store.js';
 import { CapabilityDetector } from '../session/capability-detector.js';
 import { randomUUID } from 'node:crypto';
@@ -53,6 +54,8 @@ import { createArtifactFromBytes, updateArtifactFromBytes } from '../session/art
 import type { ArtifactAttachmentManager } from '../session/artifact-attachment-manager.js';
 import type { ArtifactAttachment } from '../types/artifact-attachment.js';
 import { HelmMemoryService, type MemoryExportResult } from './services/helm-memory-service.js';
+import { HelmMessService } from './services/helm-mess-service.js';
+import { MessManager } from '../session/mess-manager.js';
 import type { MemoryAttachmentManager } from '../session/memory-attachment-manager.js';
 import type { MemoryManager } from '../session/memory-manager.js';
 import type {
@@ -184,6 +187,8 @@ export class HelmControlService extends EventEmitter {
   private artifactAttachmentManager?: ArtifactAttachmentManager;
   private memoryService?: HelmMemoryService;
   private memoryManager: MemoryManager | null = null;
+  private messService?: HelmMessService;
+  private messManager: MessManager | null = null;
   private readonly schedulerService: HelmSchedulerService | null;
   private readonly projectService: HelmProjectService | null;
   private readonly directoryService: HelmDirectoryService;
@@ -269,6 +274,17 @@ export class HelmControlService extends EventEmitter {
       type: 'startup',
       source: 'system',
     });
+    this.skillManager.registerSystemSkill({
+      id: 'sys-mess',
+      name: 'Mess Guide',
+      description: 'Agent-facing guidance for durable local project Mess. Fetch with skill_get(type: "mess").',
+      body: buildMessGuide(),
+      aiAmendable: false,
+      allProjects: true,
+      projectIds: [],
+      type: 'mess',
+      source: 'system',
+    });
 
     this.sessionDelivery = new HelmSessionDeliveryService(sessionManager, ptyManager, configLoader);
     this.sessionService = new HelmSessionService(sessionManager, ptyManager, configLoader, planManager, projectStore);
@@ -279,8 +295,9 @@ export class HelmControlService extends EventEmitter {
     this.capabilityDetector = new CapabilityDetector(configLoader);
     this.telegramService = new HelmTelegramService(configLoader, sessionManager, this.capabilityDetector);
     this.schedulerService = schedulerManager ? new HelmSchedulerService(schedulerManager, configLoader, projectStore) : null;
+    if (projectStore) this.setMessManager(new MessManager(sessionManager, projectStore));
     this.projectService = projectStore
-      ? new HelmProjectService(projectStore, () => this.memoryManager)
+      ? new HelmProjectService(projectStore, () => this.memoryManager, () => this.messManager)
       : null;
     this.directoryService = new HelmDirectoryService(configLoader, sessionManager, planManager, projectStore);
     this.peerService = new HelmPeerService(() => this.peerLinkManager ?? undefined);
@@ -331,6 +348,16 @@ export class HelmControlService extends EventEmitter {
           : null;
       },
     );
+  }
+
+  /** Wire the durable, authenticated-session-scoped Mess facade. */
+  setMessManager(manager: MessManager): void {
+    this.messManager = manager;
+    this.messService = new HelmMessService(manager, this.sessionManager);
+  }
+
+  getMessManager(): MessManager | null {
+    return this.messManager;
   }
 
   /**
@@ -545,6 +572,25 @@ export class HelmControlService extends EventEmitter {
 
   unlinkMemory(sessionId: string, fromId: string, toId: string): boolean {
     return this.requireMemoryService().unlinkMemory(sessionId, fromId, toId);
+  }
+
+  // Mess (durable, authenticated-session-scoped project conversation)
+
+  private requireMessService(): HelmMessService {
+    if (!this.messService) throw new Error('Mess is not available: ProjectStore is not configured.');
+    return this.messService;
+  }
+
+  postMess(sessionId: string, text: string, targetSessionId?: string): { ok: true } {
+    return this.requireMessService().post(sessionId, text, targetSessionId);
+  }
+
+  checkMess(sessionId: string) {
+    return this.requireMessService().check(sessionId);
+  }
+
+  historyMess(sessionId: string, options: import('../session/mess-manager.js').MessHistoryOptions) {
+    return this.requireMessService().history(sessionId, options);
   }
 
   addMemoryAttachment(

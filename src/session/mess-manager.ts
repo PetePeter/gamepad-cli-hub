@@ -40,6 +40,11 @@ export interface MessHistoryOptions {
   maxBytes?: number;
 }
 
+export interface MessHistoryResult {
+  entries: MessEntry[];
+  hasMore: boolean;
+}
+
 export type MessSessionCloseKind = 'ephemeral' | 'recoverable' | 'forgotten' | 'expired';
 
 /**
@@ -132,23 +137,33 @@ export class MessManager extends EventEmitter {
 
   /** Read recent project history without creating or advancing an AI cursor. */
   history(sessionId: string, options: MessHistoryOptions): MessEntry[] {
+    return this.historyResult(sessionId, options).entries;
+  }
+
+  /** Read recent history with an explicit truncation signal for bounded callers. */
+  historyResult(sessionId: string, options: MessHistoryOptions): MessHistoryResult {
     const session = this.requireSession(sessionId);
     const project = this.requireProject(session);
     const loaded = this.persistence(project.id).load();
     const limit = positiveLimit(options.limit, DEFAULT_MESS_HISTORY_LIMIT);
     const maxBytes = positiveLimit(options.maxBytes, this.maxDeltaBytes);
     const cutoff = this.now() - Math.max(0, options.sinceHours) * 60 * 60 * 1000;
+    const candidates = loaded.entries.filter(entry => entry.createdAt >= cutoff && isVisibleTo(entry, session.id));
     const selected: MessEntry[] = [];
     let bytes = 0;
-    for (const entry of loaded.entries) {
-      if (entry.createdAt < cutoff || !isVisibleTo(entry, session.id)) continue;
+    for (let index = candidates.length - 1; index >= 0; index -= 1) {
+      const entry = candidates[index];
       const entryBytes = Buffer.byteLength(JSON.stringify(entry), 'utf8');
       if (selected.length >= limit) break;
       if (selected.length > 0 && bytes + entryBytes > maxBytes) break;
       selected.push(entry);
       bytes += entryBytes;
     }
-    return selected;
+    selected.reverse();
+    return {
+      entries: selected,
+      hasMore: selected.length > 0 && candidates.some(entry => entry.seq < selected[0].seq),
+    };
   }
 
   /** Remove only an ephemeral session's cursor; recoverable sessions retain it. */

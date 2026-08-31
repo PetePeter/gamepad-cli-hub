@@ -1580,6 +1580,44 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'mess_post',
+    title: 'Post Mess',
+    description: 'Store a bounded coordination message in the authenticated local session\'s project. Omit to for a project broadcast; pass a same-project session label (or exact id) for a direct message. This is social coordination only and never touches a PTY.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', minLength: 1, maxLength: 4000 },
+        to: { type: 'string', minLength: 1, description: 'Optional target session label or exact id in the same project.' },
+      },
+      required: ['text'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'mess_check',
+    title: 'Check Mess',
+    description: 'Read the authenticated local session\'s bounded unread project Mess delta in sequence order. An empty poll returns exactly {new:0}; history is cursor-neutral and peer proxy callers are rejected.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'mess_history',
+    title: 'Read Mess History',
+    description: 'Read bounded recent project Mess without advancing the authenticated session cursor. Results are newest-first window selection returned in chronological order, with labels rather than ids; coordination remains social convention only.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sinceHours: { type: 'number', minimum: 0 },
+        limit: { type: 'integer', minimum: 1, maximum: 100 },
+      },
+      required: ['sinceHours'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'peer_list',
     title: 'List Fleet Peers',
     description:

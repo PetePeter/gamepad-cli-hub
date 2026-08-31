@@ -858,6 +858,25 @@ export async function callMcpTool(
           `Attachment not found: ${String(args.attachmentId)}`,
         );
       }
+      case 'mess_post': {
+        const sessionId = requireCallerSession(authContext, 'mess_post');
+        return service.postMess(
+          sessionId,
+          asString(args.text, 'text is required'),
+          args.to === undefined ? undefined : asString(args.to, 'to must be a non-empty session id'),
+        );
+      }
+      case 'mess_check': {
+        const sessionId = requireCallerSession(authContext, 'mess_check');
+        return service.checkMess(sessionId);
+      }
+      case 'mess_history': {
+        const sessionId = requireCallerSession(authContext, 'mess_history');
+        return service.historyMess(sessionId, {
+          sinceHours: asFiniteNumber(args.sinceHours, 'sinceHours must be a finite number'),
+          ...(args.limit === undefined ? {} : { limit: asFiniteNumber(args.limit, 'limit must be a finite number') }),
+        });
+      }
       case 'peer_list':
         return service.peerList();
       case 'peer_tools':

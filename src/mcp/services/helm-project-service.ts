@@ -15,6 +15,7 @@ export class HelmProjectService {
   constructor(
     private readonly projectStore: ProjectStore,
     private readonly getMemoryManager: () => Pick<MemoryManager, 'purgeProject'> | null = () => null,
+    private readonly getMessManager: () => { purgeProject(projectId: string): void } | null = () => null,
   ) {}
 
   /**
@@ -45,6 +46,7 @@ export class HelmProjectService {
     // Memories are project-scoped and outlive their sessions, so nothing else
     // would ever reclaim them once the project they describe is gone.
     this.getMemoryManager()?.purgeProject(projectId);
+    this.getMessManager()?.purgeProject(projectId);
     this.projectStore.delete(projectId);
     this.projectStore.save();
     return { ok: true };
