@@ -41,6 +41,7 @@ src/
 │   ├── mess-manager.ts         # Project-scoped durable coordination, ordered unread cursors, bounded history, and mess:appended events
 │   ├── mess-persistence.ts     # Per-project JSONL log plus atomic cursor metadata, retention pruning, compaction recovery, and corruption diagnostics
 │   ├── mess-notifier.ts        # Best-effort idle reminders with append-while-idle detection, cooldown, retry, and system delivery verification
+│   ├── persistence-paths.ts    # Stable per-user app-data paths, including the UUID-keyed Mess directory and log/cursor files
 │   ├── prompt-template-types.ts        # PromptFolder / PromptTemplate / PromptNode model + isFolder type guard
 │   ├── prompt-template-manager.ts      # Global nested prompt-template tree CRUD (EventEmitter, emits prompt-template:changed; folders nest, templates are leaves)
 │   ├── prompt-template-persistence.ts  # YAML load/save to config/prompt-templates.yaml (global)
