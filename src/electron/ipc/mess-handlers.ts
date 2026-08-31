@@ -1,6 +1,6 @@
 /** Renderer-only, cursor-neutral Mess history and append notifications. */
 import { BrowserWindow, ipcMain } from 'electron';
-import type { MessHistoryOptions } from '../../session/mess-manager.js';
+import { DEFAULT_MESS_HISTORY_MAX_BYTES, type MessHistoryOptions } from '../../session/mess-manager.js';
 import type { MessManager } from '../../session/mess-manager.js';
 import type { ProjectStore } from '../../session/project-store.js';
 import type { SessionManager } from '../../session/manager.js';
@@ -10,7 +10,7 @@ import { logger } from '../../utils/logger.js';
 const DEFAULT_HISTORY_HOURS = 24;
 const MAX_HISTORY_HOURS = 24 * 30;
 const MAX_HISTORY_LIMIT = 500;
-const MAX_HISTORY_BYTES = 256 * 1024;
+const MAX_HISTORY_BYTES = DEFAULT_MESS_HISTORY_MAX_BYTES;
 
 function validateProjectId(value: unknown): string {
   if (typeof value !== 'string' || value.trim() === '') throw new Error('projectId must be a non-empty string');
@@ -40,13 +40,13 @@ function validateOptions(value: unknown): MessHistoryOptions {
 export function setupMessHandlers(
   messManager: MessManager | null,
   projectStore: ProjectStore,
-  windowManager?: WindowManager,
-  sessionManager?: SessionManager,
+  windowManager: WindowManager,
+  sessionManager: SessionManager,
 ): () => void {
   const historyHandler = (_event: Electron.IpcMainInvokeEvent, projectId: unknown, options?: unknown) => {
     const id = validateProjectId(projectId);
-    if (!projectStore.getById(id) || !messManager) return { entries: [], hasMore: false };
     const safeOptions = validateOptions(options);
+    if (!projectStore.getById(id) || !messManager) return { entries: [], hasMore: false };
     try {
       return messManager.historyForProject(id, safeOptions);
     } catch (error) {
@@ -57,7 +57,6 @@ export function setupMessHandlers(
   ipcMain.handle('mess:history', historyHandler);
 
   const targetWindowsForProject = (projectId: string): BrowserWindow[] => {
-    if (!windowManager || !sessionManager) return BrowserWindow.getAllWindows();
     const targets: BrowserWindow[] = [];
     const mainWindow = windowManager.getMainWindow();
     const activeSession = sessionManager.getActiveSession();
@@ -87,7 +86,6 @@ export function setupMessHandlers(
 
   return () => {
     messManager?.off('mess:appended', onAppended);
-    const removeHandler = (ipcMain as typeof ipcMain & { removeHandler?: (channel: string) => void }).removeHandler;
-    removeHandler?.call(ipcMain, 'mess:history');
+    ipcMain.removeHandler('mess:history');
   };
 }

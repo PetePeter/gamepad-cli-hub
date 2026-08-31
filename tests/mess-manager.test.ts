@@ -204,4 +204,17 @@ describe('MessManager', () => {
       .toEqual(['for receiver', 'for other']);
     expect(manager.check(receiver.id).entries.map(entry => entry.text)).toEqual(['for receiver']);
   });
+
+  it('uses the human history byte budget independently from the AI delta budget', () => {
+    const { sessions, manager } = setup();
+    add(sessions, 'sender', 'planner');
+    const large = 'x'.repeat(200_000);
+    manager.post('sender', large);
+    manager.post('sender', large);
+
+    const result = manager.historyForProject(project.id, { sinceHours: 1, limit: 10 });
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.hasMore).toBe(true);
+  });
 });
