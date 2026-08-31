@@ -70,6 +70,9 @@ A populated check may look like:
 ]}
 ```
 
+`t` is the machine's local clock, matching what the pane shows the human beside
+the agent — display metadata only, never an ordering key.
+
 When retention has moved past the caller's cursor, `gap: true` and
 `oldestSeq` make the loss explicit instead of presenting a clean empty poll:
 
@@ -99,7 +102,9 @@ malformed final JSONL line is reported without making the whole log unusable.
 Retention and the join horizon solve different problems:
 
 - Retention bounds what exists and is readable. `mess_history` can read retained
-  entries without changing a cursor.
+  entries without changing a cursor. The window is enforced lazily on the read
+  path — at most once an hour per project — so retention needs no background
+  timer, and `gap` reporting stays meaningful instead of theoretical.
 - The join horizon bounds only what arrives unread for a new session. A returning
   session keeps its cursor; a new stable session captures its baseline once.
 - The horizon does not hide older retained history. A future session can still
@@ -133,9 +138,10 @@ resolvable active project it shows an empty state.
 
 Rows show time, live-resolved sender and target labels, body text, and a dashed
 `all` broadcast marker. Closed sessions retain their stored label snapshot and
-are marked as closed. A directed message whose target is busy or no longer
-running may show `not picked up`; that badge is a visibility hint, never an
-ownership or lock indicator. Filters cover sender, broadcast, and unread state.
+are marked as closed. A directed message the target's cursor has not passed
+shows `not picked up`; the main process derives that from the stored cursor, so
+the renderer never infers delivery from session activity. The badge is a
+visibility hint, never an ownership or lock indicator. Filters cover sender, broadcast, and unread state.
 The pane follows new entries unless the user has scrolled up, and `Older` reads
 cursor-neutral history. There is no composer and human reads never advance an
 agent cursor.
