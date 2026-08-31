@@ -80,6 +80,7 @@ export function setupMemoryHandlers(
       graphDepth: validateGraphDepth(safeOptions.graphDepth),
     });
   });
+  ipcMain.handle('memory:graph-all', (event) => service.graphAllMemories(requireOwner(event)));
   ipcMain.handle('memory:graph', (event, rootId: unknown, graphDepth?: unknown) =>
     service.graphMemory(requireOwner(event), validateId(rootId, 'rootId'), validateGraphDepth(graphDepth)));
   ipcMain.handle('memory:export', (event, format: unknown, rootId?: unknown, graphDepth?: unknown) =>

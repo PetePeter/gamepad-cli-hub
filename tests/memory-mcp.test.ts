@@ -134,6 +134,32 @@ describe('MCP memory surface', () => {
     expect(readFileSync(temp.tempPath, 'utf8')).toBe('attachment bytes');
     rmSync(temp.tempPath, { force: true });
   });
+
+  it('rejects an unknown memory_list sort field at the boundary', async () => {
+    const { deps } = setup();
+
+    await expect(callMcpTool(deps, 'memory_list', { sortBy: 'whenever' }, { sessionId: 's1' }))
+      .rejects.toThrow(/sortBy must be one of/);
+    await expect(callMcpTool(deps, 'memory_list', { order: 'sideways' }, { sessionId: 's1' }))
+      .rejects.toThrow(/order must be one of/);
+  });
+
+  it('ranks memory_list by the requested field', async () => {
+    const { deps } = setup();
+    const first = await callMcpTool(deps, 'memory_create', { tldr: 'first', content: 'one' }, { sessionId: 's1' }) as { id: string };
+    await callMcpTool(deps, 'memory_create', { tldr: 'second', content: 'two' }, { sessionId: 's1' });
+
+    // Reading `first` makes it the most recently accessed.
+    await callMcpTool(deps, 'memory_get', { id: first.id }, { sessionId: 's1' });
+    const ranked = await callMcpTool(
+      deps,
+      'memory_list',
+      { sortBy: 'accessed', order: 'desc' },
+      { sessionId: 's1' },
+    ) as Array<{ id: string }>;
+
+    expect(ranked[0].id).toBe(first.id);
+  });
 });
 
 describe('MCP memory tool discoverability', () => {

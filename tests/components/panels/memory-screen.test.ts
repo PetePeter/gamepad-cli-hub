@@ -39,12 +39,15 @@ describe('MemoryScreen shared-primitives anatomy', () => {
     memoryScreenState.selectedId = null;
     memoryScreenState.detail = null;
     memoryScreenState.traversal = null;
+    memoryScreenState.forest = null;
+    memoryScreenState.matchedIds = [];
     memoryScreenState.loading = false;
     window.helm = {
       memory: {
         memoryList: vi.fn().mockResolvedValue([]),
         memoryGet: vi.fn().mockResolvedValue(null),
         memoryGraph: vi.fn().mockResolvedValue({ rootId: '', graphDepth: 1, entries: [] }),
+        memoryGraphAll: vi.fn().mockResolvedValue({ records: [], edges: [] }),
       },
       events: { onMemoryChanged: vi.fn(() => vi.fn()) },
     } as any;
@@ -75,8 +78,8 @@ describe('MemoryScreen shared-primitives anatomy', () => {
     const wrapper = mountScreen();
     await flushPromises();
 
-    expect(wrapper.find('.memory-list .empty-state').exists()).toBe(true);
-    expect(wrapper.find('.memory-list .empty-state').text()).toContain('No memories for this session.');
+    expect(wrapper.find('.memory-graph-canvas .empty-state').exists()).toBe(true);
+    expect(wrapper.find('.memory-graph-canvas .empty-state').text()).toContain('No memories for this session.');
     wrapper.unmount();
   });
 
@@ -90,26 +93,27 @@ describe('MemoryScreen shared-primitives anatomy', () => {
     wrapper.unmount();
   });
 
-  it('moves aria-current when a memory row is selected', async () => {
-    window.helm.memory.memoryList = vi.fn().mockResolvedValue([
-      summary('first', 'First memory'),
-      summary('second', 'Second memory'),
-    ]);
+  it('moves the selected marker between canvas nodes', async () => {
+    const records = [summary('first', 'First memory'), summary('second', 'Second memory')];
+    window.helm.memory.memoryList = vi.fn().mockResolvedValue(records);
+    window.helm.memory.memoryGraphAll = vi.fn().mockResolvedValue({ records, edges: [] });
     window.helm.memory.memoryGet = vi.fn().mockResolvedValue({
       id: 'first', tldr: 'First memory', content: '', createdAt: 1, updatedAt: 2, attachments: [],
     });
-    window.helm.memory.memoryGraph = vi.fn().mockResolvedValue({ rootId: 'first', graphDepth: 1, entries: [] });
 
     const wrapper = mountScreen();
     await flushPromises();
-    const rows = wrapper.findAll('.list-row');
-    expect(rows[0].attributes('aria-current')).toBe('true');
 
-    await rows[1].trigger('click');
+    // Nothing is selected until the user picks a node — the canvas shows the
+    // whole forest, so auto-selecting one would be arbitrary.
+    expect(wrapper.findAll('.memory-graph-node.selected')).toHaveLength(0);
+
+    await wrapper.findAll('.memory-graph-node')[1].trigger('click');
     await flushPromises();
 
-    expect(wrapper.findAll('.list-row')[0].attributes('aria-current')).toBeUndefined();
-    expect(wrapper.findAll('.list-row')[1].attributes('aria-current')).toBe('true');
+    const selected = wrapper.findAll('.memory-graph-node.selected');
+    expect(selected).toHaveLength(1);
+    expect(selected[0].text()).toContain('Second memory');
     wrapper.unmount();
   });
 });

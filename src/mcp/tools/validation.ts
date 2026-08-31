@@ -3,6 +3,20 @@ import type { ArtifactKind } from '../../types/artifact.js';
 import { validateGraphDepth } from '../../session/memory-graph.js';
 import type { MemoryExportFormat } from '../../types/memory.js';
 
+export const MEMORY_SORT_FIELDS = ['created', 'updated', 'accessed'] as const;
+export const MEMORY_SORT_ORDERS = ['asc', 'desc'] as const;
+
+/**
+ * Parse a value constrained to a fixed set, naming the allowed options in the
+ * error so a caller that guessed wrong can correct itself without the schema.
+ */
+export function asEnum<T extends string>(value: unknown, allowed: readonly T[], field: string): T {
+  if (typeof value !== 'string' || !allowed.includes(value as T)) {
+    throw new Error(`${field} must be one of: ${allowed.join(', ')}`);
+  }
+  return value as T;
+}
+
 export function asString(value: unknown, errorMessage: string): string {
   if (typeof value !== 'string' || value.length === 0) {
     throw new Error(errorMessage);

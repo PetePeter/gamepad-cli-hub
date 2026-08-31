@@ -827,6 +827,8 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     ipcRenderer.invoke('memory:search', query, options),
   memoryGraph: (rootId: string, graphDepth?: number) =>
     ipcRenderer.invoke('memory:graph', rootId, graphDepth),
+  /** Whole owned forest — every memory and edge, including unlinked memories. */
+  memoryGraphAll: () => ipcRenderer.invoke('memory:graph-all'),
   memoryExport: (format: 'markdown' | 'json', rootId?: string, graphDepth?: number) =>
     ipcRenderer.invoke('memory:export', format, rootId, graphDepth),
   memoryDelete: (memoryId: string): Promise<boolean> => ipcRenderer.invoke('memory:delete', memoryId),

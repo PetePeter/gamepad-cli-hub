@@ -4,10 +4,13 @@ import { MemoryAttachmentManager } from '../../session/memory-attachment-manager
 import type { ArtifactTempRegistry } from '../../session/artifact-temp-registry.js';
 import { MemoryExporter } from '../../session/memory-exporter.js';
 import { MemoryManager, type CreateMemoryInput, type UpdateMemoryInput } from '../../session/memory-manager.js';
+import { toMemorySummary } from '../../types/memory.js';
 import type {
   MemoryAttachment,
   MemoryAttachmentTempFile,
   MemoryExportFormat,
+  MemoryForest,
+  MemoryListOptions,
   MemorySearchResult,
   MemoryRecord,
   MemorySummary,
@@ -31,18 +34,17 @@ export class HelmMemoryService {
     private readonly tempRegistry?: ArtifactTempRegistry,
   ) {}
 
-  listMemories(sessionId: string): MemoryRecord[] {
-    return this.memoryManager.listRecordsForSession(sessionId);
+  listMemories(sessionId: string, options: MemoryListOptions = {}): MemoryRecord[] {
+    return this.memoryManager.listRecordsForSession(sessionId, options);
   }
 
-  listMemorySummaries(sessionId: string): MemorySummary[] {
-    return this.memoryManager.listRecordsForSession(sessionId).map((record) => ({
-      id: record.id,
-      tldr: record.tldr,
-      createdAt: record.createdAt,
-      updatedAt: record.updatedAt,
-      attachmentCount: record.attachments.length,
-    }));
+  listMemorySummaries(sessionId: string, options: MemoryListOptions = {}): MemorySummary[] {
+    return this.memoryManager.listRecordsForSession(sessionId, options).map(toMemorySummary);
+  }
+
+  /** Every owned memory plus the edges between them — what the canvas draws. */
+  graphAllMemories(sessionId: string): MemoryForest {
+    return this.memoryManager.forestForSession(sessionId);
   }
 
   getMemoryRecord(sessionId: string, id: string): MemoryRecord | null {

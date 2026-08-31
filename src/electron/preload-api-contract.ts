@@ -153,6 +153,7 @@ export const PRELOAD_API_DOMAINS = {
     'memoryGet',
     'memorySearch',
     'memoryGraph',
+    'memoryGraphAll',
     'memoryExport',
     'memoryDelete',
     'memoryAttachmentList',

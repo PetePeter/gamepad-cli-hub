@@ -59,6 +59,7 @@ import type {
   MemoryAttachment,
   MemoryAttachmentTempFile,
   MemoryExportFormat,
+  MemoryListOptions,
   MemoryRecord,
   MemorySearchResult,
   MemoryTraversal,
@@ -471,8 +472,8 @@ export class HelmControlService extends EventEmitter {
     return this.memoryService;
   }
 
-  listMemories(sessionId: string): MemoryRecord[] {
-    return this.requireMemoryService().listMemories(sessionId);
+  listMemories(sessionId: string, options: MemoryListOptions = {}): MemoryRecord[] {
+    return this.requireMemoryService().listMemories(sessionId, options);
   }
 
   getMemory(sessionId: string, id: string, graphDepth?: number): MemoryTraversal | null {

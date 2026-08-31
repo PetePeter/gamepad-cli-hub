@@ -1350,10 +1350,21 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'memory_list',
     title: 'List Memories',
-    description: 'List durable memories owned by the authenticated caller session. Memories survive compaction and restart; attachments are returned as metadata only.',
+    description: 'List durable memories owned by the authenticated caller session. Memories survive compaction and restart; attachments are returned as metadata only. Optional sortBy/order rank them for trimming; memories never read (or never matched) sort last rather than oldest.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        sortBy: {
+          type: 'string',
+          enum: ['created', 'updated', 'accessed'],
+          description: 'Timestamp to rank by. Defaults to insertion order.',
+        },
+        order: {
+          type: 'string',
+          enum: ['asc', 'desc'],
+          description: 'Defaults to desc (most recent first).',
+        },
+      },
       additionalProperties: false,
     },
   },

@@ -18,6 +18,13 @@ export interface MemoryRecord {
   content: string;
   createdAt: number;
   updatedAt: number;
+  /**
+   * Trim signal, absent until the memory is first read. Deliberately not
+   * `updatedAt`: reading a memory is not editing it, and folding the two would
+   * make every read look like a fresh authoring. Absent means "never" — which
+   * sorts last, not oldest.
+   */
+  lastAccessedAt?: number;
   attachments: MemoryAttachment[];
 }
 
@@ -27,7 +34,25 @@ export interface MemorySummary {
   tldr: string;
   createdAt: number;
   updatedAt: number;
+  lastAccessedAt?: number;
   attachmentCount: number;
+}
+
+/**
+ * Every memory a session owns, plus the edges between them — the whole forest
+ * rather than a neighbourhood around one root. Isolated memories appear here
+ * with no edges; a rooted traversal could never reach them.
+ */
+export interface MemoryForest {
+  records: MemorySummary[];
+  edges: MemoryEdge[];
+}
+
+export type MemorySortField = 'created' | 'updated' | 'accessed';
+
+export interface MemoryListOptions {
+  sortBy?: MemorySortField;
+  order?: 'asc' | 'desc';
 }
 
 export interface MemoryEdge {
@@ -92,6 +117,19 @@ export function cloneMemoryState(state: MemoryState): MemoryState {
   };
 }
 
+/** The renderer-safe projection of a record. One definition, so the list, the
+ * forest and the MCP surface can never disagree about what a summary contains. */
+export function toMemorySummary(record: MemoryRecord): MemorySummary {
+  return {
+    id: record.id,
+    tldr: record.tldr,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+    ...(record.lastAccessedAt !== undefined ? { lastAccessedAt: record.lastAccessedAt } : {}),
+    attachmentCount: record.attachments.length,
+  };
+}
+
 export function cloneMemoryRecord(record: MemoryRecord): MemoryRecord {
   return {
     ...record,
@@ -119,6 +157,9 @@ export function validateMemoryState(state: MemoryState): void {
     }
     if (!isFiniteNumber(record.createdAt) || !isFiniteNumber(record.updatedAt)) {
       throw new Error(`Memory ${record.id} has invalid timestamps`);
+    }
+    if (record.lastAccessedAt !== undefined && !isFiniteNumber(record.lastAccessedAt)) {
+      throw new Error(`Memory ${record.id} has an invalid lastAccessedAt`);
     }
     if (!Array.isArray(record.attachments)) throw new Error(`Memory ${record.id} has invalid attachments`);
 

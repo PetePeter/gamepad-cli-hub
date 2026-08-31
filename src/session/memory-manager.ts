@@ -7,10 +7,14 @@ import { MemoryAttachmentManager } from './memory-attachment-manager.js';
 import {
   cloneMemoryRecord,
   cloneMemoryState,
+  toMemorySummary,
   type MemoryAttachment,
   type MemoryAttachmentInput,
+  type MemoryForest,
+  type MemoryListOptions,
   type MemoryRecord,
   type MemorySearchOptions,
+  type MemorySortField,
   type MemorySearchResult,
   type MemoryState,
   type MemoryTraversal,
@@ -119,14 +123,17 @@ export class MemoryManager extends EventEmitter {
   getRecordForSession(sessionId: string, id: string): MemoryRecord | null {
     assertSessionId(sessionId);
     const record = this.state.records.find((item) => item.id === id && item.sessionId === sessionId);
-    return record ? cloneMemoryRecord(record) : null;
+    if (!record) return null;
+    this.stampAccess([record.id]);
+    return cloneMemoryRecord(record);
   }
 
-  listRecordsForSession(sessionId: string): MemoryRecord[] {
+  listRecordsForSession(sessionId: string, options: MemoryListOptions = {}): MemoryRecord[] {
     assertSessionId(sessionId);
-    return this.state.records
+    const records = this.state.records
       .filter((record) => record.sessionId === sessionId)
       .map(cloneMemoryRecord);
+    return options.sortBy ? sortRecords(records, options.sortBy, options.order ?? 'desc') : records;
   }
 
   getForSession(sessionId: string, rootId: string, graphDepth = 0): MemoryTraversal | null {
@@ -143,6 +150,25 @@ export class MemoryManager extends EventEmitter {
     }).traverse(rootId, graphDepth);
   }
 
+  /**
+   * The session's whole graph, for canvas rendering.
+   *
+   * Unlike `getForSession`, dangling edges are dropped rather than kept as
+   * `missing` markers: the forest has no node to anchor the far end of such an
+   * edge to, so drawing it would produce a line to nowhere.
+   */
+  forestForSession(sessionId: string): MemoryForest {
+    assertSessionId(sessionId);
+    const scoped = this.state.records.filter((record) => record.sessionId === sessionId);
+    const ownedIds = new Set(scoped.map((record) => record.id));
+    return {
+      records: scoped.map(toMemorySummary),
+      edges: this.state.edges
+        .filter((edge) => ownedIds.has(edge.fromId) && ownedIds.has(edge.toId))
+        .map((edge) => ({ ...edge })),
+    };
+  }
+
   searchForSession(sessionId: string, query: string, options: MemorySearchOptions = {}): MemorySearchResult {
     assertSessionId(sessionId);
     const scopedRecords = this.state.records.filter((record) => record.sessionId === sessionId);
@@ -150,18 +176,18 @@ export class MemoryManager extends EventEmitter {
     const graphDepth = options.graphDepth ?? 0;
     validateGraphDepth(graphDepth);
     const regexMode = options.regex === true;
-    const expression = regexMode ? compileRegex(query) : new RegExp(escapeRegExp(query));
+    const expression = buildSearchExpression(query, regexMode);
     const graph = new MemoryGraph({
       records: scopedRecords,
       edges: this.state.edges.filter((edge) => allowedIds.has(edge.fromId)),
     });
+    const matches = scopedRecords
+      .filter((record) => expression.test(record.tldr) || expression.test(record.content))
+      .sort((a, b) => a.id.localeCompare(b.id));
     return {
       query,
       regex: regexMode,
-      results: scopedRecords
-        .filter((record) => expression.test(record.tldr) || expression.test(record.content))
-        .sort((a, b) => a.id.localeCompare(b.id))
-        .map((record) => graph.traverse(record.id, graphDepth)),
+      results: matches.map((record) => graph.traverse(record.id, graphDepth)),
     };
   }
 
@@ -361,7 +387,7 @@ export class MemoryManager extends EventEmitter {
 
   search(query: string, options: MemorySearchOptions = {}): MemorySearchResult {
     const regexMode = options.regex === true;
-    const expression = regexMode ? compileRegex(query) : new RegExp(escapeRegExp(query));
+    const expression = buildSearchExpression(query, regexMode);
     const graphDepth = options.graphDepth ?? 0;
     validateGraphDepth(graphDepth);
     const roots = this.state.records
@@ -393,6 +419,30 @@ export class MemoryManager extends EventEmitter {
     return result;
   }
 
+  /**
+   * Record that memories were read or matched.
+   *
+   * Deliberately not routed through `mutate`: this is bookkeeping, not a
+   * content change. It emits no `memory:changed` (the renderer would refresh on
+   * every read, and a read during a render would loop), and it never throws —
+   * a read must still succeed when the store is too unhealthy to write to.
+   */
+  private stampAccess(ids: string[]): void {
+    if (ids.length === 0 || this.persistenceDiagnostic) return;
+    const targets = new Set(ids);
+    const timestamp = this.now();
+    const candidate = cloneMemoryState(this.state);
+    for (const record of candidate.records) {
+      if (targets.has(record.id)) record.lastAccessedAt = timestamp;
+    }
+    try {
+      this.persistSink?.(cloneMemoryState(candidate));
+    } catch {
+      return;
+    }
+    this.state = candidate;
+  }
+
   private mutate<T>(build: (candidate: MemoryState) => T): T {
     if (this.persistenceDiagnostic) {
       throw new Error(
@@ -419,6 +469,39 @@ export class MemoryManager extends EventEmitter {
       throw new Error(`${String(originalError)}; attachment rollback failed: ${String(rollbackError)}`);
     }
   }
+}
+
+const SORT_FIELDS: Record<MemorySortField, keyof MemoryRecord> = {
+  created: 'createdAt',
+  updated: 'updatedAt',
+  accessed: 'lastAccessedAt',
+};
+
+/**
+ * Sort by a timestamp, with never-set values pinned to the end in BOTH
+ * directions. Treating absent as 0 would rank never-read memories as the oldest
+ * things in the store — precisely what a trim would delete first.
+ */
+function sortRecords(records: MemoryRecord[], sortBy: MemorySortField, order: 'asc' | 'desc'): MemoryRecord[] {
+  const field = SORT_FIELDS[sortBy];
+  const direction = order === 'asc' ? 1 : -1;
+  return records.sort((a, b) => {
+    const left = a[field] as number | undefined;
+    const right = b[field] as number | undefined;
+    if (left === undefined && right === undefined) return a.id.localeCompare(b.id);
+    if (left === undefined) return 1;
+    if (right === undefined) return -1;
+    return (left - right) * direction || a.id.localeCompare(b.id);
+  });
+}
+
+/**
+ * Literal queries fold case: nobody types `prepareDeploy` when looking for
+ * "deploy". Regex mode is left alone — the caller asked for a regex, and
+ * forcing `i` would remove the only way to express a case-sensitive search.
+ */
+function buildSearchExpression(query: string, regexMode: boolean): RegExp {
+  return regexMode ? compileRegex(query) : new RegExp(escapeRegExp(query), 'i');
 }
 
 function compileRegex(query: string): RegExp {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MemoryGraph, deleteMemoryAndReroute } from '../src/session/memory-graph.js';
+import { MemoryManager } from '../src/session/memory-manager.js';
 import type { MemoryState } from '../src/types/memory.js';
 
 const record = (id: string) => ({
@@ -123,5 +124,66 @@ describe('MemoryGraph', () => {
       { fromId: 'd', toId: 'c' },
       { fromId: 'd', toId: 'd' },
     ]);
+  });
+});
+
+/**
+ * The forest is what the canvas renders: every memory the session owns, not a
+ * neighbourhood around one root. A memory with no links is still a memory, and
+ * before this existed the only way to reach one was the sidebar list.
+ */
+describe('session forest', () => {
+  const owned = (id: string) => ({ ...record(id), sessionId: 'session-a' });
+
+  function makeManager(state: MemoryState) {
+    return new MemoryManager({
+      persist: () => {},
+      persistence: { load: () => ({ state }), save: () => {} } as never,
+    });
+  }
+
+  it('includes memories that have no edges at all', () => {
+    const manager = makeManager({
+      records: [owned('linked-a'), owned('linked-b'), owned('lonely')],
+      edges: [{ fromId: 'linked-a', toId: 'linked-b' }],
+    });
+
+    const forest = manager.forestForSession('session-a');
+
+    expect(forest.records.map((r) => r.id).sort()).toEqual(['linked-a', 'linked-b', 'lonely']);
+    expect(forest.edges).toEqual([{ fromId: 'linked-a', toId: 'linked-b' }]);
+  });
+
+  it('excludes records and edges belonging to another session', () => {
+    const manager = makeManager({
+      records: [owned('mine'), { ...record('theirs'), sessionId: 'session-b' }],
+      edges: [{ fromId: 'theirs', toId: 'mine' }],
+    });
+
+    const forest = manager.forestForSession('session-a');
+
+    expect(forest.records.map((r) => r.id)).toEqual(['mine']);
+    expect(forest.edges).toEqual([]);
+  });
+
+  // A dangling edge would have the canvas draw a line to nothing. The rooted
+  // traversal keeps such edges so it can show a `missing` marker; the forest
+  // cannot, because it has no node to anchor the far end to.
+  it('drops edges whose target is missing', () => {
+    const manager = makeManager({
+      records: [owned('present')],
+      edges: [{ fromId: 'present', toId: 'deleted-long-ago' }],
+    });
+
+    expect(manager.forestForSession('session-a').edges).toEqual([]);
+  });
+
+  it('returns summaries without record content', () => {
+    const manager = makeManager({ records: [owned('a')], edges: [] });
+
+    const [summary] = manager.forestForSession('session-a').records;
+
+    expect(summary).toMatchObject({ id: 'a', tldr: 'summary a', attachmentCount: 0 });
+    expect(summary).not.toHaveProperty('content');
   });
 });

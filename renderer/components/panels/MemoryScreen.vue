@@ -3,11 +3,10 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import ConfirmDialog from '../modals/ConfirmDialog.vue';
 import MemoryDetailPopOutWindow from '../MemoryDetailPopOutWindow.vue';
 import EmptyState from '../common/EmptyState.vue';
-import ListRow from '../common/ListRow.vue';
 import PanelHeader from '../common/PanelHeader.vue';
 import SearchField from '../common/SearchField.vue';
 import { useAppStore } from '../../stores/app.js';
-import { buildMemoryGraphLayout } from '../../memories/memory-graph-layout.js';
+import { buildMemoryForestLayout } from '../../memories/memory-graph-layout.js';
 import {
   confirmDelete,
   deleteAttachment,
@@ -27,17 +26,33 @@ import {
 const appState = useAppStore().state;
 const zoom = ref(1);
 const pan = ref({ x: 0, y: 0 });
+const pressed = ref(false);
 const dragging = ref(false);
 const dragStart = ref({ x: 0, y: 0, panX: 0, panY: 0 });
 const exportScope = ref<'selected' | 'all'>('selected');
 
-const layout = computed(() => memoryScreenState.traversal
-  ? buildMemoryGraphLayout(memoryScreenState.traversal, { zoom: zoom.value })
+const layout = computed(() => memoryScreenState.forest
+  ? buildMemoryForestLayout(memoryScreenState.forest, { zoom: zoom.value })
   : null);
 
-const neighbors = computed(() => (memoryScreenState.traversal?.entries ?? [])
-  .filter((entry) => entry.depth > 0)
-  .map((entry) => ({ id: entry.id, label: entry.record?.tldr ?? entry.id, status: entry.status })));
+const matchedIds = computed(() => new Set(memoryScreenState.matchedIds));
+
+/**
+ * Direct neighbours of the selection, read off the forest rather than a rooted
+ * traversal. Both directions are included and labelled, because an incoming
+ * link is just as much a relationship as an outgoing one.
+ */
+const neighbors = computed(() => {
+  const selected = memoryScreenState.selectedId;
+  const forest = memoryScreenState.forest;
+  if (!selected || !forest) return [];
+  const labelOf = (id: string) => forest.records.find((record) => record.id === id)?.tldr ?? id;
+  return forest.edges
+    .filter((edge) => edge.fromId === selected || edge.toId === selected)
+    .map((edge) => edge.fromId === selected
+      ? { id: edge.toId, label: labelOf(edge.toId), status: 'outgoing' }
+      : { id: edge.fromId, label: labelOf(edge.fromId), status: 'incoming' });
+});
 
 function nodeByKey(key: string) {
   return layout.value?.nodes.find((node) => node.key === key);
@@ -47,18 +62,47 @@ function onWheel(event: WheelEvent): void {
   zoom.value = Math.min(2.5, Math.max(.5, zoom.value * (event.deltaY < 0 ? 1.1 : .9)));
 }
 
+/**
+ * Pan without eating clicks.
+ *
+ * The pointer is captured only once it has actually travelled past
+ * DRAG_THRESHOLD, and the capture is released on pointerup. Capturing on every
+ * pointerdown made the browser retarget the following click to the canvas, so
+ * the node click/dblclick handlers never fired and nothing could be selected.
+ */
+const DRAG_THRESHOLD = 4;
+
 function onPointerDown(event: PointerEvent): void {
-  dragging.value = true;
+  pressed.value = true;
+  dragging.value = false;
   dragStart.value = { x: event.clientX, y: event.clientY, panX: pan.value.x, panY: pan.value.y };
-  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
 }
 
 function onPointerMove(event: PointerEvent): void {
-  if (!dragging.value) return;
-  pan.value = { x: dragStart.value.panX + event.clientX - dragStart.value.x, y: dragStart.value.panY + event.clientY - dragStart.value.y };
+  if (!pressed.value) return;
+  const dx = event.clientX - dragStart.value.x;
+  const dy = event.clientY - dragStart.value.y;
+  if (!dragging.value) {
+    if (Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
+    dragging.value = true;
+    const target = event.currentTarget as HTMLElement;
+    if (target.setPointerCapture) target.setPointerCapture(event.pointerId);
+  }
+  pan.value = { x: dragStart.value.panX + dx, y: dragStart.value.panY + dy };
 }
 
-function onPointerUp(): void { dragging.value = false; }
+function onPointerUp(event: PointerEvent): void {
+  const target = event.currentTarget as HTMLElement | null;
+  if (dragging.value && target?.releasePointerCapture) {
+    try {
+      target.releasePointerCapture(event.pointerId);
+    } catch {
+      // The capture may already be gone if the pointer left the window.
+    }
+  }
+  pressed.value = false;
+  dragging.value = false;
+}
 function resetViewport(): void { zoom.value = 1; pan.value = { x: 0, y: 0 }; }
 
 watch(() => appState.activeSessionId, () => { void refreshMemories(); });
@@ -89,7 +133,7 @@ onUnmounted(disposeMemoryChangedSubscription);
             @keyup.enter="void searchMemories()"
           />
           <label><input v-model="memoryScreenState.regex" type="checkbox"> Regex</label>
-          <label>Graph depth
+          <label title="Depth used when exporting and expanding search results">Export depth
             <input
               :value="memoryScreenState.graphDepth"
               type="number"
@@ -104,34 +148,9 @@ onUnmounted(disposeMemoryChangedSubscription);
     </PanelHeader>
 
     <div class="memory-workspace">
-      <aside class="memory-list" aria-label="Memory list">
-        <EmptyState
-          v-if="memoryScreenState.loading"
-          title="Loading memories"
-          hint="Retrieving session context…"
-          loading
-        />
-        <template v-else>
-          <ListRow
-            v-for="summary in memoryScreenState.summaries"
-            :key="summary.id"
-            :selected="summary.id === memoryScreenState.selectedId"
-            @click="void selectMemory(summary.id)"
-            @dblclick="void selectMemory(summary.id).then(openDetail)"
-          >
-            <template #title>{{ summary.tldr }}</template>
-            <template #meta>{{ summary.attachmentCount }} attachment(s) · {{ new Date(summary.updatedAt).toLocaleString() }}</template>
-          </ListRow>
-          <EmptyState
-            v-if="!memoryScreenState.summaries.length"
-            title="No memories for this session."
-          />
-        </template>
-      </aside>
-
       <div class="memory-graph-panel">
         <div class="memory-graph-toolbar">
-          <span>Read-only graph</span>
+          <span>Read-only graph — click a node to read it</span>
           <span v-if="memoryScreenState.searchQuery" class="memory-search-count">{{ memoryScreenState.searchResults.length }} match(es)</span>
           <button type="button" class="btn btn--secondary btn--sm" @click="resetViewport">Reset view</button>
           <button v-if="memoryScreenState.detail" type="button" class="btn btn--secondary btn--sm" @click="openDetail">Open detail</button>
@@ -144,12 +163,28 @@ onUnmounted(disposeMemoryChangedSubscription);
           @pointerup="onPointerUp"
           @pointercancel="onPointerUp"
         >
-          <svg v-if="layout" :viewBox="`0 0 ${Math.max(900, (layout.nodes.length + 1) * 230)} 700`" role="img" aria-label="Memory graph">
+          <svg v-if="layout && layout.nodes.length" :viewBox="`0 0 ${Math.max(900, (layout.graphDepth + 2) * 230)} 700`" role="img" aria-label="Memory graph">
+            <defs>
+              <!-- Edges are directed; without a head the picture reads as
+                   undirected and hides which memory points at which. -->
+              <marker
+                id="memory-edge-arrow"
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerWidth="6"
+                markerHeight="6"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 0 L 10 5 L 0 10 z" class="memory-graph-arrow" />
+              </marker>
+            </defs>
             <g :transform="`translate(${pan.x} ${pan.y}) scale(${layout.zoom})`">
               <line
                 v-for="edge in layout.edges"
                 :key="edge.from + '>' + edge.to"
                 class="memory-graph-edge"
+                marker-end="url(#memory-edge-arrow)"
                 :x1="(nodeByKey(edge.from)?.x ?? 0) + 170"
                 :y1="(nodeByKey(edge.from)?.y ?? 0) + 42"
                 :x2="nodeByKey(edge.to)?.x ?? 0"
@@ -157,24 +192,56 @@ onUnmounted(disposeMemoryChangedSubscription);
               />
               <g
                 v-for="node in layout.nodes"
-                :key="node.key + ':' + node.status"
+                :key="node.key"
                 class="memory-graph-node"
-                :class="[`memory-status-${node.status}`, { selected: node.id === memoryScreenState.selectedId }]"
+                :class="{
+                  selected: node.id === memoryScreenState.selectedId,
+                  match: matchedIds.has(node.id),
+                  dimmed: matchedIds.size > 0 && !matchedIds.has(node.id),
+                }"
                 :transform="`translate(${node.x} ${node.y})`"
-                @click.stop="node.record ? void selectMemory(node.id) : undefined"
-                @dblclick.stop="node.record ? void selectMemory(node.id).then(openDetail) : undefined"
+                @click.stop="void selectMemory(node.id)"
+                @dblclick.stop="void selectMemory(node.id).then(openDetail)"
               >
                 <rect width="170" height="84" rx="6" />
-                <text x="10" y="22">{{ node.label.slice(0, 25) }}</text>
-                <text x="10" y="43" class="memory-node-status">{{ node.status }}</text>
-                <text x="10" y="63" class="memory-node-path">{{ node.breadcrumbs.join(' › ').slice(0, 30) }}</text>
+                <text x="10" y="26">{{ node.label.slice(0, 25) }}</text>
+                <text x="10" y="52" class="memory-node-path">{{ node.id.slice(0, 8) }}</text>
               </g>
             </g>
           </svg>
-          <EmptyState v-else title="Select a memory to inspect its graph." />
+          <EmptyState
+            v-else-if="memoryScreenState.loading"
+            title="Loading memories"
+            hint="Retrieving session context…"
+            loading
+          />
+          <EmptyState v-else title="No memories for this session." />
         </div>
         <p v-if="memoryScreenState.notice" class="memory-notice" role="status">{{ memoryScreenState.notice }}</p>
       </div>
+
+      <aside class="memory-detail-pane" aria-label="Memory detail">
+        <template v-if="memoryScreenState.detail">
+          <h3 class="memory-detail-title">{{ memoryScreenState.detail.tldr }}</h3>
+          <dl class="memory-detail-meta">
+            <div><dt>Created</dt><dd>{{ new Date(memoryScreenState.detail.createdAt).toLocaleString() }}</dd></div>
+            <div><dt>Updated</dt><dd>{{ new Date(memoryScreenState.detail.updatedAt).toLocaleString() }}</dd></div>
+            <div><dt>Last read</dt><dd>{{ memoryScreenState.detail.lastAccessedAt ? new Date(memoryScreenState.detail.lastAccessedAt).toLocaleString() : 'never' }}</dd></div>
+          </dl>
+          <p class="memory-detail-body">{{ memoryScreenState.detail.content }}</p>
+          <ul v-if="memoryScreenState.detail.attachments.length" class="memory-detail-attachments">
+            <li v-for="attachment in memoryScreenState.detail.attachments" :key="attachment.id">
+              <button type="button" class="btn btn--secondary btn--sm" @click="void openAttachment(attachment.id)">{{ attachment.filename }}</button>
+              <button type="button" class="btn btn--secondary btn--sm" @click="void deleteAttachment(attachment.id)">Remove</button>
+            </li>
+          </ul>
+          <div class="memory-detail-actions">
+            <button type="button" class="btn btn--secondary btn--sm" @click="openDetail">Pop out</button>
+            <button type="button" class="btn btn--secondary btn--sm" @click="requestDelete()">Delete</button>
+          </div>
+        </template>
+        <EmptyState v-else title="Select a memory." hint="Click a node to read it here." />
+      </aside>
     </div>
 
     <MemoryDetailPopOutWindow
@@ -211,8 +278,17 @@ onUnmounted(disposeMemoryChangedSubscription);
 .memory-export-scope { display: flex; align-items: center; gap: 4px; color: var(--text-secondary); font-size: 12px; }
 .memory-controls .search-field { flex: 1; min-width: 180px; }
 .memory-controls input[type='number'] { width: 60px; }
-.memory-workspace { display: grid; grid-template-columns: minmax(190px, 26%) 1fr; min-height: 0; flex: 1; }
-.memory-list { overflow: auto; border-right: 1px solid var(--border); }
+.memory-workspace { display: grid; grid-template-columns: 1fr minmax(220px, 28%); min-height: 0; flex: 1; }
+.memory-detail-pane { overflow: auto; border-left: 1px solid var(--border); padding: 14px; min-width: 0; }
+.memory-detail-title { margin: 0 0 10px; font-size: 14px; color: var(--text-primary); }
+.memory-detail-meta { margin: 0 0 12px; display: grid; gap: 4px; font-size: 11px; color: var(--text-secondary); }
+.memory-detail-meta div { display: flex; gap: 6px; }
+.memory-detail-meta dt { min-width: 84px; }
+.memory-detail-meta dd { margin: 0; }
+.memory-detail-body { margin: 0 0 12px; font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-primary); }
+.memory-detail-attachments { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
+.memory-detail-attachments li { display: flex; gap: 6px; align-items: center; }
+.memory-detail-actions { display: flex; gap: 8px; }
 .memory-graph-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .memory-graph-toolbar { justify-content: space-between; color: var(--text-secondary); font-size: 12px; }
 .memory-search-count { color: var(--text-secondary); }
@@ -223,8 +299,9 @@ onUnmounted(disposeMemoryChangedSubscription);
 .memory-graph-node { cursor: pointer; }
 .memory-graph-node rect { fill: var(--bg-secondary); stroke: var(--border); stroke-width: 2; }
 .memory-graph-node.selected rect { stroke: var(--accent); }
-.memory-status-cycle rect, .memory-status-reference rect { stroke: var(--status-blocked); }
-.memory-status-missing rect, .memory-status-depth-limit rect { stroke: var(--danger); stroke-dasharray: 5 3; }
+.memory-graph-node.match rect { stroke: var(--accent); stroke-width: 3; }
+.memory-graph-node.dimmed { opacity: .35; }
+.memory-graph-arrow { fill: var(--text-secondary); }
 .memory-graph-node text { fill: var(--text-primary); font-size: 12px; pointer-events: none; }
 .memory-graph-node .memory-node-status, .memory-graph-node .memory-node-path { fill: var(--text-secondary); font-size: 10px; }
 .memory-notice { margin: 0; padding: 8px 14px; color: var(--accent); border-top: 1px solid var(--border); }

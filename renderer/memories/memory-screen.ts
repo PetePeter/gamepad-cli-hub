@@ -1,11 +1,23 @@
 import { computed, reactive } from 'vue';
 import { useAppStore } from '../stores/app.js';
 import { dialogClient, eventsClient, incomingClient, memoryClient } from '../ipc/clients.js';
-import type { MemoryRecord, MemorySearchResult, MemorySummary, MemoryTraversal } from '../../src/types/memory.js';
+import type {
+  MemoryForest,
+  MemoryRecord,
+  MemorySearchResult,
+  MemorySummary,
+  MemoryTraversal,
+} from '../../src/types/memory.js';
 
 export const memoryScreenState = reactive({
+  /**
+   * Internal index only — never rendered as a list. The canvas is the visible
+   * surface; this exists so search and callers can resolve an id whose node is
+   * filtered out or off-screen.
+   */
   summaries: [] as MemorySummary[],
-  traversal: null as MemoryTraversal | null,
+  forest: null as MemoryForest | null,
+  matchedIds: [] as string[],
   detail: null as MemoryRecord | null,
   searchResults: [] as MemoryTraversal[],
   searchQuery: '',
@@ -41,28 +53,31 @@ export async function refreshMemories(): Promise<void> {
   const sessionId = activeSessionId();
   if (!sessionId) {
     memoryScreenState.summaries = [];
+    memoryScreenState.forest = null;
+    memoryScreenState.matchedIds = [];
     memoryScreenState.searchResults = [];
     memoryScreenState.selectedId = null;
     memoryScreenState.detail = null;
-    memoryScreenState.traversal = null;
     memoryScreenState.detailVisible = false;
     memoryScreenState.loading = false;
     return;
   }
   memoryScreenState.loading = true;
   try {
-    const summaries = await memoryClient.memoryList();
+    const [summaries, forest] = await Promise.all([
+      memoryClient.memoryList(),
+      memoryClient.memoryGraphAll(),
+    ]);
     if (!requestIsCurrent(generation, sessionId)) return;
     memoryScreenState.summaries = [...summaries].sort((a, b) => a.id.localeCompare(b.id));
+    memoryScreenState.forest = forest;
     const selectedStillExists = memoryScreenState.selectedId
       && memoryScreenState.summaries.some((item) => item.id === memoryScreenState.selectedId);
-    const nextId = selectedStillExists ? memoryScreenState.selectedId : memoryScreenState.summaries[0]?.id ?? null;
-    if (nextId) await selectMemory(nextId, generation, sessionId);
+    if (selectedStillExists) await selectMemory(memoryScreenState.selectedId!, generation, sessionId);
     else {
       memoryScreenState.selectedId = null;
       memoryScreenState.detail = null;
-      memoryScreenState.traversal = null;
-      memoryScreenState.detailVisible = false;
+        memoryScreenState.detailVisible = false;
     }
   } catch (error) {
     if (requestIsCurrent(generation, sessionId)) setNotice(`Could not load memories: ${String(error)}`);
@@ -79,13 +94,9 @@ export async function selectMemory(
   memoryScreenState.selectedId = id;
   memoryScreenState.loading = true;
   try {
-    const [detail, traversal] = await Promise.all([
-      memoryClient.memoryGet(id),
-      memoryClient.memoryGraph(id, memoryScreenState.graphDepth),
-    ]);
+    const detail = await memoryClient.memoryGet(id);
     if (!requestIsCurrent(parentGeneration, sessionId)) return;
     memoryScreenState.detail = detail;
-    memoryScreenState.traversal = traversal;
   } catch (error) {
     if (requestIsCurrent(parentGeneration, sessionId)) setNotice(`Could not open memory: ${String(error)}`);
   } finally {
@@ -104,15 +115,7 @@ export async function searchMemories(): Promise<void> {
     }) as MemorySearchResult;
     if (!requestIsCurrent(generation, sessionId)) return;
     memoryScreenState.searchResults = result.results;
-    const first = result.results[0];
-    const firstRecord = first?.entries.find((entry) => entry.status === 'record' && entry.record);
-    if (firstRecord) await selectMemory(firstRecord.id, generation, sessionId);
-    else {
-      memoryScreenState.selectedId = null;
-      memoryScreenState.detail = null;
-      memoryScreenState.traversal = null;
-      memoryScreenState.detailVisible = false;
-    }
+    memoryScreenState.matchedIds = result.results.map((traversal) => traversal.rootId);
   } catch (error) {
     if (requestIsCurrent(generation, sessionId)) setNotice(`Search failed: ${String(error)}`);
   } finally {
@@ -120,10 +123,13 @@ export async function searchMemories(): Promise<void> {
   }
 }
 
+/**
+ * Depth used when exporting and when expanding search results. The canvas no
+ * longer depends on it — it draws the whole forest — so changing it must not
+ * re-fetch the selection.
+ */
 export function setGraphDepth(value: number): void {
-  const next = Number.isSafeInteger(value) ? Math.min(100, Math.max(0, value)) : 0;
-  memoryScreenState.graphDepth = next;
-  if (memoryScreenState.selectedId) void selectMemory(memoryScreenState.selectedId);
+  memoryScreenState.graphDepth = Number.isSafeInteger(value) ? Math.min(100, Math.max(0, value)) : 0;
 }
 
 export function openDetail(): void {

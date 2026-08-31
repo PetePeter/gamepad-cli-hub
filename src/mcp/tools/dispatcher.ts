@@ -8,7 +8,10 @@ import {
   asBoolean,
   asContextBindingTargetType,
   asFiniteNumber,
+  asEnum,
   asGraphDepth,
+  MEMORY_SORT_FIELDS,
+  MEMORY_SORT_ORDERS,
   asMemoryExportFormat,
   asPlanFilter,
   asPlanStatus,
@@ -708,7 +711,14 @@ export async function callMcpTool(
       }
       case 'memory_list': {
         const sessionId = requireCallerSession(authContext, 'memory_list');
-        return service.listMemories(sessionId);
+        return service.listMemories(sessionId, {
+          ...(args.sortBy !== undefined
+            ? { sortBy: asEnum(args.sortBy, MEMORY_SORT_FIELDS, 'sortBy') }
+            : {}),
+          ...(args.order !== undefined
+            ? { order: asEnum(args.order, MEMORY_SORT_ORDERS, 'order') }
+            : {}),
+        });
       }
       case 'memory_get': {
         const sessionId = requireCallerSession(authContext, 'memory_get');
