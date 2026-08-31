@@ -69,6 +69,18 @@ function getSentText(ptyManager: ReturnType<typeof makeDeps>['ptyManager']): str
 }
 
 describe('HelmSessionDeliveryService', () => {
+  it('delivers system reminders without a sender envelope and with system intent', async () => {
+    const { service, ptyManager, receiver } = makeDeps({ helmPreambleForInterSession: true });
+
+    await service.sendSystemReminder(receiver.id, '[HELM_MESS] 3 new — call mess_check');
+
+    expect(ptyManager.deliverText).toHaveBeenCalledWith(
+      receiver.id,
+      '[HELM_MESS] 3 new — call mess_check',
+      expect.objectContaining({ deliveryContext: 'background', writeIntent: 'system' }),
+    );
+  });
+
   describe('envelope framing (preamble=true)', () => {
     /**
      * The envelope, the user text and the directive used to be separated by

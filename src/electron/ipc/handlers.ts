@@ -81,6 +81,7 @@ import { SecretStore } from '../../mcp/peer/secret-store.js';
 import { loadPeerPins, savePeerPins, loadPeerSecrets, savePeerSecrets } from '../../mcp/peer/peer-secret-persistence.js';
 import { asRecord } from '../../mcp/tools/validation.js';
 import { PromptTemplateManager } from '../../session/prompt-template-manager.js';
+import { MessNotifier } from '../../session/mess-notifier.js';
 import { loadPromptTemplates } from '../../session/prompt-template-persistence.js';
 import { getConfigDir } from '../../utils/app-paths.js';
 import { join } from 'node:path';
@@ -343,6 +344,15 @@ export function registerIPCHandlers(
     }
   });
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, undefined, undefined, undefined, patternMatcher);
+  const messNotifier = helmControlService.getMessManager()
+    ? new MessNotifier(
+      helmControlService.getMessManager()!,
+      sessionManager,
+      stateDetector,
+      projectStore,
+      helmControlService,
+    )
+    : null;
   setupBackupPlanHandlers(ipcMain, windowManager, () => backupManager);
   const cleanupPromptTemplates = promptTemplatesPath
     ? setupPromptTemplateHandlers(promptTemplateManager, promptTemplatesPath)
@@ -578,6 +588,7 @@ export function registerIPCHandlers(
       cleanupSession();
       cleanupPromptTemplates();
       cancelAllPrompts();
+      messNotifier?.dispose();
       stateDetector.dispose();
       patternMatcher.dispose();
       notificationManager.dispose();

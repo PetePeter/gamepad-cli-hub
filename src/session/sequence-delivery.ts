@@ -1,7 +1,7 @@
 import { executeSequenceString } from '../input/sequence-executor.js';
 import { parseSubmitSuffix } from '../mcp/submit-suffix.js';
 import type { ConfigLoader } from '../config/loader.js';
-import type { PtyManager } from './pty-manager.js';
+import type { PtyManager, WriteIntent } from './pty-manager.js';
 import type { SessionManager } from './manager.js';
 import { SUBMIT_SETTLE_DELAY_MS, type DeliveryContext, type TextDeliveryOptions } from './delivery-context.js';
 import { logger } from '../utils/logger.js';
@@ -104,6 +104,7 @@ export async function deliverPromptSequenceToSession(input: {
   configLoader: ConfigLoader;
   impliedSubmit?: boolean;
   deliveryContext?: DeliveryContext;
+  writeIntent?: WriteIntent;
   /** Overridable for tests; production uses the process-wide gate. */
   deliveryLock?: DeliveryLock;
   verifyDelivery?: {
@@ -115,7 +116,7 @@ export async function deliverPromptSequenceToSession(input: {
     onComplete?: (result: DeliveryVerificationResult) => void;
   };
 }): Promise<DeliveryVerificationResult | undefined> {
-  const { sessionId, text, ptyManager, sessionManager, configLoader, impliedSubmit, deliveryContext, verifyDelivery } = input;
+  const { sessionId, text, ptyManager, sessionManager, configLoader, impliedSubmit, deliveryContext, writeIntent, verifyDelivery } = input;
   const session = sessionManager.getSession(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
@@ -124,7 +125,9 @@ export async function deliverPromptSequenceToSession(input: {
 
   const lock = input.deliveryLock ?? sharedDeliveryLock;
   const processedText = escapeUnrecognizedBraces(text);
-  const textDeliveryOptions: TextDeliveryOptions | undefined = deliveryContext ? { deliveryContext } : undefined;
+  const textDeliveryOptions: TextDeliveryOptions | undefined = deliveryContext || writeIntent
+    ? { ...(deliveryContext ? { deliveryContext } : {}), ...(writeIntent ? { writeIntent } : {}) }
+    : undefined;
   const deliverText = (sid: string, chunk: string, options?: TextDeliveryOptions): Promise<void> => (
     options
       ? ptyManager.deliverText(sid, chunk, options)
@@ -134,7 +137,9 @@ export async function deliverPromptSequenceToSession(input: {
   const runSequence = () => executeSequenceString({
     sessionId,
     input: processedText,
-    write: (sid, data) => ptyManager.write(sid, data),
+    write: (sid, data) => writeIntent
+      ? ptyManager.write(sid, data, writeIntent)
+      : ptyManager.write(sid, data),
     deliverText: (sid, chunk) => deliverText(sid, chunk, textDeliveryOptions),
     submit: async (sid) => {
       await new Promise<void>((resolve) => setTimeout(resolve, SUBMIT_SETTLE_DELAY_MS));

@@ -9,6 +9,8 @@ export interface TextDeliveryOptions {
   withReturn?: boolean;
   submitSuffix?: string;
   deliveryContext?: DeliveryContext;
+  /** How the write should affect activity tracking. */
+  writeIntent?: 'input' | 'scroll' | 'system';
 }
 
 /**

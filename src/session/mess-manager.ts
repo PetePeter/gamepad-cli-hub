@@ -144,6 +144,17 @@ export class MessManager extends EventEmitter {
     return this.historyResult(sessionId, options).entries;
   }
 
+  /** Count visible unread entries without creating or advancing the caller cursor. */
+  unreadCount(sessionId: string): number {
+    const session = this.requireSession(sessionId);
+    const project = this.requireProject(session);
+    const persistence = this.persistence(project.id);
+    const loaded = persistence.load();
+    const cursor = persistence.getCursor(session.id)
+      ?? this.initialCursor(project, session.id, loaded);
+    return loaded.entries.filter(entry => entry.seq > cursor.lastSeq && isVisibleTo(entry, session.id)).length;
+  }
+
   /** Read recent history with an explicit truncation signal for bounded callers. */
   historyResult(sessionId: string, options: MessHistoryOptions): MessHistoryResult {
     const session = this.requireSession(sessionId);

@@ -20,8 +20,10 @@ const esmRequire = createRequire(import.meta.url);
  * 'input'  — real stdin. Marks the session active, whoever the caller is.
  * 'scroll' — scrollback keys. The redraw they provoke is not new work, and
  *            promoting it would turn every scroll green (invariant 8).
+ * 'system' — an app-owned reminder. It must not fabricate user activity or
+ *            restart the idle timer (invariant 8).
  */
-export type WriteIntent = 'input' | 'scroll';
+export type WriteIntent = 'input' | 'scroll' | 'system';
 
 export interface PtyProcess {
   pid: number;
@@ -268,13 +270,13 @@ export class PtyManager extends EventEmitter {
           isAlive: () => this.ptys.has(sessionId),
         });
       }
-      this.write(sessionId, buildPastePayload(text, enabled));
+      this.write(sessionId, buildPastePayload(text, enabled), options?.writeIntent ?? 'input');
       // The suffix stays a SEPARATE write after a settle beat: a CR concatenated
       // onto a paste block does not submit, it leaves the text sitting on the
       // prompt (the bug 5a981b3 fixed).
       if (suffix) await new Promise<void>(resolve => setTimeout(resolve, SUBMIT_SETTLE_DELAY_MS));
     }
-    if (suffix) this.write(sessionId, suffix);
+    if (suffix) this.write(sessionId, suffix, options?.writeIntent ?? 'input');
   }
 
   /** Whether the session's CLI has announced bracketed paste on its output stream. */

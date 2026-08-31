@@ -238,6 +238,34 @@ export class HelmSessionDeliveryService {
   }
 
   /**
+   * Deliver one app-owned Mess reminder without an inter-session envelope.
+   * This deliberately has no sender identity: it is local Helm system input,
+   * not a message pretending to come from another session.
+   */
+  async sendSystemReminder(sessionRef: string, text: string): Promise<void> {
+    const session = this.requireRunningSession(sessionRef);
+    if (!text || text.includes('\n') || text.includes('\r')) {
+      throw new Error('System reminders must be exactly one non-empty line');
+    }
+
+    await deliverPromptSequenceToSession({
+      sessionId: session.id,
+      text,
+      ptyManager: this.ptyManager,
+      sessionManager: this.sessionManager,
+      configLoader: this.configLoader,
+      deliveryContext: 'background',
+      writeIntent: 'system',
+      verifyDelivery: {
+        label: 'Mess system reminder',
+        delayMs: getDeliveryVerifyDelayMs(),
+        retrySubmit: true,
+        background: true,
+      },
+    });
+  }
+
+  /**
    * Clear a session's context by delivering its configured clear command, then
    * optionally relay a "note to future self" so the freshly-cleared session
    * retains what matters. Targets any session by sessionId (required).

@@ -360,6 +360,11 @@ export class HelmControlService extends EventEmitter {
     return this.messManager;
   }
 
+  /** Deliver an app-owned Mess reminder without an inter-session envelope. */
+  sendSystemReminder(sessionRef: string, text: string): Promise<void> {
+    return this.sessionDelivery.sendSystemReminder(sessionRef, text);
+  }
+
   /**
    * Wire (or CLEAR, with null) the PeerLinkManager so the peer_* fleet tools
    * can reach remote peers. Passing a manager enables the tools; passing null (on a
