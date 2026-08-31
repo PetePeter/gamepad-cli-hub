@@ -1,5 +1,4 @@
 import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue';
-import type { MessEntry } from '../../src/types/mess.js';
 import type { MessHistoryEntry } from '../../src/session/mess-manager.js';
 import type { Session } from '../state.js';
 import { messClient } from '../ipc/clients.js';
@@ -18,38 +17,34 @@ export function resolveMessLabel(sessionId: string | undefined, snapshot: string
   return sessions.find(session => session.id === sessionId)?.name ?? snapshot ?? sessionId;
 }
 
-export function isMessTargetUnread(entry: MessHistoryEntry, sessions: readonly Session[], activityLevels: ReadonlyMap<string, string>): boolean {
-  if (!entry.toSessionId) return false;
-  if (entry.targetUnread !== undefined) return entry.targetUnread;
-  const target = sessions.find(session => session.id === entry.toSessionId);
-  if (!target) return true;
-  const activity = activityLevels.get(target.id);
-  return (activity !== undefined && activity !== 'idle')
-    || target.aiagentState === 'planning'
-    || target.aiagentState === 'implementing';
+/**
+ * Whether the target AI has yet to pick a directed entry up.
+ *
+ * The main process decorates every entry from the target's ordered cursor — the
+ * only authority on what was delivered. The renderer never guesses from session
+ * activity: a busy session may already have read its mail, and an idle one may
+ * not have. Absent decoration means unknown, and an unknown never claims a badge.
+ */
+export function isMessTargetUnread(entry: MessHistoryEntry): boolean {
+  return Boolean(entry.toSessionId) && entry.targetUnread === true;
 }
 
 function matchesFilter(value: boolean, filter: MessFilterState): boolean {
   return filter === 'either' || value === (filter === 'yes');
 }
 
-export function filterMessEntries(
-  entries: readonly MessHistoryEntry[],
-  filters: MessFilters,
-  sessions: readonly Session[],
-  activityLevels: ReadonlyMap<string, string>,
-): MessEntry[] {
+export function filterMessEntries(entries: readonly MessHistoryEntry[], filters: MessFilters): MessHistoryEntry[] {
   return entries.filter(entry => {
     const senderMatches = !filters.senderId || entry.fromSessionId === filters.senderId;
     return senderMatches
       && matchesFilter(!entry.toSessionId, filters.broadcast)
-      && matchesFilter(isMessTargetUnread(entry, sessions, activityLevels), filters.unread);
+      && matchesFilter(isMessTargetUnread(entry), filters.unread);
   });
 }
 
 export function useMessPane() {
   const appStore = useAppStore();
-  const entries = ref<MessEntry[]>([]);
+  const entries = ref<MessHistoryEntry[]>([]);
   const loading = ref(false);
   const historyHours = ref(24);
   const scroller = ref<HTMLElement | null>(null);
@@ -75,12 +70,7 @@ export function useMessPane() {
         return true;
       });
   });
-  const visibleEntries = computed(() => filterMessEntries(
-    entries.value,
-    filters,
-    appStore.state.sessions,
-    appStore.state.sessionActivityLevels,
-  ));
+  const visibleEntries = computed(() => filterMessEntries(entries.value, filters));
   const hasMore = ref(false);
 
   function atBottom(): boolean {
@@ -94,9 +84,9 @@ export function useMessPane() {
     if (scroller.value) scroller.value.scrollTop = scroller.value.scrollHeight;
   }
 
-  async function loadHistory(nextProjectId: string | null, preserveBottom = true): Promise<void> {
+  /** Re-seed the mirror for a project. A fresh transcript always opens at newest. */
+  async function loadHistory(nextProjectId: string | null): Promise<void> {
     const generation = ++loadGeneration;
-    const shouldScroll = atBottom() || preserveBottom;
     if (!nextProjectId) {
       entries.value = [];
       hasMore.value = false;
@@ -110,7 +100,7 @@ export function useMessPane() {
       const liveAppends = entries.value.filter(entry => entry.projectId === nextProjectId && !loadedIds.has(entry.id));
       entries.value = [...result.entries, ...liveAppends].sort((a, b) => a.seq - b.seq);
       hasMore.value = result.hasMore;
-      await scrollToBottomIfNeeded(shouldScroll);
+      await scrollToBottomIfNeeded(true);
     } catch (error) {
       if (generation === loadGeneration) {
         entries.value = [];
@@ -148,7 +138,7 @@ export function useMessPane() {
     }
   }
 
-  function onAppended(event: { projectId: string; entry: MessEntry }): void {
+  function onAppended(event: { projectId: string; entry: MessHistoryEntry }): void {
     if (event.projectId !== projectId.value || entries.value.some(entry => entry.id === event.entry.id)) return;
     const shouldScroll = atBottom();
     entries.value = [...entries.value, event.entry].sort((a, b) => a.seq - b.seq);
@@ -183,7 +173,7 @@ export function useMessPane() {
     projectName,
     resolveLabel: (sessionId: string | undefined, snapshot: string | undefined) =>
       resolveMessLabel(sessionId, snapshot, appStore.state.sessions),
-    isTargetUnread: (entry: MessEntry) => isMessTargetUnread(entry, appStore.state.sessions, appStore.state.sessionActivityLevels),
+    isTargetUnread: isMessTargetUnread,
     isSessionClosed: (sessionId: string) => !appStore.state.sessions.some(session => session.id === sessionId),
     scroller,
     senderOptions,

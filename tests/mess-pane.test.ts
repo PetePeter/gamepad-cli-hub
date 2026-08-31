@@ -31,21 +31,25 @@ describe('Mess pane projection', () => {
     expect(resolveMessLabel(undefined, undefined, sessions)).toBe('all');
   });
 
-  it('marks directed mail for a busy or closed target, never broadcasts', () => {
-    expect(isMessTargetUnread(entry(), sessions, new Map([['target', 'busy']]))).toBe(false);
-    expect(isMessTargetUnread(entry({ toSessionId: 'target', toLabelSnapshot: 'Memories' }), sessions, new Map([['target', 'active']]))).toBe(true);
-    expect(isMessTargetUnread(entry({ toSessionId: 'closed' }), sessions, new Map())).toBe(true);
-    expect(isMessTargetUnread(entry(), sessions, new Map())).toBe(false);
-    expect(isMessTargetUnread({ ...entry({ toSessionId: 'target' }), targetUnread: false }, sessions, new Map([['target', 'active']]))).toBe(false);
+  it('takes the unread badge from the target cursor, never from session activity', () => {
+    const directed = entry({ toSessionId: 'target', toLabelSnapshot: 'Memories' });
+
+    expect(isMessTargetUnread({ ...directed, targetUnread: true })).toBe(true);
+    expect(isMessTargetUnread({ ...directed, targetUnread: false })).toBe(false);
+    // A busy target that already read its mail must not regain a badge, and an
+    // undecorated entry claims nothing.
+    expect(isMessTargetUnread(directed)).toBe(false);
+    // Broadcasts have no target to be waiting on them.
+    expect(isMessTargetUnread({ ...entry(), targetUnread: true })).toBe(false);
   });
 
   it('combines sender, broadcast, and unread filters without changing entries', () => {
     const entries = [
       entry({ id: 'broadcast' }),
-      entry({ id: 'direct', toSessionId: 'target', toLabelSnapshot: 'Memories' }),
+      { ...entry({ id: 'direct', toSessionId: 'target', toLabelSnapshot: 'Memories' }), targetUnread: true },
     ];
-    expect(filterMessEntries(entries, { senderId: 'sender', broadcast: 'yes', unread: 'either' }, sessions, new Map())).toHaveLength(1);
-    expect(filterMessEntries(entries, { senderId: '', broadcast: 'no', unread: 'yes' }, sessions, new Map([['target', 'active']])).map(item => item.id)).toEqual(['direct']);
+    expect(filterMessEntries(entries, { senderId: 'sender', broadcast: 'yes', unread: 'either' })).toHaveLength(1);
+    expect(filterMessEntries(entries, { senderId: '', broadcast: 'no', unread: 'yes' }).map(item => item.id)).toEqual(['direct']);
     expect(entries).toHaveLength(2);
   });
 });

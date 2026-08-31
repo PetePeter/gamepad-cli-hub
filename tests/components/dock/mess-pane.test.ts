@@ -4,16 +4,19 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import MessPane from '../../../renderer/components/dock/MessPane.vue';
 import { appState } from '../../../renderer/stores/app.js';
-import type { MessEntry } from '../../../src/types/mess.js';
+import type { MessHistoryEntry } from '../../../src/session/mess-manager.js';
 
-const entry: MessEntry = {
+// The main process decorates every entry with the target's cursor state; the
+// pane renders that and never re-derives it.
+const entry: MessHistoryEntry = {
   id: 'e1', projectId: 'p1', seq: 1, fromSessionId: 's1', fromLabelSnapshot: 'old planner',
   toSessionId: 's2', toLabelSnapshot: 'old memories', text: 'coordinate this', createdAt: 1_700_000_000_000,
+  targetUnread: true,
 };
 
 describe('MessPane', () => {
   let history: ReturnType<typeof vi.fn>;
-  let appendListener: ((event: { projectId: string; entry: MessEntry }) => void) | undefined;
+  let appendListener: ((event: { projectId: string; entry: MessHistoryEntry }) => void) | undefined;
 
   beforeEach(() => {
     appState.sessions = [
