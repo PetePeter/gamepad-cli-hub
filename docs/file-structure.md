@@ -20,7 +20,8 @@ src/
 │       ├── system-handlers.ts  # system:openLogsFolder
 │       ├── telegram-handlers.ts # Telegram bot settings CRUD, bot start/stop IPC
 │       ├── draft-handlers.ts   # 5 IPC channels (draft:create/update/delete/list/count) wired to DraftManager
-│       └── plan-handlers.ts   # 12 IPC channels (plan:list/create/update/delete/addDep/removeDep/apply/complete/startableForDir/doingForSession/deps/getItem) wired to PlanManager; startable/doing names are legacy ready/coding query names
+│       ├── plan-handlers.ts   # 12 IPC channels (plan:list/create/update/delete/addDep/removeDep/apply/complete/startableForDir/doingForSession/deps/getItem) wired to PlanManager; startable/doing names are legacy ready/coding query names
+│       └── mess-handlers.ts   # Cursor-neutral mess:history plus project-scoped mess:appended push; read-only renderer boundary
 ├── input/
 │   └── sequence-parser.ts      # {Enter}, {Ctrl+C}, {Wait 500}, {Mod Down/Up}, {{/}} — used by bindings + initialPrompt
 ├── output/
@@ -37,6 +38,9 @@ src/
 │   ├── initial-prompt.ts       # Sequence syntax → PTY escape codes, configurable delay, onComplete callback
 │   ├── draft-manager.ts        # Per-session draft prompt CRUD (EventEmitter, emits draft:changed, persisted to config/drafts.yaml)
 │   ├── plan-manager.ts         # Per-directory plan DAG CRUD (EventEmitter, emits plan:changed, cycle prevention via DFS, ready-state computation, persisted to config/plans/*.json)
+│   ├── mess-manager.ts         # Project-scoped durable coordination, ordered unread cursors, bounded history, and mess:appended events
+│   ├── mess-persistence.ts     # Per-project JSONL log plus atomic cursor metadata, retention pruning, compaction recovery, and corruption diagnostics
+│   ├── mess-notifier.ts        # Best-effort idle reminders with append-while-idle detection, cooldown, retry, and system delivery verification
 │   ├── prompt-template-types.ts        # PromptFolder / PromptTemplate / PromptNode model + isFolder type guard
 │   ├── prompt-template-manager.ts      # Global nested prompt-template tree CRUD (EventEmitter, emits prompt-template:changed; folders nest, templates are leaves)
 │   ├── prompt-template-persistence.ts  # YAML load/save to config/prompt-templates.yaml (global)
@@ -44,6 +48,11 @@ src/
 │   └── power-monitor.ts        # Suspend/resume/shutdown diagnostics — session counts, PTY IDs, survival status
 ├── config/
 │   └── loader.ts               # Self-contained profile YAML config + CRUD + StickConfig + haptic settings + auto-migration + bookmark CRUD (addBookmarkedDir/removeBookmarkedDir) + ChipbarAction interface + chipActions profile field + getChipbarActions()
+├── mcp/
+│   ├── guides/
+│   │   └── mess-guide.ts       # Agent-facing Mess tool rules and local-only/social-coordination constraints
+│   └── services/
+│       └── helm-mess-service.ts # Authenticated mess_post/check/history facade and compact wire-shape conversion
 ├── telegram/
 │   ├── bot.ts                  # TelegramBotCore — bot lifecycle (start/stop), long-polling, user-ID whitelist, message helpers, deleteForumTopic
 │   ├── callback-handler.ts     # Inline keyboard callback routing — session controls, spawn wizard, close all, text input
@@ -62,7 +71,8 @@ src/
 │   └── utils.ts                # Shared Telegram utilities
 ├── types/
 │   ├── session.ts              # SessionInfo (includes cliSessionName for resume), DraftPrompt, SessionChangeEvent, AnalogEvent types
-│   └── plan.ts                 # PlanItem, PlanDependency, PlanStatus ('planning'|'ready'|'coding'|'review'|'blocked'|'done'), DirectoryPlan, PlanSequence types
+│   ├── plan.ts                 # PlanItem, PlanDependency, PlanStatus ('planning'|'ready'|'coding'|'review'|'blocked'|'done'), DirectoryPlan, PlanSequence types
+│   └── mess.ts                 # Durable project Mess Entry and ordered Cursor wire/domain types
 └── utils/
     └── logger.ts               # Winston logger (daily rotation, used everywhere)
 ```
@@ -111,6 +121,8 @@ renderer/
 │   │   ├── BindingsTab.vue     # Per-CLI binding list
 │   │   ├── ToolsTab.vue        # CLI type management
 │   │   └── TelegramTab.vue     # Telegram bot configuration
+│   ├── dock/
+│   │   └── MessPane.vue        # Read-only project Mess observer pane
 │   └── panels/
 │       ├── index.ts
 │       ├── TerminalPane.vue    # xterm.js lifecycle wrapper
@@ -137,7 +149,8 @@ renderer/
 │   ├── useKeyboardRelay.ts     # Ctrl+V → PTY, Ctrl+G → Prompt Editor intercepts
 │   ├── usePromptApplyFlow.ts   # Shared prompt-template apply flow (picker tree → prefill Prompt Editor → deliverPromptSequence). Used by main + popout windows
 │   ├── useTerminals.ts         # Terminal create/switch/destroy lifecycle
-│   └── useNavigation.ts        # Navigation routing: sandwich → modal stack → view → screen → config binding
+│   ├── useNavigation.ts        # Navigation routing: sandwich → modal stack → view → screen → config binding
+│   └── useMessPane.ts          # Project-following Mess history, filters, append subscription, labels, and bounded backscroll
 ├── drafts/
 │   ├── draft-strip.ts          # Draft strip above terminal — draft pills (click opens editor) + plan chips + right-aligned chip-bar action buttons (renderActionButtons, invalidateChipActionCache, resolveTemplates)
 │   └── draft-editor.ts         # Slide-down draft editor panel (title + content, Save/Apply/Delete/Cancel buttons)
@@ -199,6 +212,12 @@ tests/                                  # 61 test files
 ├── draft-editor.test.ts        # Draft editor panel tests
 ├── draft-manager.test.ts       # DraftManager CRUD + events
 ├── draft-persistence.test.ts   # Draft save/load persistence
+├── mess-manager.test.ts        # Project membership, ordered unread cursors, visibility, and cursor-neutral history
+├── mess-persistence.test.ts    # JSONL persistence, atomic metadata, sequence recovery, pruning, and diagnostics
+├── mess-notifier.test.ts       # Append/idle reminder gating, cooldown, retry, verification, and cleanup
+├── mess-mcp.test.ts            # Authenticated Mess service validation and compact wire responses
+├── mess-ipc.test.ts            # Renderer history bounds, project routing, and IPC cleanup
+├── mess-pane.test.ts           # Pure observer labels, unread projection, and filters
 ├── draft-strip.test.ts         # Draft strip pill rendering + badge
 ├── draft-submenu.test.ts       # Draft submenu + action picker tests
 ├── gamepad-repeat.test.ts      # D-pad/stick key repeat engine tests
@@ -260,6 +279,8 @@ tests/                                  # 61 test files
     │   └── modals.test.ts      # Vue SFC modal tests (@vue/test-utils — 90 tests)
     ├── sidebar/
     │   └── sidebar.test.ts     # Vue SFC sidebar tests (@vue/test-utils — 106 tests)
-    └── panels/
-        └── panels.test.ts      # Vue SFC panel tests (@vue/test-utils — 79 tests)
+    ├── panels/
+    │   └── panels.test.ts      # Vue SFC panel tests (@vue/test-utils — 79 tests)
+    └── dock/
+        └── mess-pane.test.ts   # Mess pane project switching, live append, labels, and read-only rendering
 ```
