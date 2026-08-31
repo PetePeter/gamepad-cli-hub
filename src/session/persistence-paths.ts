@@ -28,6 +28,25 @@ export const PEER_SECRETS_FILE = join(configDir, 'peer-secrets.yaml');
 export const PEER_AUDIT_FILE = join(configDir, 'peer-audit.yaml');
 export const MEMORIES_FILE = join(configDir, 'memories.json');
 export const MEMORY_ATTACHMENTS_DIR = join(configDir, 'memory-attachments');
+/** Mess is stored below per-user app data, never below the repository. */
+export const MESS_DIR = join(configDir, 'mess');
+
+function assertSafeProjectId(projectId: string): void {
+  if (!/^[A-Za-z0-9_-]+$/.test(projectId)) {
+    throw new Error('Mess project id must be a safe immutable identifier');
+  }
+}
+
+/** The immutable project UUID, rather than its name or path, owns these files. */
+export function getMessLogPath(projectId: string, directory = MESS_DIR): string {
+  assertSafeProjectId(projectId);
+  return join(directory, `${projectId}.jsonl`);
+}
+
+export function getMessCursorPath(projectId: string, directory = MESS_DIR): string {
+  assertSafeProjectId(projectId);
+  return join(directory, `${projectId}.cursors.json`);
+}
 
 // Descriptive aliases keep callers independent of the on-disk file naming.
 export const MEMORY_FILE = MEMORIES_FILE;
