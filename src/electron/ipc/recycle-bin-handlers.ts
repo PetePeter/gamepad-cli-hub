@@ -13,6 +13,7 @@ import type { RecycleBinEntry } from '../../types/recycle-bin.js';
 import type { WindowManager } from '../window-manager.js';
 import { ArtifactTempRegistry } from '../../session/artifact-temp-registry.js';
 import type { MemoryManager } from '../../session/memory-manager.js';
+import type { MessManager, MessSessionCloseKind } from '../../session/mess-manager.js';
 import { logger } from '../../utils/logger.js';
 
 export function setupRecycleBinHandlers(
@@ -21,16 +22,28 @@ export function setupRecycleBinHandlers(
   windowManager?: WindowManager,
   tempRegistry: ArtifactTempRegistry = new ArtifactTempRegistry(),
   memoryManager?: Pick<MemoryManager, 'purgeSession'>,
+  messManager?: Pick<MessManager, 'onSessionClosed'>,
 ): void {
   const getTargetWindows = () => windowManager?.getAllWindows() ?? BrowserWindow.getAllWindows();
-  const purgeMemory = (sessionId: string): boolean => {
+  /**
+   * A session leaving the bin is never coming back, so its per-session stores go
+   * with it. Memory gates the transaction — a failed purge leaves the entry
+   * recoverable for retry — while the Mess cursor is maintenance that must never
+   * block the bin operation.
+   */
+  const purgeSessionData = (sessionId: string, kind: MessSessionCloseKind): boolean => {
     try {
       memoryManager?.purgeSession(sessionId);
-      return true;
     } catch (error) {
       logger.error(`[recycleBin] Failed to purge memories for ${sessionId}: ${error}`);
       return false;
     }
+    try {
+      messManager?.onSessionClosed(sessionId, kind);
+    } catch (error) {
+      logger.error(`[recycleBin] Failed to drop the Mess cursor for ${sessionId}: ${error}`);
+    }
+    return true;
   };
 
   recycleBin.on('recycle-bin:changed', () => {
@@ -45,7 +58,7 @@ export function setupRecycleBinHandlers(
   // coming back, so nothing can still legitimately reference them.
   recycleBin.on('recycle-bin:expired', (expired: RecycleBinEntry[]) => {
     for (const entry of expired) {
-      if (!purgeMemory(entry.sessionId)) continue;
+      if (!purgeSessionData(entry.sessionId, 'expired')) continue;
       artifactManager.clearSession(entry.sessionId);
       tempRegistry.drain(entry.sessionId);
     }
@@ -92,7 +105,7 @@ export function setupRecycleBinHandlers(
       if (sessionId) {
         // Purge memory before removing the entry, so a failed purge leaves the
         // recoverable entry available for retry. Restore never uses this path.
-        if (!purgeMemory(sessionId)) return false;
+        if (!purgeSessionData(sessionId, 'forgotten')) return false;
       }
       recycleBin.forget(id);
       if (sessionId) {
@@ -111,7 +124,7 @@ export function setupRecycleBinHandlers(
       // Snapshot every binned session id before emptying, then clear their artifacts.
       const sessionIds = recycleBin.list().map(e => e.sessionId);
       for (const sessionId of sessionIds) {
-        if (!purgeMemory(sessionId)) return false;
+        if (!purgeSessionData(sessionId, 'forgotten')) return false;
       }
       recycleBin.empty();
       for (const sessionId of sessionIds) {

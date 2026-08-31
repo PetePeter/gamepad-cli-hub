@@ -301,7 +301,10 @@ export function registerIPCHandlers(
   setupSkillHandlers(skillManager, skillAnalyticsManager);
   setupPlanHandlers(planManager, contextManager, windowManager, incomingWatcher, dirname);
   setupScheduledTaskHandlers(scheduledTaskManager, scheduledTaskHistoryManager, windowManager);
-  setupRecycleBinHandlers(recycleBinManager, artifactManager, windowManager, artifactTempRegistry, memoryManager);
+  // Keep lightweight handler fixtures (and embedders that do not enable
+  // project services) compatible with the optional Mess surface.
+  const messManager = helmControlService.getMessManager?.() ?? null;
+  setupRecycleBinHandlers(recycleBinManager, artifactManager, windowManager, artifactTempRegistry, memoryManager, messManager ?? undefined);
   // Expired entries loaded from persisted state were not visible to the runtime
   // expiry event until now; dispatch them after cleanup listeners are attached.
   recycleBinManager.pruneExpired();
@@ -345,9 +348,6 @@ export function registerIPCHandlers(
     }
   });
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, undefined, undefined, undefined, patternMatcher);
-  // Keep lightweight handler fixtures (and embedders that do not enable
-  // project services) compatible with the optional Mess surface.
-  const messManager = helmControlService.getMessManager?.() ?? null;
   const messNotifier = messManager
     ? new MessNotifier(
       messManager,
@@ -437,6 +437,13 @@ export function registerIPCHandlers(
       projectRecord ? { id: projectRecord.id, name: projectRecord.name } : undefined,
     );
     runtimeGroupManager.removeSessionEverywhere(event.sessionId);
+    // A recoverable close keeps the Mess cursor so a restored session does not
+    // lose unread mail; an ephemeral close has no way back, so the cursor goes.
+    try {
+      messManager?.onSessionClosed(event.sessionId, binned ? 'recoverable' : 'ephemeral');
+    } catch (error) {
+      logger.error(`[IPC] Failed to update the Mess cursor for removed session ${event.sessionId}: ${error}`);
+    }
 
     // Artifacts follow the session's recoverability. A recoverable session goes to
     // the recycle bin, so KEEP its artifacts under the same id — restore reuses that
