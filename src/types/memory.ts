@@ -91,6 +91,9 @@ export interface MemoryDreamPlan {
   completed: boolean;
 }
 
+export const MEMORY_DREAM_MIN_CANDIDATES = 5;
+export const MEMORY_DREAM_MAX_CANDIDATES = 50;
+
 export interface DreamCandidate {
   id: string;
   tldr: string;

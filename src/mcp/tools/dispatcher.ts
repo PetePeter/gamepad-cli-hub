@@ -8,7 +8,8 @@ import {
   asBoolean,
   asContextBindingTargetType,
   asFiniteNumber,
-  asDreamNumber,
+  asDreamCandidateCount,
+  asDreamPercentile,
   asEnum,
   asGraphDepth,
   MEMORY_SORT_FIELDS,
@@ -724,9 +725,9 @@ export async function callMcpTool(
       case 'memory_dream': {
         const sessionId = requireCallerSession(authContext, 'memory_dream');
         return service.dreamMemories(sessionId, {
-          ...(args.percentile !== undefined ? { percentile: asDreamNumber(args.percentile, 'percentile') } : {}),
-          ...(args.minCandidates !== undefined ? { minCandidates: asDreamNumber(args.minCandidates, 'minCandidates') } : {}),
-          ...(args.maxCandidates !== undefined ? { maxCandidates: asDreamNumber(args.maxCandidates, 'maxCandidates') } : {}),
+          ...(args.percentile !== undefined ? { percentile: asDreamPercentile(args.percentile) } : {}),
+          ...(args.minCandidates !== undefined ? { minCandidates: asDreamCandidateCount(args.minCandidates, 'minCandidates') } : {}),
+          ...(args.maxCandidates !== undefined ? { maxCandidates: asDreamCandidateCount(args.maxCandidates, 'maxCandidates') } : {}),
         });
       }
       case 'memory_set_dormant': {

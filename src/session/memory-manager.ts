@@ -7,6 +7,8 @@ import { MemoryAttachmentManager } from './memory-attachment-manager.js';
 import {
   cloneMemoryRecord,
   cloneMemoryState,
+  MEMORY_DREAM_MAX_CANDIDATES,
+  MEMORY_DREAM_MIN_CANDIDATES,
   toMemorySummary,
   type MemoryAttachment,
   type MemoryAttachmentInput,
@@ -172,15 +174,17 @@ export class MemoryManager extends EventEmitter {
   ): MemoryDreamResult {
     assertSessionId(sessionId);
     const percentile = normalizePercentile(options.percentile);
-    const minCandidates = normalizeDreamCount(options.minCandidates, 5);
-    const maxCandidates = Math.max(minCandidates, normalizeDreamCount(options.maxCandidates, 50));
+    const minCandidates = normalizeDreamCount(options.minCandidates, MEMORY_DREAM_MIN_CANDIDATES);
+    const maxCandidates = normalizeDreamCount(options.maxCandidates, MEMORY_DREAM_MAX_CANDIDATES);
+    if (minCandidates > maxCandidates) {
+      throw new Error('minCandidates must not exceed maxCandidates');
+    }
     const projectId = this.resolveSessionProject?.(sessionId) ?? null;
-    const projectRecords = projectId
-      ? this.state.records.filter((record) => record.projectId === projectId)
-      : [];
+    if (!projectId) throw new Error('memory_dream requires a project-scoped session');
+    const projectRecords = this.state.records.filter((record) => record.projectId === projectId);
     const eligible = projectRecords.filter((record) =>
       record.dormantSince === undefined && this.isDiscardEligible(record.id));
-    const epoch = projectId ? this.projectEpoch(projectId) : 0;
+    const epoch = this.projectEpoch(projectId);
     const totals = {
       memories: projectRecords.length,
       dormant: projectRecords.filter((record) => record.dormantSince !== undefined).length,
@@ -189,7 +193,9 @@ export class MemoryManager extends EventEmitter {
     };
     if (eligible.length === 0) return { faded: [], salient: [], totals };
 
-    const candidateCount = Math.min(
+    // The bound applies to each decile. When the project is too small for two
+    // full slices, split its records at the midpoint so neither side overlaps.
+    const sideCount = Math.min(
       eligible.length,
       maxCandidates,
       Math.max(
@@ -198,15 +204,15 @@ export class MemoryManager extends EventEmitter {
       ),
     );
     const connectedCounts = new Map<string, number>();
-    const eligibleIds = new Set(eligible.map((record) => record.id));
+    const projectIds = new Set(projectRecords.map((record) => record.id));
     for (const edge of this.state.edges) {
-      if (eligibleIds.has(edge.toId)) {
+      if (projectIds.has(edge.fromId) && projectIds.has(edge.toId)) {
         connectedCounts.set(edge.toId, (connectedCounts.get(edge.toId) ?? 0) + 1);
       }
     }
     const candidates = eligible.map((record) => this.toDreamCandidate(record, epoch, connectedCounts, resolvePlan));
-    const fadedCount = Math.floor(candidateCount / 2);
-    const salientCount = candidateCount - fadedCount;
+    const fadedCount = Math.min(sideCount, Math.ceil(eligible.length / 2));
+    const salientCount = Math.min(sideCount, eligible.length - fadedCount);
     const faded = [...candidates]
       .sort(compareFaded)
       .slice(0, fadedCount);
@@ -230,7 +236,7 @@ export class MemoryManager extends EventEmitter {
       recallSessionCount: record.recallSessionCount ?? 0,
       connectedCount: connectedCounts.get(record.id) ?? 0,
       ageDays: Math.max(0, (this.now() - record.createdAt) / MS_PER_DAY),
-      epochsSinceCreation: Math.max(0, epoch - (record.createdAtEpoch ?? epoch)),
+      epochsSinceCreation: Math.max(0, epoch - (record.createdAtEpoch ?? 0)),
       ...(record.dormantSince !== undefined ? { dormantSince: record.dormantSince } : {}),
       plan: record.planId ? resolvePlan(record.planId) : null,
     };
@@ -741,10 +747,11 @@ function normalizePercentile(value: number | undefined): number {
 
 function normalizeDreamCount(value: number | undefined, fallback: number): number {
   if (value === undefined) return fallback;
-  if (!Number.isFinite(value) || !Number.isInteger(value) || value < 1) {
-    throw new Error('candidate counts must be positive integers');
+  if (!Number.isFinite(value) || !Number.isInteger(value)
+    || value < MEMORY_DREAM_MIN_CANDIDATES || value > MEMORY_DREAM_MAX_CANDIDATES) {
+    throw new Error(`candidate counts must be integers from ${MEMORY_DREAM_MIN_CANDIDATES} through ${MEMORY_DREAM_MAX_CANDIDATES}`);
   }
-  return Math.min(50, Math.max(5, value));
+  return value;
 }
 
 function compareFaded(left: DreamCandidate, right: DreamCandidate): number {

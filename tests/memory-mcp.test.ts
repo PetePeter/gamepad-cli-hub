@@ -177,12 +177,8 @@ describe('MCP memory surface', () => {
       { sessionId: 's1' },
     )).toBe(true);
     expect(await callMcpTool(deps, 'memory_list', {}, { sessionId: 's1' })).toEqual([]);
-    expect((await callMcpTool(deps, 'memory_dream', {}, { sessionId: 's1' })).totals).toEqual({
-      memories: 0,
-      dormant: 0,
-      eligible: 0,
-      epoch: 0,
-    });
+    await expect(callMcpTool(deps, 'memory_dream', {}, { sessionId: 's1' }))
+      .rejects.toThrow('memory_dream requires a project-scoped session');
     expect(await callMcpTool(
       deps,
       'memory_set_dormant',

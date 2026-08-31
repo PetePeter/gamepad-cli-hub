@@ -1,14 +1,26 @@
 import type { ContextBindingTargetType } from '../../types/context.js';
 import type { ArtifactKind } from '../../types/artifact.js';
 import { validateGraphDepth } from '../../session/memory-graph.js';
-import type { MemoryExportFormat } from '../../types/memory.js';
+import {
+  MEMORY_DREAM_MAX_CANDIDATES,
+  MEMORY_DREAM_MIN_CANDIDATES,
+  type MemoryExportFormat,
+} from '../../types/memory.js';
 
 export const MEMORY_SORT_FIELDS = ['created', 'updated', 'accessed'] as const;
 export const MEMORY_SORT_ORDERS = ['asc', 'desc'] as const;
 
-export function asDreamNumber(value: unknown, field: string): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    throw new Error(`${field} must be a finite number`);
+export function asDreamPercentile(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || value > 100) {
+    throw new Error('percentile must be a finite number greater than 0 and at most 100');
+  }
+  return value;
+}
+
+export function asDreamCandidateCount(value: unknown, field: string): number {
+  if (typeof value !== 'number' || !Number.isInteger(value)
+    || value < MEMORY_DREAM_MIN_CANDIDATES || value > MEMORY_DREAM_MAX_CANDIDATES) {
+    throw new Error(`${field} must be an integer from ${MEMORY_DREAM_MIN_CANDIDATES} through ${MEMORY_DREAM_MAX_CANDIDATES}`);
   }
   return value;
 }

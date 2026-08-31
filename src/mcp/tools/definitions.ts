@@ -1,4 +1,5 @@
 import type { McpTool } from './types.js';
+import { MEMORY_DREAM_MAX_CANDIDATES, MEMORY_DREAM_MIN_CANDIDATES } from '../../types/memory.js';
 
 export const REQUIRED_PLAN_DESCRIPTION_SECTIONS = [
   'Problem Statement',
@@ -1355,8 +1356,8 @@ export const MCP_TOOLS: McpTool[] = [
       type: 'object',
       properties: {
         percentile: { type: 'number', exclusiveMinimum: 0, maximum: 100 },
-        minCandidates: { type: 'integer', minimum: 1, maximum: 50 },
-        maxCandidates: { type: 'integer', minimum: 1, maximum: 50 },
+        minCandidates: { type: 'integer', minimum: MEMORY_DREAM_MIN_CANDIDATES, maximum: MEMORY_DREAM_MAX_CANDIDATES },
+        maxCandidates: { type: 'integer', minimum: MEMORY_DREAM_MIN_CANDIDATES, maximum: MEMORY_DREAM_MAX_CANDIDATES },
       },
       additionalProperties: false,
     },

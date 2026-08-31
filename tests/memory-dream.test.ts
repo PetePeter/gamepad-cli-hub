@@ -53,6 +53,36 @@ describe('memory dreaming', () => {
     expect(dream.salient[0].recallSessionCount).toBeGreaterThanOrEqual(dream.faded.at(-1)!.recallSessionCount);
   });
 
+  it('returns both deciles at their independent bound and keeps a singleton faded', () => {
+    const { manager } = makeManager();
+    const records = Array.from({ length: 100 }, (_, index) => manager.createForSession(AUTHOR, {
+      tldr: `memory ${index}`,
+      content: 'body',
+    }));
+    manager.getRecordForSession('reader1', records[0].id);
+    manager.getRecordForSession('reader2', records[1].id);
+    manager.getRecordForSession('reader3', records[2].id);
+
+    const dream = manager.dreamForSession(AUTHOR, { percentile: 100, minCandidates: 5, maxCandidates: 50 });
+    expect(dream.faded).toHaveLength(50);
+    expect(dream.salient).toHaveLength(50);
+
+    const singletonManager = makeManager().manager;
+    const singleton = singletonManager.createForSession(AUTHOR, { tldr: 'only', content: 'body' });
+    singletonManager.getRecordForSession('reader1', singleton.id);
+    singletonManager.getRecordForSession('reader2', singleton.id);
+    singletonManager.getRecordForSession('reader3', singleton.id);
+    const singletonDream = singletonManager.dreamForSession(AUTHOR);
+    expect(candidateIds(singletonDream.faded)).toEqual([singleton.id]);
+    expect(singletonDream.salient).toEqual([]);
+  });
+
+  it('rejects contradictory candidate bounds', () => {
+    const { manager } = makeManager();
+    expect(() => manager.dreamForSession(AUTHOR, { minCandidates: 10, maxCandidates: 5 }))
+      .toThrow('minCandidates must not exceed maxCandidates');
+  });
+
   it('enforces the floor and cap without reading outside the current project', () => {
     const { manager } = makeManager();
     const records = Array.from({ length: 8 }, (_, index) => manager.createForSession(AUTHOR, {
@@ -64,7 +94,7 @@ describe('memory dreaming', () => {
     manager.getRecordForSession('reader2', records[1].id);
     manager.getRecordForSession('reader3', records[2].id);
 
-    const dream = manager.dreamForSession(AUTHOR, { percentile: 100, minCandidates: 1, maxCandidates: 50 });
+    const dream = manager.dreamForSession(AUTHOR, { percentile: 100, minCandidates: 5, maxCandidates: 50 });
 
     expect(dream.faded.length + dream.salient.length).toBe(8);
     expect(dream.totals.memories).toBe(8);
@@ -82,6 +112,8 @@ describe('memory dreaming', () => {
     manager.getRecordForSession('reader3', records[0].id);
     manager.linkForSession(AUTHOR, records[1].id, records[0].id);
     manager.linkForSession(AUTHOR, records[2].id, records[0].id);
+    const foreign = manager.createForSession('outsider', { tldr: 'foreign', content: 'body' });
+    manager.link(foreign.id, records[0].id);
     manager.setDormantForSession(AUTHOR, records[2].id, true);
     const fresh = manager.createForSession(AUTHOR, { tldr: 'fresh', content: 'body' });
 
