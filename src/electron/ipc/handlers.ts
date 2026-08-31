@@ -344,9 +344,12 @@ export function registerIPCHandlers(
     }
   });
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, undefined, undefined, undefined, patternMatcher);
-  const messNotifier = helmControlService.getMessManager()
+  // Keep lightweight handler fixtures (and embedders that do not enable
+  // project services) compatible with the optional Mess surface.
+  const messManager = helmControlService.getMessManager?.() ?? null;
+  const messNotifier = messManager
     ? new MessNotifier(
-      helmControlService.getMessManager()!,
+      messManager,
       sessionManager,
       stateDetector,
       projectStore,
