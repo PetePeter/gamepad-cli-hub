@@ -10,13 +10,14 @@ const emit = defineEmits<{
 }>();
 
 const tasks = ref<ScheduledTask[]>([]);
+const cliTypes = ref<Array<{ id: string; label: string }>>([]);
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let offChanged: (() => void) | null = null;
 
 const visibleTasks = computed(() => tasks.value
   .filter((task) => task.status === 'pending' || task.status === 'executing')
-  .sort((a, b) => nextRunMs(a) - nextRunMs(b))
-  .slice(0, 4));
+  .sort((a, b) => Number(b.systemKind === 'dream') - Number(a.systemKind === 'dream') || nextRunMs(a) - nextRunMs(b))
+  .slice(0, 4 + tasks.value.filter((task) => task.systemKind === 'dream').length));
 
 async function loadTasks(): Promise<void> {
   try {
@@ -28,6 +29,56 @@ async function loadTasks(): Promise<void> {
 
 function nextRunMs(task: ScheduledTask): number {
   return new Date(task.nextRunAt ?? task.scheduledTime).getTime();
+}
+
+async function updateDream(task: ScheduledTask, patch: { enabled?: boolean; cliType?: string; userPrompt?: string }): Promise<void> {
+  try {
+    await schedulerClient.scheduledTaskUpdate(task.id, patch);
+  } catch {
+    // The next load restores the persisted value if the backend rejects it.
+  } finally {
+    await loadTasks();
+  }
+}
+
+function onDreamEnabledChange(task: ScheduledTask, event: Event): void {
+  void updateDream(task, { enabled: (event.target as HTMLInputElement).checked });
+}
+
+function onDreamCliChange(task: ScheduledTask, event: Event): void {
+  void updateDream(task, { cliType: (event.target as HTMLSelectElement).value });
+}
+
+function onDreamPromptChange(task: ScheduledTask, event: Event): void {
+  void updateDream(task, { userPrompt: (event.target as HTMLInputElement).value });
+}
+
+async function loadCliTypes(): Promise<void> {
+  const toolsLoader = toolsClient.toolsGetAll;
+  if (typeof toolsLoader === 'function') {
+    try {
+      const tools = await toolsLoader() as { cliTypes?: Record<string, { displayName?: string; name?: string } | null> };
+      const options = Object.entries(tools?.cliTypes ?? {}).map(([id, config]) => ({
+        id,
+        label: config?.displayName || config?.name || id,
+      }));
+      if (options.length > 0) {
+        cliTypes.value = options;
+        return;
+      }
+    } catch {
+      // Fall through to the small legacy API below.
+    }
+  }
+
+  const idsLoader = configClient.configGetCliTypes;
+  if (typeof idsLoader !== 'function') return;
+  try {
+    const ids = (await idsLoader() as string[]) ?? [];
+    cliTypes.value = ids.map((id) => ({ id, label: id }));
+  } catch {
+    cliTypes.value = [];
+  }
 }
 
 function timeRemaining(task: ScheduledTask): string {
@@ -43,6 +94,7 @@ function timeRemaining(task: ScheduledTask): string {
 
 onMounted(() => {
   void loadTasks();
+  void loadCliTypes();
   refreshTimer = setInterval(loadTasks, 15000);
   offChanged = eventsClient.onScheduledTaskChanged?.(() => {
     void loadTasks();
@@ -71,14 +123,31 @@ onUnmounted(() => {
       class="scheduler-row"
       :class="{ 'scheduler-row--running': task.status === 'executing' }"
     >
-      <span class="scheduler-title">{{ task.title }}</span>
-      <span class="scheduler-time">{{ timeRemaining(task) }}</span>
-      <!-- The row body is deliberately inert; only these buttons act, so they —
-           not the row — carry the focus contract the gamepad walks. -->
-      <div class="scheduler-actions">
-        <button class="scheduler-action focusable" :data-focus-id="`scheduler:edit:${task.id}`" type="button" title="Edit schedule" aria-label="Edit schedule" @click.stop="emit('open', task.id)">i</button>
-        <button class="scheduler-action scheduler-action--danger focusable" :data-focus-id="`scheduler:delete:${task.id}`" type="button" title="Delete schedule" aria-label="Delete schedule" @click.stop="emit('delete', task)">x</button>
-      </div>
+      <template v-if="task.systemKind === 'dream'">
+        <div class="scheduler-system-heading">
+          <span class="scheduler-title">{{ task.title }}</span>
+          <span class="scheduler-time">{{ task.enabled ? timeRemaining(task) : 'off' }}</span>
+        </div>
+        <label class="scheduler-system-toggle">
+          <input class="focusable" :data-focus-id="`scheduler:dream-enabled:${task.id}`" type="checkbox" :checked="task.enabled === true" :disabled="!task.cliType" title="Choose a CLI before enabling" @change="onDreamEnabledChange(task, $event)" />
+          <span>{{ task.enabled ? 'Enabled' : 'Disabled' }}</span>
+        </label>
+        <select class="scheduler-system-cli focusable" :value="task.cliType" aria-label="Dream CLI type" @change="onDreamCliChange(task, $event)">
+          <option value="">Select CLI...</option>
+          <option v-for="cliType in cliTypes" :key="cliType.id" :value="cliType.id">{{ cliType.label }}</option>
+        </select>
+        <input class="scheduler-system-prompt focusable" :value="task.userPrompt ?? ''" type="text" placeholder="Prompt additions (optional)" aria-label="Dream prompt additions" @change="onDreamPromptChange(task, $event)" />
+      </template>
+      <template v-else>
+        <span class="scheduler-title">{{ task.title }}</span>
+        <span class="scheduler-time">{{ timeRemaining(task) }}</span>
+        <!-- The row body is deliberately inert; only these buttons act, so they —
+             not the row — carry the focus contract the gamepad walks. -->
+        <div class="scheduler-actions">
+          <button class="scheduler-action focusable" :data-focus-id="`scheduler:edit:${task.id}`" type="button" title="Edit schedule" aria-label="Edit schedule" @click.stop="emit('open', task.id)">i</button>
+          <button class="scheduler-action scheduler-action--danger focusable" :data-focus-id="`scheduler:delete:${task.id}`" type="button" title="Delete schedule" aria-label="Delete schedule" @click.stop="emit('delete', task)">x</button>
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -162,6 +231,34 @@ onUnmounted(() => {
 }
 .scheduler-row--running {
   border-color: #ff9f1a;
+}
+.scheduler-system-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.scheduler-system-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.scheduler-system-cli,
+.scheduler-system-prompt {
+  min-width: 0;
+  height: 22px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.75rem;
+}
+.scheduler-system-prompt {
+  grid-column: 1 / -1;
+  width: 100%;
+  padding: 0 5px;
 }
 .scheduler-title {
   overflow: hidden;

@@ -170,7 +170,7 @@ export function registerIPCHandlers(
   const recycleBinManager = new RecycleBinManager();
   const runtimeGroupManager = new RuntimeGroupManager(saveRuntimeGroups);
   runtimeGroupManager.importAll(loadRuntimeGroups());
-  const scheduledTaskManager = new ScheduledTaskManager(sessionManager, ptyManager, planManager, configLoader, scheduledTaskHistoryManager);
+  const scheduledTaskManager = new ScheduledTaskManager(sessionManager, ptyManager, planManager, configLoader, scheduledTaskHistoryManager, projectStore);
   const notificationManager = new NotificationManager(windowManager, sessionManager);
 
   // Power monitor with full session/PTY diagnostics and screen lock tracking

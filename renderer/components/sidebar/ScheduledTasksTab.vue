@@ -349,7 +349,7 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer); modalStack.po
         <p v-if="task.description" class="st-task-description">{{ task.description }}</p>
         <div class="st-task-meta"><span class="st-task-chip">{{ getCliDisplayName(task.cliType) }}</span><span class="st-task-chip">{{ shortenPath(task.dirPath) }}</span><span class="st-task-chip">{{ formatSchedule(task) }}</span><span v-if="task.status === 'pending'" class="st-task-countdown">{{ formatNextRun(task) }}</span><span v-else-if="task.status === 'executing'" class="st-task-countdown st-task-countdown--running">running...</span><span v-else class="st-task-time">{{ formatTime(task.scheduledTime) }}</span></div>
         <div v-if="task.error" class="st-task-error">{{ task.error }}</div>
-        <div v-if="task.status === 'pending'" class="st-task-actions"><button class="st-btn st-btn--secondary focusable" :disabled="creating" @click="editTask(task)">Edit</button><button class="st-btn st-btn--danger focusable" :disabled="creating" @click="cancelTask(task.id)">Cancel Task</button></div>
+        <div v-if="task.status === 'pending' && !task.systemKind" class="st-task-actions"><button class="st-btn st-btn--secondary focusable" :disabled="creating" @click="editTask(task)">Edit</button><button class="st-btn st-btn--danger focusable" :disabled="creating" @click="cancelTask(task.id)">Cancel Task</button></div>
       </div>
     </div>
 

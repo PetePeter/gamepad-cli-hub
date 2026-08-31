@@ -16,6 +16,8 @@ import type { SessionManager } from './manager.js';
 import type { PtyManager } from './pty-manager.js';
 import type { PlanManager } from './plan-manager.js';
 import type { ConfigLoader } from '../config/loader.js';
+import type { ProjectRecord } from '../types/project.js';
+import type { ProjectStore } from './project-store.js';
 import { CronEngine } from '../utils/cron-engine.js';
 import { spawnConfiguredSession } from './configured-session-spawn.js';
 import { normalizeProjectPath } from './project-identity.js';
@@ -23,11 +25,14 @@ import { deliverPromptSequenceToSession } from './sequence-delivery.js';
 
 const PENDING_STATUSES = new Set<ScheduledTaskStatus>(['pending', 'executing']);
 const MIN_INTERVAL_MS = 60_000;
+const DREAM_INTERVAL_MS = 24 * 60 * 60 * 1000;
+export const DREAM_BASE_PROMPT = 'Review this project\'s durable memories. Call memory_dream to inspect faded and salient candidates, then use your judgement to prune stale memories with memory_set_dormant or consolidate related knowledge. Do not delete memories merely because they are old; respect the candidate metrics and project scope.';
 
 export class ScheduledTaskManager extends EventEmitter {
   private tasks = new Map<string, ScheduledTask>();
   private timers = new Map<string, NodeJS.Timeout>();
   private promptCancellers = new Map<string, () => void>();
+  private started = false;
 
   constructor(
     private sessionManager: SessionManager,
@@ -35,8 +40,14 @@ export class ScheduledTaskManager extends EventEmitter {
     private planManager: PlanManager,
     private configLoader: ConfigLoader,
     private historyManager?: ScheduledTaskHistoryManager,
+    private readonly projectStore?: ProjectStore,
   ) {
     super();
+    this.projectStore?.onChanged((projects) => {
+      // ProjectStore can resolve an implicit project during application
+      // construction. Do not reconcile until persisted tasks have been loaded.
+      if (this.started) this.reconcileProjects(projects);
+    });
   }
 
   /**
@@ -151,6 +162,91 @@ export class ScheduledTaskManager extends EventEmitter {
     return task;
   }
 
+  /**
+   * Reconcile Helm-owned system rows with the current project registry. The
+   * project id is persisted on the task so alternate paths and renames cannot
+   * create duplicates or orphan a row.
+   */
+  reconcileProjects(projects?: readonly ProjectRecord[]): void {
+    // An optional project list is commonly forwarded from callers. Undefined
+    // is not an authoritative empty registry; start() passes the loaded store
+    // snapshot explicitly, and lifecycle events pass their concrete snapshot.
+    if (projects === undefined) return;
+    const currentProjects = projects;
+    const projectsById = new Map(currentProjects.map((project) => [project.id, project]));
+    const projectsByPath = new Map<string, ProjectRecord>();
+    for (const project of currentProjects) {
+      projectsByPath.set(normalizeProjectPath(project.canonicalPath), project);
+      for (const path of project.alternatePaths ?? []) projectsByPath.set(normalizeProjectPath(path), project);
+    }
+    const primaryByProject = new Map<string, ScheduledTask>();
+    let changed = false;
+
+    for (const task of [...this.tasks.values()]) {
+      if (task.systemKind !== 'dream') continue;
+      const project = (task.projectId ? projectsById.get(task.projectId) : undefined)
+        ?? projectsByPath.get(normalizeProjectPath(task.dirPath));
+      const primary = project ? primaryByProject.get(project.id) : undefined;
+      if (!project || primary) {
+        if (primary && task.enabled === true && primary.enabled !== true) {
+          primary.enabled = true;
+          primary.cliType = task.cliType;
+          primary.userPrompt = task.userPrompt ?? '';
+          primary.nextRunAt = task.nextRunAt;
+          this.scheduleTask(primary);
+          this.emit('task:changed', primary);
+        }
+        this.clearTimer(task.id);
+        this.tasks.delete(task.id);
+        this.emit('task:deleted', task.id);
+        changed = true;
+        continue;
+      }
+      primaryByProject.set(project.id, task);
+      if (task.projectId !== project.id || task.dirPath !== project.canonicalPath || task.enabled === undefined || task.userPrompt === undefined || task.status === 'failed') {
+        task.projectId = project.id;
+        task.dirPath = project.canonicalPath;
+        task.enabled ??= false;
+        task.userPrompt ??= '';
+        if (task.status === 'failed') {
+          task.status = 'pending';
+          delete task.completedAt;
+          task.nextRunAt = new Date(Date.now() + (task.intervalMs ?? DREAM_INTERVAL_MS));
+        }
+        changed = true;
+        this.emit('task:changed', task);
+      }
+      if (task.enabled === false) this.clearTimer(task.id);
+    }
+
+    for (const project of currentProjects) {
+      if (primaryByProject.has(project.id)) continue;
+      const task: ScheduledTask = {
+        id: randomUUID(),
+        title: 'Memory Dreaming',
+        description: 'Review and maintain this project\'s durable memories.',
+        planIds: [],
+        initialPrompt: DREAM_BASE_PROMPT,
+        cliType: '',
+        scheduledTime: new Date(Date.now() + DREAM_INTERVAL_MS),
+        scheduleKind: 'interval',
+        intervalMs: DREAM_INTERVAL_MS,
+        nextRunAt: new Date(Date.now() + DREAM_INTERVAL_MS),
+        dirPath: project.canonicalPath,
+        projectId: project.id,
+        systemKind: 'dream',
+        enabled: false,
+        userPrompt: '',
+        status: 'pending',
+        createdAt: Date.now(),
+      };
+      this.tasks.set(task.id, task);
+      this.emit('task:changed', task);
+      changed = true;
+    }
+    if (changed) this.saveTasks();
+  }
+
   /** Get all tasks. */
   listTasks(): ScheduledTask[] {
     return [...this.tasks.values()];
@@ -164,7 +260,11 @@ export class ScheduledTaskManager extends EventEmitter {
   /** Update a pending scheduled task and reschedule its timer. */
   updateTask(id: string, updates: UpdateScheduledTaskParams): ScheduledTask | null {
     const task = this.tasks.get(id);
-    if (!task || task.status !== 'pending') return null;
+    const isDream = task?.systemKind === 'dream';
+    if (!task || (task.status !== 'pending' && !(isDream && task.status === 'failed'))) return null;
+    if (isDream && updates.initialPrompt !== undefined) {
+      throw new Error('System dream tasks use userPrompt; initialPrompt is Helm-owned');
+    }
 
     // Validate against the post-merge shape before mutating, so a rejected
     // update leaves the task exactly as it was.
@@ -172,8 +272,16 @@ export class ScheduledTaskManager extends EventEmitter {
     const targetSessionId = Object.prototype.hasOwnProperty.call(updates, 'targetSessionId')
       ? updates.targetSessionId
       : task.targetSessionId;
-    const cliType = this.resolveTaskCliType(mode, updates.cliType ?? task.cliType, targetSessionId);
+    const nextEnabled = updates.enabled ?? task.enabled ?? true;
+    const requestedCliType = updates.cliType ?? task.cliType;
+    const cliType = isDream && !nextEnabled
+      ? requestedCliType
+      : this.resolveTaskCliType(mode, requestedCliType, targetSessionId);
 
+    if (isDream && task.status === 'failed') {
+      task.status = 'pending';
+      delete task.completedAt;
+    }
     if (updates.title !== undefined) task.title = updates.title;
     if (Object.prototype.hasOwnProperty.call(updates, 'description')) task.description = updates.description;
     if (updates.planIds !== undefined) task.planIds = updates.planIds;
@@ -188,10 +296,13 @@ export class ScheduledTaskManager extends EventEmitter {
     if (updates.dirPath !== undefined) task.dirPath = normalizeProjectPath(updates.dirPath);
     if (updates.mode !== undefined) task.mode = updates.mode;
     if (Object.prototype.hasOwnProperty.call(updates, 'targetSessionId')) task.targetSessionId = updates.targetSessionId;
+    if (updates.enabled !== undefined) task.enabled = updates.enabled;
+    if (Object.prototype.hasOwnProperty.call(updates, 'userPrompt')) task.userPrompt = updates.userPrompt;
     task.nextRunAt = this.computeInitialNextRunAt(task.scheduleKind ?? 'once', task.scheduledTime, task.cronExpression, task.endDate);
 
     this.saveTasks();
-    this.scheduleTask(task);
+    if (task.enabled === false) this.clearTimer(task.id);
+    else this.scheduleTask(task);
     this.emit('task:changed', task);
     logger.info(`[ScheduledTaskManager] Updated task "${task.title}" (${id})`);
     return task;
@@ -201,6 +312,7 @@ export class ScheduledTaskManager extends EventEmitter {
   cancelTask(id: string): boolean {
     const task = this.tasks.get(id);
     if (!task) return false;
+    if (task.systemKind) return this.updateTask(id, { enabled: false }) !== null;
     if (task.status !== 'pending') return false;
 
     this.clearTimer(id);
@@ -217,6 +329,7 @@ export class ScheduledTaskManager extends EventEmitter {
   deleteTask(id: string): boolean {
     const task = this.tasks.get(id);
     if (!task) return false;
+    if (task.systemKind) return false;
     if (task.status === 'executing') return false;
 
     this.clearTimer(id);
@@ -234,7 +347,7 @@ export class ScheduledTaskManager extends EventEmitter {
 
     for (const task of loaded) {
       // Only restore tasks that were still pending
-      if (PENDING_STATUSES.has(task.status)) {
+      if (PENDING_STATUSES.has(task.status) || (task.systemKind === 'dream' && task.status === 'failed')) {
         task.scheduleKind ??= 'once';
         // Tasks written before dirPath normalization / the cliType UUID
         // migration are healed here, once, instead of every comparison site.
@@ -249,6 +362,9 @@ export class ScheduledTaskManager extends EventEmitter {
 
     logger.info(`[ScheduledTaskManager] Loaded ${this.tasks.size} task(s) from disk`);
 
+    this.started = true;
+    this.reconcileProjects(this.projectStore?.list());
+
     // Reset any crashed executing tasks back to pending for retry
     for (const task of this.tasks.values()) {
       if (task.status === 'executing') {
@@ -260,7 +376,7 @@ export class ScheduledTaskManager extends EventEmitter {
     // Schedule all pending tasks
     const now = Date.now();
     for (const task of this.tasks.values()) {
-      if (task.status === 'pending') {
+      if (task.status === 'pending' && task.enabled !== false) {
         if (this.getNextRunTime(task).getTime() <= now) {
           // Past scheduled time - execute immediately
           void this.executeTask(task);
@@ -273,6 +389,7 @@ export class ScheduledTaskManager extends EventEmitter {
 
   /** Stop the manager: cancel all timers and save state. */
   stop(): void {
+    this.started = false;
     for (const id of this.timers.keys()) {
       this.clearTimer(id);
     }
@@ -282,7 +399,7 @@ export class ScheduledTaskManager extends EventEmitter {
 
   /** Schedule a task by setting a timeout. */
   private scheduleTask(task: ScheduledTask): void {
-    if (task.status !== 'pending') return;
+    if (task.status !== 'pending' || task.enabled === false) return;
 
     this.clearTimer(task.id);
 
@@ -301,7 +418,7 @@ export class ScheduledTaskManager extends EventEmitter {
   private async executeTask(task: ScheduledTask): Promise<void> {
     this.clearTimer(task.id);
 
-    if (task.status !== 'pending') {
+    if (task.status !== 'pending' || task.enabled === false) {
       logger.warn(`[ScheduledTaskManager] Skipping execution of task ${task.id} - status is ${task.status}`);
       return;
     }
@@ -357,6 +474,7 @@ export class ScheduledTaskManager extends EventEmitter {
       task.error = err instanceof Error ? err.message : String(err);
       task.completedAt = Date.now();
       this.recordHistory(task, 'failed', task.error);
+      this.recoverDreamAfterFailure(task);
       this.saveTasks();
       this.emit('task:changed', task);
     }
@@ -432,6 +550,7 @@ export class ScheduledTaskManager extends EventEmitter {
       task.completedAt = Date.now();
 
       this.recordHistory(task, 'failed', task.error);
+      this.recoverDreamAfterFailure(task);
       this.saveTasks();
       this.emit('task:changed', task);
     }
@@ -439,9 +558,20 @@ export class ScheduledTaskManager extends EventEmitter {
 
   /** The task prompt, with plan references appended when the task carries any. */
   private buildTaskPrompt(task: ScheduledTask): string {
-    if (task.planIds.length === 0) return task.initialPrompt;
+    const initialPrompt = task.systemKind === 'dream'
+      ? `${DREAM_BASE_PROMPT}${task.userPrompt?.trim() ? `\n\nUser additions:\n${task.userPrompt.trim()}` : ''}`
+      : task.initialPrompt;
+    if (task.planIds.length === 0) return initialPrompt;
     const planRefs = task.planIds.map(id => `- ${id}`).join('\n');
-    return `${task.initialPrompt}\n\nPlan references:\n${planRefs}`;
+    return `${initialPrompt}\n\nPlan references:\n${planRefs}`;
+  }
+
+  private recoverDreamAfterFailure(task: ScheduledTask): void {
+    if (task.systemKind !== 'dream') return;
+    task.status = 'pending';
+    delete task.completedAt;
+    task.nextRunAt = new Date(Date.now() + (task.intervalMs ?? DREAM_INTERVAL_MS));
+    if (task.enabled !== false) this.scheduleTask(task);
   }
 
   /** Move the task's first plan into 'coding' as the session's working plan. */

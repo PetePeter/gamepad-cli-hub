@@ -1017,6 +1017,8 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     dirPath?: string;
     mode?: 'spawn' | 'direct';
     targetSessionId?: string;
+    enabled?: boolean;
+    userPrompt?: string;
   }) => ipcRenderer.invoke('scheduled_task:update', id, updates),
 
   /** Cancel a pending scheduled task */

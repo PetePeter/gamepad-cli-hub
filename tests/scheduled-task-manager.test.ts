@@ -40,6 +40,7 @@ vi.mock('../src/session/persistence.js', async (importOriginal) => {
   };
 });
 import type { ScheduledTask, ScheduledTaskHistoryEntry, CreateScheduledTaskParams } from '../src/types/scheduled-task.js';
+import type { ProjectRecord } from '../src/types/project.js';
 
 // ─── Fakes for dependencies ─────────────────────────────────────────────────────
 
@@ -295,6 +296,56 @@ describe('ScheduledTaskManager', () => {
 
       manager.createTask(params);
       expect(listener).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('project dream rows', () => {
+    const project = {
+      id: 'project-1',
+      name: 'test',
+      canonicalPath: TEST_DIR,
+      createdAt: 1,
+      updatedAt: 1,
+    } satisfies ProjectRecord;
+
+    it('reconciles one disabled row per project and persists user controls', () => {
+      manager.reconcileProjects([project]);
+      const dream = manager.listTasks()[0];
+      expect(dream).toMatchObject({
+        projectId: project.id,
+        systemKind: 'dream',
+        enabled: false,
+        userPrompt: '',
+        status: 'pending',
+      });
+
+      manager.reconcileProjects([project]);
+      expect(manager.listTasks()).toHaveLength(1);
+      expect(() => manager.updateTask(dream.id, { enabled: true })).toThrow(/cliType/);
+      expect(manager.updateTask(dream.id, { cliType: 'claude', enabled: true, userPrompt: 'Focus on API decisions.' })).toMatchObject({
+        enabled: true,
+        cliType: 'claude',
+        userPrompt: 'Focus on API decisions.',
+      });
+      expect(manager.cancelTask(dream.id)).toBe(true);
+      expect(manager.getTask(dream.id)).toMatchObject({ enabled: false, status: 'pending' });
+      expect(manager.deleteTask(dream.id)).toBe(false);
+      (manager.getTask(dream.id) as ScheduledTask).status = 'failed';
+      manager.reconcileProjects([project]);
+      expect(manager.getTask(dream.id)).toMatchObject({ status: 'pending', enabled: false });
+    });
+
+    it('removes deleted-project rows and keeps user prompt separate from the base prompt', () => {
+      const other = { ...project, id: 'project-2', canonicalPath: `${TEST_DIR}\\other` } satisfies ProjectRecord;
+      manager.reconcileProjects([project, other]);
+      const dream = manager.listTasks().find((task) => task.projectId === project.id)!;
+      manager.updateTask(dream.id, { userPrompt: 'Keep this addition.' });
+      manager.reconcileProjects([other]);
+      expect(manager.getTask(dream.id)).toBeNull();
+      const otherDream = manager.listTasks()[0];
+      expect(otherDream.projectId).toBe(other.id);
+      expect((manager as any).buildTaskPrompt({ ...otherDream, userPrompt: 'Keep this addition.' })).toContain('User additions');
+      expect((manager as any).buildTaskPrompt({ ...otherDream, userPrompt: 'Keep this addition.' })).toContain('Keep this addition.');
     });
   });
 

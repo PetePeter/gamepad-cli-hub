@@ -25,6 +25,14 @@ export interface ScheduledTask {
   dirPath: string;
   mode?: ScheduledTaskMode;
   targetSessionId?: string;
+  /** Helm-owned recurring task kind. System rows cannot be deleted. */
+  systemKind?: 'dream';
+  /** Whether the task may run. Undefined preserves legacy task behaviour. */
+  enabled?: boolean;
+  /** User additions to a Helm-owned system prompt. */
+  userPrompt?: string;
+  /** Stable project ownership for Helm-owned system rows. */
+  projectId?: string;
   status: ScheduledTaskStatus;
   sessionId?: string;
   createdAt: number;
@@ -94,4 +102,6 @@ export interface UpdateScheduledTaskParams {
   dirPath?: string;
   mode?: ScheduledTaskMode;
   targetSessionId?: string;
+  enabled?: boolean;
+  userPrompt?: string;
 }

@@ -151,6 +151,12 @@ export interface SessionInfoResponse {
     attachments: string;
     tools: string[];
   };
+  knowledge_model: {
+    plan: string;
+    sequence: string;
+    context: string;
+    memory: string;
+  };
 }
 
 interface McpSkillSummary {

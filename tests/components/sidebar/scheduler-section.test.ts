@@ -8,6 +8,8 @@ import { mount, flushPromises } from '@vue/test-utils';
 import SchedulerSection from '../../../renderer/components/sidebar/SchedulerSection.vue';
 
 const mockScheduledTaskList = vi.fn();
+const mockScheduledTaskUpdate = vi.fn();
+const mockConfigGetCliTypes = vi.fn();
 const mockOffChanged = vi.fn();
 
 const task = {
@@ -27,9 +29,13 @@ describe('SchedulerSection', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 4, 4, 9, 0, 0));
     mockScheduledTaskList.mockReset().mockResolvedValue([task]);
+    mockScheduledTaskUpdate.mockReset().mockResolvedValue({ ok: true });
+    mockConfigGetCliTypes.mockReset().mockResolvedValue(['codex', 'claude']);
     mockOffChanged.mockReset();
     (window as any).gamepadCli = {
       scheduledTaskList: mockScheduledTaskList,
+      scheduledTaskUpdate: mockScheduledTaskUpdate,
+      configGetCliTypes: mockConfigGetCliTypes,
       onScheduledTaskChanged: vi.fn(() => mockOffChanged),
     };
   });
@@ -124,6 +130,37 @@ describe('SchedulerSection', () => {
 
     expect(wrapper.emitted('history')?.length).toBe(1);
     expect(wrapper.emitted('open')).toBeUndefined();
+    wrapper.unmount();
+    vi.useRealTimers();
+  });
+
+  it('renders system dream controls and persists enable, CLI, and prompt additions', async () => {
+    const dream = { ...task, id: 'dream-1', title: 'Memory Dreaming', systemKind: 'dream', enabled: false, userPrompt: '', cliType: 'codex' };
+    mockScheduledTaskList.mockResolvedValue([dream]);
+    const wrapper = mount(SchedulerSection, { props: { collapsed: false } });
+    await flushPromises();
+
+    await wrapper.find('input[type="checkbox"]').setValue(true);
+    await wrapper.find('.scheduler-system-cli').setValue('claude');
+    const prompt = wrapper.find('.scheduler-system-prompt');
+    await prompt.setValue('Prioritize architecture notes');
+    await prompt.trigger('change');
+
+    expect(mockScheduledTaskUpdate).toHaveBeenCalledWith('dream-1', { enabled: true });
+    expect(mockScheduledTaskUpdate).toHaveBeenCalledWith('dream-1', { cliType: 'claude' });
+    expect(mockScheduledTaskUpdate).toHaveBeenCalledWith('dream-1', { userPrompt: 'Prioritize architecture notes' });
+    expect(wrapper.find('[aria-label="Delete schedule"]').exists()).toBe(false);
+    wrapper.unmount();
+    vi.useRealTimers();
+  });
+
+  it('requires a CLI selection before enabling a seeded dream row', async () => {
+    mockScheduledTaskList.mockResolvedValue([{ ...task, id: 'dream-2', title: 'Memory Dreaming', systemKind: 'dream', enabled: false, userPrompt: '', cliType: '' }]);
+    const wrapper = mount(SchedulerSection, { props: { collapsed: false } });
+    await flushPromises();
+
+    expect(wrapper.find('input[type="checkbox"]').attributes('disabled')).toBeDefined();
+    expect(mockScheduledTaskUpdate).not.toHaveBeenCalled();
     wrapper.unmount();
     vi.useRealTimers();
   });

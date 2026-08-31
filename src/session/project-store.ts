@@ -7,6 +7,7 @@ export class ProjectStore {
   private records: ProjectRecord[];
   private dirty = false;
   private cache = new Map<string, ProjectRecord>();
+  private readonly changeListeners = new Set<(projects: ProjectRecord[]) => void>();
 
   constructor(private readonly projectsFile?: string) {
     this.records = loadProjectRecords(projectsFile);
@@ -14,6 +15,16 @@ export class ProjectStore {
 
   list(): ProjectRecord[] {
     return [...this.records];
+  }
+
+  onChanged(listener: (projects: ProjectRecord[]) => void): () => void {
+    this.changeListeners.add(listener);
+    return () => this.changeListeners.delete(listener);
+  }
+
+  private notifyChanged(): void {
+    const projects = this.list();
+    for (const listener of this.changeListeners) listener(projects);
   }
 
   /**
@@ -42,6 +53,7 @@ export class ProjectStore {
       };
       this.records.push(record);
       this.dirty = true;
+      this.notifyChanged();
     }
 
     this.cache.set(normalized, record);
@@ -73,6 +85,7 @@ export class ProjectStore {
     this.records.push(record);
     this.cache.set(normalized, record);
     this.dirty = true;
+    this.notifyChanged();
     return record;
   }
 
@@ -138,6 +151,7 @@ export class ProjectStore {
     this.cache.delete(normalized);
     record.updatedAt = Date.now();
     this.dirty = true;
+    this.notifyChanged();
   }
 
   rename(projectId: string, name: string): void {
@@ -156,6 +170,7 @@ export class ProjectStore {
     this.records.splice(idx, 1);
     this.cache.delete(normalizeProjectPath(record.canonicalPath));
     this.dirty = true;
+    this.notifyChanged();
   }
 
   private requireRecord(id: string): ProjectRecord {
