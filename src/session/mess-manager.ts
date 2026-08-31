@@ -9,6 +9,7 @@ import type { SessionManager } from './manager.js';
 export const DEFAULT_MESS_MAX_DELTA_ENTRIES = 50;
 export const DEFAULT_MESS_MAX_DELTA_BYTES = 32 * 1024;
 export const DEFAULT_MESS_HISTORY_LIMIT = 100;
+export const DEFAULT_MESS_HISTORY_MAX_BYTES = 256 * 1024;
 
 export interface MessPersistenceLike {
   append(input: Omit<MessEntry, 'id' | 'seq'>): MessEntry;
@@ -24,6 +25,7 @@ export interface MessManagerOptions {
   now?: () => number;
   maxDeltaEntries?: number;
   maxDeltaBytes?: number;
+  maxHistoryBytes?: number;
 }
 
 export interface MessDelta {
@@ -61,6 +63,7 @@ export class MessManager extends EventEmitter {
   private readonly now: () => number;
   private readonly maxDeltaEntries: number;
   private readonly maxDeltaBytes: number;
+  private readonly maxHistoryBytes: number;
 
   constructor(
     private readonly sessionManager: SessionManager,
@@ -72,6 +75,7 @@ export class MessManager extends EventEmitter {
     this.now = options.now ?? Date.now;
     this.maxDeltaEntries = positiveLimit(options.maxDeltaEntries, DEFAULT_MESS_MAX_DELTA_ENTRIES);
     this.maxDeltaBytes = positiveLimit(options.maxDeltaBytes, DEFAULT_MESS_MAX_DELTA_BYTES);
+    this.maxHistoryBytes = positiveLimit(options.maxHistoryBytes, DEFAULT_MESS_HISTORY_MAX_BYTES);
   }
 
   post(fromSessionId: string, text: string, toSessionId?: string): MessEntry {
@@ -177,7 +181,7 @@ export class MessManager extends EventEmitter {
 
   private boundedHistory(candidates: MessEntry[], options: MessHistoryOptions): MessHistoryResult {
     const limit = positiveLimit(options.limit, DEFAULT_MESS_HISTORY_LIMIT);
-    const maxBytes = positiveLimit(options.maxBytes, this.maxDeltaBytes);
+    const maxBytes = positiveLimit(options.maxBytes, this.maxHistoryBytes);
     const cutoff = this.now() - Math.max(0, options.sinceHours) * 60 * 60 * 1000;
     const recent = candidates.filter(entry => entry.createdAt >= cutoff);
     const selected: MessEntry[] = [];

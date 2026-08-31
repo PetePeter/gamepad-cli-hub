@@ -3,6 +3,8 @@ import { BrowserWindow, ipcMain } from 'electron';
 import type { MessHistoryOptions } from '../../session/mess-manager.js';
 import type { MessManager } from '../../session/mess-manager.js';
 import type { ProjectStore } from '../../session/project-store.js';
+import type { SessionManager } from '../../session/manager.js';
+import type { WindowManager } from '../window-manager.js';
 import { logger } from '../../utils/logger.js';
 
 const DEFAULT_HISTORY_HOURS = 24;
@@ -35,22 +37,57 @@ function validateOptions(value: unknown): MessHistoryOptions {
 }
 
 /** Register the read-only renderer Mess surface and its project-scoped push. */
-export function setupMessHandlers(messManager: MessManager | null, projectStore: ProjectStore): void {
-  ipcMain.handle('mess:history', (_event, projectId: unknown, options?: unknown) => {
+export function setupMessHandlers(
+  messManager: MessManager | null,
+  projectStore: ProjectStore,
+  windowManager?: WindowManager,
+  sessionManager?: SessionManager,
+): () => void {
+  const historyHandler = (_event: Electron.IpcMainInvokeEvent, projectId: unknown, options?: unknown) => {
     const id = validateProjectId(projectId);
     if (!projectStore.getById(id) || !messManager) return { entries: [], hasMore: false };
+    const safeOptions = validateOptions(options);
     try {
-      return messManager.historyForProject(id, validateOptions(options));
+      return messManager.historyForProject(id, safeOptions);
     } catch (error) {
       logger.error(`[IPC] Failed to read Mess history for ${id}: ${error}`);
       return { entries: [], hasMore: false };
     }
-  });
+  };
+  ipcMain.handle('mess:history', historyHandler);
 
-  messManager?.on('mess:appended', (entry) => {
+  const targetWindowsForProject = (projectId: string): BrowserWindow[] => {
+    if (!windowManager || !sessionManager) return BrowserWindow.getAllWindows();
+    const targets: BrowserWindow[] = [];
+    const mainWindow = windowManager.getMainWindow();
+    const activeSession = sessionManager.getActiveSession();
+    if (mainWindow && !mainWindow.isDestroyed() && activeSession
+      && messManager?.getProjectIdForSession(activeSession.id) === projectId) {
+      targets.push(mainWindow);
+    }
+    for (const window of windowManager.getAllWindows()) {
+      if (window === mainWindow) continue;
+      if (windowManager.getSessionsInWindow(window.id).some(
+        sessionId => messManager?.getProjectIdForSession(sessionId) === projectId,
+      )) {
+        targets.push(window);
+      }
+    }
+    return targets;
+  };
+
+  const onAppended = (entry: import('../../types/mess.js').MessEntry) => {
+    if (!projectStore.getById(entry.projectId)) return;
     const payload = { projectId: entry.projectId, entry };
-    for (const window of BrowserWindow.getAllWindows()) {
+    for (const window of targetWindowsForProject(entry.projectId)) {
       if (!window.isDestroyed()) window.webContents.send('mess:appended', payload);
     }
-  });
+  };
+  messManager?.on('mess:appended', onAppended);
+
+  return () => {
+    messManager?.off('mess:appended', onAppended);
+    const removeHandler = (ipcMain as typeof ipcMain & { removeHandler?: (channel: string) => void }).removeHandler;
+    removeHandler?.call(ipcMain, 'mess:history');
+  };
 }

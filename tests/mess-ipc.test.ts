@@ -7,7 +7,10 @@ const { mockGetAllWindows } = vi.hoisted(() => ({
 }));
 
 vi.mock('electron', () => ({
-  ipcMain: { handle: vi.fn((channel: string, handler: Function) => handlers.set(channel, handler)) },
+  ipcMain: {
+    handle: vi.fn((channel: string, handler: Function) => handlers.set(channel, handler)),
+    removeHandler: vi.fn((channel: string) => handlers.delete(channel)),
+  },
   BrowserWindow: { getAllWindows: mockGetAllWindows },
 }));
 

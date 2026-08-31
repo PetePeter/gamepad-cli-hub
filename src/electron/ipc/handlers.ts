@@ -358,7 +358,7 @@ export function registerIPCHandlers(
       sessionId => ptyManager.has(sessionId),
     )
     : null;
-  setupMessHandlers(messManager, projectStore);
+  const cleanupMess = setupMessHandlers(messManager, projectStore, windowManager, sessionManager);
   setupBackupPlanHandlers(ipcMain, windowManager, () => backupManager);
   const cleanupPromptTemplates = promptTemplatesPath
     ? setupPromptTemplateHandlers(promptTemplateManager, promptTemplatesPath)
@@ -595,6 +595,7 @@ export function registerIPCHandlers(
       cleanupPromptTemplates();
       cancelAllPrompts();
       messNotifier?.dispose();
+      cleanupMess();
       stateDetector.dispose();
       patternMatcher.dispose();
       notificationManager.dispose();
