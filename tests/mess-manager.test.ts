@@ -217,4 +217,17 @@ describe('MessManager', () => {
     expect(result.entries).toHaveLength(1);
     expect(result.hasMore).toBe(true);
   });
+
+  it('pages history by ordered sequence without advancing a session cursor', () => {
+    const { sessions, manager } = setup();
+    add(sessions, 'sender', 'planner');
+    manager.post('sender', 'one');
+    manager.post('sender', 'two');
+    manager.post('sender', 'three');
+
+    const result = manager.historyForProject(project.id, { sinceHours: 1, limit: 2, beforeSeq: 3 });
+
+    expect(result.entries.map(entry => entry.text)).toEqual(['one', 'two']);
+    expect(result.hasMore).toBe(false);
+  });
 });

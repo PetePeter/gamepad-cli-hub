@@ -36,6 +36,7 @@ describe('Mess pane projection', () => {
     expect(isMessTargetUnread(entry({ toSessionId: 'target', toLabelSnapshot: 'Memories' }), sessions, new Map([['target', 'active']]))).toBe(true);
     expect(isMessTargetUnread(entry({ toSessionId: 'closed' }), sessions, new Map())).toBe(true);
     expect(isMessTargetUnread(entry(), sessions, new Map())).toBe(false);
+    expect(isMessTargetUnread({ ...entry({ toSessionId: 'target' }), targetUnread: false }, sessions, new Map([['target', 'active']]))).toBe(false);
   });
 
   it('combines sender, broadcast, and unread filters without changing entries', () => {

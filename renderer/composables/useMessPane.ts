@@ -1,5 +1,6 @@
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue';
 import type { MessEntry } from '../../src/types/mess.js';
+import type { MessHistoryEntry } from '../../src/session/mess-manager.js';
 import type { Session } from '../state.js';
 import { messClient } from '../ipc/clients.js';
 import { useAppStore } from '../stores/app.js';
@@ -17,12 +18,15 @@ export function resolveMessLabel(sessionId: string | undefined, snapshot: string
   return sessions.find(session => session.id === sessionId)?.name ?? snapshot ?? sessionId;
 }
 
-export function isMessTargetUnread(entry: MessEntry, sessions: readonly Session[], activityLevels: ReadonlyMap<string, string>): boolean {
+export function isMessTargetUnread(entry: MessHistoryEntry, sessions: readonly Session[], activityLevels: ReadonlyMap<string, string>): boolean {
   if (!entry.toSessionId) return false;
+  if (entry.targetUnread !== undefined) return entry.targetUnread;
   const target = sessions.find(session => session.id === entry.toSessionId);
   if (!target) return true;
-  const activity = activityLevels.get(target.id) ?? target.state;
-  return activity !== 'idle' || target.aiagentState === 'planning' || target.aiagentState === 'implementing';
+  const activity = activityLevels.get(target.id);
+  return (activity !== undefined && activity !== 'idle')
+    || target.aiagentState === 'planning'
+    || target.aiagentState === 'implementing';
 }
 
 function matchesFilter(value: boolean, filter: MessFilterState): boolean {
@@ -30,7 +34,7 @@ function matchesFilter(value: boolean, filter: MessFilterState): boolean {
 }
 
 export function filterMessEntries(
-  entries: readonly MessEntry[],
+  entries: readonly MessHistoryEntry[],
   filters: MessFilters,
   sessions: readonly Session[],
   activityLevels: ReadonlyMap<string, string>,
@@ -65,7 +69,11 @@ export function useMessPane() {
     const seen = new Set<string>();
     return entries.value
       .map(entry => ({ id: entry.fromSessionId, label: resolveMessLabel(entry.fromSessionId, entry.fromLabelSnapshot, appStore.state.sessions) }))
-      .filter(option => !seen.has(option.id) && seen.add(option.id));
+      .filter(option => {
+        if (seen.has(option.id)) return false;
+        seen.add(option.id);
+        return true;
+      });
   });
   const visibleEntries = computed(() => filterMessEntries(
     entries.value,
@@ -98,7 +106,9 @@ export function useMessPane() {
     try {
       const result = await messClient.messHistory(nextProjectId, { sinceHours: historyHours.value });
       if (generation !== loadGeneration || projectId.value !== nextProjectId) return;
-      entries.value = result.entries;
+      const loadedIds = new Set(result.entries.map(entry => entry.id));
+      const liveAppends = entries.value.filter(entry => entry.projectId === nextProjectId && !loadedIds.has(entry.id));
+      entries.value = [...result.entries, ...liveAppends].sort((a, b) => a.seq - b.seq);
       hasMore.value = result.hasMore;
       await scrollToBottomIfNeeded(shouldScroll);
     } catch (error) {
@@ -114,9 +124,28 @@ export function useMessPane() {
 
   async function loadOlder(): Promise<void> {
     const id = projectId.value;
-    if (!id || !hasMore.value) return;
+    const beforeSeq = entries.value[0]?.seq;
+    if (!id || !hasMore.value || beforeSeq === undefined) return;
     historyHours.value = Math.min(historyHours.value + 24, 24 * 30);
-    await loadHistory(id, false);
+    const generation = ++loadGeneration;
+    const element = scroller.value;
+    const previousHeight = element?.scrollHeight ?? 0;
+    const previousTop = element?.scrollTop ?? 0;
+    loading.value = true;
+    try {
+      const result = await messClient.messHistory(id, { sinceHours: historyHours.value, beforeSeq });
+      if (generation !== loadGeneration || projectId.value !== id) return;
+      const existingIds = new Set(entries.value.map(entry => entry.id));
+      const olderEntries = result.entries.filter(entry => !existingIds.has(entry.id));
+      entries.value = [...olderEntries, ...entries.value].sort((a, b) => a.seq - b.seq);
+      hasMore.value = result.hasMore;
+      await nextTick();
+      if (element && scroller.value === element) element.scrollTop = previousTop + element.scrollHeight - previousHeight;
+    } catch (error) {
+      if (generation === loadGeneration) console.error('[MessPane] Failed to load older history:', error);
+    } finally {
+      if (generation === loadGeneration) loading.value = false;
+    }
   }
 
   function onAppended(event: { projectId: string; entry: MessEntry }): void {
@@ -126,15 +155,17 @@ export function useMessPane() {
     void scrollToBottomIfNeeded(shouldScroll);
   }
 
+  stopAppend = messClient.onMessAppended(onAppended);
+
   watch(projectId, (id, previousId) => {
     if (id === previousId) return;
     historyHours.value = 24;
+    filters.senderId = '';
+    filters.broadcast = 'either';
+    filters.unread = 'either';
     void loadHistory(id);
   }, { immediate: true });
 
-  onMounted(() => {
-    stopAppend = messClient.onMessAppended(onAppended);
-  });
   onUnmounted(() => {
     stopAppend?.();
     stopAppend = undefined;
@@ -153,6 +184,7 @@ export function useMessPane() {
     resolveLabel: (sessionId: string | undefined, snapshot: string | undefined) =>
       resolveMessLabel(sessionId, snapshot, appStore.state.sessions),
     isTargetUnread: (entry: MessEntry) => isMessTargetUnread(entry, appStore.state.sessions, appStore.state.sessionActivityLevels),
+    isSessionClosed: (sessionId: string) => !appStore.state.sessions.some(session => session.id === sessionId),
     scroller,
     senderOptions,
     visibleEntries,

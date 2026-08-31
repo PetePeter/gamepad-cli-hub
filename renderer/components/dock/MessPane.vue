@@ -15,6 +15,7 @@ const {
   projectName,
   resolveLabel,
   isTargetUnread,
+  isSessionClosed,
   scroller,
   senderOptions,
   visibleEntries,
@@ -44,7 +45,7 @@ function formatTime(timestamp: number): string {
     </PanelHeader>
 
     <EmptyState v-if="!projectId" title="No active project" hint="Select a session to observe its Mess conversation." icon="🍽" />
-    <div v-else :ref="scroller" class="mess-history" aria-live="polite">
+    <div v-else ref="scroller" class="mess-history" aria-live="polite">
       <EmptyState v-if="loading && !entries.length" title="Loading Mess" loading />
       <EmptyState v-else-if="!visibleEntries.length" title="No messages" hint="Project coordination messages will appear here." icon="🍽" />
       <template v-else>
@@ -53,7 +54,7 @@ function formatTime(timestamp: number): string {
           v-for="entry in visibleEntries"
           :key="entry.id"
           class="mess-row"
-          :class="{ 'mess-row--closed-sender': !appState.sessions.some(session => session.id === entry.fromSessionId) }"
+          :class="{ 'mess-row--closed-sender': isSessionClosed(entry.fromSessionId) }"
         >
           <time class="mess-row__time" :datetime="new Date(entry.createdAt).toISOString()">{{ formatTime(entry.createdAt) }}</time>
           <div class="mess-row__content">
@@ -63,7 +64,7 @@ function formatTime(timestamp: number): string {
               <span v-if="!entry.toSessionId" class="mess-row__all">all</span>
               <span v-else>{{ resolveLabel(entry.toSessionId, entry.toLabelSnapshot) }}</span>
               <span v-if="entry.toSessionId && isTargetUnread(entry)" class="mess-row__badge">not picked up</span>
-              <span v-if="entry.toSessionId && !appState.sessions.some(session => session.id === entry.toSessionId)" class="mess-row__closed">session closed</span>
+              <span v-if="entry.toSessionId && isSessionClosed(entry.toSessionId)" class="mess-row__closed">session closed</span>
             </div>
             <p class="mess-row__body">{{ entry.text }}</p>
           </div>

@@ -63,6 +63,9 @@ export class HelmMessService {
     if (options.limit !== undefined && (!Number.isSafeInteger(options.limit) || options.limit <= 0 || options.limit > MESS_MAX_HISTORY_LIMIT)) {
       throw new Error(`limit must be an integer from 1 through ${MESS_MAX_HISTORY_LIMIT}`);
     }
+    if (options.beforeSeq !== undefined && (!Number.isSafeInteger(options.beforeSeq) || options.beforeSeq <= 0)) {
+      throw new Error('beforeSeq must be a positive integer');
+    }
     const result = this.manager.historyResult(sessionId, options);
     return {
       hasMore: result.hasMore,

@@ -40,10 +40,14 @@ export interface MessHistoryOptions {
   sinceHours: number;
   limit?: number;
   maxBytes?: number;
+  /** Return entries strictly before this ordered sequence. */
+  beforeSeq?: number;
 }
 
+export type MessHistoryEntry = MessEntry & { targetUnread?: boolean };
+
 export interface MessHistoryResult {
-  entries: MessEntry[];
+  entries: MessHistoryEntry[];
   hasMore: boolean;
 }
 
@@ -179,12 +183,19 @@ export class MessManager extends EventEmitter {
     return this.boundedHistory(this.persistence(projectId).load().entries, options);
   }
 
+  /** Read a target's ordered cursor without creating or advancing it. */
+  isEntryUnreadForSession(projectId: string, sessionId: string, seq: number): boolean {
+    const cursor = this.persistence(projectId).getCursor(sessionId);
+    return cursor === undefined || seq > cursor.lastSeq;
+  }
+
   private boundedHistory(candidates: MessEntry[], options: MessHistoryOptions): MessHistoryResult {
     const limit = positiveLimit(options.limit, DEFAULT_MESS_HISTORY_LIMIT);
     const maxBytes = positiveLimit(options.maxBytes, this.maxHistoryBytes);
     const cutoff = this.now() - Math.max(0, options.sinceHours) * 60 * 60 * 1000;
-    const recent = candidates.filter(entry => entry.createdAt >= cutoff);
-    const selected: MessEntry[] = [];
+    const recent = candidates.filter(entry => entry.createdAt >= cutoff
+      && (options.beforeSeq === undefined || entry.seq < options.beforeSeq));
+    const selected: MessHistoryEntry[] = [];
     let bytes = 0;
     for (let index = recent.length - 1; index >= 0; index -= 1) {
       const entry = recent[index];

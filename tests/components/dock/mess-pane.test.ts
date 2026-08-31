@@ -76,4 +76,25 @@ describe('MessPane', () => {
     expect(wrapper.text()).toContain('Renamed planner');
     wrapper.unmount();
   });
+
+  it('pages older rows by sequence and preserves a scrolled-up position', async () => {
+    history
+      .mockResolvedValueOnce({ entries: [{ ...entry, id: 'newer', seq: 2, text: 'newer' }], hasMore: true })
+      .mockResolvedValueOnce({ entries: [{ ...entry, id: 'older', seq: 1, text: 'older' }], hasMore: false });
+    const wrapper = mount(MessPane, { global: { plugins: [createPinia()] } });
+    await flushPromises();
+
+    const scroller = wrapper.find('.mess-history').element as HTMLElement;
+    Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 200 });
+    Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 100 });
+    scroller.scrollTop = 0;
+    await wrapper.find('.mess-older').trigger('click');
+    await flushPromises();
+
+    expect(history).toHaveBeenLastCalledWith('p1', { sinceHours: 48, beforeSeq: 2 });
+    expect(wrapper.text()).toContain('older');
+    expect(wrapper.text()).toContain('newer');
+    expect(scroller.scrollTop).toBe(0);
+    wrapper.unmount();
+  });
 });

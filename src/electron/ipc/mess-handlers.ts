@@ -1,6 +1,6 @@
 /** Renderer-only, cursor-neutral Mess history and append notifications. */
 import { BrowserWindow, ipcMain } from 'electron';
-import { DEFAULT_MESS_HISTORY_MAX_BYTES, type MessHistoryOptions } from '../../session/mess-manager.js';
+import { DEFAULT_MESS_HISTORY_MAX_BYTES, type MessHistoryEntry, type MessHistoryOptions } from '../../session/mess-manager.js';
 import type { MessManager } from '../../session/mess-manager.js';
 import type { ProjectStore } from '../../session/project-store.js';
 import type { SessionManager } from '../../session/manager.js';
@@ -33,7 +33,16 @@ function validateOptions(value: unknown): MessHistoryOptions {
   if (maxBytes !== undefined && (!Number.isSafeInteger(maxBytes) || maxBytes <= 0 || maxBytes > MAX_HISTORY_BYTES)) {
     throw new Error(`maxBytes must be between 1 and ${MAX_HISTORY_BYTES}`);
   }
-  return { sinceHours, ...(limit === undefined ? {} : { limit }), ...(maxBytes === undefined ? {} : { maxBytes }) };
+  const beforeSeq = options.beforeSeq ?? undefined;
+  if (beforeSeq !== undefined && (!Number.isSafeInteger(beforeSeq) || beforeSeq <= 0)) {
+    throw new Error('beforeSeq must be a positive integer');
+  }
+  return {
+    sinceHours,
+    ...(limit === undefined ? {} : { limit }),
+    ...(maxBytes === undefined ? {} : { maxBytes }),
+    ...(beforeSeq === undefined ? {} : { beforeSeq }),
+  };
 }
 
 /** Register the read-only renderer Mess surface and its project-scoped push. */
@@ -48,7 +57,7 @@ export function setupMessHandlers(
     const safeOptions = validateOptions(options);
     if (!projectStore.getById(id) || !messManager) return { entries: [], hasMore: false };
     try {
-      return messManager.historyForProject(id, safeOptions);
+      return decorateHistory(messManager.historyForProject(id, safeOptions), messManager, sessionManager);
     } catch (error) {
       logger.error(`[IPC] Failed to read Mess history for ${id}: ${error}`);
       return { entries: [], hasMore: false };
@@ -76,8 +85,8 @@ export function setupMessHandlers(
   };
 
   const onAppended = (entry: import('../../types/mess.js').MessEntry) => {
-    if (!projectStore.getById(entry.projectId)) return;
-    const payload = { projectId: entry.projectId, entry };
+    if (!projectStore.getById(entry.projectId) || !messManager) return;
+    const payload = { projectId: entry.projectId, entry: decorateEntry(entry, messManager, sessionManager) };
     for (const window of targetWindowsForProject(entry.projectId)) {
       if (!window.isDestroyed()) window.webContents.send('mess:appended', payload);
     }
@@ -87,5 +96,22 @@ export function setupMessHandlers(
   return () => {
     messManager?.off('mess:appended', onAppended);
     ipcMain.removeHandler('mess:history');
+  };
+}
+
+function decorateHistory(
+  result: { entries: MessHistoryEntry[]; hasMore: boolean },
+  messManager: MessManager,
+  sessionManager: SessionManager,
+) {
+  return { ...result, entries: result.entries.map(entry => decorateEntry(entry, messManager, sessionManager)) };
+}
+
+function decorateEntry(entry: MessHistoryEntry, messManager: MessManager, sessionManager: SessionManager): MessHistoryEntry {
+  if (!entry.toSessionId) return { ...entry, targetUnread: false };
+  const target = sessionManager.getSession(entry.toSessionId);
+  return {
+    ...entry,
+    targetUnread: !target || messManager.isEntryUnreadForSession(entry.projectId, entry.toSessionId, entry.seq),
   };
 }

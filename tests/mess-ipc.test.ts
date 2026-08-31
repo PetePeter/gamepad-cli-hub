@@ -73,7 +73,7 @@ describe('Mess renderer IPC', () => {
 
     manager.emit('mess:appended', entry);
 
-    expect(send).toHaveBeenCalledWith('mess:appended', { projectId: 'p1', entry });
+    expect(send).toHaveBeenCalledWith('mess:appended', { projectId: 'p1', entry: { ...entry, targetUnread: false } });
   });
 
   it('rejects invalid bounds before checking project existence', () => {
@@ -87,6 +87,7 @@ describe('Mess renderer IPC', () => {
     } as any, { getActiveSession: () => undefined } as any);
 
     expect(() => handlers.get('mess:history')!({}, 'unknown', { limit: 501 })).toThrow(/limit/);
+    expect(() => handlers.get('mess:history')!({}, 'unknown', { beforeSeq: 0 })).toThrow(/beforeSeq/);
     expect(projects.getById).not.toHaveBeenCalled();
   });
 
