@@ -138,6 +138,7 @@ python sendDeploy.py            # Commit, tag, push, upload installer via gh CLI
 | Document | Content |
 |----------|---------|
 | [docs/controls.md](docs/controls.md) | Gamepad button + keyboard mappings, navigation priority chain |
+| [docs/gamepad-input-model.md](docs/gamepad-input-model.md) | **Proposal, not shipped** — pane-addressed gamepad model, shared input contract, command registry + radial wheel |
 | [docs/keyboard-routing.md](docs/keyboard-routing.md) | Keyboard router — one listener, declared precedence, per-screen handlers, focused-vs-visible ownership |
 | [docs/terminal-architecture.md](docs/terminal-architecture.md) | PTY stack, input/output routing, activity dots, key modules |
 | [docs/pattern-matcher.md](docs/pattern-matcher.md) | Per-CLI regex rules over PTY output — send-text and wait-until schedules |
