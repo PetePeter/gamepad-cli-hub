@@ -21,12 +21,28 @@ import {
   validateMemoryState,
 } from '../types/memory.js';
 
+/**
+ * How many project epochs a memory is protected for after birth.
+ *
+ * A brand-new memory has zero recalls and zero links, which is arithmetically
+ * indistinguishable from stale junk. The grace period is the entire defence
+ * against a scheduled dream deleting everything the last session just learned.
+ */
+export const GRACE_EPOCHS = 3;
+
 export interface MemoryManagerOptions {
   persistence?: MemoryPersistence;
   attachmentManager?: MemoryAttachmentManager;
   persist?: (state: MemoryState) => void;
   now?: () => number;
   idFactory?: () => string;
+  /**
+   * Ownership is DERIVED, never accepted from the caller: a session may only
+   * ever write into the project it is running in.
+   */
+  resolveSessionProject?: (sessionId: string) => string | null;
+  resolveSessionPlan?: (sessionId: string) => string | null;
+  graceEpochs?: number;
 }
 
 export interface CreateMemoryInput {
@@ -46,10 +62,16 @@ export class MemoryManager extends EventEmitter {
   private readonly attachmentManager?: MemoryAttachmentManager;
   private readonly now: () => number;
   private readonly idFactory: () => string;
+  private readonly resolveSessionProject?: (sessionId: string) => string | null;
+  private readonly resolveSessionPlan?: (sessionId: string) => string | null;
+  private readonly graceEpochs: number;
   private persistenceDiagnostic?: MemoryDiagnostic;
 
   constructor(options: MemoryManagerOptions = {}) {
     super();
+    this.resolveSessionProject = options.resolveSessionProject;
+    this.resolveSessionPlan = options.resolveSessionPlan;
+    this.graceEpochs = options.graceEpochs ?? GRACE_EPOCHS;
     this.persistence = options.persistence;
     this.attachmentManager = options.attachmentManager;
     this.persistSink = options.persist ?? (options.persistence ? (state) => options.persistence!.save(state) : undefined);
@@ -59,10 +81,103 @@ export class MemoryManager extends EventEmitter {
     this.persistenceDiagnostic = loaded?.diagnostic;
     this.state = cloneMemoryState(loaded?.state ?? { records: [], edges: [] });
     validateMemoryState(this.state);
+    if (loaded && !loaded.diagnostic && (loaded.version ?? 1) < 2) this.backfillProjects();
     if (this.attachmentManager && !loaded?.diagnostic) {
       this.attachmentManager.reconcile(this.state);
       this.attachmentManager.repairOrphans(new Set(this.state.records.map((record) => record.id)));
     }
+  }
+
+  /**
+   * v1 → v2 upgrade: adopt each memory into its writing session's project,
+   * where that session still resolves. Without it, everything written before
+   * the upgrade would still be purged with its session — precisely what
+   * project scope exists to stop. Memories whose session is already gone stay
+   * unscoped; inventing a project for them would be a guess.
+   */
+  private backfillProjects(): void {
+    if (!this.resolveSessionProject) return;
+    let changed = false;
+    for (const record of this.state.records) {
+      if (record.projectId !== undefined || record.sessionId === undefined) continue;
+      const projectId = this.resolveSessionProject(record.sessionId);
+      if (projectId) {
+        record.projectId = projectId;
+        changed = true;
+      }
+    }
+    // Best effort: a store too unhealthy to write to must still be readable.
+    if (changed) try { this.persistSink?.(cloneMemoryState(this.state)); } catch { /* ignored */ }
+  }
+
+  /**
+   * What a session may see: its own memories, plus every memory belonging to
+   * the project it is running in. A project-less session keeps the original
+   * session-private behaviour exactly.
+   */
+  private isVisible(record: MemoryRecord, sessionId: string, projectId: string | null): boolean {
+    if (record.sessionId === sessionId) return true;
+    return projectId !== null && record.projectId === projectId;
+  }
+
+  private scopedRecords(sessionId: string, includeDormant = false): MemoryRecord[] {
+    const projectId = this.resolveSessionProject?.(sessionId) ?? null;
+    return this.state.records.filter((record) =>
+      this.isVisible(record, sessionId, projectId)
+      && (includeDormant || record.dormantSince === undefined));
+  }
+
+  /** Whether a session may operate on a record at all — dormancy is no bar. */
+  private owns(sessionId: string, id: string): boolean {
+    return this.scopedRecords(sessionId, true).some((record) => record.id === id);
+  }
+
+  /** The project's current epoch; 0 for a project that has never been touched. */
+  projectEpoch(projectId: string): number {
+    return this.state.projectEpochs?.[projectId]?.epoch ?? 0;
+  }
+
+  /** What the epoch becomes once this session touches the project. */
+  private epochAfterTouch(projectId: string, sessionId: string): number {
+    const current = this.state.projectEpochs?.[projectId];
+    if (!current) return 0;
+    return current.lastSessionId === sessionId ? current.epoch : current.epoch + 1;
+  }
+
+  /**
+   * Whether enough recall opportunities have passed for a memory to be a
+   * candidate for forgetting. Unscoped memories are never eligible — they are
+   * already governed by their session's lifetime.
+   */
+  isDiscardEligible(id: string): boolean {
+    const record = this.state.records.find((item) => item.id === id);
+    if (!record?.projectId) return false;
+    return this.projectEpoch(record.projectId) - (record.createdAtEpoch ?? 0) >= this.graceEpochs;
+  }
+
+  /**
+   * Forget, or remember again. Deliberately not an update: it must not advance
+   * `updatedAt`, or every dream pass would make the memories it hid look like
+   * the freshest things in the store.
+   */
+  setDormant(id: string, dormant: boolean): boolean {
+    const current = this.state.records.find((record) => record.id === id);
+    if (!current) return false;
+    if ((current.dormantSince !== undefined) === dormant) return true;
+    const timestamp = this.now();
+    this.mutate((candidate) => {
+      const record = candidate.records.find((item) => item.id === id)!;
+      if (dormant) record.dormantSince = timestamp;
+      else delete record.dormantSince;
+      return { type: 'dormant', id, dormant, ...(current.sessionId ? { sessionId: current.sessionId } : {}) };
+    });
+    return true;
+  }
+
+  setDormantForSession(sessionId: string, id: string, dormant: boolean): boolean {
+    assertSessionId(sessionId);
+    if (!this.owns(sessionId, id)) return false;
+    return this.setDormant(id, dormant);
   }
 
   create(input: CreateMemoryInput): MemoryRecord {
@@ -76,6 +191,10 @@ export class MemoryManager extends EventEmitter {
 
   private createRecord(sessionId: string | undefined, input: CreateMemoryInput): MemoryRecord {
     const timestamp = this.now();
+    // Provenance is resolved here and nowhere else. It cannot be reconstructed
+    // later — a plan's sessionId is overwritten by whoever claims it next.
+    const projectId = sessionId ? this.resolveSessionProject?.(sessionId) ?? null : null;
+    const planId = sessionId ? this.resolveSessionPlan?.(sessionId) ?? null : null;
     const record: MemoryRecord = {
       id: this.idFactory(),
       ...(sessionId ? { sessionId } : {}),
@@ -83,10 +202,15 @@ export class MemoryManager extends EventEmitter {
       content: input.content,
       createdAt: timestamp,
       updatedAt: timestamp,
+      // Read the epoch this write lands in, not the one before it, or a memory
+      // would be born already a full epoch into its own grace period.
+      ...(projectId ? { projectId, createdAtEpoch: this.epochAfterTouch(projectId, sessionId!) } : {}),
+      ...(planId ? { planId } : {}),
       attachments: [],
     };
     this.mutate((candidate) => {
       candidate.records.push(record);
+      if (projectId && sessionId) advanceEpoch(candidate, projectId, sessionId);
       return { type: 'create', id: record.id, ...(sessionId ? { sessionId } : {}) };
     });
     return cloneMemoryRecord(record);
@@ -115,31 +239,28 @@ export class MemoryManager extends EventEmitter {
 
   updateForSession(sessionId: string, id: string, updates: UpdateMemoryInput, expectedUpdatedAt?: number): MemoryRecord | null {
     assertSessionId(sessionId);
-    const current = this.state.records.find((record) => record.id === id && record.sessionId === sessionId);
-    if (!current) return null;
+    if (!this.owns(sessionId, id)) return null;
     return this.update(id, updates, expectedUpdatedAt);
   }
 
-  getRecordForSession(sessionId: string, id: string): MemoryRecord | null {
+  getRecordForSession(sessionId: string, id: string, options: MemoryListOptions = {}): MemoryRecord | null {
     assertSessionId(sessionId);
-    const record = this.state.records.find((item) => item.id === id && item.sessionId === sessionId);
+    const record = this.scopedRecords(sessionId, options.includeDormant).find((item) => item.id === id);
     if (!record) return null;
-    this.stampAccess([record.id]);
-    return cloneMemoryRecord(record);
+    this.stampAccess([record.id], sessionId);
+    return cloneMemoryRecord(this.state.records.find((item) => item.id === id)!);
   }
 
   listRecordsForSession(sessionId: string, options: MemoryListOptions = {}): MemoryRecord[] {
     assertSessionId(sessionId);
-    const records = this.state.records
-      .filter((record) => record.sessionId === sessionId)
-      .map(cloneMemoryRecord);
+    const records = this.scopedRecords(sessionId, options.includeDormant).map(cloneMemoryRecord);
     return options.sortBy ? sortRecords(records, options.sortBy, options.order ?? 'desc') : records;
   }
 
   getForSession(sessionId: string, rootId: string, graphDepth = 0): MemoryTraversal | null {
     assertSessionId(sessionId);
-    if (!this.state.records.some((record) => record.id === rootId && record.sessionId === sessionId)) return null;
-    const scopedRecords = this.state.records.filter((record) => record.sessionId === sessionId);
+    const scopedRecords = this.scopedRecords(sessionId);
+    if (!scopedRecords.some((record) => record.id === rootId)) return null;
     const allowedIds = new Set(scopedRecords.map((record) => record.id));
     return new MemoryGraph({
       records: scopedRecords,
@@ -157,9 +278,9 @@ export class MemoryManager extends EventEmitter {
    * `missing` markers: the forest has no node to anchor the far end of such an
    * edge to, so drawing it would produce a line to nowhere.
    */
-  forestForSession(sessionId: string): MemoryForest {
+  forestForSession(sessionId: string, options: MemoryListOptions = {}): MemoryForest {
     assertSessionId(sessionId);
-    const scoped = this.state.records.filter((record) => record.sessionId === sessionId);
+    const scoped = this.scopedRecords(sessionId, options.includeDormant);
     const ownedIds = new Set(scoped.map((record) => record.id));
     return {
       records: scoped.map(toMemorySummary),
@@ -171,7 +292,7 @@ export class MemoryManager extends EventEmitter {
 
   searchForSession(sessionId: string, query: string, options: MemorySearchOptions = {}): MemorySearchResult {
     assertSessionId(sessionId);
-    const scopedRecords = this.state.records.filter((record) => record.sessionId === sessionId);
+    const scopedRecords = this.scopedRecords(sessionId, options.includeDormant);
     const allowedIds = new Set(scopedRecords.map((record) => record.id));
     const graphDepth = options.graphDepth ?? 0;
     validateGraphDepth(graphDepth);
@@ -213,14 +334,13 @@ export class MemoryManager extends EventEmitter {
 
   deleteForSession(sessionId: string, id: string): boolean {
     assertSessionId(sessionId);
-    if (!this.state.records.some((record) => record.id === id && record.sessionId === sessionId)) return false;
+    if (!this.owns(sessionId, id)) return false;
+    const visibleIds = new Set(this.scopedRecords(sessionId, true).map((record) => record.id));
     const transaction = this.attachmentManager?.stageDeleteForMemory(id);
     try {
       transaction?.commitMetadata();
       this.mutate((candidate) => {
-        const ownedIds = new Set(candidate.records
-          .filter((record) => record.sessionId === sessionId)
-          .map((record) => record.id));
+        const ownedIds = visibleIds;
         const incoming = candidate.edges
           .filter((edge) => edge.toId === id && ownedIds.has(edge.fromId))
           .map((edge) => edge.fromId);
@@ -251,37 +371,52 @@ export class MemoryManager extends EventEmitter {
 
   linkForSession(sessionId: string, fromId: string, toId: string): boolean {
     assertSessionId(sessionId);
-    if (!this.state.records.some((record) => record.id === fromId && record.sessionId === sessionId)
-      || !this.state.records.some((record) => record.id === toId && record.sessionId === sessionId)) return false;
+    if (!this.owns(sessionId, fromId) || !this.owns(sessionId, toId)) return false;
     return this.link(fromId, toId, sessionId);
   }
 
   unlinkForSession(sessionId: string, fromId: string, toId: string): boolean {
     assertSessionId(sessionId);
-    if (!this.state.records.some((record) => record.id === fromId && record.sessionId === sessionId)
-      || !this.state.records.some((record) => record.id === toId && record.sessionId === sessionId)) return false;
+    if (!this.owns(sessionId, fromId) || !this.owns(sessionId, toId)) return false;
     return this.unlink(fromId, toId, sessionId);
   }
 
   addAttachmentForSession(sessionId: string, memoryId: string, input: MemoryAttachmentInput): MemoryAttachment {
     assertSessionId(sessionId);
-    if (!this.state.records.some((record) => record.id === memoryId && record.sessionId === sessionId)) {
-      throw new Error(`Memory not found: ${memoryId}`);
-    }
+    if (!this.owns(sessionId, memoryId)) throw new Error(`Memory not found: ${memoryId}`);
     return this.addAttachment(memoryId, input);
   }
 
   deleteAttachmentForSession(sessionId: string, memoryId: string, attachmentId: string): boolean {
     assertSessionId(sessionId);
-    if (!this.state.records.some((record) => record.id === memoryId && record.sessionId === sessionId)) return false;
+    if (!this.owns(sessionId, memoryId)) return false;
     return this.deleteAttachment(memoryId, attachmentId);
   }
 
+  /**
+   * Drop a dead session's memories — except the project-scoped ones, which are
+   * knowledge about the project rather than about the terminal that learned it.
+   */
   purgeSession(sessionId: string): number {
     assertSessionId(sessionId);
     const ownedIds = new Set(this.state.records
-      .filter((record) => record.sessionId === sessionId)
+      .filter((record) => record.sessionId === sessionId && record.projectId === undefined)
       .map((record) => record.id));
+    return this.purgeIds(ownedIds, { type: 'session-purge', sessionId, count: ownedIds.size });
+  }
+
+  /** Remove every memory belonging to a project, when the project itself goes. */
+  purgeProject(projectId: string): number {
+    if (typeof projectId !== 'string' || projectId.trim() === '') {
+      throw new Error('projectId must be a non-empty string');
+    }
+    const ownedIds = new Set(this.state.records
+      .filter((record) => record.projectId === projectId)
+      .map((record) => record.id));
+    return this.purgeIds(ownedIds, { type: 'project-purge', projectId, count: ownedIds.size }, projectId);
+  }
+
+  private purgeIds(ownedIds: Set<string>, event: unknown, dropEpochFor?: string): number {
     if (ownedIds.size === 0) return 0;
     const transaction = this.attachmentManager?.stageDeleteForMemories(ownedIds);
     try {
@@ -289,7 +424,8 @@ export class MemoryManager extends EventEmitter {
       this.mutate((candidate) => {
         candidate.records = candidate.records.filter((record) => !ownedIds.has(record.id));
         candidate.edges = candidate.edges.filter((edge) => !ownedIds.has(edge.fromId) && !ownedIds.has(edge.toId));
-        return { type: 'session-purge', sessionId, count: ownedIds.size };
+        if (dropEpochFor && candidate.projectEpochs) delete candidate.projectEpochs[dropEpochFor];
+        return event;
       });
       transaction?.finalize();
     } catch (error) {
@@ -302,7 +438,10 @@ export class MemoryManager extends EventEmitter {
   /** Remove session-bound memories whose owning session is no longer recoverable. */
   pruneOrphanedSessions(retainedSessionIds: Set<string>): number {
     const orphanedIds = new Set(this.state.records
-      .filter((record) => record.sessionId !== undefined && !retainedSessionIds.has(record.sessionId))
+      // Project memories are exempt: their owning session being gone is the
+      // normal case, not an orphaning.
+      .filter((record) => record.sessionId !== undefined && record.projectId === undefined
+        && !retainedSessionIds.has(record.sessionId))
       .map((record) => record.id));
     if (orphanedIds.size === 0) return 0;
 
@@ -427,13 +566,25 @@ export class MemoryManager extends EventEmitter {
    * every read, and a read during a render would loop), and it never throws —
    * a read must still succeed when the store is too unhealthy to write to.
    */
-  private stampAccess(ids: string[]): void {
+  private stampAccess(ids: string[], readerSessionId?: string): void {
     if (ids.length === 0 || this.persistenceDiagnostic) return;
     const targets = new Set(ids);
     const timestamp = this.now();
     const candidate = cloneMemoryState(this.state);
     for (const record of candidate.records) {
-      if (targets.has(record.id)) record.lastAccessedAt = timestamp;
+      if (!targets.has(record.id)) continue;
+      record.lastAccessedAt = timestamp;
+      // Being read is retrieval succeeding — the opposite of being forgotten.
+      delete record.dormantSince;
+      if (readerSessionId === undefined) continue;
+      if (record.projectId) advanceEpoch(candidate, record.projectId, readerSessionId);
+      // The author already holds the fact in context; re-reading it is not
+      // evidence anyone else found it worth retrieving.
+      if (record.sessionId === readerSessionId) continue;
+      if (record.lastRecallSessionId !== readerSessionId) {
+        record.recallSessionCount = (record.recallSessionCount ?? 0) + 1;
+        record.lastRecallSessionId = readerSessionId;
+      }
     }
     try {
       this.persistSink?.(cloneMemoryState(candidate));
@@ -469,6 +620,26 @@ export class MemoryManager extends EventEmitter {
       throw new Error(`${String(originalError)}; attachment rollback failed: ${String(rollbackError)}`);
     }
   }
+}
+
+/**
+ * Move a project one step along its own timeline, but only when a *different*
+ * session touches it. The epoch counts recall opportunities, not calls: a
+ * single session hammering the store must not age out everything it wrote, and
+ * an idle fortnight must not age out anything at all.
+ *
+ * The first session to touch a project establishes epoch 0 rather than
+ * advancing to 1 — nothing has had a chance to be recalled yet.
+ */
+function advanceEpoch(state: MemoryState, projectId: string, sessionId: string): void {
+  state.projectEpochs ??= {};
+  const current = state.projectEpochs[projectId];
+  if (!current) {
+    state.projectEpochs[projectId] = { epoch: 0, lastSessionId: sessionId };
+    return;
+  }
+  if (current.lastSessionId === sessionId) return;
+  state.projectEpochs[projectId] = { epoch: current.epoch + 1, lastSessionId: sessionId };
 }
 
 const SORT_FIELDS: Record<MemorySortField, keyof MemoryRecord> = {

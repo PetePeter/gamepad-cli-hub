@@ -175,6 +175,7 @@ export class HelmControlService extends EventEmitter {
   private artifactManager?: import('../session/artifact-manager.js').ArtifactManager;
   private artifactAttachmentManager?: ArtifactAttachmentManager;
   private memoryService?: HelmMemoryService;
+  private memoryManager: MemoryManager | null = null;
   private readonly schedulerService: HelmSchedulerService | null;
   private readonly projectService: HelmProjectService | null;
   private readonly directoryService: HelmDirectoryService;
@@ -270,7 +271,9 @@ export class HelmControlService extends EventEmitter {
     this.capabilityDetector = new CapabilityDetector(configLoader);
     this.telegramService = new HelmTelegramService(configLoader, sessionManager, this.capabilityDetector);
     this.schedulerService = schedulerManager ? new HelmSchedulerService(schedulerManager, configLoader, projectStore) : null;
-    this.projectService = projectStore ? new HelmProjectService(projectStore) : null;
+    this.projectService = projectStore
+      ? new HelmProjectService(projectStore, () => this.memoryManager)
+      : null;
     this.directoryService = new HelmDirectoryService(configLoader, sessionManager, planManager, projectStore);
     this.peerService = new HelmPeerService(() => this.peerLinkManager ?? undefined);
   }
@@ -308,6 +311,7 @@ export class HelmControlService extends EventEmitter {
     attachmentManager: MemoryAttachmentManager,
     tempRegistry?: import('../session/artifact-temp-registry.js').ArtifactTempRegistry,
   ): void {
+    this.memoryManager = manager;
     this.memoryService = new HelmMemoryService(manager, attachmentManager, tempRegistry);
   }
 

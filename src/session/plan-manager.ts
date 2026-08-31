@@ -461,6 +461,16 @@ export class PlanManager extends EventEmitter {
     );
   }
 
+  /**
+   * The plan a session is currently working, for stamping provenance on
+   * anything it produces. Most recently updated wins when a session somehow
+   * holds several, so the answer is stable rather than map-order dependent.
+   */
+  claimedPlanFor(sessionId: string): PlanItem | null {
+    return this.getDoingForSession(sessionId)
+      .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0] ?? null;
+  }
+
   /** Record a session claim on a plan. Unconditional — overrides any prior claim. */
   claimPlan(id: string, sessionId: string): void {
     const item = this.items.get(id);

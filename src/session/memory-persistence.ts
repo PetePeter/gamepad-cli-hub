@@ -21,6 +21,8 @@ export interface MemoryDiagnostic {
 export interface MemoryLoadResult {
   state: MemoryState;
   diagnostic?: MemoryDiagnostic;
+  /** Envelope version the state was read from; drives the v1 project back-fill. */
+  version?: number;
 }
 
 export interface MemoryRepairResult {
@@ -33,6 +35,20 @@ export interface MemoryPersistenceOptions {
 }
 
 const EMPTY_STATE: MemoryState = { records: [], edges: [] };
+
+/** v1 was session-scoped only; v2 adds project scope, recall breadth and epochs. */
+const STORE_VERSION = 2;
+
+/** Every field that is absent on a fresh record and must survive a round trip. */
+const OPTIONAL_NUMBERS = ['lastAccessedAt', 'recallSessionCount', 'dormantSince', 'createdAtEpoch'] as const;
+const OPTIONAL_STRINGS = ['projectId', 'planId', 'lastRecallSessionId'] as const;
+
+function optionalFields(record: MemoryRecord): Partial<MemoryRecord> {
+  const out: Record<string, unknown> = {};
+  for (const field of OPTIONAL_NUMBERS) if (record[field] !== undefined) out[field] = record[field];
+  for (const field of OPTIONAL_STRINGS) if (record[field] !== undefined) out[field] = record[field];
+  return out as Partial<MemoryRecord>;
+}
 
 export class MemoryPersistence {
   private lastDiagnostic: MemoryDiagnostic | undefined;
@@ -63,7 +79,7 @@ export class MemoryPersistence {
     }
 
     if (!isRecord(parsed)) return this.fail('invalid', 'Memory store root must be an object', raw);
-    if (parsed.version !== undefined && parsed.version !== 1) {
+    if (parsed.version !== undefined && parsed.version !== 1 && parsed.version !== STORE_VERSION) {
       return this.fail('unsupported', `Unsupported memory store version: ${String(parsed.version)}`, raw);
     }
 
@@ -86,20 +102,23 @@ export class MemoryPersistence {
       edges.push(normalized);
     }
 
-    const state: MemoryState = { records, edges };
+    const projectEpochs = normalizeProjectEpochs(parsed.projectEpochs);
+    if (projectEpochs === null) return this.fail('invalid', 'Memory store contains invalid project epochs', raw);
+
+    const state: MemoryState = { records, edges, ...(projectEpochs ? { projectEpochs } : {}) };
     try {
       validateMemoryState(state);
     } catch (error) {
       return this.fail('invalid', String(error), raw);
     }
     this.lastDiagnostic = undefined;
-    return { state: cloneMemoryState(state) };
+    return { state: cloneMemoryState(state), version: isLegacy ? 1 : parsed.version as number };
   }
 
   save(state: MemoryState): void {
     validateMemoryState(state);
     const envelope = {
-      version: 1,
+      version: STORE_VERSION,
       records: state.records.map((record) => ({
         id: record.id,
         ...(record.sessionId ? { sessionId: record.sessionId } : {}),
@@ -107,9 +126,11 @@ export class MemoryPersistence {
         content: record.content,
         createdAt: record.createdAt,
         updatedAt: record.updatedAt,
+        ...optionalFields(record),
         attachments: record.attachments.map((attachment) => ({ ...attachment })),
       })),
       edges: state.edges.map((edge) => ({ ...edge })),
+      ...(state.projectEpochs ? { projectEpochs: state.projectEpochs } : {}),
     };
     const content = `${JSON.stringify(envelope, null, 2)}\n`;
     (this.options.atomicWrite ?? atomicWriteFileSync)(this.filePath, content);
@@ -157,6 +178,17 @@ function normalizeRecord(value: unknown): MemoryRecord | null {
     if (!normalized) return null;
     attachments.push(normalized);
   }
+  const optional: Record<string, unknown> = {};
+  for (const field of OPTIONAL_NUMBERS) {
+    if (value[field] === undefined) continue;
+    if (!isFiniteNumber(value[field])) return null;
+    optional[field] = value[field];
+  }
+  for (const field of OPTIONAL_STRINGS) {
+    if (value[field] === undefined) continue;
+    if (typeof value[field] !== 'string' || value[field].trim() === '') return null;
+    optional[field] = value[field];
+  }
   return {
     id: value.id,
     ...(typeof value.sessionId === 'string' ? { sessionId: value.sessionId } : {}),
@@ -164,8 +196,22 @@ function normalizeRecord(value: unknown): MemoryRecord | null {
     content: value.content,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
+    ...optional,
     attachments,
   };
+}
+
+/** `null` signals a malformed block; `undefined` simply means none were stored. */
+function normalizeProjectEpochs(value: unknown): MemoryState['projectEpochs'] | null | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) return null;
+  const out: NonNullable<MemoryState['projectEpochs']> = {};
+  for (const [projectId, entry] of Object.entries(value)) {
+    if (!isRecord(entry) || !isFiniteNumber(entry.epoch)) return null;
+    if (typeof entry.lastSessionId !== 'string' || entry.lastSessionId.trim() === '') return null;
+    out[projectId] = { epoch: entry.epoch, lastSessionId: entry.lastSessionId };
+  }
+  return out;
 }
 
 function normalizeAttachment(value: unknown, memoryId: string): MemoryAttachment | null {

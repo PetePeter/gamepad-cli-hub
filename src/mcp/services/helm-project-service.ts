@@ -1,12 +1,21 @@
 import { validateProjectDirectory } from '../../session/validation.js';
 import type { ProjectStore } from '../../session/project-store.js';
+import type { MemoryManager } from '../../session/memory-manager.js';
 
 /**
  * Project management for the MCP surface.
  * Delegates to ProjectStore for persistence and wraps results for MCP consumers.
  */
 export class HelmProjectService {
-  constructor(private readonly projectStore: ProjectStore) {}
+  /**
+   * The memory manager arrives after construction (it is injected into
+   * HelmControlService later), so it is reached through a getter rather than
+   * held directly.
+   */
+  constructor(
+    private readonly projectStore: ProjectStore,
+    private readonly getMemoryManager: () => Pick<MemoryManager, 'purgeProject'> | null = () => null,
+  ) {}
 
   /**
    * Register a brand-new project (working directory) so it becomes a valid
@@ -33,6 +42,9 @@ export class HelmProjectService {
     if (!this.projectStore.getById(projectId)) {
       throw new Error(`Project not found: ${projectId}`);
     }
+    // Memories are project-scoped and outlive their sessions, so nothing else
+    // would ever reclaim them once the project they describe is gone.
+    this.getMemoryManager()?.purgeProject(projectId);
     this.projectStore.delete(projectId);
     this.projectStore.save();
     return { ok: true };

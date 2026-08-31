@@ -150,11 +150,16 @@ export function registerIPCHandlers(
   artifactManager.importAll(loadArtifacts());
   const memoryPersistence = new MemoryPersistence();
   const memoryAttachmentManager = new MemoryAttachmentManager();
+  // PlanManager is constructed before MemoryManager so provenance can be
+  // stamped at write time. It cannot be reconstructed afterwards: a plan's
+  // sessionId is overwritten by whoever claims it next.
+  const planManager = new PlanManager(projectStore);
   const memoryManager = new MemoryManager({
     persistence: memoryPersistence,
     attachmentManager: memoryAttachmentManager,
+    resolveSessionProject: (id) => sessionManager.getSession(id)?.projectId ?? null,
+    resolveSessionPlan: (id) => planManager.claimedPlanFor(id)?.id ?? null,
   });
-  const planManager = new PlanManager(projectStore);
   const contextManager = new ContextManager(planManager);
   const getSkillsPath = (configLoader as ConfigLoader & { getSkillsPath?: () => string }).getSkillsPath;
   const getSkillAnalyticsPath = (configLoader as ConfigLoader & { getSkillAnalyticsPath?: () => string }).getSkillAnalyticsPath;

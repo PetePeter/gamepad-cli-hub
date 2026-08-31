@@ -25,6 +25,30 @@ export interface MemoryRecord {
    * sorts last, not oldest.
    */
   lastAccessedAt?: number;
+  /**
+   * Owning project. Set ⇒ the memory outlives the session that wrote it, and
+   * every later session in the same project can read it. Absent ⇒ the original
+   * session-private behaviour, purged with its session.
+   */
+  projectId?: string;
+  /**
+   * The plan the writing session had claimed. Stamped at creation because it
+   * cannot be reconstructed: a plan's `sessionId` is overwritten by whoever
+   * claims it next, so the link only points the wrong way.
+   */
+  planId?: string;
+  /**
+   * How many DISTINCT sessions have read this. Not a hit count — an LLM reads a
+   * memory into context once and never re-reads it, so frequency measures
+   * context loss, not importance. Breadth is one vote per session.
+   */
+  recallSessionCount?: number;
+  /** Dedupes the counter above; the last session to have read the record. */
+  lastRecallSessionId?: string;
+  /** Forgotten but not erased: hidden from recall, restored by being read. */
+  dormantSince?: number;
+  /** Project epoch at birth, so the grace period counts recall opportunities. */
+  createdAtEpoch?: number;
   attachments: MemoryAttachment[];
 }
 
@@ -35,6 +59,9 @@ export interface MemorySummary {
   createdAt: number;
   updatedAt: number;
   lastAccessedAt?: number;
+  projectId?: string;
+  recallSessionCount?: number;
+  dormantSince?: number;
   attachmentCount: number;
 }
 
@@ -53,6 +80,8 @@ export type MemorySortField = 'created' | 'updated' | 'accessed';
 export interface MemoryListOptions {
   sortBy?: MemorySortField;
   order?: 'asc' | 'desc';
+  /** Re-admit dormant memories — for the dream pass and the canvas toggle. */
+  includeDormant?: boolean;
 }
 
 export interface MemoryEdge {
@@ -60,9 +89,20 @@ export interface MemoryEdge {
   toId: string;
 }
 
+/**
+ * A project's position in its own timeline, measured in sessions rather than
+ * wall-clock time: an idle fortnight must not age out knowledge that nobody
+ * had the opportunity to recall.
+ */
+export interface MemoryProjectEpoch {
+  epoch: number;
+  lastSessionId: string;
+}
+
 export interface MemoryState {
   records: MemoryRecord[];
   edges: MemoryEdge[];
+  projectEpochs?: Record<string, MemoryProjectEpoch>;
 }
 
 export type MemoryTraversalStatus = 'record' | 'reference' | 'cycle' | 'missing' | 'depth-limit';
@@ -86,6 +126,7 @@ export interface MemoryTraversal {
 export interface MemorySearchOptions {
   regex?: boolean;
   graphDepth?: number;
+  includeDormant?: boolean;
 }
 
 export interface MemorySearchResult {
@@ -114,6 +155,11 @@ export function cloneMemoryState(state: MemoryState): MemoryState {
       attachments: record.attachments.map((attachment) => ({ ...attachment })),
     })),
     edges: state.edges.map((edge) => ({ ...edge })),
+    ...(state.projectEpochs
+      ? { projectEpochs: Object.fromEntries(
+          Object.entries(state.projectEpochs).map(([id, value]) => [id, { ...value }]),
+        ) }
+      : {}),
   };
 }
 
@@ -126,6 +172,9 @@ export function toMemorySummary(record: MemoryRecord): MemorySummary {
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     ...(record.lastAccessedAt !== undefined ? { lastAccessedAt: record.lastAccessedAt } : {}),
+    ...(record.projectId !== undefined ? { projectId: record.projectId } : {}),
+    ...(record.recallSessionCount !== undefined ? { recallSessionCount: record.recallSessionCount } : {}),
+    ...(record.dormantSince !== undefined ? { dormantSince: record.dormantSince } : {}),
     attachmentCount: record.attachments.length,
   };
 }
@@ -160,6 +209,18 @@ export function validateMemoryState(state: MemoryState): void {
     }
     if (record.lastAccessedAt !== undefined && !isFiniteNumber(record.lastAccessedAt)) {
       throw new Error(`Memory ${record.id} has an invalid lastAccessedAt`);
+    }
+    for (const field of ['projectId', 'planId', 'lastRecallSessionId'] as const) {
+      const value = record[field];
+      if (value !== undefined && (typeof value !== 'string' || value.trim() === '')) {
+        throw new Error(`Memory ${record.id} has an invalid ${field}`);
+      }
+    }
+    for (const field of ['dormantSince', 'createdAtEpoch', 'recallSessionCount'] as const) {
+      const value = record[field];
+      if (value !== undefined && !isFiniteNumber(value)) {
+        throw new Error(`Memory ${record.id} has an invalid ${field}`);
+      }
     }
     if (!Array.isArray(record.attachments)) throw new Error(`Memory ${record.id} has invalid attachments`);
 

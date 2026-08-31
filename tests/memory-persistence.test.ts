@@ -24,7 +24,7 @@ describe('MemoryPersistence', () => {
     persistence.save(sample);
 
     const raw = JSON.parse(readFileSync(file, 'utf8')) as { version: number; records: Array<Record<string, unknown>> };
-    expect(raw.version).toBe(1);
+    expect(raw.version).toBe(2);
     raw.records[0].unknown = 'ignored';
     writeFileSync(file, JSON.stringify(raw), 'utf8');
     expect(persistence.load().state).toEqual(sample);
@@ -44,7 +44,7 @@ describe('MemoryPersistence', () => {
 
     const repaired = persistence.repair();
     expect(repaired.repaired).toBe(true);
-    expect(JSON.parse(readFileSync(file, 'utf8'))).toMatchObject({ version: 1, records: [], edges: [] });
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toMatchObject({ version: 2, records: [], edges: [] });
     expect(existsSync(`${file}.invalid`)).toBe(true);
     expect(readFileSync(`${file}.invalid`, 'utf8')).toBe(corrupt);
     expect(persistence.repair().repaired).toBe(false);
