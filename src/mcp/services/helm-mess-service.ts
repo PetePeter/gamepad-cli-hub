@@ -111,6 +111,18 @@ function toWireMessage(entry: MessEntry, sessionId: string, sessionManager: Sess
     : entry.toSessionId === sessionId
       ? 'me'
       : sessionManager.getSession(entry.toSessionId)?.name ?? entry.toLabelSnapshot ?? entry.toSessionId;
-  const timestamp = new Date(entry.createdAt).toISOString();
-  return { seq: entry.seq, t: includeDate ? `${timestamp.slice(0, 10)} ${timestamp.slice(11, 16)}` : timestamp.slice(11, 16), from: sender, to, text: entry.text };
+  return { seq: entry.seq, t: formatWireTime(entry.createdAt, includeDate), from: sender, to, text: entry.text };
+}
+
+/**
+ * Display time in the machine's local zone, matching the Mess pane. An agent and
+ * the human beside it must be able to name the same message by the same clock;
+ * UTC on the wire silently shifts every timestamp the human reads. `t` is
+ * display metadata only — `seq` remains the ordering key.
+ */
+function formatWireTime(createdAt: number, includeDate: boolean): string {
+  const at = new Date(createdAt);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  const time = `${pad(at.getHours())}:${pad(at.getMinutes())}`;
+  return includeDate ? `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${time}` : time;
 }

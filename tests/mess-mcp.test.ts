@@ -18,6 +18,8 @@ afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true });
 });
 
+const POSTED_AT = new Date(2026, 4, 17, 9, 5).getTime();
+
 function setup() {
   const directory = mkdtempSync(join(tmpdir(), 'helm-mess-mcp-'));
   directories.push(directory);
@@ -29,6 +31,7 @@ function setup() {
   };
   const sessions = new SessionManager(projects as any);
   const manager = new MessManager(sessions, projects as any, {
+    now: () => POSTED_AT,
     persistenceFactory: projectId => new MessPersistence(projectId, { directory }),
   });
   const service = new HelmControlService({} as any, sessions, {} as any, {} as any, undefined, undefined, undefined, projects as any);
@@ -65,6 +68,9 @@ describe('MCP Mess surface', () => {
       msgs: [{ seq: 1, from: 'planner', to: 'me', text: 'hello' }],
     });
     expect(result).not.toHaveProperty('oldestSeq');
+    // The agent and the human beside it must name a message by the same clock,
+    // so wire times are local, never UTC.
+    expect((result.msgs as Array<{ t: string }>)[0].t).toBe('09:05');
   });
 
   it('keeps history cursor-neutral, bounded, and reports truncation', async () => {
@@ -77,7 +83,7 @@ describe('MCP Mess surface', () => {
 
     expect(await callMcpTool(deps, 'mess_history', { sinceHours: 1, limit: 1 }, { sessionId: 'receiver' })).toMatchObject({
       hasMore: true,
-      msgs: [{ text: 'two', t: expect.stringMatching(/^\d{4}-\d{2}-\d{2} /) }],
+      msgs: [{ text: 'two', t: '2026-05-17 09:05' }],
     });
     expect(await callMcpTool(deps, 'mess_check', {}, { sessionId: 'receiver' })).toMatchObject({
       new: 2,
