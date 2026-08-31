@@ -5,15 +5,23 @@ import { getMessProjectSettings, type ProjectRecord } from '../types/project.js'
 import type { SessionInfo } from '../types/session.js';
 import type { ProjectStore } from './project-store.js';
 import type { SessionManager } from './manager.js';
+import { logger } from '../utils/logger.js';
 
 export const DEFAULT_MESS_MAX_DELTA_ENTRIES = 50;
 export const DEFAULT_MESS_MAX_DELTA_BYTES = 32 * 1024;
 export const DEFAULT_MESS_HISTORY_LIMIT = 100;
 export const DEFAULT_MESS_HISTORY_MAX_BYTES = 256 * 1024;
 
+/**
+ * How often a project's retention window is enforced. Pruning rewrites the whole
+ * log, so it rides the read path on a timer rather than running per call.
+ */
+export const MESS_PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+
 export interface MessPersistenceLike {
   append(input: Omit<MessEntry, 'id' | 'seq'>): MessEntry;
   load(): MessLoadResult;
+  prune(retentionDays: number, now?: number): { removed: number };
   getCursor(sessionId: string): MessCursor | undefined;
   saveCursor(cursor: MessCursor): void;
   deleteCursor(sessionId: string): boolean;
@@ -63,6 +71,7 @@ export type MessSessionCloseKind = 'ephemeral' | 'recoverable' | 'forgotten' | '
  */
 export class MessManager extends EventEmitter {
   private readonly persistenceByProject = new Map<string, MessPersistenceLike>();
+  private readonly lastPrunedAt = new Map<string, number>();
   private readonly persistenceFactory: (projectId: string) => MessPersistenceLike;
   private readonly now: () => number;
   private readonly maxDeltaEntries: number;
@@ -89,7 +98,7 @@ export class MessManager extends EventEmitter {
     if (target && this.requireProject(target).id !== project.id) {
       throw new Error('Mess direct target must belong to the same project');
     }
-    const entry = this.persistence(project.id).append({
+    const entry = this.projectPersistence(project).append({
       projectId: project.id,
       fromSessionId: sender.id,
       fromLabelSnapshot: sender.name,
@@ -104,7 +113,7 @@ export class MessManager extends EventEmitter {
   check(sessionId: string, limits: { maxEntries?: number; maxBytes?: number } = {}): MessDelta {
     const session = this.requireSession(sessionId);
     const project = this.requireProject(session);
-    const persistence = this.persistence(project.id);
+    const persistence = this.projectPersistence(project);
     const loaded = persistence.load();
     let cursor = persistence.getCursor(session.id);
     if (!cursor) {
@@ -156,7 +165,7 @@ export class MessManager extends EventEmitter {
   unreadCount(sessionId: string): number {
     const session = this.requireSession(sessionId);
     const project = this.requireProject(session);
-    const persistence = this.persistence(project.id);
+    const persistence = this.projectPersistence(project);
     const loaded = persistence.load();
     let cursor = persistence.getCursor(session.id);
     if (!cursor) {
@@ -173,14 +182,15 @@ export class MessManager extends EventEmitter {
   historyResult(sessionId: string, options: MessHistoryOptions): MessHistoryResult {
     const session = this.requireSession(sessionId);
     const project = this.requireProject(session);
-    const loaded = this.persistence(project.id).load();
+    const loaded = this.projectPersistence(project).load();
     return this.boundedHistory(loaded.entries.filter(entry => isVisibleTo(entry, session.id)), options);
   }
 
   /** Read project history for the human observer without requiring a session cursor. */
   historyForProject(projectId: string, options: MessHistoryOptions): MessHistoryResult {
-    if (!this.projectStore.getById(projectId)) return { entries: [], hasMore: false };
-    return this.boundedHistory(this.persistence(projectId).load().entries, options);
+    const project = this.projectStore.getById(projectId);
+    if (!project) return { entries: [], hasMore: false };
+    return this.boundedHistory(this.projectPersistence(project).load().entries, options);
   }
 
   /** Read a target's ordered cursor without creating or advancing it. */
@@ -223,6 +233,7 @@ export class MessManager extends EventEmitter {
   purgeProject(projectId: string): void {
     this.persistence(projectId).purge();
     this.persistenceByProject.delete(projectId);
+    this.lastPrunedAt.delete(projectId);
   }
 
   getProjectIdForSession(sessionId: string): string | null {
@@ -241,6 +252,29 @@ export class MessManager extends EventEmitter {
       firstInWindow ? firstInWindow.seq - 1 : loaded.entries.at(-1)?.seq ?? 0,
     );
     return { projectId: project.id, sessionId, lastSeq: baselineSeq, joinedAt };
+  }
+
+  /**
+   * Persistence for a resolved project, with its retention window enforced.
+   *
+   * Retention has to be applied somewhere or a project log grows without bound
+   * and the `gap` indicator can never fire. Doing it on the read path keeps the
+   * policy in the domain core with no background timer to leak, and the interval
+   * keeps a full log rewrite off every single call.
+   */
+  private projectPersistence(project: ProjectRecord): MessPersistenceLike {
+    const persistence = this.persistence(project.id);
+    const now = this.now();
+    const last = this.lastPrunedAt.get(project.id);
+    if (last !== undefined && now - last < MESS_PRUNE_INTERVAL_MS) return persistence;
+    this.lastPrunedAt.set(project.id, now);
+    try {
+      persistence.prune(getMessProjectSettings(project).messRetentionDays, now);
+    } catch (error) {
+      // Retention is maintenance, never the caller's operation (invariant 7).
+      logger.warn(`[Mess] Retention prune failed for project ${project.id}: ${error}`);
+    }
+    return persistence;
   }
 
   private persistence(projectId: string): MessPersistenceLike {

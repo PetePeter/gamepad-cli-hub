@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { MessManager } from '../src/session/mess-manager.js';
 import { MessPersistence } from '../src/session/mess-persistence.js';
-import { ProjectStore } from '../src/session/project-store.js';
 import { SessionManager } from '../src/session/manager.js';
 import type { ProjectRecord } from '../src/types/project.js';
 import type { SessionInfo } from '../src/types/session.js';
@@ -216,6 +215,36 @@ describe('MessManager', () => {
 
     expect(result.entries).toHaveLength(1);
     expect(result.hasMore).toBe(true);
+  });
+
+  it('enforces the project retention window on the read path and reports the new floor', () => {
+    const now = 2_000_000_000_000;
+    const { sessions, manager, directory } = setup(now);
+    add(sessions, 'sender', 'planner');
+    const log = new MessPersistence(project.id, { directory });
+    const base = { projectId: project.id, fromSessionId: 'sender', fromLabelSnapshot: 'planner' };
+    log.append({ ...base, text: 'ancient', createdAt: now - 40 * 24 * 60 * 60 * 1000 });
+    log.append({ ...base, text: 'fresh', createdAt: now });
+
+    manager.historyForProject(project.id, { sinceHours: 24 * 60 });
+
+    const remaining = new MessPersistence(project.id, { directory }).load();
+    expect(remaining.entries.map(entry => entry.text)).toEqual(['fresh']);
+    expect(remaining.prunedThroughSeq).toBe(1);
+  });
+
+  it('does not rewrite the log again until the prune interval has elapsed', () => {
+    const now = 2_000_000_000_000;
+    const { sessions, manager, directory } = setup(now);
+    add(sessions, 'sender', 'planner');
+    manager.post('sender', 'first');
+    const log = new MessPersistence(project.id, { directory });
+    log.append({ projectId: project.id, fromSessionId: 'sender', fromLabelSnapshot: 'planner', text: 'ancient', createdAt: now - 40 * 24 * 60 * 60 * 1000 });
+
+    manager.post('sender', 'second');
+
+    expect(new MessPersistence(project.id, { directory }).load().entries.map(entry => entry.text))
+      .toEqual(['first', 'ancient', 'second']);
   });
 
   it('pages history by ordered sequence without advancing a session cursor', () => {
