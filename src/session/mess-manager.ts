@@ -112,7 +112,11 @@ export class MessManager extends EventEmitter {
     let examinedThroughSeq = cursor.lastSeq;
     for (const entry of unread) {
       if (!isVisibleTo(entry, session.id)) {
-        examinedThroughSeq = entry.seq;
+        // A direct message for another session is not part of this caller's
+        // delta. Leave the cursor at the last returned sequence; otherwise an
+        // invisible entry would be acknowledged as though this caller had
+        // received it. When a later visible entry is returned, advancing to
+        // that entry naturally skips the intervening invisible sequence.
         continue;
       }
       const entryBytes = Buffer.byteLength(JSON.stringify(entry), 'utf8');

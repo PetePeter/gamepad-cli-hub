@@ -113,6 +113,18 @@ describe('MessManager', () => {
     expect(manager.check(receiver.id).entries).toEqual([]);
   });
 
+  it('does not acknowledge an invisible direct entry when it is the only unread entry', () => {
+    const { sessions, manager, directory } = setup();
+    add(sessions, 'sender', 'planner');
+    const receiver = add(sessions, 'receiver', 'memories');
+    const other = add(sessions, 'other', 'other');
+    manager.check(receiver.id);
+    manager.post('sender', 'for other', other.id);
+
+    expect(manager.check(receiver.id)).toMatchObject({ new: 0, hasMore: false });
+    expect(new MessPersistence(project.id, { directory }).getCursor(receiver.id)).toMatchObject({ lastSeq: 0 });
+  });
+
   it('uses sequence order when a clock rollback makes a later entry look old', () => {
     const { sessions, manager, directory } = setup();
     add(sessions, 'sender', 'planner');
