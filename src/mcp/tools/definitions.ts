@@ -1348,6 +1348,34 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'memory_dream',
+    title: 'Dream Memories',
+    description: 'Return bounded, disjoint faded and salient candidates from the authenticated caller session project. This tool only identifies candidates; it never decides what to forget or merge.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        percentile: { type: 'number', exclusiveMinimum: 0, maximum: 100 },
+        minCandidates: { type: 'integer', minimum: 1, maximum: 50 },
+        maxCandidates: { type: 'integer', minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'memory_set_dormant',
+    title: 'Set Memory Dormant',
+    description: 'Mark a memory in the authenticated caller session project as dormant or active. Dormant memories are hidden from normal recall and can be restored by reading them.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', minLength: 1 },
+        dormant: { type: 'boolean' },
+      },
+      required: ['id', 'dormant'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'memory_list',
     title: 'List Memories',
     description: 'List durable memories owned by the authenticated caller session. Memories survive compaction and restart; attachments are returned as metadata only. Optional sortBy/order rank them for trimming; memories never read (or never matched) sort last rather than oldest.',

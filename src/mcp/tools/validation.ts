@@ -6,6 +6,13 @@ import type { MemoryExportFormat } from '../../types/memory.js';
 export const MEMORY_SORT_FIELDS = ['created', 'updated', 'accessed'] as const;
 export const MEMORY_SORT_ORDERS = ['asc', 'desc'] as const;
 
+export function asDreamNumber(value: unknown, field: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`${field} must be a finite number`);
+  }
+  return value;
+}
+
 /**
  * Parse a value constrained to a fixed set, naming the allowed options in the
  * error so a caller that guessed wrong can correct itself without the schema.

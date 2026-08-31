@@ -8,6 +8,7 @@ import {
   asBoolean,
   asContextBindingTargetType,
   asFiniteNumber,
+  asDreamNumber,
   asEnum,
   asGraphDepth,
   MEMORY_SORT_FIELDS,
@@ -719,6 +720,25 @@ export async function callMcpTool(
             ? { order: asEnum(args.order, MEMORY_SORT_ORDERS, 'order') }
             : {}),
         });
+      }
+      case 'memory_dream': {
+        const sessionId = requireCallerSession(authContext, 'memory_dream');
+        return service.dreamMemories(sessionId, {
+          ...(args.percentile !== undefined ? { percentile: asDreamNumber(args.percentile, 'percentile') } : {}),
+          ...(args.minCandidates !== undefined ? { minCandidates: asDreamNumber(args.minCandidates, 'minCandidates') } : {}),
+          ...(args.maxCandidates !== undefined ? { maxCandidates: asDreamNumber(args.maxCandidates, 'maxCandidates') } : {}),
+        });
+      }
+      case 'memory_set_dormant': {
+        const sessionId = requireCallerSession(authContext, 'memory_set_dormant');
+        return requireBooleanResult(
+          service.setMemoryDormant(
+            sessionId,
+            asString(args.id, 'id is required'),
+            asBoolean(args.dormant, 'dormant must be a boolean'),
+          ),
+          `Memory not found: ${String(args.id)}`,
+        );
       }
       case 'memory_get': {
         const sessionId = requireCallerSession(authContext, 'memory_get');

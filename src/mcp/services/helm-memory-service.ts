@@ -8,6 +8,9 @@ import { toMemorySummary } from '../../types/memory.js';
 import type {
   MemoryAttachment,
   MemoryAttachmentTempFile,
+  MemoryDreamOptions,
+  MemoryDreamPlan,
+  MemoryDreamResult,
   MemoryExportFormat,
   MemoryForest,
   MemoryListOptions,
@@ -32,6 +35,7 @@ export class HelmMemoryService {
     private readonly memoryManager: MemoryManager,
     private readonly attachmentManager: MemoryAttachmentManager,
     private readonly tempRegistry?: ArtifactTempRegistry,
+    private readonly resolvePlan?: (planId: string) => MemoryDreamPlan | null,
   ) {}
 
   listMemories(sessionId: string, options: MemoryListOptions = {}): MemoryRecord[] {
@@ -70,6 +74,14 @@ export class HelmMemoryService {
 
   deleteMemory(sessionId: string, id: string): boolean {
     return this.memoryManager.deleteForSession(sessionId, id);
+  }
+
+  dreamMemories(sessionId: string, options: MemoryDreamOptions = {}): MemoryDreamResult {
+    return this.memoryManager.dreamForSession(sessionId, options, this.resolvePlan ?? (() => null));
+  }
+
+  setMemoryDormant(sessionId: string, id: string, dormant: boolean): boolean {
+    return this.memoryManager.setDormantForSession(sessionId, id, dormant);
   }
 
   searchMemories(sessionId: string, query: string, options: { regex?: boolean; graphDepth?: number } = {}): MemorySearchResult {

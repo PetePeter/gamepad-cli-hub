@@ -58,6 +58,8 @@ import type { MemoryManager } from '../session/memory-manager.js';
 import type {
   MemoryAttachment,
   MemoryAttachmentTempFile,
+  MemoryDreamOptions,
+  MemoryDreamResult,
   MemoryExportFormat,
   MemoryListOptions,
   MemoryRecord,
@@ -312,7 +314,17 @@ export class HelmControlService extends EventEmitter {
     tempRegistry?: import('../session/artifact-temp-registry.js').ArtifactTempRegistry,
   ): void {
     this.memoryManager = manager;
-    this.memoryService = new HelmMemoryService(manager, attachmentManager, tempRegistry);
+    this.memoryService = new HelmMemoryService(
+      manager,
+      attachmentManager,
+      tempRegistry,
+      (planId) => {
+        const plan = this.planManager.getItem(planId);
+        return plan
+          ? { id: plan.id, title: plan.title, state: plan.status, completed: plan.status === 'done' }
+          : null;
+      },
+    );
   }
 
   /**
@@ -486,6 +498,14 @@ export class HelmControlService extends EventEmitter {
 
   createMemory(sessionId: string, input: { tldr: string; content: string }): MemoryRecord {
     return this.requireMemoryService().createMemory(sessionId, input);
+  }
+
+  dreamMemories(sessionId: string, options: MemoryDreamOptions = {}): MemoryDreamResult {
+    return this.requireMemoryService().dreamMemories(sessionId, options);
+  }
+
+  setMemoryDormant(sessionId: string, id: string, dormant: boolean): boolean {
+    return this.requireMemoryService().setMemoryDormant(sessionId, id, dormant);
   }
 
   updateMemory(

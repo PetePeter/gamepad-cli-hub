@@ -160,12 +160,43 @@ describe('MCP memory surface', () => {
 
     expect(ranked[0].id).toBe(first.id);
   });
+
+  it('exposes dormant state changes and project dream results through MCP', async () => {
+    const { deps } = setup();
+    const memory = await callMcpTool(
+      deps,
+      'memory_create',
+      { tldr: 'temporary', content: 'body' },
+      { sessionId: 's1' },
+    ) as { id: string };
+
+    expect(await callMcpTool(
+      deps,
+      'memory_set_dormant',
+      { id: memory.id, dormant: true },
+      { sessionId: 's1' },
+    )).toBe(true);
+    expect(await callMcpTool(deps, 'memory_list', {}, { sessionId: 's1' })).toEqual([]);
+    expect((await callMcpTool(deps, 'memory_dream', {}, { sessionId: 's1' })).totals).toEqual({
+      memories: 0,
+      dormant: 0,
+      eligible: 0,
+      epoch: 0,
+    });
+    expect(await callMcpTool(
+      deps,
+      'memory_set_dormant',
+      { id: memory.id, dormant: false },
+      { sessionId: 's1' },
+    )).toBe(true);
+  });
 });
 
 describe('MCP memory tool discoverability', () => {
   const memoryToolNames = [
     'memory_list', 'memory_get', 'memory_create', 'memory_update', 'memory_delete',
     'memory_search', 'memory_graph', 'memory_export', 'memory_link', 'memory_unlink',
+    'memory_dream', 'memory_set_dormant',
     'memory_attachment_add', 'memory_attachment_list', 'memory_attachment_get', 'memory_attachment_delete',
   ];
 

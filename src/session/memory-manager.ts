@@ -10,6 +10,10 @@ import {
   toMemorySummary,
   type MemoryAttachment,
   type MemoryAttachmentInput,
+  type MemoryDreamOptions,
+  type MemoryDreamPlan,
+  type MemoryDreamResult,
+  type DreamCandidate,
   type MemoryForest,
   type MemoryListOptions,
   type MemoryRecord,
@@ -153,6 +157,83 @@ export class MemoryManager extends EventEmitter {
     const record = this.state.records.find((item) => item.id === id);
     if (!record?.projectId) return false;
     return this.projectEpoch(record.projectId) - (record.createdAtEpoch ?? 0) >= this.graceEpochs;
+  }
+
+  /**
+   * Return a bounded, disjoint review set for one project's dream pass.
+   * Selection is intentionally descriptive rather than prescriptive: the
+   * caller decides whether a faded memory should be pruned or a salient one
+   * should be merged.
+   */
+  dreamForSession(
+    sessionId: string,
+    options: MemoryDreamOptions = {},
+    resolvePlan: (planId: string) => MemoryDreamPlan | null = () => null,
+  ): MemoryDreamResult {
+    assertSessionId(sessionId);
+    const percentile = normalizePercentile(options.percentile);
+    const minCandidates = normalizeDreamCount(options.minCandidates, 5);
+    const maxCandidates = Math.max(minCandidates, normalizeDreamCount(options.maxCandidates, 50));
+    const projectId = this.resolveSessionProject?.(sessionId) ?? null;
+    const projectRecords = projectId
+      ? this.state.records.filter((record) => record.projectId === projectId)
+      : [];
+    const eligible = projectRecords.filter((record) =>
+      record.dormantSince === undefined && this.isDiscardEligible(record.id));
+    const epoch = projectId ? this.projectEpoch(projectId) : 0;
+    const totals = {
+      memories: projectRecords.length,
+      dormant: projectRecords.filter((record) => record.dormantSince !== undefined).length,
+      eligible: eligible.length,
+      epoch,
+    };
+    if (eligible.length === 0) return { faded: [], salient: [], totals };
+
+    const candidateCount = Math.min(
+      eligible.length,
+      maxCandidates,
+      Math.max(
+        minCandidates,
+        Math.ceil(eligible.length * percentile / 100),
+      ),
+    );
+    const connectedCounts = new Map<string, number>();
+    const eligibleIds = new Set(eligible.map((record) => record.id));
+    for (const edge of this.state.edges) {
+      if (eligibleIds.has(edge.toId)) {
+        connectedCounts.set(edge.toId, (connectedCounts.get(edge.toId) ?? 0) + 1);
+      }
+    }
+    const candidates = eligible.map((record) => this.toDreamCandidate(record, epoch, connectedCounts, resolvePlan));
+    const fadedCount = Math.floor(candidateCount / 2);
+    const salientCount = candidateCount - fadedCount;
+    const faded = [...candidates]
+      .sort(compareFaded)
+      .slice(0, fadedCount);
+    const fadedIds = new Set(faded.map((candidate) => candidate.id));
+    const salient = [...candidates]
+      .sort(compareSalient)
+      .filter((candidate) => !fadedIds.has(candidate.id))
+      .slice(0, salientCount);
+    return { faded, salient, totals };
+  }
+
+  private toDreamCandidate(
+    record: MemoryRecord,
+    epoch: number,
+    connectedCounts: Map<string, number>,
+    resolvePlan: (planId: string) => MemoryDreamPlan | null,
+  ): DreamCandidate {
+    return {
+      id: record.id,
+      tldr: record.tldr,
+      recallSessionCount: record.recallSessionCount ?? 0,
+      connectedCount: connectedCounts.get(record.id) ?? 0,
+      ageDays: Math.max(0, (this.now() - record.createdAt) / MS_PER_DAY),
+      epochsSinceCreation: Math.max(0, epoch - (record.createdAtEpoch ?? epoch)),
+      ...(record.dormantSince !== undefined ? { dormantSince: record.dormantSince } : {}),
+      plan: record.planId ? resolvePlan(record.planId) : null,
+    };
   }
 
   /**
@@ -647,6 +728,36 @@ const SORT_FIELDS: Record<MemorySortField, keyof MemoryRecord> = {
   updated: 'updatedAt',
   accessed: 'lastAccessedAt',
 };
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function normalizePercentile(value: number | undefined): number {
+  const percentile = value ?? 10;
+  if (!Number.isFinite(percentile) || percentile <= 0 || percentile > 100) {
+    throw new Error('percentile must be a finite number greater than 0 and at most 100');
+  }
+  return percentile;
+}
+
+function normalizeDreamCount(value: number | undefined, fallback: number): number {
+  if (value === undefined) return fallback;
+  if (!Number.isFinite(value) || !Number.isInteger(value) || value < 1) {
+    throw new Error('candidate counts must be positive integers');
+  }
+  return Math.min(50, Math.max(5, value));
+}
+
+function compareFaded(left: DreamCandidate, right: DreamCandidate): number {
+  return left.recallSessionCount - right.recallSessionCount
+    || left.connectedCount - right.connectedCount
+    || left.id.localeCompare(right.id);
+}
+
+function compareSalient(left: DreamCandidate, right: DreamCandidate): number {
+  return right.recallSessionCount - left.recallSessionCount
+    || right.connectedCount - left.connectedCount
+    || left.id.localeCompare(right.id);
+}
 
 /**
  * Sort by a timestamp, with never-set values pinned to the end in BOTH

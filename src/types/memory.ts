@@ -84,6 +84,41 @@ export interface MemoryListOptions {
   includeDormant?: boolean;
 }
 
+export interface MemoryDreamPlan {
+  id: string;
+  title: string;
+  state: string;
+  completed: boolean;
+}
+
+export interface DreamCandidate {
+  id: string;
+  tldr: string;
+  recallSessionCount: number;
+  connectedCount: number;
+  ageDays: number;
+  epochsSinceCreation: number;
+  dormantSince?: number;
+  plan: MemoryDreamPlan | null;
+}
+
+export interface MemoryDreamOptions {
+  percentile?: number;
+  minCandidates?: number;
+  maxCandidates?: number;
+}
+
+export interface MemoryDreamResult {
+  faded: DreamCandidate[];
+  salient: DreamCandidate[];
+  totals: {
+    memories: number;
+    dormant: number;
+    eligible: number;
+    epoch: number;
+  };
+}
+
 export interface MemoryEdge {
   fromId: string;
   toId: string;
