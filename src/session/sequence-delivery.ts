@@ -176,6 +176,7 @@ export async function deliverPromptSequenceToSession(input: {
     ptyManager,
     submitSuffix,
     deliveryContext,
+    writeIntent,
     label: verifyDelivery.label,
     delayMs: verifyDelivery.delayMs,
     retrySubmit: verifyDelivery.retrySubmit ?? true,

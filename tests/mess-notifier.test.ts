@@ -54,6 +54,7 @@ function setup() {
     stateDetector as any,
     projects as any,
     { sendSystemReminder },
+    () => true,
   );
   const sender = { id: 'sender', name: 'planner', cliType: 'test', processId: 1, workingDir: project.canonicalPath };
   const receiver = { id: 'receiver', name: 'memories', cliType: 'test', processId: 2, workingDir: project.canonicalPath, activityLevel: 'idle' as const };
@@ -72,6 +73,18 @@ describe('MessNotifier', () => {
     vi.useFakeTimers();
     const { manager, notifier, deliveries } = setup();
     manager.post('sender', 'hello');
+    await flush();
+
+    expect(deliveries).toEqual(['[HELM_MESS] 1 new — call mess_check']);
+    notifier.dispose();
+  });
+
+  it('does not poke the session that authored the post', async () => {
+    vi.useFakeTimers();
+    const { manager, sessions, notifier, deliveries } = setup();
+    const sender = sessions.getSession('sender')!;
+    sender.activityLevel = 'idle';
+    manager.post('sender', 'my own post');
     await flush();
 
     expect(deliveries).toEqual(['[HELM_MESS] 1 new — call mess_check']);

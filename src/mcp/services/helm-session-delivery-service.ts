@@ -242,7 +242,11 @@ export class HelmSessionDeliveryService {
    * This deliberately has no sender identity: it is local Helm system input,
    * not a message pretending to come from another session.
    */
-  async sendSystemReminder(sessionRef: string, text: string): Promise<void> {
+  async sendSystemReminder(
+    sessionRef: string,
+    text: string,
+    options?: { onVerification?: (verified: boolean) => void },
+  ): Promise<void> {
     const session = this.requireRunningSession(sessionRef);
     if (!text || text.includes('\n') || text.includes('\r')) {
       throw new Error('System reminders must be exactly one non-empty line');
@@ -261,6 +265,9 @@ export class HelmSessionDeliveryService {
         delayMs: getDeliveryVerifyDelayMs(),
         retrySubmit: true,
         background: true,
+        onComplete: result => options?.onVerification?.(
+          result.status === 'confirmed' || result.status === 'retry_confirmed',
+        ),
       },
     });
   }

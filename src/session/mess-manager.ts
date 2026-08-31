@@ -150,8 +150,14 @@ export class MessManager extends EventEmitter {
     const project = this.requireProject(session);
     const persistence = this.persistence(project.id);
     const loaded = persistence.load();
-    const cursor = persistence.getCursor(session.id)
-      ?? this.initialCursor(project, session.id, loaded);
+    let cursor = persistence.getCursor(session.id);
+    if (!cursor) {
+      // Capture the join horizon once, without acknowledging any entry. A
+      // notifier poll must not slide a cursorless member's baseline forward
+      // as wall time passes.
+      cursor = this.initialCursor(project, session.id, loaded);
+      persistence.saveCursor(cursor);
+    }
     return loaded.entries.filter(entry => entry.seq > cursor.lastSeq && isVisibleTo(entry, session.id)).length;
   }
 

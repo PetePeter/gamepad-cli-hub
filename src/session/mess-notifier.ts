@@ -7,7 +7,7 @@ import { getMessProjectSettings } from '../types/project.js';
 import { logger } from '../utils/logger.js';
 
 export interface SystemReminderDelivery {
-  sendSystemReminder(sessionId: string, text: string): Promise<void>;
+  sendSystemReminder(sessionId: string, text: string, options?: { onVerification?: (verified: boolean) => void }): Promise<void>;
 }
 
 export interface MessNotifierOptions {
@@ -34,6 +34,7 @@ export class MessNotifier {
     for (const session of this.sessionManager.getAllSessions()) {
       if (entry.projectId !== this.messManager.getProjectIdForSession(session.id)) continue;
       if (entry.toSessionId !== undefined && entry.toSessionId !== session.id) continue;
+      if (entry.fromSessionId === session.id) continue;
       void this.consider(session.id);
     }
   };
@@ -48,6 +49,7 @@ export class MessNotifier {
     private readonly stateDetector: StateDetector,
     private readonly projectStore: ProjectStore,
     private readonly delivery: SystemReminderDelivery,
+    private readonly isSessionRunning: (sessionId: string) => boolean,
     options: MessNotifierOptions = {},
   ) {
     this.now = options.now ?? Date.now;
@@ -75,6 +77,7 @@ export class MessNotifier {
     if (this.disposed || this.inFlight.has(sessionId)) return;
     const session = this.sessionManager.getSession(sessionId);
     if (!session || session.activityLevel !== 'idle') return;
+    if (!this.isSessionRunning(sessionId)) return;
 
     let unread: number;
     try {
@@ -96,12 +99,28 @@ export class MessNotifier {
     // boundary. Cancel that stale callback before delivering immediately.
     this.cancelRetry(sessionId);
     this.inFlight.add(sessionId);
+    let deliveryRecordedAt: number | undefined;
+    let verificationFailedBeforeRecord = false;
     try {
-      await this.delivery.sendSystemReminder(sessionId, `[HELM_MESS] ${unread} new — call mess_check`);
-      if (!this.disposed && this.sessionManager.getSession(sessionId)) {
-        const deliveredAt = this.now();
-        this.lastDeliveredAt.set(sessionId, deliveredAt);
-        this.scheduleRetry(sessionId, deliveredAt + cooldownMs);
+      await this.delivery.sendSystemReminder(sessionId, `[HELM_MESS] ${unread} new — call mess_check`, {
+        onVerification: verified => {
+          if (verified) return;
+          if (deliveryRecordedAt === undefined) {
+            verificationFailedBeforeRecord = true;
+            return;
+          }
+          if (this.lastDeliveredAt.get(sessionId) !== deliveryRecordedAt) return;
+          this.lastDeliveredAt.delete(sessionId);
+          this.cancelRetry(sessionId);
+          if (!this.disposed && this.sessionManager.getSession(sessionId)) {
+            this.scheduleRetry(sessionId, this.now() + cooldownMs);
+          }
+        },
+      });
+      if (!verificationFailedBeforeRecord && !this.disposed && this.sessionManager.getSession(sessionId)) {
+        deliveryRecordedAt = this.now();
+        this.lastDeliveredAt.set(sessionId, deliveryRecordedAt);
+        this.scheduleRetry(sessionId, deliveryRecordedAt + cooldownMs);
       }
     } catch (error) {
       // A failed write never starts the cooldown. Retry later without allowing

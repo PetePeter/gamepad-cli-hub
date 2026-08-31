@@ -130,6 +130,7 @@ describe('verifyDeliveryAfterDelay — recovery', () => {
     const deliverText = vi.fn(async () => respondLikeGeneratingCli(buffer));
 
     const request = makeRequest(buffer, {
+      writeIntent: 'system',
       ptyManager: {
         getTerminalTail: (sid, lines, mode, strip) => buffer.tail(sid, lines, mode, strip),
         deliverText,
@@ -152,6 +153,7 @@ describe('verifyDeliveryAfterDelay — recovery', () => {
     const deliverText = vi.fn(async () => respondLikeGeneratingCli(buffer));
 
     const request = makeRequest(buffer, {
+      writeIntent: 'system',
       ptyManager: {
         getTerminalTail: (sid, lines, mode, strip) => buffer.tail(sid, lines, mode, strip),
         deliverText,
@@ -162,7 +164,11 @@ describe('verifyDeliveryAfterDelay — recovery', () => {
     await promise;
 
     expect(deliverText).toHaveBeenCalledTimes(1);
-    expect(deliverText).toHaveBeenCalledWith(SESSION_ID, '', expect.objectContaining({ submitSuffix: '\r' }));
+    expect(deliverText).toHaveBeenCalledWith(
+      SESSION_ID,
+      '',
+      expect.objectContaining({ submitSuffix: '\r', writeIntent: 'system' }),
+    );
   });
 
   it('gives up as retry_failed after two suffix re-sends that change nothing', async () => {

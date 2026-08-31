@@ -1,4 +1,5 @@
 import { logger } from '../utils/logger.js';
+import type { WriteIntent } from './pty-manager.js';
 
 /**
  * Delivery verification status.
@@ -33,6 +34,7 @@ export interface DeliveryVerificationRequest {
   retrySubmit?: boolean;
   submitSuffix: string;
   deliveryContext?: 'background' | 'interactive';
+  writeIntent?: WriteIntent;
   /**
    * Replays the original delivery. Required for callers whose `text` is a sequence
    * string ({Wait 500}, {Enter}, …): writing that raw would put the tokens on the
@@ -43,7 +45,7 @@ export interface DeliveryVerificationRequest {
   ptyManager: {
     getTerminalTail?: (sessionId: string, lines: number, mode: 'raw' | 'stripped' | 'both', stripBlankLines?: boolean) => { lastOutputAt?: number } | undefined;
     deliverText?: (sessionId: string, text: string, options?: { submitSuffix?: string; deliveryContext?: 'background' | 'interactive' }) => Promise<void>;
-    write?: (sessionId: string, data: string) => void;
+    write?: (sessionId: string, data: string, intent?: WriteIntent) => void;
   };
 }
 
@@ -267,6 +269,7 @@ async function resend(request: DeliveryVerificationRequest, withText: boolean): 
   const options = {
     ...(request.submitSuffix ? { submitSuffix: request.submitSuffix } : {}),
     ...(request.deliveryContext ? { deliveryContext: request.deliveryContext } : {}),
+    ...(request.writeIntent ? { writeIntent: request.writeIntent } : {}),
   };
 
   try {
@@ -275,7 +278,7 @@ async function resend(request: DeliveryVerificationRequest, withText: boolean): 
     } else if (typeof request.ptyManager.deliverText === 'function') {
       await request.ptyManager.deliverText(request.sessionId, text, options);
     } else if (typeof request.ptyManager.write === 'function') {
-      request.ptyManager.write(request.sessionId, text + request.submitSuffix);
+      request.ptyManager.write(request.sessionId, text + request.submitSuffix, request.writeIntent);
     } else {
       return false;
     }

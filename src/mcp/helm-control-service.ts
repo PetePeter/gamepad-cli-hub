@@ -361,8 +361,8 @@ export class HelmControlService extends EventEmitter {
   }
 
   /** Deliver an app-owned Mess reminder without an inter-session envelope. */
-  sendSystemReminder(sessionRef: string, text: string): Promise<void> {
-    return this.sessionDelivery.sendSystemReminder(sessionRef, text);
+  sendSystemReminder(sessionRef: string, text: string, options?: { onVerification?: (verified: boolean) => void }): Promise<void> {
+    return this.sessionDelivery.sendSystemReminder(sessionRef, text, options);
   }
 
   /**

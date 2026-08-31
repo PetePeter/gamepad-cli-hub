@@ -106,6 +106,15 @@ describe('PtyManager.deliverText — default pty delivery stays in main', () => 
 
     expect(mock.writes).toEqual([MULTILINE, '\r']);
   });
+
+  it('does not mark an app-owned system reminder as user activity', async () => {
+    const activityMarker = vi.fn();
+    manager.setActivityMarker(activityMarker);
+
+    await deliver('system reminder', { withReturn: true, writeIntent: 'system' });
+
+    expect(activityMarker).not.toHaveBeenCalled();
+  });
 });
 
 describe('PtyManager.deliverText — bracketed-paste readiness budget', () => {

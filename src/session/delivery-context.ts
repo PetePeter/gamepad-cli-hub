@@ -1,3 +1,5 @@
+import type { WriteIntent } from './pty-manager.js';
+
 export type DeliveryContext = 'background' | 'interactive';
 export type InputOrigin = 'user' | 'programmatic';
 
@@ -10,7 +12,7 @@ export interface TextDeliveryOptions {
   submitSuffix?: string;
   deliveryContext?: DeliveryContext;
   /** How the write should affect activity tracking. */
-  writeIntent?: 'input' | 'scroll' | 'system';
+  writeIntent?: WriteIntent;
 }
 
 /**

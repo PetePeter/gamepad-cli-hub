@@ -354,6 +354,7 @@ export function registerIPCHandlers(
       stateDetector,
       projectStore,
       helmControlService,
+      sessionId => ptyManager.has(sessionId),
     )
     : null;
   setupBackupPlanHandlers(ipcMain, windowManager, () => backupManager);
