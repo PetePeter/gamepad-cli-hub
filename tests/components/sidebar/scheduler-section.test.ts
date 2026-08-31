@@ -45,6 +45,24 @@ describe('SchedulerSection', () => {
     vi.useRealTimers();
   });
 
+  it('shows the total schedule count, including tasks beyond the preview rows', async () => {
+    mockScheduledTaskList.mockResolvedValue([
+      task,
+      { ...task, id: 'task-2', title: 'Second' },
+      { ...task, id: 'task-3', title: 'Third' },
+      { ...task, id: 'task-4', title: 'Fourth' },
+      { ...task, id: 'task-5', title: 'Fifth' },
+    ]);
+
+    const wrapper = mount(SchedulerSection, { props: { collapsed: false } });
+    await flushPromises();
+
+    expect(wrapper.find('.scheduler-count-badge').text()).toBe('5');
+    expect(wrapper.findAll('.scheduler-row')).toHaveLength(4);
+    wrapper.unmount();
+    vi.useRealTimers();
+  });
+
   it('marks every acting control focusable so the gamepad can walk the pane', async () => {
     const wrapper = mount(SchedulerSection, { props: { collapsed: false } });
     await flushPromises();

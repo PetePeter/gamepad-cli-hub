@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPlannerDirectories } from '../renderer/screens/planner-directories.js';
+import { buildPlannerDirectories, buildPlannerDirectorySource } from '../renderer/screens/planner-directories.js';
 
 describe('buildPlannerDirectories', () => {
   it('collapses project folders to one planner entry using the project name', () => {
@@ -24,6 +24,28 @@ describe('buildPlannerDirectories', () => {
     expect(dirs).toEqual([
       { name: 'a', path: '/a' },
       { name: 'b', path: '/b' },
+    ]);
+  });
+
+  it('builds project entries from canonical and alternate paths plus standalone configured folders', () => {
+    const source = buildPlannerDirectorySource(
+      [
+        { name: 'configured project', path: 'X:\\projects\\app' },
+        { name: 'standalone', path: 'X:\\other' },
+      ],
+      [
+        {
+          id: 'p1',
+          name: 'App',
+          canonicalPath: 'X:\\projects\\app',
+          alternatePaths: ['X:\\worktrees\\app'],
+        },
+      ],
+    );
+
+    expect(buildPlannerDirectories(source)).toEqual([
+      { name: 'App', path: 'X:\\projects\\app', projectId: 'p1' },
+      { name: 'standalone', path: 'X:\\other' },
     ]);
   });
 });

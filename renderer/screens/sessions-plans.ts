@@ -11,10 +11,14 @@ import { isPaneVisible } from '../dock-visibility-bridge.js';
 import { PANE_QUICK_SPAWN } from '../dock-types.js';
 import { state } from '../state.js';
 import { plansClient } from '../ipc/clients.js';
-import { buildPlannerDirectories } from './planner-directories.js';
+import { buildPlannerDirectories, buildPlannerDirectorySource } from './planner-directories.js';
 
 // Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
 import { updateAllFocus } from './sessions.js';
+
+export function getPlannerDirectories() {
+  return buildPlannerDirectories(buildPlannerDirectorySource(sessionsState.directories, state.projects ?? []));
+}
 
 // ============================================================================
 // Gamepad navigation — plans zone (2-column grid, same as spawn)
@@ -22,7 +26,7 @@ import { updateAllFocus } from './sessions.js';
 
 export function handlePlansZone(button: string, dir: string | null): void {
   // Read directory count from state — Vue owns the DOM so we can't rely on DOM button count.
-  const plannerDirs = buildPlannerDirectories(sessionsState.directories);
+  const plannerDirs = getPlannerDirectories();
   const total = plannerDirs.length;
   if (total === 0) return;
 
@@ -76,7 +80,7 @@ export function handlePlansZoneButton(button: string): boolean {
   switch (button) {
     case 'A': {
       // Read from state — Vue owns the DOM, so we can't rely on DOM button order.
-      const dir = buildPlannerDirectories(sessionsState.directories)[sessionsState.plansFocusIndex];
+      const dir = getPlannerDirectories()[sessionsState.plansFocusIndex];
       if (dir?.path) {
         void useNavigationStore().openPlan(dir.path);
       }
@@ -108,7 +112,7 @@ export function updatePlansFocus(): void {
 // ============================================================================
 
 export async function refreshPlanBadges(): Promise<void> {
-  for (const dir of sessionsState.directories) {
+  for (const dir of getPlannerDirectories()) {
     try {
       const [startableItems, allItems] = await Promise.all([
         plansClient.planStartableForDir(dir.path),

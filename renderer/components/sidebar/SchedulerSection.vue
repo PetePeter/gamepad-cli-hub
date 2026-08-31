@@ -58,7 +58,10 @@ onUnmounted(() => {
 <template>
   <div class="scheduler-section">
     <div class="scheduler-create-split">
-      <button class="scheduler-create scheduler-create--main focusable" data-focus-id="scheduler:new" @click.stop="emit('open', null)">New Schedule</button>
+      <button class="scheduler-create scheduler-create--main focusable" data-focus-id="scheduler:new" @click.stop="emit('open', null)">
+        <span>New Schedule</span>
+        <span class="scheduler-count-badge" aria-label="Total schedules">{{ tasks.length }}</span>
+      </button>
       <button class="scheduler-create scheduler-create--hist focusable" data-focus-id="scheduler:history" type="button" title="Past Schedules" aria-label="Past Schedules" @click.stop="emit('history')">🕘</button>
     </div>
     <div v-if="visibleTasks.length === 0" class="scheduler-empty">No scheduled runs</div>
@@ -114,8 +117,22 @@ onUnmounted(() => {
 }
 .scheduler-create--main {
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   text-align: left;
   padding: 0 8px;
+}
+.scheduler-count-badge {
+  min-width: 1.35em;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg-primary);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  text-align: center;
 }
 .scheduler-create--hist {
   width: 32px;

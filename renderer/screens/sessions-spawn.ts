@@ -15,7 +15,7 @@ import { findNavIndexBySessionId } from '../session-groups.js';
 import {
   loadSessions, refreshSessions, getSessionState, updateSessionsFocus, updateSpawnFocus, updateAllFocus,
 } from './sessions.js';
-import { refreshPlanBadges } from './sessions-plans.js';
+import { getPlannerDirectories, refreshPlanBadges } from './sessions-plans.js';
 
 import { hideOverview } from './group-overview.js';
 import { registerView } from '../main-view/main-view-manager.js';
@@ -279,7 +279,7 @@ export function handleSessionsZone(button: string, dir: string | null): void {
         updateAllFocus();
         return;
       }
-      if (isPaneVisible(PANE_PLAN_DIRECTORIES) && sessionsState.directories.length > 0) {
+      if (isPaneVisible(PANE_PLAN_DIRECTORIES) && getPlannerDirectories().length > 0) {
         sessionsState.activeFocus = 'plans';
         sessionsState.plansFocusIndex = 0;
         sessionsState.cardColumn = 0;
@@ -305,7 +305,7 @@ export function handleSpawnZone(button: string, dir: string | null): void {
       sessionsState.sessionsFocusIndex = Math.max(0, sessionsState.navList.length - 1);
       sessionsState.cardColumn = 0;
       updateAllFocus();
-    } else if (dir === 'down' && isPaneVisible(PANE_PLAN_DIRECTORIES) && sessionsState.directories.length > 0) {
+    } else if (dir === 'down' && isPaneVisible(PANE_PLAN_DIRECTORIES) && getPlannerDirectories().length > 0) {
       sessionsState.activeFocus = 'plans';
       sessionsState.plansFocusIndex = 0;
       updateAllFocus();
@@ -334,7 +334,7 @@ export function handleSpawnZone(button: string, dir: string | null): void {
     if (newIndex < count) {
       sessionsState.spawnFocusIndex = newIndex;
       updateSpawnFocus();
-    } else if (isPaneVisible(PANE_PLAN_DIRECTORIES) && sessionsState.directories.length > 0) {
+    } else if (isPaneVisible(PANE_PLAN_DIRECTORIES) && getPlannerDirectories().length > 0) {
       sessionsState.activeFocus = 'plans';
       sessionsState.plansFocusIndex = 0;
       updateAllFocus();

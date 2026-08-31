@@ -155,7 +155,7 @@ export const DOCK_PANES: readonly DockPaneDescriptor[] = Object.freeze([
     closable: true,
     home: 'left',
   }),
-  Object.freeze({ id: PANE_PLAN_DIRECTORIES, kind: 'tool', title: 'Directories', icon: '📁', closable: true, home: 'left' }),
+  Object.freeze({ id: PANE_PLAN_DIRECTORIES, kind: 'tool', title: 'Projects', icon: '📁', closable: true, home: 'left' }),
   Object.freeze({ id: PANE_ARTIFACTS, kind: 'tool', title: 'Artifacts', icon: '📄', hint: 'Ctrl+Shift+A', closable: true, home: 'right' }),
 ]);
 

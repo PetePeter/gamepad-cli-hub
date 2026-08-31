@@ -7,6 +7,7 @@ import { configClient, plansClient, sessionsClient } from '../ipc/clients.js';
  */
 
 import { state } from '../state.js';
+import { buildPlannerDirectories, buildPlannerDirectorySource } from './planner-directories.js';
 import { sessionsState } from './sessions-state.js';
 import { logEvent, getCliDisplayName, toDirection } from '../utils.js';
 import type { Session } from '../state.js';
@@ -359,7 +360,9 @@ function getFocusedGroupDirPath(): string | null {
     return getDirPathForSession(navItem.id) ?? sessionsState.groups[navItem.groupIndex]?.dirPath ?? null;
   }
   if (sessionsState.activeFocus === 'plans') {
-    return sessionsState.directories[sessionsState.plansFocusIndex]?.path ?? null;
+    return buildPlannerDirectories(
+      buildPlannerDirectorySource(sessionsState.directories, state.projects ?? []),
+    )[sessionsState.plansFocusIndex]?.path ?? null;
   }
   return null;
 }
@@ -371,7 +374,7 @@ function resolvePlanShortcutDirPath(preferredSessionId?: string): string | null 
   return getFocusedGroupDirPath()
     ?? (state.activeSessionId ? getDirPathForSession(state.activeSessionId) : null)
     ?? sessionsState.groups[0]?.dirPath
-    ?? sessionsState.directories[0]?.path
+    ?? buildPlannerDirectories(buildPlannerDirectorySource(sessionsState.directories, state.projects ?? []))[0]?.path
     ?? null;
 }
 

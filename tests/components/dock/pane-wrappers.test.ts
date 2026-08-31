@@ -118,6 +118,7 @@ beforeEach(() => {
   fake = makeContext();
   appState.activeSessionId = null;
   appState.sessions = [];
+  appState.projects = [];
   sessionsState.cliTypes = [];
   sessionsState.directories = [];
   // groups/navList are derived getters on the store — they follow from sessions.
@@ -179,12 +180,14 @@ describe('pane wrappers render their view', () => {
     expect(wrapper.findComponent(SpawnGrid).props('items')).toHaveLength(2);
   });
 
-  it('PlanDirectoriesPane renders the planner directory grid', () => {
-    appState.sessions = [{ id: 's-1', workingDir: 'X:\\coding\\gamepad-cli-hub' }] as any;
-    appState.activeSessionId = 's-1';
-    sessionsState.directories = [{ name: 'Hub', path: 'X:\\coding\\gamepad-cli-hub' }] as any;
+  it('PlanDirectoriesPane renders all project planner entries without an active session', () => {
+    appState.projects = [
+      { id: 'p1', name: 'Hub', canonicalPath: 'X:\\coding\\gamepad-cli-hub', alternatePaths: [] },
+      { id: 'p2', name: 'Other', canonicalPath: 'X:\\other\\project', alternatePaths: [] },
+    ];
+    sessionsState.directories = [{ name: 'Standalone', path: 'X:\\standalone' }] as any;
     const wrapper = mountPane(PlanDirectoriesPane, fake.context);
-    expect(wrapper.findComponent(PlansGrid).props('directories').length).toBeGreaterThan(0);
+    expect(wrapper.findComponent(PlansGrid).props('directories')).toHaveLength(3);
   });
 
   it('ArtifactsPane binds the viewer to the active session', () => {

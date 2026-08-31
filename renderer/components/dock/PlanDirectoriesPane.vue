@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * PlanDirectoriesPane — the `plan-directories` tool window.
+ * PlanDirectoriesPane — the `plan-projects` tool window.
  *
  * Directory navigation only: picking a directory activates the PlanScreen view
  * for it (via the sidebar controller's onShowPlans), it never renders a canvas
@@ -12,7 +12,7 @@ import { computed } from 'vue';
 import PlansGrid from '../sidebar/PlansGrid.vue';
 import { sessionsState } from '../../screens/sessions-state.js';
 import { useAppStore } from '../../stores/app.js';
-import { buildPlannerDirectories } from '../../screens/planner-directories.js';
+import { buildPlannerDirectories, buildPlannerDirectorySource } from '../../screens/planner-directories.js';
 import { useHelmPaneContext } from '../../dock-pane-context.js';
 
 const sidebar = useHelmPaneContext().sidebar;
@@ -20,11 +20,10 @@ const appStore = useAppStore();
 const state = appStore.state;
 
 const directories = computed(() => {
-  const workingDir = appStore.activeSessionDir;
-  if (!workingDir) return [];
-  const directory = buildPlannerDirectories([{ name: workingDir, path: workingDir }])[0];
-  if (!directory) return [];
-  return [{
+  const plannerDirectories = buildPlannerDirectories(
+    buildPlannerDirectorySource(sessionsState.directories, state.projects ?? []),
+  );
+  return plannerDirectories.map((directory) => ({
     name: directory.name,
     path: directory.path,
     startableCount: state.planDirStartableCounts.get(directory.path) ?? 0,
@@ -32,7 +31,7 @@ const directories = computed(() => {
     blockedCount: state.planDirBlockedCounts.get(directory.path) ?? 0,
     reviewCount: state.planDirReviewCounts.get(directory.path) ?? 0,
     planningCount: state.planDirPlanningCounts.get(directory.path) ?? 0,
-  }];
+  }));
 });
 </script>
 
