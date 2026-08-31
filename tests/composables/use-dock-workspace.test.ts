@@ -5,7 +5,7 @@ import {
   PANE_ARTIFACTS,
   PANE_OVERVIEW,
   PANE_PLAN_SCREEN,
-  PANE_MEMORIES,
+  PANE_MESS,
   PANE_SESSIONS,
   PANE_TERMINAL,
 } from '../../renderer/dock-types';
@@ -31,7 +31,7 @@ describe('useDockWorkspace', () => {
     const ws = useDockWorkspace();
     ws.focusPane(PANE_SESSIONS);
     ws.cycleFocus(-1);
-    expect(ws.focusedPaneId.value).toBe(PANE_MEMORIES); // autohide panes are not focus targets
+    expect(ws.focusedPaneId.value).toBe(PANE_MESS); // autohide panes are not focus targets
     ws.cycleFocus(1);
     expect(ws.focusedPaneId.value).toBe(PANE_SESSIONS);
   });

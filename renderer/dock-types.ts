@@ -134,6 +134,7 @@ export const PANE_SCHEDULER = 'scheduler';
 export const PANE_QUICK_SPAWN = 'quick-spawn';
 export const PANE_PLAN_DIRECTORIES = 'plan-directories';
 export const PANE_ARTIFACTS = 'artifacts';
+export const PANE_MESS = 'mess';
 
 /**
  * The pane registry. Registration is id-keyed data, so a later renderer plan can
@@ -144,6 +145,7 @@ export const DOCK_PANES: readonly DockPaneDescriptor[] = Object.freeze([
   Object.freeze({ id: PANE_OVERVIEW, kind: 'view', title: 'Overview', icon: '▦', hint: 'Ctrl+Shift+O', closable: true, home: 'center' }),
   Object.freeze({ id: PANE_PLAN_SCREEN, kind: 'view', title: 'Plans', icon: '🗺', hint: 'Ctrl+Shift+P', closable: true, home: 'center' }),
   Object.freeze({ id: PANE_MEMORIES, kind: 'view', title: 'Memories', icon: '🧠', hint: 'Ctrl+Shift+M', closable: true, home: 'center' }),
+  Object.freeze({ id: PANE_MESS, kind: 'view', title: 'Mess', icon: '🍽', closable: true, home: 'center' }),
   Object.freeze({ id: PANE_SESSIONS, kind: 'tool', title: 'Sessions', icon: '🗂', hint: 'Ctrl+Shift+S', closable: true, home: 'left' }),
   Object.freeze({ id: PANE_SCHEDULER, kind: 'tool', title: 'Scheduler', icon: '🕘', closable: true, home: 'left' }),
   Object.freeze({
