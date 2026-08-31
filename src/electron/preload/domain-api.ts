@@ -5,6 +5,8 @@ import type { ScheduledTaskHistoryEntry } from '../../types/scheduled-task.js';
 import type { RecycleBinEntry } from '../../types/recycle-bin.js';
 import type { RuntimeGroup } from '../../types/runtime-group.js';
 import type { Artifact } from '../../types/artifact.js';
+import type { MessEntry } from '../../types/mess.js';
+import type { MessHistoryOptions, MessHistoryResult } from '../../session/mess-manager.js';
 import {
   createPreloadDomains,
   type HelmPreloadApi,
@@ -459,6 +461,17 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   /** No-op: retained for API compatibility; projects are single-path records. */
   projectSetMainDir: (id: string, dirPath: string) =>
     ipcRenderer.invoke('project:setMainDir', id, dirPath),
+
+  /** Read bounded project Mess history without changing any session cursor. */
+  messHistory: (projectId: string, options?: MessHistoryOptions): Promise<MessHistoryResult> =>
+    ipcRenderer.invoke('mess:history', projectId, options),
+
+  /** Subscribe to project-scoped Mess appends. */
+  onMessAppended: (callback: (event: { projectId: string; entry: MessEntry }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: { projectId: string; entry: MessEntry }) => callback(data);
+    ipcRenderer.on('mess:appended', listener);
+    return () => ipcRenderer.removeListener('mess:appended', listener);
+  },
 
   // ========================================================================
   // Skills

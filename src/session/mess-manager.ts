@@ -166,14 +166,24 @@ export class MessManager extends EventEmitter {
     const session = this.requireSession(sessionId);
     const project = this.requireProject(session);
     const loaded = this.persistence(project.id).load();
+    return this.boundedHistory(loaded.entries.filter(entry => isVisibleTo(entry, session.id)), options);
+  }
+
+  /** Read project history for the human observer without requiring a session cursor. */
+  historyForProject(projectId: string, options: MessHistoryOptions): MessHistoryResult {
+    if (!this.projectStore.getById(projectId)) return { entries: [], hasMore: false };
+    return this.boundedHistory(this.persistence(projectId).load().entries, options);
+  }
+
+  private boundedHistory(candidates: MessEntry[], options: MessHistoryOptions): MessHistoryResult {
     const limit = positiveLimit(options.limit, DEFAULT_MESS_HISTORY_LIMIT);
     const maxBytes = positiveLimit(options.maxBytes, this.maxDeltaBytes);
     const cutoff = this.now() - Math.max(0, options.sinceHours) * 60 * 60 * 1000;
-    const candidates = loaded.entries.filter(entry => entry.createdAt >= cutoff && isVisibleTo(entry, session.id));
+    const recent = candidates.filter(entry => entry.createdAt >= cutoff);
     const selected: MessEntry[] = [];
     let bytes = 0;
-    for (let index = candidates.length - 1; index >= 0; index -= 1) {
-      const entry = candidates[index];
+    for (let index = recent.length - 1; index >= 0; index -= 1) {
+      const entry = recent[index];
       const entryBytes = Buffer.byteLength(JSON.stringify(entry), 'utf8');
       if (selected.length >= limit) break;
       if (selected.length > 0 && bytes + entryBytes > maxBytes) break;
@@ -183,7 +193,7 @@ export class MessManager extends EventEmitter {
     selected.reverse();
     return {
       entries: selected,
-      hasMore: selected.length > 0 && candidates.some(entry => entry.seq < selected[0].seq),
+      hasMore: selected.length > 0 && recent.some(entry => entry.seq < selected[0].seq),
     };
   }
 

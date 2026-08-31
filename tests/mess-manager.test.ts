@@ -191,4 +191,17 @@ describe('MessManager', () => {
     expect(manager.history(receiver.id, { sinceHours: 1 }).map(entry => entry.text)).toEqual(['historical']);
     expect(manager.check(receiver.id).entries.map(entry => entry.text)).toEqual(['historical']);
   });
+
+  it('returns all project entries for the human observer without advancing a session cursor', () => {
+    const { sessions, manager } = setup();
+    add(sessions, 'sender', 'planner');
+    const receiver = add(sessions, 'receiver', 'memories');
+    const other = add(sessions, 'other', 'other');
+    manager.post('sender', 'for receiver', receiver.id);
+    manager.post('sender', 'for other', other.id);
+
+    expect(manager.historyForProject(project.id, { sinceHours: 1 }).entries.map(entry => entry.text))
+      .toEqual(['for receiver', 'for other']);
+    expect(manager.check(receiver.id).entries.map(entry => entry.text)).toEqual(['for receiver']);
+  });
 });

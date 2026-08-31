@@ -98,6 +98,10 @@ export const PRELOAD_API_DOMAINS = {
     'projectRemoveDir',
     'projectSetMainDir',
   ],
+  mess: [
+    'messHistory',
+    'onMessAppended',
+  ],
   skills: [
     'skillList',
     'skillGet',

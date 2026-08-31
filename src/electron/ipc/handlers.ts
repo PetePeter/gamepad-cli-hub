@@ -58,6 +58,7 @@ import { setupRecycleBinHandlers } from './recycle-bin-handlers.js';
 import { setupRuntimeGroupHandlers } from './runtime-group-handlers.js';
 import { setupArtifactHandlers } from './artifact-handlers.js';
 import { setupMemoryHandlers } from './memory-handlers.js';
+import { setupMessHandlers } from './mess-handlers.js';
 import { setupBackupPlanHandlers } from './plan-backup-handlers.js';
 import { setupProjectHandlers } from './project-handlers.js';
 import { setupSkillHandlers } from './skill-handlers.js';
@@ -357,6 +358,7 @@ export function registerIPCHandlers(
       sessionId => ptyManager.has(sessionId),
     )
     : null;
+  setupMessHandlers(messManager, projectStore);
   setupBackupPlanHandlers(ipcMain, windowManager, () => backupManager);
   const cleanupPromptTemplates = promptTemplatesPath
     ? setupPromptTemplateHandlers(promptTemplateManager, promptTemplatesPath)
