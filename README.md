@@ -46,6 +46,15 @@ It ships for **Windows** (installer `.exe`) and **macOS** (universal `.dmg` — 
 
 ---
 
+## Installation
+
+Download the latest installers from [GitHub Releases](https://github.com/PetePeter/helm/releases/latest):
+
+- **Windows:** `Helm Setup <version>.exe`
+- **macOS:** `Helm-<version>-universal.dmg` for native Intel (`x86_64`) and Apple Silicon (`arm64`)
+
+Current macOS packages are not notarized. If Gatekeeper blocks the first launch, open the app from Finder with **Control-click → Open** and confirm the prompt.
+
 ## Quick Start
 
 ```bash
@@ -499,6 +508,8 @@ Each CLI tool has an advanced editor (accessible from Settings → Tools) with o
 ## Build & Test
 
 See [docs/build-and-test.md](docs/build-and-test.md) for development and packaging details.
+
+To create the universal macOS installer, run `npm run package:mac` on macOS. The DMG is written to `release/Helm-<version>-universal.dmg`.
 
 ---
 
