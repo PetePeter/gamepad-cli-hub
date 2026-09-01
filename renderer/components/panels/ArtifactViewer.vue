@@ -55,7 +55,6 @@ const {
   selectedId,
   selected,
   selectedVersion,
-  railCollapsed,
   unread,
 } = viewer;
 
@@ -620,11 +619,8 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
 
     <div class="ap-main">
       <!-- MASTER: index rail -->
-      <div class="ap-rail" :class="{ 'ap-rail--collapsed': railCollapsed }">
-        <button type="button" class="ap-rail-collapse" :title="railCollapsed ? 'Expand list' : 'Collapse list'" @click="viewer.toggleRail()">
-          {{ railCollapsed ? '›' : '‹' }}
-        </button>
-        <div v-show="!railCollapsed" class="ap-rail-inner">
+      <div class="ap-rail">
+        <div class="ap-rail-inner">
           <div class="ap-rail-tools">
             <div class="ap-new-row">
               <div class="ap-create-dropdown">
@@ -831,7 +827,6 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
 .ap-ico { width: 28px; height: 28px; display: grid; place-items: center; border-radius: var(--radius-sm); border: 1px solid transparent; color: var(--text-secondary); font-size: var(--font-size-lg); }
 .ap-ico:hover { border-color: var(--border); color: var(--text-primary); background: var(--bg-tertiary); }
 .ap-ico:focus-visible,
-.ap-rail-collapse:focus-visible,
 .ap-btn-new:focus-visible,
 .ap-btn-attach:focus-visible,
 .dropdown-item:focus-visible,
@@ -851,9 +846,6 @@ watch(() => props.sessionId, (id) => { void viewer.setActiveSession(id); });
 
 /* index rail */
 .ap-rail { width: 214px; flex-shrink: 0; display: flex; flex-direction: column; border-right: 1px solid var(--border); background: var(--bg-secondary); }
-.ap-rail--collapsed { width: 30px; }
-.ap-rail-collapse { display: flex; align-items: center; justify-content: center; width: 100%; height: 30px; border-bottom: 1px solid var(--border); color: var(--text-dim); font-size: var(--font-size-sm); cursor: pointer; }
-.ap-rail-collapse:hover { color: var(--accent); }
 .ap-rail-inner { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 
 .ap-rail-tools { padding: var(--spacing-sm); display: flex; flex-direction: column; gap: var(--spacing-xs); border-bottom: 1px solid var(--border); }

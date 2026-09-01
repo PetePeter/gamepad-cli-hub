@@ -104,7 +104,7 @@ user-facing reports here rather than dumping files.
 Right-hand, resizable dock (width persisted). Master/detail so it scales to many
 artifacts:
 
-- **Index rail** (master): scrollable list, live search, sort (newest / recently-updated / A–Z), `Today` / `Earlier` group headers, unread dots, hover-delete, collapse handle.
+- **Index rail** (master): scrollable list, live search, sort (newest / recently-updated / A–Z), `Today` / `Earlier` group headers, unread dots, hover-delete.
 - **Detail pane**: sanitized render (see below), version bar (title + ✎ rename + ‹ › + dropdown + older-version banner + *Jump to latest*), footer with **Edit / Open externally / Export… / Copy reference / Delete**.
 
 **Rename** is inline in the version bar — the ✎ button or a double-click on the

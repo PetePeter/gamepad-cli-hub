@@ -17,14 +17,12 @@ import type { Artifact } from '../../src/types/artifact.js';
 import { buildTextArtifact, decodeBase64Text, isTextLikeFile } from '../artifacts/text-file-drop.js';
 
 const PANEL_VISIBLE_KEY = 'helm:artifact-panel-visible';
-const RAIL_COLLAPSED_KEY = 'helm:artifact-rail-collapsed';
 
 const artifacts = ref<Artifact[]>([]);
 const selectedId = ref<string | null>(null);
 /** null = follow the latest version; otherwise a pinned 1-based version number. */
 const selectedVersion = ref<number | null>(null);
 const panelVisible = ref<boolean>(loadBool(PANEL_VISIBLE_KEY, false));
-const railCollapsed = ref<boolean>(loadBool(RAIL_COLLAPSED_KEY, false));
 const unread = ref<Set<string>>(new Set());
 
 /** The session the panel is currently bound to (host-driven). */
@@ -131,11 +129,6 @@ function showPanel(): void {
 function hidePanel(): void {
   panelVisible.value = false;
   persistBool(PANEL_VISIBLE_KEY, false);
-}
-
-function toggleRail(): void {
-  railCollapsed.value = !railCollapsed.value;
-  persistBool(RAIL_COLLAPSED_KEY, railCollapsed.value);
 }
 
 /** Delete a single artifact, then reload. */
@@ -284,7 +277,6 @@ export function useArtifactViewer() {
     selected,
     selectedVersion,
     panelVisible,
-    railCollapsed,
     unread,
     unreadCount,
     // lifecycle
@@ -295,10 +287,9 @@ export function useArtifactViewer() {
     select,
     setVersion,
     jumpToLatest,
-    // panel / rail
+    // panel
     showPanel,
     hidePanel,
-    toggleRail,
     // mutations
     remove,
     clearAll,

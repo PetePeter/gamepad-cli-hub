@@ -27,8 +27,9 @@ import { useToast } from '../composables/useToast.js';
 import { useArtifactViewer } from '../composables/useArtifactViewer.js';
 import { useArtifactSessionBinding } from '../composables/useArtifactSessionBinding.js';
 import { usePlanWorkspaceController } from '../composables/usePlanWorkspaceController.js';
-import { useDockWorkspace } from '../composables/useDockWorkspace.js';
+import { listRegisteredPanes, useDockWorkspace } from '../composables/useDockWorkspace.js';
 import { provideHelmPaneContext } from '../dock-pane-context.js';
+import DockViewMenu from './dock/DockViewMenu.vue';
 import DockWorkspace from './dock/DockWorkspace.vue';
 import PopOutTerminalPane from './dock/PopOutTerminalPane.vue';
 import EditorPopup from './modals/EditorPopup.vue';
@@ -124,11 +125,23 @@ function getFolderLabel(workingDir?: string): string {
   return parts[parts.length - 1] || workingDir;
 }
 
-function updateWindowTitle(): void {
+/**
+ * The window's identity: one derivation feeding both the OS title bar and the
+ * header, so the two can never disagree about which session this window is.
+ */
+const identity = computed(() => {
   const session = sessionInfo.value;
-  if (!session) { document.title = 'Snapped Out'; return; }
-  const cliLabel = getCliDisplayName(session.cliType || '') || session.cliType || 'Unknown CLI';
-  document.title = `${session.name} - ${cliLabel} - ${getFolderLabel(session.workingDir)}`;
+  if (!session) return null;
+  return {
+    name: session.name,
+    cli: getCliDisplayName(session.cliType || '') || session.cliType || 'Unknown CLI',
+    folder: getFolderLabel(session.workingDir),
+  };
+});
+
+function updateWindowTitle(): void {
+  const parts = identity.value;
+  document.title = parts ? `${parts.name} - ${parts.cli} - ${parts.folder}` : 'Snapped Out';
 }
 
 watch(sessionInfo, updateWindowTitle, { deep: true });
@@ -237,6 +250,23 @@ function onDockReorderTab(paneId: PaneId, index: number): void {
   catch { /* Reorder is clamped by the model; an unknown pane is ignored. */ }
 }
 
+// The View menu is the only way back from a closed pane. The main window's
+// handlers additionally reconcile a view transition; a pop-out has none, so the
+// two lines here are the whole behaviour rather than a copy of that logic.
+const dockViewMenuOpen = ref(false);
+const dockViewItems = computed(() => listRegisteredPanes(dockWorkspace.layout.value, 'popout'));
+
+function onDockViewToggle(paneId: PaneId): void {
+  dockViewMenuOpen.value = false;
+  if (dockWorkspace.isOpen(paneId)) onDockClosePane(paneId);
+  else onDockActivatePane(paneId);
+}
+
+function onDockLayoutReset(): void {
+  dockWorkspace.reset();
+  dockViewMenuOpen.value = false;
+}
+
 function onDockPaneEdge(paneId: PaneId, side: DockSide): void {
   try { dockWorkspace.dockToEdge(paneId, side); }
   catch { /* Docking the last remaining pane to an edge is rejected. */ }
@@ -343,6 +373,23 @@ onUnmounted(() => {
       @delete="onDraftDelete"
       @close="onDraftClose"
     />
+    <header class="app-header">
+      <span class="sidebar-brand">
+        <span class="sidebar-title">{{ identity?.name ?? 'Snapped Out' }}</span>
+        <span v-if="identity" class="sidebar-tagline">{{ identity.cli }} · {{ identity.folder }}</span>
+      </span>
+      <div class="sidebar-actions">
+        <!-- View only: help, logs and settings are app-global and stay in the main window. -->
+        <DockViewMenu
+          :open="dockViewMenuOpen"
+          :items="dockViewItems"
+          @open="dockViewMenuOpen = true"
+          @close="dockViewMenuOpen = false"
+          @toggle="onDockViewToggle"
+          @reset="onDockLayoutReset"
+        />
+      </div>
+    </header>
     <div class="snap-out-body">
       <DockWorkspace
         v-if="sessionLoaded"

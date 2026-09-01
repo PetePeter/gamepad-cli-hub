@@ -78,6 +78,12 @@ pop-out does not have, so the pop-out pane owns its `TerminalView` directly
 (attach → replay → live `pty:data`). PTY ownership is released only on snap-back,
 never on pane close.
 
+The window carries a slim `app-header`: the pinned session's identity on the left
+(name, CLI, folder — the same derivation as the OS window title) and the **View
+menu** on the right, listing the `popout` profile's panes. Without it a closed
+pane would be unrecoverable, since a pop-out has no other entry point. Help, logs
+and settings stay in the main window — they are app-global, not per-window.
+
 ## Titling and collapse have one owner
 
 The dock names a pane (tab + rail tooltip) and collapses it (rail). **Pane

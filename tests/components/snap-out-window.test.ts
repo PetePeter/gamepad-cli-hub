@@ -209,6 +209,77 @@ describe('SnapOutWindow shell', () => {
   });
 });
 
+describe('SnapOutWindow view menu', () => {
+  /** Open the header View menu and return the wrapper. */
+  async function openViewMenu(wrapper: any) {
+    await wrapper.find('.app-header .dock-view-menu__trigger').trigger('click');
+    await flushPromises();
+    return wrapper;
+  }
+
+  const menuLabels = (wrapper: any) =>
+    wrapper.findAll('.dock-view-menu__popover .dock-view-menu__label').map((n: any) => n.text());
+
+  it('shows the pinned session identity in the header', async () => {
+    const wrapper = await mountShell();
+
+    const header = wrapper.find('.app-header');
+    expect(header.exists()).toBe(true);
+    expect(header.text()).toContain('Test Session');
+    expect(header.text()).toContain('gamepad-cli-hub');
+  });
+
+  it('lists exactly the popout profile panes and no main-only pane', async () => {
+    const wrapper = await openViewMenu(await mountShell());
+
+    const items = wrapper.findAll('.dock-view-menu__popover .dock-view-menu__item')
+      .filter((n: any) => !n.classes('dock-view-menu__reset'));
+    expect(items.length).toBe(DOCK_PROFILE_PANES.popout.length);
+    expect(menuLabels(wrapper)).not.toContain('Sessions');
+  });
+
+  it('closes a pane from the menu and restores it again', async () => {
+    const wrapper = await mountShell();
+    const artifactsTab = wrapper.findAll('[data-dock-tab-id="artifacts"]');
+    expect(artifactsTab.length).toBeGreaterThan(0);
+
+    await openViewMenu(wrapper);
+    const closeItem = wrapper.findAll('.dock-view-menu__popover .dock-view-menu__item')
+      .find((n: any) => n.text().includes('Artifacts'));
+    await closeItem!.trigger('click');
+    await flushPromises();
+    expect(wrapper.find('[data-dock-pane-id="artifacts"]').exists()).toBe(false);
+
+    await openViewMenu(wrapper);
+    const reopenItem = wrapper.findAll('.dock-view-menu__item--closed')
+      .find((n: any) => n.text().includes('Artifacts'));
+    expect(reopenItem).toBeTruthy();
+    await reopenItem!.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('[data-dock-pane-id="artifacts"]').exists()).toBe(true);
+  });
+
+  it('resets the layout back to the popout default', async () => {
+    const wrapper = await mountShell();
+
+    await openViewMenu(wrapper);
+    const closeItem = wrapper.findAll('.dock-view-menu__popover .dock-view-menu__item')
+      .find((n: any) => n.text().includes('Memories'));
+    await closeItem!.trigger('click');
+    await flushPromises();
+    expect(wrapper.find('[data-dock-pane-id="memories"]').exists()).toBe(false);
+
+    await openViewMenu(wrapper);
+    await wrapper.find('.dock-view-menu__reset').trigger('click');
+    await flushPromises();
+
+    const rendered = wrapper.findAll('[data-dock-pane-id]')
+      .map((pane: any) => pane.attributes('data-dock-pane-id')).sort();
+    expect(rendered).toEqual([...DOCK_PROFILE_PANES.popout].sort());
+  });
+});
+
 describe('SnapOutWindow pane bindings', () => {
   it('binds the plan pane to the pinned session directory', async () => {
     await mountShell();

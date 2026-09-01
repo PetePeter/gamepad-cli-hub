@@ -89,14 +89,6 @@ describe('dock persistence', () => {
     expect(readLegacyDockPreferences(storage(prefs)).artifactWidth).toBeUndefined();
   });
 
-  it('does not turn the artifact inner-rail preference into an outer dock hide', () => {
-    const legacy = readLegacyDockPreferences(storage({ 'helm:artifact-rail-collapsed': '1' }));
-    const result = loadDockLayout(undefined, { legacy });
-
-    expect(result.source).toBe('default');
-    expect(findArtifactDock(result.layout.root)?.mode).toBe('autohide');
-  });
-
   it('rejects an invalid layout before it crosses the app-data boundary', () => {
     expect(() => serializeDockLayout({ version: 1, root: { type: 'empty' }, closed: [] })).toThrow(/missing pane/i);
   });

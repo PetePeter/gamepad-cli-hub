@@ -143,10 +143,6 @@ export function migrateLegacyDockPreferences(
   viewportWidth?: number,
 ): DockWorkspaceLayout {
   let migrated = withLegacyWidths(base, legacy, viewportWidth);
-  // The artifact rail-collapse key is intentionally not migrated here. It
-  // controls the inner artifact list, not whether the Artifacts pane itself
-  // exists in the workspace. The existing artifact viewer continues to own
-  // that transient presentation preference.
   const shouldHideArtifact = legacy.artifactVisible === false;
   const shouldShowArtifact = legacy.artifactVisible === true;
 

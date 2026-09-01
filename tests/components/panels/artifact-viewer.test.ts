@@ -327,6 +327,16 @@ describe('ArtifactViewer', () => {
     expect(titles).toEqual(['Perf Benchmark']);
   });
 
+  it('has no rail collapse control — collapsing a pane is the dock\'s job', async () => {
+    const { w } = await mountWith([makeArtifact()]);
+
+    expect(w.find('.ap-rail-collapse').exists()).toBe(false);
+    expect(w.find('.ap-rail--collapsed').exists()).toBe(false);
+    // The rail contents are unconditional, so the list is always reachable.
+    expect(w.find('.ap-rail-inner').isVisible()).toBe(true);
+    expect(localStorage.getItem('helm:artifact-rail-collapsed')).toBeNull();
+  });
+
   it('shows an empty state when the search query matches no artifacts', async () => {
     const { w } = await mountWith([makeArtifact()]);
 
