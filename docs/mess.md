@@ -1,6 +1,12 @@
 # Mess
 
-Mess is Helm's durable, local, project-scoped conversation for coordination
+Mess is where sessions leave each other little notes — a heads-up, an aside, a
+"watch out for X", a question for whoever is around. It is deliberately the
+surface for things worth saying but not worth filing: a **memory** holds durable
+project knowledge, a **plan** holds tracked work with a lifecycle, and Mess holds
+everything in between.
+
+It is Helm's durable, local, project-scoped conversation for coordination
 between sessions. It is deliberately separate from `session_send_text`: posting
 records intent for later reading, while `session_send_text` delivers an urgent
 message into a live PTY.
@@ -25,7 +31,10 @@ artifacts, Telegram, or session ownership state.
 | Record a coordination note for the project | `mess_post(text)` | A project broadcast is durable and can be read later, including by future sessions. |
 | Leave a note for one same-project session | `mess_post(text, to)` | The direct target is validated before the record is stored; it remains queued if the target is offline. |
 | Read unread coordination messages | `mess_check()` | Returns an ordered, bounded delta and advances only the caller's cursor. |
-| Inspect recent conversation without acknowledging anything | `mess_history(...)` | Cursor-neutral history for agents and the observer pane. |
+| Inspect recent conversation without acknowledging anything | `mess_history(...)` | Cursor-neutral, grouped by date, for agents and the observer pane. |
+| Find an earlier note about a specific thing | `mess_search(query, before, after)` | Literal text match across the whole retained log, with surrounding context. |
+| Record durable project knowledge worth keeping | a memory | Mess is for passing notes, not for what the project knows. |
+| Track work with a lifecycle | a plan | Mess has no states, ownership, or completion. |
 | Ask the user to inspect a report or make a decision | Artifact or Telegram | Those are user-facing channels, not project coordination. |
 
 Mess is social coordination only. It has no lock, claim, conflict detection, or
@@ -38,7 +47,7 @@ explicit plan-claim flow.
 ```mermaid
 graph LR
     POST["mess_post(text, to?)"] --> STORE[("Project Mess store")]
-    STORE --> CHECK["mess_check() / mess_history()"]
+    STORE --> CHECK["mess_check()\nmess_history() · mess_search()"]
     STORE --> NOTIFY["MessNotifier\nbest-effort poke when quiet"]
     NOTIFY --> PTY["System reminder\n[HELM_MESS] ... call mess_check"]
     STORE --> IPC["mess:history + mess:appended"]
@@ -106,16 +115,65 @@ same config directory between multiple Helm processes is unsafe until an
 interprocess lock exists. Compaction uses a temporary file and rename, and a
 malformed final JSONL line is reported without making the whole log unusable.
 
-Retention and the join horizon solve different problems:
+Retention bounds what exists and is readable. `mess_history` and `mess_search`
+read retained entries without changing a cursor. The window is enforced lazily on
+the read path — at most once an hour per project — so retention needs no
+background timer, and `gap` reporting stays meaningful instead of theoretical.
 
-- Retention bounds what exists and is readable. `mess_history` can read retained
-  entries without changing a cursor. The window is enforced lazily on the read
-  path — at most once an hour per project — so retention needs no background
-  timer, and `gap` reporting stays meaningful instead of theoretical.
-- The join horizon bounds only what arrives unread for a new session. A returning
-  session keeps its cursor; a new stable session captures its baseline once.
-- The horizon does not hide older retained history. A future session can still
-  use `mess_history` to inspect it.
+## Joining
+
+**A new member starts at the head.** Unread means exactly "posted since you
+joined"; a new session inherits no backlog at all.
+
+An age window was tried and removed. No timestamp can decide whether an older
+message still applies to a session that did not exist yet — 24 hours is not more
+correct than 30 minutes, both are guesses about relevance — and every fresh spawn
+replayed the same window again, so a workflow that opens and closes sessions all
+day re-read the same mail repeatedly. Worse, inheriting old mail as *unread*
+misrepresents it: a newcomer would earnestly answer a request made an hour before
+it existed.
+
+What predates a session is therefore **disclosed, not pushed**:
+
+```mermaid
+graph TD
+    J["session joins"] --> H["baseline = head"]
+    H --> N["joined notice, once:<br/>N earlier notes, optional"]
+    N --> P{"wants context?"}
+    P -->|recent| G["mess_history"]
+    P -->|specific| S["mess_search"]
+    P -->|no| C["carries on"]
+    H --> U["posted after joining → unread"]
+```
+
+The notice is delivered on the first `mess_check` as a `joined` field carrying
+the count, the oldest readable sequence, and a note stating that reading is
+optional and that earlier requests were not addressed to the newcomer. A joining
+session also receives one `[HELM_MESS] joining` line, because with no inherited
+backlog nothing else would ever reveal that the project has a history.
+
+`joinNoticeSent` lives on the cursor and is set **only** by `mess_check`. It is
+deliberately separate from cursor existence: the notifier creates cursors as a
+side effect of polling unread, so tying the notice to cursor creation would let a
+poke consume it before the agent ever looked. The notifier pins the baseline at
+`session:added`, so mail posted while a session is still starting up is unread
+rather than lost behind a later baseline.
+
+## Reading back
+
+Two cursor-neutral pulls cover everything the push path does not:
+
+- `mess_history` returns the last N notes grouped under date labels (`groupBy`
+  of `day` or `month`, newest group first, chronological within a group).
+- `mess_search` finds notes containing **literal, case-insensitive text**, with
+  `before`/`after` context around each match and overlapping windows merged so a
+  burst reads as one passage.
+
+`mess_search` is deliberately not a regular-expression search. Callers are AI
+agents, so a pattern would be untrusted input (invariant 9) compiled in the main
+process, where catastrophic backtracking would freeze the app and every PTY with
+it. Literal matching removes that failure class outright rather than guarding
+against it.
 
 ## Notifications
 
@@ -179,8 +237,8 @@ agent cursor.
 
 ## Lifecycle and limits
 
-Default project settings are 30 days of retention, a 24-hour new-member join
-horizon, and a 15-minute idle-poke cooldown (new posts ignore it). Project rename and path changes are safe
+Default project settings are 30 days of retention and a 15-minute poke cooldown
+(mail that has never been announced ignores it). Project rename and path changes are safe
 because records and filenames use the project UUID. Project deletion purges its
 Mess data. Cursor lifetime follows session identity: recoverable close preserves
 it, while ephemeral close, forget, and expiry remove it.

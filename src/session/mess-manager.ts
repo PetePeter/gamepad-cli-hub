@@ -42,10 +42,35 @@ export interface MessDelta {
   hasMore: boolean;
   gap: boolean;
   oldestSeq?: number;
+  /** Emitted once, on the first check, when readable mess predates this session. */
+  joined?: MessJoinContext;
+}
+
+/** How much readable conversation existed before a session joined. */
+export interface MessJoinContext {
+  prior: number;
+  oldestSeq: number;
+}
+
+export interface MessSearchOptions {
+  /** Literal, case-insensitive text. Never a pattern — see MessManager.search. */
+  query: string;
+  before?: number;
+  after?: number;
+  limit?: number;
+  maxBytes?: number;
+}
+
+export interface MessSearchResult {
+  entries: MessEntry[];
+  /** Sequences that matched, as opposed to entries included only as context. */
+  matchedSeqs: number[];
+  hasMore: boolean;
 }
 
 export interface MessHistoryOptions {
-  sinceHours: number;
+  /** Omit to read the whole retained window. */
+  sinceHours?: number;
   limit?: number;
   maxBytes?: number;
   /** Return entries strictly before this ordered sequence. */
@@ -117,7 +142,7 @@ export class MessManager extends EventEmitter {
     const loaded = persistence.load();
     let cursor = persistence.getCursor(session.id);
     if (!cursor) {
-      cursor = this.initialCursor(project, session.id, loaded);
+      cursor = this.initialCursor(project, session, loaded);
       persistence.saveCursor(cursor);
     }
 
@@ -144,8 +169,11 @@ export class MessManager extends EventEmitter {
       examinedThroughSeq = entry.seq;
     }
 
-    if (examinedThroughSeq > cursor.lastSeq) {
-      persistence.saveCursor({ ...cursor, lastSeq: examinedThroughSeq });
+    // Spending the notice is the caller's act, never the notifier's, so it is
+    // recorded here alongside any cursor advance.
+    const joined = cursor.joinNoticeSent ? undefined : this.joinContext(cursor, loaded, session.id);
+    if (examinedThroughSeq > cursor.lastSeq || !cursor.joinNoticeSent) {
+      persistence.saveCursor({ ...cursor, lastSeq: examinedThroughSeq, joinNoticeSent: true });
     }
     return {
       new: selected.length,
@@ -153,6 +181,100 @@ export class MessManager extends EventEmitter {
       hasMore: unread.some(entry => entry.seq > examinedThroughSeq && isUnreadFor(entry, session.id)),
       gap: (loaded.prunedThroughSeq ?? 0) > cursor.lastSeq,
       ...(loaded.oldestSeq === undefined ? {} : { oldestSeq: loaded.oldestSeq }),
+      ...(joined ? { joined } : {}),
+    };
+  }
+
+  /**
+   * Pin a session's baseline at the moment it joined and report what predates
+   * it, without spending the notice.
+   *
+   * Called when a session appears, so the baseline is the head at join time
+   * rather than the head whenever the session first happens to check.
+   */
+  joinContextFor(sessionId: string): MessJoinContext | undefined {
+    const session = this.sessionManager.getSession(sessionId);
+    if (!session) return undefined;
+    let project: ProjectRecord;
+    try {
+      project = this.requireProject(session);
+    } catch {
+      return undefined;
+    }
+    const persistence = this.projectPersistence(project);
+    const loaded = persistence.load();
+    let cursor = persistence.getCursor(sessionId);
+    if (!cursor) {
+      cursor = this.initialCursor(project, session, loaded);
+      persistence.saveCursor(cursor);
+    }
+    if (cursor.joinNoticeSent) return undefined;
+    return this.joinContext(cursor, loaded, sessionId);
+  }
+
+  /**
+   * Readable conversation that predates a session, for the one-time notice.
+   *
+   * Counted against the join baseline rather than the live cursor so the figure
+   * stays truthful even if the notice is only collected after the session has
+   * read newer mail.
+   */
+  private joinContext(cursor: MessCursor, loaded: MessLoadResult, sessionId: string): MessJoinContext | undefined {
+    const prior = loaded.entries.filter(entry => entry.seq <= cursor.lastSeq && isVisibleTo(entry, sessionId));
+    if (prior.length === 0) return undefined;
+    return { prior: prior.length, oldestSeq: prior[0].seq };
+  }
+
+  /**
+   * Find readable entries containing literal text, with surrounding context.
+   *
+   * The query is matched literally and case-insensitively rather than as a
+   * regular expression. Callers are AI agents, so a pattern here would be
+   * untrusted input compiled in the main process, where catastrophic
+   * backtracking would freeze the app and every PTY with it. Literal matching
+   * removes that class of failure entirely instead of guarding against it.
+   */
+  search(sessionId: string, options: MessSearchOptions): MessSearchResult {
+    const session = this.requireSession(sessionId);
+    const project = this.requireProject(session);
+    const loaded = this.projectPersistence(project).load();
+    const readable = loaded.entries.filter(entry => isVisibleTo(entry, session.id));
+
+    const needle = options.query.toLowerCase();
+    const before = Math.max(0, Math.trunc(options.before ?? 0));
+    const after = Math.max(0, Math.trunc(options.after ?? 0));
+    const limit = positiveLimit(options.limit, DEFAULT_MESS_HISTORY_LIMIT);
+    const maxBytes = positiveLimit(options.maxBytes, this.maxHistoryBytes);
+
+    const matchIndexes: number[] = [];
+    readable.forEach((entry, index) => {
+      if (entry.text.toLowerCase().includes(needle)) matchIndexes.push(index);
+    });
+    const kept = matchIndexes.slice(-limit);
+
+    // Context windows are unioned, so adjacent matches read as one passage
+    // instead of repeating the entries they share.
+    const included = new Set<number>();
+    for (const index of kept) {
+      for (let at = index - before; at <= index + after; at += 1) {
+        if (at >= 0 && at < readable.length) included.add(at);
+      }
+    }
+
+    const entries: MessEntry[] = [];
+    let bytes = 0;
+    for (const index of [...included].sort((left, right) => left - right)) {
+      const entry = readable[index];
+      const entryBytes = Buffer.byteLength(JSON.stringify(entry), 'utf8');
+      if (entries.length > 0 && bytes + entryBytes > maxBytes) break;
+      entries.push(entry);
+      bytes += entryBytes;
+    }
+    const returned = new Set(entries.map(entry => entry.seq));
+    return {
+      entries,
+      matchedSeqs: kept.map(index => readable[index].seq).filter(seq => returned.has(seq)),
+      hasMore: kept.length < matchIndexes.length || entries.length < included.size,
     };
   }
 
@@ -172,7 +294,7 @@ export class MessManager extends EventEmitter {
       // Capture the join horizon once, without acknowledging any entry. A
       // notifier poll must not slide a cursorless member's baseline forward
       // as wall time passes.
-      cursor = this.initialCursor(project, session.id, loaded);
+      cursor = this.initialCursor(project, session, loaded);
       persistence.saveCursor(cursor);
     }
     return loaded.entries.filter(entry => entry.seq > cursor.lastSeq && isUnreadFor(entry, session.id)).length;
@@ -202,7 +324,9 @@ export class MessManager extends EventEmitter {
   private boundedHistory(candidates: MessEntry[], options: MessHistoryOptions): MessHistoryResult {
     const limit = positiveLimit(options.limit, DEFAULT_MESS_HISTORY_LIMIT);
     const maxBytes = positiveLimit(options.maxBytes, this.maxHistoryBytes);
-    const cutoff = this.now() - Math.max(0, options.sinceHours) * 60 * 60 * 1000;
+    const cutoff = options.sinceHours === undefined
+      ? Number.NEGATIVE_INFINITY
+      : this.now() - Math.max(0, options.sinceHours) * 60 * 60 * 1000;
     const recent = candidates.filter(entry => entry.createdAt >= cutoff
       && (options.beforeSeq === undefined || entry.seq < options.beforeSeq));
     const selected: MessHistoryEntry[] = [];
@@ -242,16 +366,19 @@ export class MessManager extends EventEmitter {
     try { return this.requireProject(session).id; } catch { return null; }
   }
 
-  private initialCursor(project: ProjectRecord, sessionId: string, loaded: MessLoadResult): MessCursor {
-    const settings = getMessProjectSettings(project);
-    const joinedAt = this.now();
-    const horizonStart = joinedAt - settings.messJoinHorizonHours * 60 * 60 * 1000;
-    const firstInWindow = loaded.entries.find(entry => entry.createdAt >= horizonStart);
-    const baselineSeq = Math.max(
-      loaded.prunedThroughSeq ?? 0,
-      firstInWindow ? firstInWindow.seq - 1 : loaded.entries.at(-1)?.seq ?? 0,
-    );
-    return { projectId: project.id, sessionId, lastSeq: baselineSeq, joinedAt };
+  /**
+   * A new member starts at the head, so unread means exactly "posted since you
+   * joined".
+   *
+   * An age window was tried and removed: no timestamp can decide whether an
+   * older message still applies to a session that did not exist yet, and every
+   * fresh spawn replayed the same window again. What predates a session is
+   * disclosed once via the join notice and pulled on demand through history or
+   * search, rather than pushed as though it were addressed to the newcomer.
+   */
+  private initialCursor(project: ProjectRecord, session: SessionInfo, loaded: MessLoadResult): MessCursor {
+    const baselineSeq = Math.max(loaded.prunedThroughSeq ?? 0, loaded.entries.at(-1)?.seq ?? 0);
+    return { projectId: project.id, sessionId: session.id, lastSeq: baselineSeq, joinedAt: this.now() };
   }
 
   /**

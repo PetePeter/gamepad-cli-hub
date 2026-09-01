@@ -317,6 +317,42 @@ describe('MessNotifier', () => {
     notifier.dispose();
   });
 
+  // A newcomer starts at the head, so no unread mail will ever tell it that the
+  // project has been talking. One line on join is the only chance it gets.
+  it('tells a joining session once that earlier mess exists', async () => {
+    vi.useFakeTimers();
+    const { manager, sessions, stateDetector, notifier, deliveries } = setup();
+    manager.post('sender', 'earlier');
+    await flush();
+    deliveries.length = 0;
+
+    sessions.addSession({
+      id: 'newcomer', name: 'newcomer', cliType: 'test', processId: 4,
+      workingDir: project.canonicalPath, activityLevel: 'idle',
+    } as any);
+    await flush();
+
+    expect(deliveries).toEqual(['[HELM_MESS] joining — 1 earlier message, optional — call mess_check']);
+
+    stateDetector.emit('activity-change', { sessionId: 'newcomer', level: 'inactive' });
+    await flush();
+    expect(deliveries).toHaveLength(1);
+    notifier.dispose();
+  });
+
+  it('does not announce a join when the project has no earlier mess', async () => {
+    vi.useFakeTimers();
+    const { sessions, notifier, deliveries } = setup();
+    sessions.addSession({
+      id: 'newcomer', name: 'newcomer', cliType: 'test', processId: 4,
+      workingDir: project.canonicalPath, activityLevel: 'idle',
+    } as any);
+    await flush();
+
+    expect(deliveries).toEqual([]);
+    notifier.dispose();
+  });
+
   it('leaves a failed delivery retryable and clears timers on dispose', async () => {
     vi.useFakeTimers();
     const { manager, notifier, sendSystemReminder, deliveries } = setup();

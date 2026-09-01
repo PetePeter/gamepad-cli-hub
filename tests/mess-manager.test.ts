@@ -47,36 +47,183 @@ describe('MessManager', () => {
     expect(emitted).toMatchObject({ projectId: project.id, text: 'hello' });
   });
 
-  it('initialises a new member at the join horizon and a returning member at its cursor', () => {
-    const { sessions, manager, directory } = setup();
+  // Unread means "posted since you joined". A time window cannot answer whether
+  // an older message still applies to a session that did not exist yet, so a new
+  // member starts at the head and is told separately that history exists.
+  it('starts a new member at the head and a returning member at its cursor', () => {
+    const { sessions, manager } = setup();
     add(sessions, 'sender', 'planner');
-    new MessPersistence(project.id, { directory }).append({
-      projectId: project.id,
-      fromSessionId: 'sender',
-      fromLabelSnapshot: 'planner',
-      text: 'old',
-      createdAt: 2_000_000_000_000 - 25 * 60 * 60 * 1000,
-    });
+    manager.post('sender', 'posted moments before the newcomer existed');
+
     const receiver = add(sessions, 'receiver', 'memories');
     expect(manager.check(receiver.id).entries).toEqual([]);
+
     manager.post('sender', 'new');
     expect(manager.check(receiver.id).entries.map(entry => entry.text)).toEqual(['new']);
     expect(manager.check(receiver.id).entries).toEqual([]);
   });
 
-  it('delivers a broadcast posted before a future session only after that session joins its horizon', () => {
+  it('tells a new member once that earlier mess exists, then never again', () => {
+    const { sessions, manager } = setup();
+    add(sessions, 'sender', 'planner');
+    manager.post('sender', 'earlier one');
+    manager.post('sender', 'earlier two');
+    const receiver = add(sessions, 'receiver', 'memories');
+
+    const first = manager.check(receiver.id);
+    expect(first.joined).toEqual({ prior: 2, oldestSeq: 1 });
+    expect(first.entries).toEqual([]);
+
+    manager.post('sender', 'after joining');
+    const second = manager.check(receiver.id);
+    expect(second.joined).toBeUndefined();
+    expect(second.entries.map(entry => entry.text)).toEqual(['after joining']);
+  });
+
+  // The notifier calls unreadCount, which creates the cursor. If cursor
+  // creation consumed the notice, the poke would eat it before the agent ever
+  // looked, and the newcomer would never learn that history exists.
+  it('does not let a notifier unread poll consume the join notice', () => {
+    const { sessions, manager } = setup();
+    add(sessions, 'sender', 'planner');
+    manager.post('sender', 'earlier');
+    const receiver = add(sessions, 'receiver', 'memories');
+
+    expect(manager.unreadCount(receiver.id)).toBe(0);
+
+    expect(manager.check(receiver.id).joined).toEqual({ prior: 1, oldestSeq: 1 });
+  });
+
+  it('counts only entries the newcomer may read as prior context', () => {
+    const { sessions, manager } = setup();
+    add(sessions, 'sender', 'planner');
+    add(sessions, 'other', 'other');
+    manager.post('sender', 'broadcast');
+    manager.post('sender', 'private', 'other');
+    const receiver = add(sessions, 'receiver', 'memories');
+
+    expect(manager.check(receiver.id).joined).toEqual({ prior: 1, oldestSeq: 1 });
+  });
+
+  it('omits the join notice for a project with no earlier mess', () => {
+    const { sessions, manager } = setup();
+    add(sessions, 'sender', 'planner');
+    const receiver = add(sessions, 'receiver', 'memories');
+
+    expect(manager.check(receiver.id).joined).toBeUndefined();
+
+    manager.post('sender', 'first ever');
+    expect(manager.check(receiver.id).joined).toBeUndefined();
+  });
+
+  it('keeps the join notice spent across a restart', () => {
+    const { sessions, manager, directory, projects } = setup();
+    add(sessions, 'sender', 'planner');
+    manager.post('sender', 'earlier');
+    const receiver = add(sessions, 'receiver', 'memories');
+    expect(manager.check(receiver.id).joined).toEqual({ prior: 1, oldestSeq: 1 });
+
+    const reloaded = new MessManager(sessions, projects as any, {
+      now: () => 2_000_000_000_000,
+      persistenceFactory: (projectId) => new MessPersistence(projectId, { directory }),
+    });
+
+    expect(reloaded.check(receiver.id).joined).toBeUndefined();
+  });
+
+  it('finds entries by literal text with surrounding context', () => {
+    const { sessions, manager } = setup();
+    add(sessions, 'sender', 'planner');
+    const receiver = add(sessions, 'receiver', 'memories');
+    for (const text of ['one', 'two', 'the resize path', 'four', 'five']) manager.post('sender', text);
+
+    const result = manager.search(receiver.id, { query: 'RESIZE', before: 1, after: 1 });
+
+    expect(result.entries.map(entry => entry.text)).toEqual(['two', 'the resize path', 'four']);
+    expect(result.matchedSeqs).toEqual([3]);
+  });
+
+  it('treats the query as literal text rather than a pattern', () => {
+    const { sessions, manager } = setup();
+    add(sessions, 'sender', 'planner');
+    const receiver = add(sessions, 'receiver', 'memories');
+    manager.post('sender', 'a.c');
+    manager.post('sender', 'abc');
+
+    expect(manager.search(receiver.id, { query: 'a.c' }).entries.map(entry => entry.text)).toEqual(['a.c']);
+  });
+
+  it('merges overlapping context windows without repeating an entry', () => {
+    const { sessions, manager } = setup();
+    add(sessions, 'sender', 'planner');
+    const receiver = add(sessions, 'receiver', 'memories');
+    for (const text of ['hit', 'filler', 'hit', 'tail']) manager.post('sender', text);
+
+    const result = manager.search(receiver.id, { query: 'hit', before: 2, after: 2 });
+
+    expect(result.entries.map(entry => entry.seq)).toEqual([1, 2, 3, 4]);
+    expect(result.matchedSeqs).toEqual([1, 3]);
+  });
+
+  it('never returns another session\'s directed mail as a match or as context', () => {
+    const { sessions, manager } = setup();
+    add(sessions, 'sender', 'planner');
+    add(sessions, 'other', 'other');
+    const receiver = add(sessions, 'receiver', 'memories');
+    manager.post('sender', 'public secret');
+    manager.post('sender', 'private secret', 'other');
+    manager.post('sender', 'trailer');
+
+    const result = manager.search(receiver.id, { query: 'secret', before: 5, after: 5 });
+
+    expect(result.entries.map(entry => entry.text)).toEqual(['public secret', 'trailer']);
+    expect(result.matchedSeqs).toEqual([1]);
+  });
+
+  it('searches the whole retained log rather than a recent window', () => {
     const { sessions, manager, directory } = setup();
     add(sessions, 'sender', 'planner');
     new MessPersistence(project.id, { directory }).append({
       projectId: project.id,
       fromSessionId: 'sender',
       fromLabelSnapshot: 'planner',
-      text: 'before',
-      createdAt: 2_000_000_000_000 - 25 * 60 * 60 * 1000,
+      text: 'ancient landmark',
+      createdAt: 2_000_000_000_000 - 20 * 24 * 60 * 60 * 1000,
     });
-    const receiver = add(sessions, 'receiver', 'future');
+    const receiver = add(sessions, 'receiver', 'memories');
 
-    expect(manager.check(receiver.id).entries).toEqual([]);
+    expect(manager.search(receiver.id, { query: 'landmark' }).entries.map(entry => entry.text))
+      .toEqual(['ancient landmark']);
+  });
+
+  it('bounds search results and never advances the caller cursor', () => {
+    const { sessions, manager } = setup();
+    add(sessions, 'sender', 'planner');
+    const receiver = add(sessions, 'receiver', 'memories');
+    manager.check(receiver.id);
+    for (const text of ['hit a', 'hit b', 'hit c']) manager.post('sender', text);
+
+    const result = manager.search(receiver.id, { query: 'hit', limit: 2 });
+
+    expect(result.matchedSeqs).toHaveLength(2);
+    expect(result.hasMore).toBe(true);
+    expect(manager.check(receiver.id).entries[0].text).toBe('hit a');
+  });
+
+  it('reads the full retained window when history is asked for without an age limit', () => {
+    const { sessions, manager, directory } = setup();
+    add(sessions, 'sender', 'planner');
+    new MessPersistence(project.id, { directory }).append({
+      projectId: project.id,
+      fromSessionId: 'sender',
+      fromLabelSnapshot: 'planner',
+      text: 'old but retained',
+      createdAt: 2_000_000_000_000 - 20 * 24 * 60 * 60 * 1000,
+    });
+    const receiver = add(sessions, 'receiver', 'memories');
+
+    expect(manager.history(receiver.id, {}).map(entry => entry.text)).toEqual(['old but retained']);
+    expect(manager.history(receiver.id, { sinceHours: 1 })).toEqual([]);
   });
 
   it('bounds by count, advances only through returned entries, and reports more', () => {
@@ -127,9 +274,10 @@ describe('MessManager', () => {
   it('uses sequence order when a clock rollback makes a later entry look old', () => {
     const { sessions, manager, directory } = setup();
     add(sessions, 'sender', 'planner');
+    const receiver = add(sessions, 'receiver', 'memories');
+    manager.check(receiver.id);
     new MessPersistence(project.id, { directory }).append({ projectId: project.id, fromSessionId: 'sender', fromLabelSnapshot: 'planner', text: 'recent seq 1', createdAt: 2_000_000_000_000 });
     new MessPersistence(project.id, { directory }).append({ projectId: project.id, fromSessionId: 'sender', fromLabelSnapshot: 'planner', text: 'rolled back seq 2', createdAt: 2_000_000_000_000 - 25 * 60 * 60 * 1000 });
-    const receiver = add(sessions, 'receiver', 'memories');
 
     expect(manager.check(receiver.id).entries.map(entry => entry.text)).toEqual(['recent seq 1', 'rolled back seq 2']);
   });
@@ -138,6 +286,7 @@ describe('MessManager', () => {
     const { sessions, manager } = setup();
     add(sessions, 'sender', 'planner');
     const receiver = add(sessions, 'receiver', 'memories');
+    manager.check(receiver.id);
     manager.post('sender', 'this is larger than the configured byte budget');
 
     const result = manager.check(receiver.id, { maxBytes: 1 });
@@ -239,6 +388,7 @@ describe('MessManager', () => {
     const { sessions, manager } = setup();
     add(sessions, 'sender', 'planner');
     const receiver = add(sessions, 'receiver', 'memories');
+    manager.check(receiver.id);
     manager.post('sender', 'historical');
 
     expect(manager.history(receiver.id, { sinceHours: 1 }).map(entry => entry.text)).toEqual(['historical']);
@@ -250,6 +400,7 @@ describe('MessManager', () => {
     add(sessions, 'sender', 'planner');
     const receiver = add(sessions, 'receiver', 'memories');
     const other = add(sessions, 'other', 'other');
+    manager.check(receiver.id);
     manager.post('sender', 'for receiver', receiver.id);
     manager.post('sender', 'for other', other.id);
 

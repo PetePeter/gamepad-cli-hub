@@ -12,32 +12,22 @@ export interface ProjectRecord {
   updatedAt: number;
   /** Maximum age of readable Mess entries. Defaults to 30 days. */
   messRetentionDays?: number;
-  /** Initial unread window for a new Mess member. Defaults to 24 hours. */
-  messJoinHorizonHours?: number;
   /** Minimum interval between best-effort Mess idle pokes. Defaults to 15 minutes. */
   messPokeCooldownMinutes?: number;
 }
 
 export interface MessProjectSettings {
   messRetentionDays: number;
-  messJoinHorizonHours: number;
   messPokeCooldownMinutes: number;
 }
 
 export const DEFAULT_MESS_RETENTION_DAYS = 30;
-export const DEFAULT_MESS_JOIN_HORIZON_HOURS = 24;
 export const DEFAULT_MESS_POKE_COOLDOWN_MINUTES = 15;
 
 /** Resolve optional persisted project settings without mutating the project record. */
-export function getMessProjectSettings(project: Pick<ProjectRecord, 'messRetentionDays' | 'messJoinHorizonHours' | 'messPokeCooldownMinutes'>): MessProjectSettings {
-  const retentionDays = positiveFiniteInteger(project.messRetentionDays, DEFAULT_MESS_RETENTION_DAYS);
-  const joinHorizonHours = Math.min(
-    positiveFiniteNumber(project.messJoinHorizonHours, DEFAULT_MESS_JOIN_HORIZON_HOURS),
-    retentionDays * 24,
-  );
+export function getMessProjectSettings(project: Pick<ProjectRecord, 'messRetentionDays' | 'messPokeCooldownMinutes'>): MessProjectSettings {
   return {
-    messRetentionDays: retentionDays,
-    messJoinHorizonHours: joinHorizonHours,
+    messRetentionDays: positiveFiniteInteger(project.messRetentionDays, DEFAULT_MESS_RETENTION_DAYS),
     messPokeCooldownMinutes: positiveFiniteNumber(
       project.messPokeCooldownMinutes,
       DEFAULT_MESS_POKE_COOLDOWN_MINUTES,

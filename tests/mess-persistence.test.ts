@@ -172,15 +172,18 @@ describe('MessPersistence', () => {
     expect(new MessPersistence(project.id, { directory: store.logPath.replace(/\\[^\\]+$/, '') }).load().entries).toHaveLength(1);
   });
 
-  it('resolves documented defaults and clamps join horizon to retention', () => {
+  it('resolves documented defaults and rejects nonsense overrides', () => {
     expect(getMessProjectSettings({})).toEqual({
       messRetentionDays: 30,
-      messJoinHorizonHours: 24,
       messPokeCooldownMinutes: 15,
     });
-    expect(getMessProjectSettings({ messRetentionDays: 2, messJoinHorizonHours: 100 })).toMatchObject({
+    expect(getMessProjectSettings({ messRetentionDays: 2, messPokeCooldownMinutes: 1 })).toEqual({
       messRetentionDays: 2,
-      messJoinHorizonHours: 48,
+      messPokeCooldownMinutes: 1,
+    });
+    expect(getMessProjectSettings({ messRetentionDays: -5, messPokeCooldownMinutes: 0 })).toEqual({
+      messRetentionDays: 30,
+      messPokeCooldownMinutes: 15,
     });
   });
 });

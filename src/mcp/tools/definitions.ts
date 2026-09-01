@@ -1632,14 +1632,31 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'mess_history',
     title: 'Read Mess History',
-    description: 'Read bounded recent project Mess without advancing the authenticated session cursor. Results are newest-first window selection returned in chronological order, with labels rather than ids; coordination remains social convention only.',
+    description: 'Read the last N project Mess notes without advancing the authenticated session cursor, grouped under date labels (newest group first, chronological within a group). Omit sinceHours to read the whole retained window; coordination remains social convention only.',
     inputSchema: {
       type: 'object',
       properties: {
-        sinceHours: { type: 'number', minimum: 0 },
+        sinceHours: { type: 'number', minimum: 0, description: 'Optional age limit. Omit for the full retained window.' },
         limit: { type: 'integer', minimum: 1, maximum: 100 },
+        groupBy: { type: 'string', enum: ['day', 'month'], description: 'Date grouping for the result. Defaults to day.' },
       },
-      required: ['sinceHours'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'mess_search',
+    title: 'Search Mess',
+    description: 'Find project Mess notes containing literal text, with optional surrounding context. The query is LITERAL and case-insensitive, never a regular expression, so "." and "*" match themselves. Searches the whole retained log, not just recent mail, and never advances the caller cursor.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', minLength: 1, maxLength: 200, description: 'Literal text to find. Not a pattern.' },
+        before: { type: 'integer', minimum: 0, maximum: 20, description: 'Notes to include before each match.' },
+        after: { type: 'integer', minimum: 0, maximum: 20, description: 'Notes to include after each match.' },
+        limit: { type: 'integer', minimum: 1, maximum: 100 },
+        groupBy: { type: 'string', enum: ['day', 'month'] },
+      },
+      required: ['query'],
       additionalProperties: false,
     },
   },

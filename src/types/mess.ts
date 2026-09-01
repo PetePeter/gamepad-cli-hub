@@ -19,6 +19,14 @@ export interface Cursor {
   /** Gaps are valid after a crash between sequence reservation and append. */
   lastSeq: number;
   joinedAt: number;
+  /**
+   * Whether this session has been told that mess predating it exists.
+   *
+   * Deliberately separate from cursor existence: the notifier creates cursors
+   * as a side effect of polling unread, so tying the notice to cursor creation
+   * would let a poke consume it before the agent ever called mess_check.
+   */
+  joinNoticeSent?: boolean;
 }
 
 export type MessEntry = Entry;

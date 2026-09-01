@@ -83,7 +83,7 @@ describe('MCP Mess surface', () => {
 
     expect(await callMcpTool(deps, 'mess_history', { sinceHours: 1, limit: 1 }, { sessionId: 'receiver' })).toMatchObject({
       hasMore: true,
-      msgs: [{ text: 'two', t: '2026-05-17 09:05' }],
+      groups: [{ label: '2026-05-17', msgs: [{ text: 'two', t: '09:05' }] }],
     });
     expect(await callMcpTool(deps, 'mess_check', {}, { sessionId: 'receiver' })).toMatchObject({
       new: 2,

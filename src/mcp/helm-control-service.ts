@@ -604,8 +604,12 @@ export class HelmControlService extends EventEmitter {
     return this.requireMessService().check(sessionId);
   }
 
-  historyMess(sessionId: string, options: import('../session/mess-manager.js').MessHistoryOptions) {
+  historyMess(sessionId: string, options: import('../session/mess-manager.js').MessHistoryOptions & { groupBy?: 'day' | 'month' }) {
     return this.requireMessService().history(sessionId, options);
+  }
+
+  searchMess(sessionId: string, options: import('../session/mess-manager.js').MessSearchOptions & { groupBy?: 'day' | 'month' }) {
+    return this.requireMessService().search(sessionId, options);
   }
 
   addMemoryAttachment(

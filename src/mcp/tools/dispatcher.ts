@@ -877,8 +877,19 @@ export async function callMcpTool(
       case 'mess_history': {
         const sessionId = requireCallerSession(authContext, 'mess_history');
         return service.historyMess(sessionId, {
-          sinceHours: asFiniteNumber(args.sinceHours, 'sinceHours must be a finite number'),
+          ...(args.sinceHours === undefined ? {} : { sinceHours: asFiniteNumber(args.sinceHours, 'sinceHours must be a finite number') }),
           ...(args.limit === undefined ? {} : { limit: asFiniteNumber(args.limit, 'limit must be a finite number') }),
+          ...(args.groupBy === undefined ? {} : { groupBy: asEnum(args.groupBy, ['day', 'month'] as const, 'groupBy') }),
+        });
+      }
+      case 'mess_search': {
+        const sessionId = requireCallerSession(authContext, 'mess_search');
+        return service.searchMess(sessionId, {
+          query: asString(args.query, 'query is required'),
+          ...(args.before === undefined ? {} : { before: asFiniteNumber(args.before, 'before must be a finite number') }),
+          ...(args.after === undefined ? {} : { after: asFiniteNumber(args.after, 'after must be a finite number') }),
+          ...(args.limit === undefined ? {} : { limit: asFiniteNumber(args.limit, 'limit must be a finite number') }),
+          ...(args.groupBy === undefined ? {} : { groupBy: asEnum(args.groupBy, ['day', 'month'] as const, 'groupBy') }),
         });
       }
       case 'peer_list':

@@ -39,6 +39,8 @@ export class MessNotifier {
   private readonly lastDeliveredAt = new Map<string, number>();
   /** Sessions holding mail that arrived while they were busy and was never announced. */
   private readonly unannounced = new Set<string>();
+  /** One-time join lines, pending until the session is receptive enough to take one. */
+  private readonly pendingJoin = new Map<string, string>();
   private readonly inFlight = new Set<string>();
   private disposed = false;
 
@@ -63,6 +65,23 @@ export class MessNotifier {
     this.clearSession(event.sessionId);
   };
 
+  /**
+   * A new member starts at the head, so no unread mail will ever reveal that the
+   * project has a history. One line on join is the only chance it gets.
+   */
+  private readonly onSessionAdded = (event: { id: string }): void => {
+    // Pins the join baseline now, so mail posted between a session appearing
+    // and its first poll counts as unread rather than falling behind the head.
+    const context = this.messManager.joinContextFor(event.id);
+    if (!context) return;
+    const plural = context.prior === 1 ? 'message' : 'messages';
+    this.pendingJoin.set(
+      event.id,
+      `[HELM_MESS] joining — ${context.prior} earlier ${plural}, optional — call mess_check`,
+    );
+    void this.consider(event.id, true);
+  };
+
   constructor(
     private readonly messManager: MessManager,
     private readonly sessionManager: SessionManager,
@@ -78,6 +97,7 @@ export class MessNotifier {
     this.stateDetector.on('activity-change', this.onActivityChange);
     this.messManager.on('mess:appended', this.onMessAppended);
     this.sessionManager.on('session:removed', this.onSessionRemoved);
+    this.sessionManager.on('session:added', this.onSessionAdded);
   }
 
   /** Stop subscriptions and cancel every pending retry. */
@@ -87,10 +107,12 @@ export class MessNotifier {
     this.stateDetector.off('activity-change', this.onActivityChange);
     this.messManager.off('mess:appended', this.onMessAppended);
     this.sessionManager.off('session:removed', this.onSessionRemoved);
+    this.sessionManager.off('session:added', this.onSessionAdded);
     for (const timer of this.retryTimers.values()) this.clearTimer(timer);
     this.retryTimers.clear();
     this.lastDeliveredAt.clear();
     this.unannounced.clear();
+    this.pendingJoin.clear();
     this.inFlight.clear();
   }
 
@@ -118,14 +140,15 @@ export class MessNotifier {
       logger.warn(`[MessNotifier] Could not inspect unread Mess for ${sessionId}: ${error}`);
       return;
     }
-    if (unread <= 0) {
+    const joinLine = this.pendingJoin.get(sessionId);
+    if (unread <= 0 && joinLine === undefined) {
       this.unannounced.delete(sessionId);
       return;
     }
 
     const cooldownMs = this.cooldownMs(sessionId);
     const last = this.lastDeliveredAt.get(sessionId);
-    const owed = newPost || this.unannounced.has(sessionId);
+    const owed = newPost || joinLine !== undefined || this.unannounced.has(sessionId);
     if (!owed && last !== undefined && this.now() < last + cooldownMs) {
       this.scheduleRetry(sessionId, last + cooldownMs);
       return;
@@ -138,7 +161,7 @@ export class MessNotifier {
     let deliveryRecordedAt: number | undefined;
     let verificationFailedBeforeRecord = false;
     try {
-      await this.delivery.sendSystemReminder(sessionId, `[HELM_MESS] ${unread} new — call mess_check`, {
+      await this.delivery.sendSystemReminder(sessionId, joinLine ?? `[HELM_MESS] ${unread} new — call mess_check`, {
         onVerification: verified => {
           if (verified) return;
           if (deliveryRecordedAt === undefined) {
@@ -155,6 +178,7 @@ export class MessNotifier {
       });
       if (!verificationFailedBeforeRecord && !this.disposed && this.sessionManager.getSession(sessionId)) {
         this.unannounced.delete(sessionId);
+        this.pendingJoin.delete(sessionId);
         deliveryRecordedAt = this.now();
         this.lastDeliveredAt.set(sessionId, deliveryRecordedAt);
         this.scheduleRetry(sessionId, deliveryRecordedAt + cooldownMs);
@@ -197,6 +221,7 @@ export class MessNotifier {
     this.cancelRetry(sessionId);
     this.lastDeliveredAt.delete(sessionId);
     this.unannounced.delete(sessionId);
+    this.pendingJoin.delete(sessionId);
     this.inFlight.delete(sessionId);
   }
 }

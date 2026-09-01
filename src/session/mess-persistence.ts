@@ -317,7 +317,13 @@ function normalizeCursor(value: unknown, projectId: string): MessCursor | null {
   if (!isRecord(value) || value.projectId !== projectId) return null;
   if (typeof value.sessionId !== 'string' || !value.sessionId) return null;
   if (!Number.isSafeInteger(value.lastSeq) || value.lastSeq < 0 || !Number.isFinite(value.joinedAt)) return null;
-  return { projectId, sessionId: value.sessionId, lastSeq: value.lastSeq, joinedAt: value.joinedAt };
+  return {
+    projectId,
+    sessionId: value.sessionId,
+    lastSeq: value.lastSeq,
+    joinedAt: value.joinedAt,
+    ...(value.joinNoticeSent === true ? { joinNoticeSent: true } : {}),
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, any> {
