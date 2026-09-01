@@ -82,6 +82,19 @@ def bump_version(part):
     new_version = ".".join(parts)
     pkg["version"] = new_version
     pkg_path.write_text(json.dumps(pkg, indent=2) + "\n", encoding="utf-8")
+
+    # The lockfile carries the version in two places and npm rewrites both on the
+    # next install. Left alone, a tagged release ships a lockfile naming the
+    # PREVIOUS version, and the drift only surfaces on whichever machine happens
+    # to run npm install next.
+    lock_path = Path("package-lock.json")
+    if lock_path.exists():
+        lock = json.loads(lock_path.read_text(encoding="utf-8"))
+        lock["version"] = new_version
+        if "" in lock.get("packages", {}):
+            lock["packages"][""]["version"] = new_version
+        lock_path.write_text(json.dumps(lock, indent=2) + "\n", encoding="utf-8")
+
     return current, new_version
 
 

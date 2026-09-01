@@ -1,6 +1,6 @@
 import { mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { MessPersistence } from '../src/session/mess-persistence.js';
 import { getMessCursorPath, getMessLogPath } from '../src/session/persistence-paths.js';
@@ -44,7 +44,7 @@ describe('MessPersistence', () => {
   it('continues the sequence after a reload and ignores same-millisecond timestamps', () => {
     const store = makeStore();
     post(store, 'first', createdAt);
-    const reloaded = new MessPersistence(projectId, { directory: store.logPath.replace(/\\[^\\]+$/, '') });
+    const reloaded = new MessPersistence(projectId, { directory: dirname(store.logPath) });
     const second = post(reloaded, 'second', createdAt);
 
     expect(second.seq).toBe(2);
@@ -169,7 +169,7 @@ describe('MessPersistence', () => {
       updatedAt: createdAt + 1,
     };
 
-    expect(new MessPersistence(project.id, { directory: store.logPath.replace(/\\[^\\]+$/, '') }).load().entries).toHaveLength(1);
+    expect(new MessPersistence(project.id, { directory: dirname(store.logPath) }).load().entries).toHaveLength(1);
   });
 
   it('resolves documented defaults and rejects nonsense overrides', () => {

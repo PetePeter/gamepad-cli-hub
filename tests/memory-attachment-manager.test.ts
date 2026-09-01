@@ -1,10 +1,22 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { MemoryAttachmentManager } from '../src/session/memory-attachment-manager.js';
 import { MemoryManager } from '../src/session/memory-manager.js';
 import { MemoryPersistence } from '../src/session/memory-persistence.js';
+
+/**
+ * A temp root with symlinks already resolved.
+ *
+ * The manager's safe-temp check compares real paths, and macOS hands out
+ * /var/folders/... where /var is a symlink to /private/var. Resolving here keeps
+ * the assertion about what the code does rather than about the platform's
+ * temp-dir layout.
+ */
+function makeRoot(): string {
+  return realpathSync(mkdtempSync(join(tmpdir(), 'helm-memory-attachments-')));
+}
 
 describe('MemoryAttachmentManager', () => {
   let root: string | undefined;
@@ -14,7 +26,7 @@ describe('MemoryAttachmentManager', () => {
   });
 
   it('stores arbitrary MIME metadata, hashes bytes, and retrieves a safe temp copy', () => {
-    root = mkdtempSync(join(tmpdir(), 'helm-memory-attachments-'));
+    root = makeRoot();
     const manager = new MemoryAttachmentManager(root, join(root, 'temp'));
     const attachment = manager.add('memory-1', {
       filename: '../../café?.txt',
@@ -32,7 +44,7 @@ describe('MemoryAttachmentManager', () => {
   });
 
   it('enforces the 10MB limit and compensates bytes when metadata persistence fails', () => {
-    root = mkdtempSync(join(tmpdir(), 'helm-memory-attachments-'));
+    root = makeRoot();
     const manager = new MemoryAttachmentManager(root, undefined, {
       atomicWrite: () => { throw new Error('metadata disk full'); },
     });
@@ -43,7 +55,7 @@ describe('MemoryAttachmentManager', () => {
   });
 
   it('deletes an attachment and offers bounded orphan repair', () => {
-    root = mkdtempSync(join(tmpdir(), 'helm-memory-attachments-'));
+    root = makeRoot();
     const manager = new MemoryAttachmentManager(root);
     const attachment = manager.add('m1', { filename: 'x.bin', content: Buffer.from('x') });
     expect(manager.delete('m1', attachment.id)).toBe(true);
@@ -53,7 +65,7 @@ describe('MemoryAttachmentManager', () => {
   });
 
   it('uses unique temp destinations for repeated reads', () => {
-    root = mkdtempSync(join(tmpdir(), 'helm-memory-attachments-'));
+    root = makeRoot();
     const manager = new MemoryAttachmentManager(root, join(root, 'temp'));
     const attachment = manager.add('m1', { filename: 'x.bin', content: Buffer.from('x') });
     const first = manager.getToTempFile(attachment);
@@ -66,7 +78,7 @@ describe('MemoryAttachmentManager', () => {
   });
 
   it('stages attachment deletion and can roll it back before finalization', () => {
-    root = mkdtempSync(join(tmpdir(), 'helm-memory-attachments-'));
+    root = makeRoot();
     const manager = new MemoryAttachmentManager(root);
     const attachment = manager.add('m1', { filename: 'x.bin', content: Buffer.from('x') });
 
@@ -83,7 +95,7 @@ describe('MemoryAttachmentManager', () => {
   });
 
   it('reconciles an interrupted delete from persisted memory state', () => {
-    root = mkdtempSync(join(tmpdir(), 'helm-memory-attachments-'));
+    root = makeRoot();
     const memoryPath = join(root, 'memories.json');
     const attachmentManager = new MemoryAttachmentManager(join(root, 'attachments'));
     const persistence = new MemoryPersistence(memoryPath);
@@ -116,7 +128,7 @@ describe('MemoryAttachmentManager', () => {
   });
 
   it('rolls back an interrupted delete when persisted memory still references it', () => {
-    root = mkdtempSync(join(tmpdir(), 'helm-memory-attachments-'));
+    root = makeRoot();
     const memoryPath = join(root, 'memories.json');
     const attachmentManager = new MemoryAttachmentManager(join(root, 'attachments'));
     const persistence = new MemoryPersistence(memoryPath);
