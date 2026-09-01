@@ -270,6 +270,53 @@ describe('MessNotifier', () => {
     notifier.dispose();
   });
 
+  // The cooldown exists to stop re-announcing mail the session has already been
+  // told about. Mail that missed its receptive window was never announced, so
+  // holding it for the full cooldown just delays a message nobody has seen.
+  it('delivers mail that missed its receptive window without waiting out the cooldown', async () => {
+    vi.useFakeTimers();
+    const { manager, stateDetector, notifier, deliveries, receiver } = setup();
+    manager.post('sender', 'one');
+    await flush();
+    expect(deliveries).toHaveLength(1);
+
+    receiver.activityLevel = 'active';
+    manager.post('sender', 'two');
+    await flush();
+    expect(deliveries).toHaveLength(1);
+
+    receiver.activityLevel = 'inactive';
+    stateDetector.emit('activity-change', { sessionId: 'receiver', level: 'inactive' });
+    await flush();
+
+    expect(deliveries).toEqual([
+      '[HELM_MESS] 1 new — call mess_check',
+      '[HELM_MESS] 2 new — call mess_check',
+    ]);
+    notifier.dispose();
+  });
+
+  // Unread returning to the same count is not evidence it is the same mail.
+  it('delivers new mail that missed its window even when the unread count is unchanged', async () => {
+    vi.useFakeTimers();
+    const { manager, stateDetector, notifier, deliveries, receiver } = setup();
+    manager.post('sender', 'one');
+    await flush();
+    manager.check('receiver');
+
+    receiver.activityLevel = 'active';
+    manager.post('sender', 'two');
+    await flush();
+    expect(deliveries).toHaveLength(1);
+
+    receiver.activityLevel = 'inactive';
+    stateDetector.emit('activity-change', { sessionId: 'receiver', level: 'inactive' });
+    await flush();
+
+    expect(deliveries).toHaveLength(2);
+    notifier.dispose();
+  });
+
   it('leaves a failed delivery retryable and clears timers on dispose', async () => {
     vi.useFakeTimers();
     const { manager, notifier, sendSystemReminder, deliveries } = setup();

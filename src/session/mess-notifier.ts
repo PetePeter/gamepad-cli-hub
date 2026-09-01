@@ -37,6 +37,8 @@ export class MessNotifier {
   private readonly clearTimer: typeof clearTimeout;
   private readonly retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly lastDeliveredAt = new Map<string, number>();
+  /** Sessions holding mail that arrived while they were busy and was never announced. */
+  private readonly unannounced = new Set<string>();
   private readonly inFlight = new Set<string>();
   private disposed = false;
 
@@ -49,6 +51,10 @@ export class MessNotifier {
       if (entry.projectId !== this.messManager.getProjectIdForSession(session.id)) continue;
       if (entry.toSessionId !== undefined && entry.toSessionId !== session.id) continue;
       if (entry.fromSessionId === session.id) continue;
+      // Recorded before the attempt: if the session is busy right now the poke
+      // is dropped, and this is what tells the next transition that the mail
+      // still owes an announcement.
+      this.unannounced.add(session.id);
       void this.consider(session.id, true);
     }
   };
@@ -84,14 +90,20 @@ export class MessNotifier {
     for (const timer of this.retryTimers.values()) this.clearTimer(timer);
     this.retryTimers.clear();
     this.lastDeliveredAt.clear();
+    this.unannounced.clear();
     this.inFlight.clear();
   }
 
   /**
-   * @param newPost a fresh Mess entry triggered this, so the cooldown is
-   *   bypassed — every post reaches every related session. The cooldown still
-   *   guards the idle-driven path, where a poke is itself PTY output that drops
-   *   the session back to idle and would otherwise re-poke forever.
+   * @param newPost a fresh Mess entry triggered this.
+   *
+   * The cooldown is bypassed whenever the session is *owed* an announcement —
+   * either a post just arrived, or one arrived earlier while the session was
+   * busy and was dropped. Mail nobody has been told about is never delayed.
+   *
+   * What the cooldown still guards is re-announcing mail already delivered: the
+   * poke is itself PTY output, bouncing the session back through active to
+   * inactive, which would otherwise re-poke every few seconds forever.
    */
   private async consider(sessionId: string, newPost = false): Promise<void> {
     if (this.disposed || this.inFlight.has(sessionId)) return;
@@ -106,11 +118,15 @@ export class MessNotifier {
       logger.warn(`[MessNotifier] Could not inspect unread Mess for ${sessionId}: ${error}`);
       return;
     }
-    if (unread <= 0) return;
+    if (unread <= 0) {
+      this.unannounced.delete(sessionId);
+      return;
+    }
 
     const cooldownMs = this.cooldownMs(sessionId);
     const last = this.lastDeliveredAt.get(sessionId);
-    if (!newPost && last !== undefined && this.now() < last + cooldownMs) {
+    const owed = newPost || this.unannounced.has(sessionId);
+    if (!owed && last !== undefined && this.now() < last + cooldownMs) {
       this.scheduleRetry(sessionId, last + cooldownMs);
       return;
     }
@@ -138,6 +154,7 @@ export class MessNotifier {
         },
       });
       if (!verificationFailedBeforeRecord && !this.disposed && this.sessionManager.getSession(sessionId)) {
+        this.unannounced.delete(sessionId);
         deliveryRecordedAt = this.now();
         this.lastDeliveredAt.set(sessionId, deliveryRecordedAt);
         this.scheduleRetry(sessionId, deliveryRecordedAt + cooldownMs);
@@ -179,6 +196,7 @@ export class MessNotifier {
   private clearSession(sessionId: string): void {
     this.cancelRetry(sessionId);
     this.lastDeliveredAt.delete(sessionId);
+    this.unannounced.delete(sessionId);
     this.inFlight.delete(sessionId);
   }
 }

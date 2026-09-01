@@ -80,10 +80,12 @@ When retention has moved past the caller's cursor, `gap: true` and
 {"new":1,"gap":true,"oldestSeq":38,"msgs":[...]}
 ```
 
-Unread is narrower than visible. A session never receives its own posts in its
-own delta or unread count — an author has already read what it wrote, and
-counting it would inflate the total the notifier advertises. Own posts remain in
-`mess_history` and the observer pane, where the transcript needs them.
+Unread is narrower than visible. A session sees broadcasts, entries addressed to
+it, and everything it wrote itself — including its own directed posts, which are
+addressed away from the author and would otherwise vanish from the sender's own
+transcript on send. But a session never receives its own posts in its delta or
+unread count: an author has already read what it wrote, and counting it would
+inflate the total the notifier advertises.
 
 `mess_post` omits `to` for a broadcast. A supplied target must be same-project;
 cross-project targets fail rather than creating an unreadable record. Text and
@@ -136,16 +138,22 @@ printed anything waited up to five minutes, and a session that kept working
 never heard about it at all. `inactive` is the same best-effort bet made far
 sooner.
 
-**A new post bypasses the cooldown**, so a message is never silently swallowed
-by a throttle window. Every append pokes every receptive session in the project
-— or only `toSessionId` when the post is targeted. A session that is busy at
-post time is not woken and nothing is scheduled for it; it is caught up on its
-next transition into `inactive`, which re-checks unread and delivers.
+**Mail that has never been announced is never delayed.** Every append pokes
+every receptive session in the project — or only `toSessionId` when the post is
+targeted. A session that is busy at post time cannot be woken, so the notifier
+records that it is *owed* an announcement and delivers on its next transition
+into `inactive`, bypassing the cooldown. Without that debt the message would
+inherit the full cooldown window and sit undelivered for up to fifteen minutes
+despite nobody having seen it.
 
-The cooldown applies solely to the transition-driven path, where it is the loop
-guard: the poke is itself PTY output, which drives the session back through
-`active` to `inactive` and would otherwise re-poke forever. The guard is the
-cooldown, never the activity level.
+The debt is tracked as a flag rather than an unread count, because unread
+returning to the same number is not evidence it is the same mail — read one,
+receive one, and the count is unchanged while the message is entirely new.
+
+The cooldown therefore guards exactly one thing: re-announcing mail already
+delivered. The poke is itself PTY output, which drives the session back through
+`active` to `inactive`; without the throttle that bounce would re-poke every few
+seconds forever. The guard is the cooldown, never the activity level.
 
 A retry timer rechecks the conditions after cooldown. Cooldown is recorded only
 after successful delivery; a failed or unverified write does not acknowledge

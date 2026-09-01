@@ -316,8 +316,15 @@ export class MessManager extends EventEmitter {
   }
 }
 
+/**
+ * A session sees broadcasts, entries addressed to it, and its own posts. The
+ * author clause matters for directed mail: without it a session's own DM is
+ * addressed away from itself and vanishes from its own transcript on send.
+ */
 function isVisibleTo(entry: MessEntry, sessionId: string): boolean {
-  return entry.toSessionId === undefined || entry.toSessionId === sessionId;
+  return entry.toSessionId === undefined
+    || entry.toSessionId === sessionId
+    || entry.fromSessionId === sessionId;
 }
 
 /**

@@ -206,6 +206,20 @@ describe('MessManager', () => {
     expect(manager.history(sender.id, { sinceHours: 1 }).map(entry => entry.text)).toEqual(['my own words']);
   });
 
+  // A directed post is addressed away from its author, so a to-only visibility
+  // rule erased it from the sender's own transcript the moment it was sent.
+  it('shows an author the directed posts it sent, without making them unread', () => {
+    const { sessions, manager } = setup();
+    const sender = add(sessions, 'sender', 'planner');
+    add(sessions, 'receiver', 'memories');
+    add(sessions, 'bystander', 'bystander');
+    manager.post('sender', 'just for you', 'receiver');
+
+    expect(manager.history(sender.id, { sinceHours: 1 }).map(entry => entry.text)).toEqual(['just for you']);
+    expect(manager.unreadCount(sender.id)).toBe(0);
+    expect(manager.history('bystander', { sinceHours: 1 })).toEqual([]);
+  });
+
   it('advances the author cursor past its own post so a peer reply is the only unread entry', () => {
     const { sessions, manager } = setup();
     const sender = add(sessions, 'sender', 'planner');
