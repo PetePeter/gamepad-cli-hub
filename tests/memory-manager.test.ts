@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { makeTempRoot } from './helpers/temp-root.js';
 import { MemoryAttachmentManager } from '../src/session/memory-attachment-manager.js';
 import { MemoryManager } from '../src/session/memory-manager.js';
 import { MemoryPersistence } from '../src/session/memory-persistence.js';
@@ -147,7 +147,7 @@ describe('MemoryManager', () => {
   });
 
   it('requires explicit repair before replacing a corrupt persisted store', () => {
-    const root = mkdtempSync(join(tmpdir(), 'helm-memory-manager-'));
+    const root = makeTempRoot('helm-memory-manager-');
     try {
       const filePath = join(root, 'memories.json');
       writeFileSync(filePath, '{not json', 'utf8');
@@ -163,7 +163,7 @@ describe('MemoryManager', () => {
   });
 
   it('leaves memory state, attachment bytes, and events unchanged when cleanup fails', () => {
-    const root = mkdtempSync(join(tmpdir(), 'helm-memory-manager-'));
+    const root = makeTempRoot('helm-memory-manager-');
     try {
       const attachments = new MemoryAttachmentManager(root, undefined, {
         deleteFile: () => { throw new Error('cleanup failed'); },
@@ -192,7 +192,7 @@ describe('MemoryManager', () => {
   });
 
   it('restores attachment metadata and bytes when memory persistence fails after cleanup', () => {
-    const root = mkdtempSync(join(tmpdir(), 'helm-memory-manager-'));
+    const root = makeTempRoot('helm-memory-manager-');
     try {
       let failPersistence = false;
       const attachments = new MemoryAttachmentManager(join(root, 'attachments'), join(root, 'temp'));

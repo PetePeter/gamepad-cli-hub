@@ -1,22 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { makeTempRoot } from './helpers/temp-root.js';
 import { MemoryAttachmentManager } from '../src/session/memory-attachment-manager.js';
 import { MemoryManager } from '../src/session/memory-manager.js';
 import { MemoryPersistence } from '../src/session/memory-persistence.js';
 
-/**
- * A temp root with symlinks already resolved.
- *
- * The manager's safe-temp check compares real paths, and macOS hands out
- * /var/folders/... where /var is a symlink to /private/var. Resolving here keeps
- * the assertion about what the code does rather than about the platform's
- * temp-dir layout.
- */
-function makeRoot(): string {
-  return realpathSync(mkdtempSync(join(tmpdir(), 'helm-memory-attachments-')));
-}
+const makeRoot = () => makeTempRoot('helm-memory-attachments-');
 
 describe('MemoryAttachmentManager', () => {
   let root: string | undefined;

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { makeTempRoot } from './helpers/temp-root.js';
 import { HelmControlService } from '../src/mcp/helm-control-service.js';
 import { callMcpTool } from '../src/mcp/tools/dispatcher.js';
 import { MCP_TOOLS } from '../src/mcp/tools/definitions.js';
@@ -40,7 +40,7 @@ describe('MCP memory surface', () => {
   });
 
   function setup() {
-    root = mkdtempSync(join(tmpdir(), 'helm-memory-mcp-'));
+    root = makeTempRoot('helm-memory-mcp-');
     const attachments = new MemoryAttachmentManager(join(root, 'attachments'), join(root, 'temp'));
     const tempRegistry = new ArtifactTempRegistry();
     const ids = ['a', 'b', 'c'];
