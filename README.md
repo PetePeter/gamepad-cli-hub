@@ -509,7 +509,7 @@ Each CLI tool has an advanced editor (accessible from Settings → Tools) with o
 
 See [docs/build-and-test.md](docs/build-and-test.md) for development and packaging details.
 
-To create the universal macOS installer, run `npm run package:mac` on macOS. The DMG is written to `release/Helm-<version>-universal.dmg`.
+To create the complete universal macOS installer, run `python3 packageMac.py` on macOS. This stages clean config seeds, builds the app, and writes `release/Helm-<version>.dmg`.
 
 ---
 
