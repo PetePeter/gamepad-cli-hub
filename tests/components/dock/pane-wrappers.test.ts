@@ -169,6 +169,39 @@ describe('pane wrappers render their view', () => {
     expect(wrapper.findComponent(PlanScreen).exists()).toBe(true);
   });
 
+  // On rehydrate the active session id is restored before the session list
+  // carries workingDir, so a watcher on the id alone binds null and never
+  // rebinds — the canvas stays empty until an unrelated session is opened.
+  it('PlanScreenPane binds once workingDir arrives after the session id', async () => {
+    appState.activeSessionId = 's-hydrating';
+    appState.sessions = [];
+    const wrapper = mountPane(PlanScreenPane, fake.context);
+    await nextTick();
+    expect(wrapper.findComponent(PlanScreen).props('dirPath')).toBe('');
+
+    appState.sessions = [{ id: 's-hydrating', workingDir: 'X:/rehydrated' }] as any;
+    await nextTick();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(wrapper.findComponent(PlanScreen).props('dirPath')).toBe('X:/rehydrated');
+  });
+
+  it('PlanScreenPane does not refetch when the session list is replaced with equal values', async () => {
+    appState.activeSessionId = 's-1';
+    appState.sessions = [{ id: 's-1', workingDir: 'X:/one' }] as any;
+    const wrapper = mountPane(PlanScreenPane, fake.context);
+    await nextTick();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const callsAfterMount = (window as any).gamepadCli.planList.mock.calls.length;
+
+    appState.sessions = [{ id: 's-1', workingDir: 'X:/one' }] as any;
+    await nextTick();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(wrapper.findComponent(PlanScreen).props('dirPath')).toBe('X:/one');
+    expect((window as any).gamepadCli.planList.mock.calls.length).toBe(callsAfterMount);
+  });
+
   it('SchedulerPane renders the scheduler section', () => {
     const wrapper = mountPane(SchedulerPane, fake.context);
     expect(wrapper.findComponent(SchedulerSection).exists()).toBe(true);

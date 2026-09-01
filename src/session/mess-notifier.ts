@@ -35,7 +35,7 @@ export class MessNotifier {
       if (entry.projectId !== this.messManager.getProjectIdForSession(session.id)) continue;
       if (entry.toSessionId !== undefined && entry.toSessionId !== session.id) continue;
       if (entry.fromSessionId === session.id) continue;
-      void this.consider(session.id);
+      void this.consider(session.id, true);
     }
   };
 
@@ -73,7 +73,13 @@ export class MessNotifier {
     this.inFlight.clear();
   }
 
-  private async consider(sessionId: string): Promise<void> {
+  /**
+   * @param newPost a fresh Mess entry triggered this, so the cooldown is
+   *   bypassed — every post reaches every related session. The cooldown still
+   *   guards the idle-driven path, where a poke is itself PTY output that drops
+   *   the session back to idle and would otherwise re-poke forever.
+   */
+  private async consider(sessionId: string, newPost = false): Promise<void> {
     if (this.disposed || this.inFlight.has(sessionId)) return;
     const session = this.sessionManager.getSession(sessionId);
     if (!session || session.activityLevel !== 'idle') return;
@@ -90,7 +96,7 @@ export class MessNotifier {
 
     const cooldownMs = this.cooldownMs(sessionId);
     const last = this.lastDeliveredAt.get(sessionId);
-    if (last !== undefined && this.now() < last + cooldownMs) {
+    if (!newPost && last !== undefined && this.now() < last + cooldownMs) {
       this.scheduleRetry(sessionId, last + cooldownMs);
       return;
     }

@@ -121,10 +121,17 @@ one line only:
 [HELM_MESS] 3 new — call mess_check
 ```
 
-The notifier checks unread visibility, idle state, whether the PTY is running,
-and cooldown. It listens for both idle transitions and new appends, because a
-post made while a session is already idle produces no new idle transition. A
-retry timer rechecks the conditions after cooldown. Cooldown is recorded only
+The notifier checks unread visibility, idle state, and whether the PTY is
+running. It listens for both idle transitions and new appends, because a post
+made while a session is already idle produces no new idle transition.
+
+**A new post bypasses the cooldown.** Every append pokes every open session in
+the project — or only `toSessionId` when the post is targeted — so a message is
+never silently swallowed by a throttle window. The cooldown applies solely to
+the idle-driven path, where it is a loop guard: the poke is itself PTY output,
+which drops the session back to idle and would otherwise re-poke forever.
+
+A retry timer rechecks the conditions after cooldown. Cooldown is recorded only
 after successful delivery; a failed or unverified write does not acknowledge
 anything.
 
@@ -149,7 +156,7 @@ agent cursor.
 ## Lifecycle and limits
 
 Default project settings are 30 days of retention, a 24-hour new-member join
-horizon, and a 15-minute poke cooldown. Project rename and path changes are safe
+horizon, and a 15-minute idle-poke cooldown (new posts ignore it). Project rename and path changes are safe
 because records and filenames use the project UUID. Project deletion purges its
 Mess data. Cursor lifetime follows session identity: recoverable close preserves
 it, while ephemeral close, forget, and expiry remove it.
@@ -166,7 +173,7 @@ targeting protocol rather than guessing from a proxy identity.
 | `MessManager` | Project membership, ordered cursors, visibility, and domain events. |
 | `MessPersistence` | Per-project JSONL entries plus atomic cursor/metadata persistence. |
 | `HelmMessService` | Authenticated MCP validation and compact wire shapes. |
-| `MessNotifier` | Best-effort idle reminders and cooldown/retry policy. |
+| `MessNotifier` | Best-effort idle reminders; per-post fan-out and idle cooldown/retry policy. |
 | `mess-handlers` | Cursor-neutral renderer history and project-scoped append push. |
 | `useMessPane` / `MessPane.vue` | Reactive observer projection and read-only UI. |
 

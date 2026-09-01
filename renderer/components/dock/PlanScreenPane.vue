@@ -52,7 +52,10 @@ onMounted(() => {
   void bindPlanScreenToDir(appStore.activeSessionDir);
 });
 
-watch(() => appStore.state.activeSessionId, () => {
+// Watch the resolved directory, not the session id: on rehydrate the id is
+// restored before the session list carries workingDir, so an id-only watcher
+// would bind null and never fire again once the directory finally lands.
+watch(() => appStore.activeSessionDir, () => {
   void bindPlanScreenToDir(appStore.activeSessionDir);
 });
 
