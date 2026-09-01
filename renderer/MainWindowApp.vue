@@ -38,6 +38,7 @@ import { useInputRouter } from './composables/useInputRouter.js';
 import { useSidebarController } from './composables/useSidebarController.js';
 import { useRecycleBin } from './composables/useRecycleBin.js';
 import { useArtifactViewer } from './composables/useArtifactViewer.js';
+import { useArtifactSessionBinding } from './composables/useArtifactSessionBinding.js';
 import { useRuntimeGroups } from './composables/useRuntimeGroups.js';
 import { useRuntimeGroupActions } from './composables/useRuntimeGroupActions.js';
 import { useDraftPlanContextEditor } from './composables/useDraftPlanContextEditor.js';
@@ -516,9 +517,7 @@ function refitTerminalsSoon(): void {
 
 // Keep artifacts bound to whichever session is active; the plan pane owns its
 // own session binding because it can remain mounted alongside the terminal.
-watch(() => state.activeSessionId, (id) => {
-  void artifactViewer.setActiveSession(id ?? null);
-});
+useArtifactSessionBinding(artifactViewer);
 const { addToast } = useToast();
 const planWorkspaceController = usePlanWorkspaceController({ addToast });
 const {

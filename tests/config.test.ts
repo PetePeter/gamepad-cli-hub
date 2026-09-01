@@ -1431,6 +1431,21 @@ describe('ConfigLoader', () => {
       expect(onDisk.workspaceLayout).toEqual(createDefaultLayout());
     });
 
+    it('stores the pop-out profile under its own key, leaving the main layout alone', () => {
+      const mainLayout = createDefaultLayout('main');
+      const popoutLayout = createDefaultLayout('popout');
+      loader.load();
+      loader.setWorkspaceLayout(mainLayout);
+      loader.setWorkspaceLayout(popoutLayout, 'popout');
+
+      expect(loader.getWorkspaceLayout()).toEqual(mainLayout);
+      expect(loader.getWorkspaceLayout('popout')).toEqual(popoutLayout);
+
+      const onDisk = readYaml<any>('settings.yaml');
+      expect(onDisk.workspaceLayout).toEqual(mainLayout);
+      expect(onDisk.popoutWorkspaceLayout).toEqual(popoutLayout);
+    });
+
     it('throws before configuration is loaded', () => {
       const unloaded = new ConfigLoader(TEST_DIR);
       expect(() => unloaded.getWorkspaceLayout()).toThrow('Configuration not loaded');

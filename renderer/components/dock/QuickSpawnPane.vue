@@ -10,9 +10,9 @@ import { computed } from 'vue';
 import SpawnGrid from '../sidebar/SpawnGrid.vue';
 import { sessionsState } from '../../screens/sessions-state.js';
 import { getCliDisplayName } from '../../utils.js';
-import { useHelmPaneContext } from '../../dock-pane-context.js';
+import { useHelmMainPaneContext } from '../../dock-pane-context.js';
 
-const sidebar = useHelmPaneContext().sidebar;
+const sidebar = useHelmMainPaneContext().sidebar;
 
 const items = computed(() =>
   sessionsState.cliTypes.map(cliType => ({

@@ -26,6 +26,8 @@ import { deliverPromptSequenceToSession } from './sequence-delivery.js';
 const PENDING_STATUSES = new Set<ScheduledTaskStatus>(['pending', 'executing']);
 const MIN_INTERVAL_MS = 60_000;
 const DREAM_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const DREAM_DEFAULT_HOUR = 9;
+const DREAM_DEFAULT_MINUTE = 0;
 export const DREAM_BASE_PROMPT = 'Review this project\'s durable memories. Call memory_dream to inspect faded and salient candidates, then use your judgement to prune stale memories with memory_set_dormant or consolidate related knowledge. Do not delete memories merely because they are old; respect the candidate metrics and project scope.';
 
 export class ScheduledTaskManager extends EventEmitter {
@@ -203,11 +205,27 @@ export class ScheduledTaskManager extends EventEmitter {
         continue;
       }
       primaryByProject.set(project.id, task);
-      if (task.projectId !== project.id || task.dirPath !== project.canonicalPath || task.enabled === undefined || task.userPrompt === undefined || task.status === 'failed') {
+      const taskChanged = task.projectId !== project.id
+        || task.dirPath !== project.canonicalPath
+        || task.enabled === undefined
+        || task.userPrompt === undefined
+        || task.status === 'failed'
+        || task.scheduleKind !== 'cron'
+        || !task.cronExpression;
+      if (taskChanged) {
         task.projectId = project.id;
         task.dirPath = project.canonicalPath;
         task.enabled ??= false;
         task.userPrompt ??= '';
+        if (task.scheduleKind !== 'cron' || !task.cronExpression) {
+          const anchor = task.nextRunAt ?? task.scheduledTime;
+          task.scheduleKind = 'cron';
+          task.cronExpression = dailyCronFor(anchor);
+          task.nextRunAt = anchor.getTime() > Date.now()
+            ? anchor
+            : nextDailyTime(anchor.getHours(), anchor.getMinutes());
+          task.scheduledTime = task.nextRunAt;
+        }
         if (task.status === 'failed') {
           task.status = 'pending';
           delete task.completedAt;
@@ -217,10 +235,12 @@ export class ScheduledTaskManager extends EventEmitter {
         this.emit('task:changed', task);
       }
       if (task.enabled === false) this.clearTimer(task.id);
+      else if (taskChanged) this.scheduleTask(task);
     }
 
     for (const project of currentProjects) {
       if (primaryByProject.has(project.id)) continue;
+      const firstRun = nextDailyTime(DREAM_DEFAULT_HOUR, DREAM_DEFAULT_MINUTE);
       const task: ScheduledTask = {
         id: randomUUID(),
         title: 'Memory Dreaming',
@@ -228,10 +248,10 @@ export class ScheduledTaskManager extends EventEmitter {
         planIds: [],
         initialPrompt: DREAM_BASE_PROMPT,
         cliType: '',
-        scheduledTime: new Date(Date.now() + DREAM_INTERVAL_MS),
-        scheduleKind: 'interval',
-        intervalMs: DREAM_INTERVAL_MS,
-        nextRunAt: new Date(Date.now() + DREAM_INTERVAL_MS),
+        scheduledTime: firstRun,
+        scheduleKind: 'cron',
+        cronExpression: dailyCronFor(firstRun),
+        nextRunAt: firstRun,
         dirPath: project.canonicalPath,
         projectId: project.id,
         systemKind: 'dream',
@@ -695,4 +715,15 @@ export class ScheduledTaskManager extends EventEmitter {
       deliveryContext: 'background',
     });
   }
+}
+
+function dailyCronFor(date: Date): string {
+  return `${date.getMinutes()} ${date.getHours()} * * *`;
+}
+
+function nextDailyTime(hour: number, minute: number, now = new Date()): Date {
+  const candidate = new Date(now);
+  candidate.setHours(hour, minute, 0, 0);
+  if (candidate.getTime() <= now.getTime()) candidate.setDate(candidate.getDate() + 1);
+  return candidate;
 }

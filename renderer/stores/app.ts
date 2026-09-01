@@ -38,6 +38,35 @@ export const appState: AppState = reactive({
   snappedOutSessions: new Set(),
 });
 
+/**
+ * Windows that exist to serve exactly one session (the snap-out popout) pin it.
+ *
+ * Module scope, not store state: each popout is its own BrowserWindow, so this
+ * is already per-window, and keeping it out of `appState` means nothing that
+ * serializes or resets the state tree can quietly unpin a window.
+ */
+let pinnedSessionId: string | null = null;
+let refusedNavigationLogged = false;
+
+/**
+ * The one guard. Module scope rather than a store action so that the navigation
+ * store — the renderer's other write authority for `activeSessionId` — funnels
+ * through the same check without importing a Pinia instance. A window that
+ * pinned its session therefore needs no `if (isPopout)` checks of its own, and a
+ * stray navigation is refused rather than thrown, because a background nav
+ * attempt must never take the window down with it.
+ */
+export function setActiveSessionId(id: string | null): void {
+  if (pinnedSessionId !== null) {
+    if (id !== pinnedSessionId && !refusedNavigationLogged) {
+      refusedNavigationLogged = true;
+      console.debug(`[App] Ignoring session navigation to ${id}; this window is pinned to ${pinnedSessionId}.`);
+    }
+    return;
+  }
+  appState.activeSessionId = id;
+}
+
 export const useAppStore = defineStore('app', () => {
   const state = appState;
 
@@ -57,8 +86,15 @@ export const useAppStore = defineStore('app', () => {
     state.currentScreen = screen;
   }
 
-  function setActiveSessionId(id: string | null) {
-    state.activeSessionId = id;
+  /** Bind this window to one session for its lifetime. */
+  function pinActiveSession(sessionId: string) {
+    pinnedSessionId = null;
+    setActiveSessionId(sessionId);
+    pinnedSessionId = sessionId;
+  }
+
+  function isActiveSessionPinned(): boolean {
+    return pinnedSessionId !== null;
   }
 
   function addSession(session: Session) {
@@ -111,12 +147,23 @@ export const useAppStore = defineStore('app', () => {
     removeSession,
     updateSession,
     setSessions,
+    pinActiveSession,
+    isActiveSessionPinned,
     upsertSession,
     setProjects,
     setGamepadCount,
     logEvent,
   };
 });
+
+/**
+ * Release the pin. A real window never unpins — it is destroyed instead — so
+ * this exists purely so a test file can reuse the module across cases.
+ */
+export function resetActiveSessionPinForTests(): void {
+  pinnedSessionId = null;
+  refusedNavigationLogged = false;
+}
 
 /** Resolve the working directory for the currently selected session. */
 export function getActiveSessionDir(): string | null {

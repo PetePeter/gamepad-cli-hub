@@ -4,7 +4,8 @@ import { appClient, attachmentsClient, backupsClient, configClient, contextsClie
  *
  * Single write authority for:
  *   - Panel view (terminal / overview / plan) — mirrors main-view-manager
- *   - Active session ID — writes to state.activeSessionId
+ *   - Active session ID — via stores/app.ts `setActiveSessionId`, the single
+ *     guard that a session-pinned window (snap-out pop-out) relies on
  *   - Sidebar focus (identity-based — survives navList rebuilds)
  *   - Overlay lifecycle (open/close overview, plan, settings)
  *
@@ -19,6 +20,7 @@ import { appClient, attachmentsClient, backupsClient, configClient, contextsClie
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { state } from '../state.js';
+import { setActiveSessionId } from './app.js';
 import { sessionsState } from '../screens/sessions-state.js';
 import { hideDraftEditor } from './draft-editor-registry.js';
 import {
@@ -164,7 +166,7 @@ export const useNavigationStore = defineStore('navigation', () => {
     if (state.snappedOutSessions.has(sessionId)) {
       await setMainActiveSession(sessionId);
       if (!isLatestRequest()) return { kind: 'failed', sessionId, error: 'stale request' };
-      state.activeSessionId = sessionId;
+      setActiveSessionId(sessionId);
       syncSidebarToSession(sessionId);
       void chipBarStore.refresh(sessionId);
       return { kind: 'snapped-out', sessionId };
@@ -179,7 +181,7 @@ export const useNavigationStore = defineStore('navigation', () => {
         await setMainActiveSession(sessionId);
         if (!isLatestRequest()) return { kind: 'failed', sessionId, error: 'stale request' };
         tm.switchTo(sessionId);
-        state.activeSessionId = sessionId;
+        setActiveSessionId(sessionId);
         syncSidebarToSession(sessionId);
         void chipBarStore.refresh(sessionId);
         return { kind: 'local-terminal', sessionId };
@@ -201,7 +203,7 @@ export const useNavigationStore = defineStore('navigation', () => {
 
     if (state.snappedOutSessions.has(sessionId)) {
       void setMainActiveSession(sessionId);
-      state.activeSessionId = sessionId;
+      setActiveSessionId(sessionId);
       void useChipBarStore().refresh(sessionId);
       return { kind: 'snapped-out', sessionId };
     }
@@ -210,7 +212,7 @@ export const useNavigationStore = defineStore('navigation', () => {
     if (tm?.hasTerminal(sessionId)) {
       void setMainActiveSession(sessionId);
       tm.switchTo(sessionId);
-      state.activeSessionId = sessionId;
+      setActiveSessionId(sessionId);
       void useChipBarStore().refresh(sessionId);
       return { kind: 'local-terminal', sessionId };
     }
@@ -322,10 +324,10 @@ export const useNavigationStore = defineStore('navigation', () => {
    */
   async function reconcileTerminalSwitch(sessionId: string | null): Promise<void> {
     if (sessionId) {
-      state.activeSessionId = sessionId;
+      setActiveSessionId(sessionId);
       syncSidebarToSession(sessionId);
     } else {
-      state.activeSessionId = null;
+      setActiveSessionId(null);
     }
     const { useChipBarStore } = await import('../stores/chip-bar.js');
     void useChipBarStore().refresh(sessionId);

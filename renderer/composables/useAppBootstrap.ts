@@ -54,17 +54,14 @@ import {
 import { refreshPlanBadges } from '../screens/sessions-plans.js';
 import { useChipBarStore } from '../stores/chip-bar.js';
 import { useNavigationStore } from '../stores/navigation.js';
+import { refreshProjects, type RendererProjectRecord } from '../projects-sync.js';
 import { normalizeCmdInput } from '../utils/shell-command.js';
 import { hasCaseInsensitivePaths } from '../utils/platform.js';
 
 export { startTimerRefresh, stopTimerRefresh } from './useTimerRefresh.js';
-
-type RendererProjectRecord = {
-  id: string;
-  name: string;
-  canonicalPath: string;
-  alternatePaths?: string[];
-};
+// The project mirror is shared with the pop-out shell, which cannot import this
+// module; re-exported here so existing bootstrap callers keep one import site.
+export { refreshProjects };
 
 // Sort preferences (module-level state to match legacy behaviour)
 let sortField: SessionSortField = 'name';
@@ -110,22 +107,6 @@ function findProjectForPath(dirPath?: string): RendererProjectRecord | undefined
   return state.projects.find(project =>
     pathsMatch(project.canonicalPath, dirPath)
     || (project.alternatePaths ?? []).some(alt => pathsMatch(alt, dirPath)));
-}
-
-export async function refreshProjects(): Promise<void> {
-  if (!projectsClient.projectList) return;
-  try {
-    const projects = (await projectsClient.projectList()) || [];
-    state.projects = projects.map((project: RendererProjectRecord) => ({
-      id: project.id,
-      name: project.name,
-      canonicalPath: project.canonicalPath,
-      alternatePaths: project.alternatePaths || [],
-    }));
-  } catch (error) {
-    console.error('[Bootstrap] Failed to load projects:', error);
-    state.projects = [];
-  }
 }
 
 function clamp(value: number, min: number, max: number): number {

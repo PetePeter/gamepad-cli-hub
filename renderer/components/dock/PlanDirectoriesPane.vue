@@ -13,9 +13,9 @@ import PlansGrid from '../sidebar/PlansGrid.vue';
 import { sessionsState } from '../../screens/sessions-state.js';
 import { useAppStore } from '../../stores/app.js';
 import { buildPlannerDirectories, buildPlannerDirectorySource } from '../../screens/planner-directories.js';
-import { useHelmPaneContext } from '../../dock-pane-context.js';
+import { useHelmMainPaneContext } from '../../dock-pane-context.js';
 
-const sidebar = useHelmPaneContext().sidebar;
+const sidebar = useHelmMainPaneContext().sidebar;
 const appStore = useAppStore();
 const state = appStore.state;
 

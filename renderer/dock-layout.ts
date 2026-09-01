@@ -9,9 +9,10 @@
 
 import {
   DOCK_LAYOUT_VERSION,
-  DOCK_PANES,
   getPaneDescriptor,
   isKnownPane,
+  isProfilePane,
+  listProfilePanes,
   OUTER_EDGE_RATIO,
   PANE_ARTIFACTS,
   PANE_OVERVIEW,
@@ -28,6 +29,7 @@ import {
   type DockMode,
   type DockNode,
   type DockNodePath,
+  type DockProfileId,
   type DockSide,
   type DockSplitNode,
   type DockWorkspaceLayout,
@@ -66,12 +68,22 @@ function dock(side: DockSide, mode: DockMode, child: DockNode): DockDockNode {
   return { type: 'dock', side, mode, child };
 }
 
+/** Share an edge dock receives in a freshly built default layout. */
+const DEFAULT_EDGE_RATIO = 0.22;
+
+/** Artifacts has always started as a collapsed rail rather than a pinned column. */
+const DEFAULT_DOCK_MODES: Partial<Record<DockSide, DockMode>> = { right: 'autohide' };
+
 /**
  * The Classic layout — a close reproduction of the pre-docking UI: session list
  * and tool windows on the left, the view group in the centre, and Artifacts as a
  * collapsed right-edge rail.
+ *
+ * Kept as a literal rather than derived: the left column's split between the
+ * session list and the stacked tool windows is a hand-tuned arrangement that no
+ * descriptor records, and reproducing the pre-docking UI exactly is the point.
  */
-export function createDefaultLayout(): DockWorkspaceLayout {
+function createClassicLayout(): DockWorkspaceLayout {
   return {
     version: DOCK_LAYOUT_VERSION,
     root: split('horizontal', [
@@ -84,6 +96,47 @@ export function createDefaultLayout(): DockWorkspaceLayout {
     ], [0.22, 0.56, 0.22]),
     closed: [],
   };
+}
+
+/**
+ * Generic default for a profile: centre-homed panes tabbed in one group, every
+ * other pane in the edge dock its descriptor names as home.
+ */
+function createProfileLayout(profile: DockProfileId): DockWorkspaceLayout {
+  const panes = listProfilePanes(profile);
+  const centre = panes.filter(p => p.home === 'center').map(p => p.id);
+  const bySide = DOCK_SIDES
+    .map(side => ({ side, ids: panes.filter(p => p.home === side).map(p => p.id) }))
+    .filter(entry => entry.ids.length > 0);
+
+  let root: DockNode = centre.length ? group(centre, centre[0]) : { type: 'empty' };
+
+  // Horizontal edges first so the vertical ones span the finished row, matching
+  // how a dragged top/bottom edge dock lands on an existing layout.
+  for (const direction of ['horizontal', 'vertical'] as const) {
+    const edges = bySide.filter(e => ZONE_GEOMETRY[e.side].direction === direction);
+    if (!edges.length) continue;
+    const children: DockNode[] = [];
+    const sizes: number[] = [];
+    const centreShare = 1 - DEFAULT_EDGE_RATIO * edges.length;
+    for (const edge of edges.filter(e => ZONE_GEOMETRY[e.side].before)) {
+      children.push(dock(edge.side, DEFAULT_DOCK_MODES[edge.side] ?? 'pinned', group(edge.ids)));
+      sizes.push(DEFAULT_EDGE_RATIO);
+    }
+    children.push(root);
+    sizes.push(centreShare);
+    for (const edge of edges.filter(e => !ZONE_GEOMETRY[e.side].before)) {
+      children.push(dock(edge.side, DEFAULT_DOCK_MODES[edge.side] ?? 'pinned', group(edge.ids)));
+      sizes.push(DEFAULT_EDGE_RATIO);
+    }
+    root = split(direction, children, sizes);
+  }
+
+  return { version: DOCK_LAYOUT_VERSION, root, closed: [] };
+}
+
+export function createDefaultLayout(profile: DockProfileId = 'main'): DockWorkspaceLayout {
+  return profile === 'main' ? createClassicLayout() : createProfileLayout(profile);
 }
 
 // ---------------------------------------------------------------------------
@@ -227,7 +280,10 @@ export function normalizeNode(node: DockNode | null): DockNode | null {
 function withRoot(layout: DockWorkspaceLayout, root: DockNode | null, closed: PaneId[]): DockWorkspaceLayout {
   const normalized = normalizeNode(root);
   if (normalized) return { version: layout.version, root: normalized, closed: [...closed] };
-  if (DOCK_PANES.every(pane => closed.includes(pane.id))) {
+  // An emptied tree means every pane that was in it has been closed, whatever
+  // profile it was built from — the ops here only remove a pane in tandem with
+  // adding it to `closed`, so the closed list is the profile's pane set.
+  if (closed.length > 0) {
     return { version: layout.version, root: { type: 'empty' }, closed: [...closed] };
   }
   throw new Error('dock layout: operation would leave an invalid empty workspace');
@@ -528,8 +584,8 @@ function attachEdgeDock(root: DockNode, side: DockSide, child: DockNode): DockNo
     : split(direction, [root, edge], [1 - OUTER_EDGE_RATIO, OUTER_EDGE_RATIO]);
 }
 
-export function resetLayout(): DockWorkspaceLayout {
-  return createDefaultLayout();
+export function resetLayout(profile: DockProfileId = 'main'): DockWorkspaceLayout {
+  return createDefaultLayout(profile);
 }
 
 function replaceNodeAtPath(node: DockNode, path: DockNodePath, replace: (node: DockNode) => DockNode): DockNode {
@@ -572,7 +628,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function validateNode(raw: unknown, seen: Set<PaneId>): DockNode {
+function validateNode(raw: unknown, seen: Set<PaneId>, profile: DockProfileId): DockNode {
   if (!isRecord(raw)) throw new Error('dock layout: node is not an object');
 
   switch (raw.type) {
@@ -580,7 +636,9 @@ function validateNode(raw: unknown, seen: Set<PaneId>): DockNode {
       const { tabs, activeTab } = raw;
       if (!Array.isArray(tabs) || tabs.length === 0) throw new Error('dock layout: group has no tabs');
       for (const tab of tabs) {
-        if (typeof tab !== 'string' || !isKnownPane(tab)) throw new Error(`dock layout: unknown pane "${String(tab)}"`);
+        if (typeof tab !== 'string' || !isProfilePane(profile, tab)) {
+          throw new Error(`dock layout: unknown pane "${String(tab)}"`);
+        }
         if (seen.has(tab)) throw new Error(`dock layout: duplicate pane "${tab}"`);
         seen.add(tab);
       }
@@ -610,14 +668,14 @@ function validateNode(raw: unknown, seen: Set<PaneId>): DockNode {
         type: 'split',
         direction: direction as SplitDirection,
         sizes: [...numericSizes],
-        children: children.map(child => validateNode(child, seen)),
+        children: children.map(child => validateNode(child, seen, profile)),
       };
     }
     case 'dock': {
       const { side, mode, child } = raw;
       if (!DOCK_SIDES.includes(side as DockSide)) throw new Error(`dock layout: unknown dock side "${String(side)}"`);
       if (!DOCK_MODES.includes(mode as DockMode)) throw new Error(`dock layout: unknown dock mode "${String(mode)}"`);
-      return { type: 'dock', side: side as DockSide, mode: mode as DockMode, child: validateNode(child, seen) };
+      return { type: 'dock', side: side as DockSide, mode: mode as DockMode, child: validateNode(child, seen, profile) };
     }
     default:
       throw new Error(`dock layout: unknown node type "${String(raw.type)}"`);
@@ -629,18 +687,18 @@ function validateNode(raw: unknown, seen: Set<PaneId>): DockNode {
  * malformed schema, unknown/duplicate pane, or missing registered pane, so a
  * caller can fall back to the default layout on a single try/catch.
  */
-export function validateLayout(raw: unknown): DockWorkspaceLayout {
+export function validateLayout(raw: unknown, profile: DockProfileId = 'main'): DockWorkspaceLayout {
   if (!isRecord(raw)) throw new Error('dock layout: layout is not an object');
   if (raw.version !== DOCK_LAYOUT_VERSION) throw new Error(`dock layout: unsupported version "${String(raw.version)}"`);
 
   const seen = new Set<PaneId>();
   const emptyRoot = isRecord(raw.root) && raw.root.type === 'empty';
-  const root = emptyRoot ? { type: 'empty' as const } : validateNode(raw.root, seen);
+  const root = emptyRoot ? { type: 'empty' as const } : validateNode(raw.root, seen, profile);
 
   const closed = raw.closed;
   if (!Array.isArray(closed)) throw new Error('dock layout: closed must be an array');
   for (const paneId of closed) {
-    if (typeof paneId !== 'string' || !isKnownPane(paneId)) {
+    if (typeof paneId !== 'string' || !isProfilePane(profile, paneId)) {
       throw new Error(`dock layout: unknown pane "${String(paneId)}"`);
     }
     if (!getPaneDescriptor(paneId)?.closable) {
@@ -650,10 +708,11 @@ export function validateLayout(raw: unknown): DockWorkspaceLayout {
     seen.add(paneId);
   }
 
-  const missing = DOCK_PANES.filter(p => !seen.has(p.id)).map(p => p.id);
+  const profilePanes = listProfilePanes(profile);
+  const missing = profilePanes.filter(p => !seen.has(p.id)).map(p => p.id);
   if (missing.length) throw new Error(`dock layout: missing pane(s) ${missing.join(', ')}`);
 
-  if (emptyRoot && closed.length !== DOCK_PANES.length) {
+  if (emptyRoot && closed.length !== profilePanes.length) {
     throw new Error('dock layout: empty root requires every pane to be closed');
   }
 

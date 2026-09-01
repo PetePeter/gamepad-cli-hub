@@ -19,7 +19,7 @@ import { useRecycleBin } from '../../composables/useRecycleBin.js';
 import { isSessionHiddenFromOverview, resolveGroupDisplayName } from '../../session-groups.js';
 import { getCliDisplayName } from '../../utils.js';
 import { formatElapsed } from '../../../src/utils/time-parser.js';
-import { useHelmPaneContext } from '../../dock-pane-context.js';
+import { useHelmMainPaneContext } from '../../dock-pane-context.js';
 
 const SORT_OPTIONS = [
   { value: 'name', label: 'Name' },
@@ -28,7 +28,7 @@ const SORT_OPTIONS = [
   { value: 'activity', label: 'Activity' },
 ];
 
-const pane = useHelmPaneContext();
+const pane = useHelmMainPaneContext();
 const sidebar = pane.sidebar;
 const state = useAppStore().state;
 const navStore = useNavigationStore();

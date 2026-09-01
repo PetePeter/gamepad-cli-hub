@@ -12,9 +12,21 @@ import type { ContextManager } from '../../session/context-manager.js';
 import { PlanAttachmentManager } from '../../session/plan-attachment-manager.js';
 import { validateProjectDirectory } from '../../session/validation.js';
 import { logger } from '../../utils/logger.js';
+import type { WindowManager } from '../window-manager.js';
 
-export function setupProjectHandlers(projectStore: ProjectStore, planManager?: PlanManager, contextManager?: ContextManager): void {
+export function setupProjectHandlers(
+  projectStore: ProjectStore,
+  planManager?: PlanManager,
+  contextManager?: ContextManager,
+  windowManager?: WindowManager,
+): void {
   const attachmentManager = planManager ? new PlanAttachmentManager(planManager) : null;
+
+  projectStore.onChanged((projects) => {
+    for (const win of windowManager?.getAllWindows() ?? []) {
+      win.webContents.send('project:changed', projects);
+    }
+  });
 
   ipcMain.handle('project:list', () => {
     try {

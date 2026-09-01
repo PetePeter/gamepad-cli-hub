@@ -324,6 +324,7 @@ export const PRELOAD_API_DOMAINS = {
     'onPlanIncomingImported',
     'onPlanIncomingError',
     'onPlanIncomingErrorCleared',
+    'onProjectChanged',
     'onPatternScheduleCreated',
     'onPatternScheduleFired',
     'onPatternScheduleCancelled',

@@ -13,11 +13,11 @@ import { useNavigationStore } from '../../stores/navigation.js';
 import { getTerminalManager } from '../../runtime/terminal-provider.js';
 import { getVisibleSessions, resolveGroupDisplayName } from '../../session-groups.js';
 import { getOverviewSessions } from '../../screens/group-overview.js';
-import { useHelmPaneContext } from '../../dock-pane-context.js';
+import { useHelmMainPaneContext } from '../../dock-pane-context.js';
 
 const PREVIEW_LINES = 10;
 
-const pane = useHelmPaneContext();
+const pane = useHelmMainPaneContext();
 const sidebar = pane.sidebar;
 const state = useAppStore().state;
 const navStore = useNavigationStore();

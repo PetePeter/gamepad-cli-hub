@@ -16,6 +16,7 @@ import {
 import {
   PANE_ARTIFACTS,
   type DockDockNode,
+  type DockProfileId,
   type DockNode,
   type DockSplitNode,
   type DockWorkspaceLayout,
@@ -170,17 +171,20 @@ function hasLegacyPreferences(legacy: LegacyDockPreferences): boolean {
 /** Parse a persisted layout, falling back safely and migrating legacy state only when absent. */
 export function loadDockLayout(
   raw: unknown,
-  options: { legacy?: LegacyDockPreferences; viewportWidth?: number } = {},
+  options: { legacy?: LegacyDockPreferences; viewportWidth?: number; profile?: DockProfileId } = {},
 ): DockLoadResult {
+  const profile = options.profile ?? 'main';
   if (raw !== undefined && raw !== null) {
     try {
-      return { layout: validateLayout(raw), source: 'persisted', migrated: false };
+      return { layout: validateLayout(raw, profile), source: 'persisted', migrated: false };
     } catch {
-      return { layout: createDefaultLayout(), source: 'fallback', migrated: false };
+      return { layout: createDefaultLayout(profile), source: 'fallback', migrated: false };
     }
   }
 
-  const legacy = options.legacy ?? {};
+  // The legacy keys describe the main window's old sidebar and artifact columns.
+  // No other profile ever had them, so migrating there would invent state.
+  const legacy = profile === 'main' ? options.legacy ?? {} : {};
   if (hasLegacyPreferences(legacy)) {
     return {
       layout: migrateLegacyDockPreferences(createDefaultLayout(), legacy, options.viewportWidth),
@@ -188,10 +192,13 @@ export function loadDockLayout(
       migrated: true,
     };
   }
-  return { layout: createDefaultLayout(), source: 'default', migrated: false };
+  return { layout: createDefaultLayout(profile), source: 'default', migrated: false };
 }
 
 /** Return a detached, schema-checked copy ready to cross the IPC boundary. */
-export function serializeDockLayout(layout: DockWorkspaceLayout): DockWorkspaceLayout {
-  return validateLayout(layout);
+export function serializeDockLayout(
+  layout: DockWorkspaceLayout,
+  profile: DockProfileId = 'main',
+): DockWorkspaceLayout {
+  return validateLayout(layout, profile);
 }

@@ -123,7 +123,8 @@ renderer/
 │   │   ├── ToolsTab.vue        # CLI type management
 │   │   └── TelegramTab.vue     # Telegram bot configuration
 │   ├── dock/
-│   │   └── MessPane.vue        # Read-only project Mess observer pane
+│   │   ├── MessPane.vue        # Read-only project Mess observer pane
+│   │   └── PopOutTerminalPane.vue # Snap-out terminal: owns its own TerminalView + PTY attach
 │   └── panels/
 │       ├── index.ts
 │       ├── TerminalPane.vue    # xterm.js lifecycle wrapper

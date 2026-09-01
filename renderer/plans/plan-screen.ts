@@ -11,6 +11,7 @@ import { getActiveSessionDir } from '../stores/app.js';
 import { registerView, showView, currentView, type ViewMountContext } from '../main-view/main-view-manager.js';
 import { registerKeyHandler, type KeyContext } from '../keyboard/router.js';
 import { PANE_PLAN_SCREEN } from '../dock-types.js';
+import { currentWindowIdentity, windowIdentityKey } from '../window-identity.js';
 import { pathsMatch } from '../session-groups.js';
 import {
   attachmentsClient,
@@ -79,8 +80,6 @@ let latestPlanDataLoadToken = 0;
 let dockPaneMounted = false;
 let overlayMounted = false;
 
-type WindowKey = 'main' | 'popout';
-
 interface WindowCallbacks {
   planEditorOpener: ((sessionId: string, plan: PlanItem, callbacks: PlanEditorCallbacks) => void) | null;
   draftEditorCloser: (() => void) | null;
@@ -90,14 +89,12 @@ interface WindowCallbacks {
   backupRestoreOpener: (() => void) | null;
 }
 
-const callbackRegistry = new Map<WindowKey, WindowCallbacks>();
-
-function getWindowKey(): WindowKey {
-  return window.location.search.includes('plannerPopOut=1') ? 'popout' : 'main';
-}
+// Keyed per window, not per pop-out flag: several planner pop-outs can be open
+// at once, and each must own its own editor callbacks.
+const callbackRegistry = new Map<string, WindowCallbacks>();
 
 function getWindowCallbacks(): WindowCallbacks {
-  const key = getWindowKey();
+  const key = windowIdentityKey(currentWindowIdentity());
     if (!callbackRegistry.has(key)) {
     callbackRegistry.set(key, {
       planEditorOpener: null,

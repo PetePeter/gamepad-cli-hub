@@ -6,6 +6,7 @@ import type { RecycleBinEntry } from '../../types/recycle-bin.js';
 import type { RuntimeGroup } from '../../types/runtime-group.js';
 import type { Artifact } from '../../types/artifact.js';
 import type { MessEntry } from '../../types/mess.js';
+import type { WorkspaceLayoutProfile } from '../../config/loader.js';
 import type { MessHistoryOptions, MessHistoryResult } from '../../session/mess-manager.js';
 import {
   createPreloadDomains,
@@ -251,11 +252,16 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
 
 
 
-  /** Get the renderer-owned versioned dock workspace, if persisted. */
-  configGetWorkspaceLayout: () => ipcRenderer.invoke('config:getWorkspaceLayout') as Promise<unknown>,
+  /**
+   * Get the renderer-owned versioned dock workspace for a window profile.
+   * Omitting the profile keeps the main window's original storage key.
+   */
+  configGetWorkspaceLayout: (profile?: WorkspaceLayoutProfile) =>
+    ipcRenderer.invoke('config:getWorkspaceLayout', profile) as Promise<unknown>,
 
-  /** Persist the renderer-owned versioned dock workspace. */
-  configSetWorkspaceLayout: (layout: unknown) => ipcRenderer.invoke('config:setWorkspaceLayout', layout),
+  /** Persist the renderer-owned versioned dock workspace for a window profile. */
+  configSetWorkspaceLayout: (layout: unknown, profile?: WorkspaceLayoutProfile) =>
+    ipcRenderer.invoke('config:setWorkspaceLayout', layout, profile),
 
   configGetEditorPrefs: () => ipcRenderer.invoke('config:getEditorPrefs') as Promise<{
     draftEditorHeight?: number;
@@ -966,6 +972,13 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     const listener = (_event: unknown, data: { filename: string }) => callback(data);
     ipcRenderer.on('plan:incoming-error-cleared', listener);
     return () => ipcRenderer.removeListener('plan:incoming-error-cleared', listener);
+  },
+
+  /** Subscribe to project registry changes. */
+  onProjectChanged: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('project:changed', listener);
+    return () => ipcRenderer.removeListener('project:changed', listener);
   },
 
   onPatternScheduleCreated: (callback: (event: { sessionId: string; scheduledAt: string; ruleIndex: number }) => void) => {

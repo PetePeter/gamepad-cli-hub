@@ -290,11 +290,29 @@ export interface SettingsConfig {
    * falls back to the default layout instead.
    */
   workspaceLayout?: unknown;
+  /** Same contract, for the shared snap-out pop-out profile. */
+  popoutWorkspaceLayout?: unknown;
   telegram?: TelegramConfig;
   mcp?: McpConfig;
   fleet?: FleetConfig;
   /** Pre-rename key, read-only migration input for `fleet`. Never written. */
   federation?: FleetConfig;
+}
+
+/**
+ * Which window profile a stored dock layout belongs to. Mirrors the renderer's
+ * `DockProfileId`; duplicated as a plain union rather than imported so main
+ * keeps no dependency on renderer code.
+ */
+export type WorkspaceLayoutProfile = 'main' | 'popout';
+
+const WORKSPACE_LAYOUT_FIELDS = {
+  main: 'workspaceLayout',
+  popout: 'popoutWorkspaceLayout',
+} as const;
+
+function workspaceLayoutField(profile: WorkspaceLayoutProfile): 'workspaceLayout' | 'popoutWorkspaceLayout' {
+  return WORKSPACE_LAYOUT_FIELDS[profile] ?? WORKSPACE_LAYOUT_FIELDS.main;
 }
 
 export interface SessionGroupPrefs {
@@ -707,16 +725,21 @@ export class ConfigLoader {
     this.saveSettings();
   }
 
-  /** Return the renderer-owned dock tree, if one has been persisted. */
-  getWorkspaceLayout(): unknown {
+  /**
+   * Return the renderer-owned dock tree for a window profile, if persisted.
+   *
+   * The main profile keeps the original `workspaceLayout` key so existing
+   * settings load untouched; other profiles get their own field.
+   */
+  getWorkspaceLayout(profile: WorkspaceLayoutProfile = 'main'): unknown {
     this.ensureLoaded();
-    return this.settings!.workspaceLayout;
+    return this.settings![workspaceLayoutField(profile)];
   }
 
   /** Persist the renderer-owned dock tree without interpreting its schema here. */
-  setWorkspaceLayout(layout: unknown): void {
+  setWorkspaceLayout(layout: unknown, profile: WorkspaceLayoutProfile = 'main'): void {
     this.ensureLoaded();
-    this.settings!.workspaceLayout = layout;
+    this.settings![workspaceLayoutField(profile)] = layout;
     this.saveSettings();
   }
 

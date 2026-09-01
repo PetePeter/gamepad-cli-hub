@@ -11,9 +11,9 @@
  */
 import SchedulerSection from '../sidebar/SchedulerSection.vue';
 import ScheduledTaskHistoryModal from '../sidebar/ScheduledTaskHistoryModal.vue';
-import { useHelmPaneContext } from '../../dock-pane-context.js';
+import { useHelmMainPaneContext } from '../../dock-pane-context.js';
 
-const sidebar = useHelmPaneContext().sidebar;
+const sidebar = useHelmMainPaneContext().sidebar;
 </script>
 
 <template>

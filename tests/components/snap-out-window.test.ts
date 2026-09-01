@@ -1,200 +1,278 @@
 /**
  * @vitest-environment jsdom
+ *
+ * The snapped-out shell is a real docking workspace on the `popout` profile.
+ * These tests exercise the actual panes and stores — the only seam mocked is the
+ * IPC client surface — because the whole design claim is that pinning
+ * `activeSessionId` is sufficient to bind every pane to the right session.
  */
 
 import { mount, flushPromises } from '@vue/test-utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { setActivePinia, createPinia } from 'pinia';
 
-const { mockUseTerminalKeys, mockRefresh, mockShowEditorPopup } = vi.hoisted(() => ({
-  mockUseTerminalKeys: vi.fn(),
-  mockRefresh: vi.fn().mockResolvedValue(undefined),
-  mockShowEditorPopup: vi.fn(),
-}));
-
-vi.mock('../../renderer/editor/editor-popup.js', () => ({
-  showEditorPopup: mockShowEditorPopup,
-  hideEditorPopup: vi.fn(),
-  isEditorPopupVisible: vi.fn(() => false),
-}));
-
-vi.mock('../../renderer/composables/useTerminalKeys.js', () => ({
-  useTerminalKeys: mockUseTerminalKeys,
+const { mockTerminalAttach, mockTerminalDetach } = vi.hoisted(() => ({
+  mockTerminalAttach: vi.fn(),
+  mockTerminalDetach: vi.fn(),
 }));
 
 vi.mock('../../renderer/terminal/terminal-view.js', () => ({
   TerminalView: class {
+    static instances: any[] = [];
+    written: string[] = [];
+    disposed = false;
+    constructor(public options: any) { (this.constructor as any).instances.push(this); }
     fit(): void {}
     focus(): void {}
     getDimensions(): { cols: number; rows: number } { return { cols: 80, rows: 24 }; }
-    write(): void {}
-    dispose(): void {}
+    write(data: string): void { this.written.push(data); }
+    dispose(): void { this.disposed = true; }
     getSelection(): string { return ''; }
     hasSelection(): boolean { return false; }
   },
 }));
 
-vi.mock('../../renderer/stores/chip-bar.js', () => ({
-  useChipBarStore: () => ({
-    drafts: [],
-    plans: [],
-    actions: [],
-    refresh: mockRefresh,
-    openDraft: vi.fn(),
-    openPlan: vi.fn(),
-    openNewDraft: vi.fn(),
-    triggerAction: vi.fn(),
-  }),
-  setDraftEditorOpener: vi.fn(),
-  setPlanEditorOpener: vi.fn(),
-}));
-
-vi.mock('../../renderer/paste-handler.js', () => ({
-  deliverBulkText: vi.fn(),
-  deliverViaClipboardPaste: vi.fn(),
-  readSelectionInfo: vi.fn(() => ({ collapsed: true, inArtifactDoc: false })),
-}));
-
-vi.mock('../../renderer/stores/draft-editor-registry.js', () => ({
-  showDraftEditor: vi.fn(),
-  initDraftEditor: vi.fn(),
-  setDraftEditorOpener: vi.fn(),
-  setPlanEditorOpener: vi.fn(),
-  setDraftEditorCloser: vi.fn(),
-  setDraftEditorVisibilityChecker: vi.fn(),
-  setDraftEditorButtonHandler: vi.fn(),
-  setPlanChangesChecker: vi.fn(),
-}));
-
-vi.mock('../../renderer/stores/modal-bridge.js', () => ({
-  contextMenu: {
-    visible: false,
-    selectedText: '',
-    hasSelection: false,
-    sourceSessionId: null,
-  },
-  promptTree: {
-    visible: false,
-    tree: { id: '__root__', name: '', order: -1, kind: 'folder', children: [] },
-  },
-  showPromptTree: vi.fn(),
-  getPromptTreeCallback: vi.fn(() => null),
-  hidePromptTree: vi.fn(),
-}));
-
-vi.mock('../../renderer/utils.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../renderer/utils.js')>();
-  return {
-    ...actual,
-    getCliDisplayName: (cliType: string) => cliType || 'Unknown CLI',
-  };
-});
-
-vi.mock('../../renderer/state.js', () => ({
-  state: {
-    sessions: [],
-    activeSessionId: null,
-  },
-}));
-
 import SnapOutWindow from '../../renderer/components/SnapOutWindow.vue';
+import { TerminalView } from '../../renderer/terminal/terminal-view.js';
+import { state } from '../../renderer/state.js';
+import { useAppStore, resetActiveSessionPinForTests } from '../../renderer/stores/app.js';
 import { useModalStack } from '../../renderer/composables/useModalStack.js';
-import { useEditorPopupStore } from '../../renderer/stores/editor-popup.js';
+import { createDefaultLayout } from '../../renderer/dock-layout.js';
+import { DOCK_PROFILE_PANES, PANE_TERMINAL } from '../../renderer/dock-types.js';
+import { planScreenState } from '../../renderer/plans/plan-screen.js';
+import { hidePlanHelpModal } from '../../renderer/stores/modal-bridge.js';
+import { resetKeyHandlers } from '../../renderer/keyboard/router.js';
+import { useEscProtection } from '../../renderer/composables/useEscProtection.js';
 
-const EditorPopupStub = {
-  name: 'EditorPopup',
-  props: ['visible', 'initialText'],
-  template: '<div class="editor-popup-stub" v-if="visible" />',
+const POPOUT_SESSION = {
+  id: 'session-1',
+  name: 'Test Session',
+  cliType: 'claude-code',
+  workingDir: 'X:\\coding\\gamepad-cli-hub',
+  projectId: 'project-1',
+  processId: 1,
 };
 
-describe('SnapOutWindow', () => {
-  beforeEach(() => {
-    useModalStack().clear();
-    useEditorPopupStore().handleClose();
-    vi.clearAllMocks();
-    (window as any).sessionStore = {
-      load: vi.fn().mockResolvedValue([
-        {
-          id: 'session-1',
-          name: 'Test Session',
-          cliType: 'claude-code',
-          workingDir: 'X:\\coding\\gamepad-cli-hub',
-        },
-      ]),
-    };
-    (window as any).gamepadCli = {
-      configGetEscProtectionEnabled: vi.fn().mockResolvedValue(true),
-      onPtyData: vi.fn(() => vi.fn()),
-      onPtyExit: vi.fn(() => vi.fn()),
-      onSessionUpdated: vi.fn(() => vi.fn()),
-      ptyWrite: vi.fn(),
-      ptyScrollInput: vi.fn(),
-      ptyResize: vi.fn(),
-    };
+const OTHER_SESSION = {
+  id: 'session-2',
+  name: 'Other Session',
+  cliType: 'codex',
+  workingDir: 'X:\\coding\\other',
+  projectId: 'project-2',
+  processId: 2,
+};
+
+let savedLayouts: Array<{ profile: string | undefined; layout: unknown }>;
+let ptyDataListeners: Array<(sessionId: string, data: string) => void>;
+let api: Record<string, any>;
+
+let mounted: Array<{ unmount: () => void }>;
+
+/** Mount and settle: the shell loads the session and the layout before the dock renders. */
+async function mountShell(sessionId = POPOUT_SESSION.id) {
+  const wrapper = mount(SnapOutWindow, { props: { sessionId } });
+  mounted.push(wrapper);
+  await flushPromises();
+  await flushPromises();
+  await flushPromises();
+  return wrapper;
+}
+
+beforeEach(() => {
+  setActivePinia(createPinia());
+  resetActiveSessionPinForTests();
+  useModalStack().clear();
+  (TerminalView as any).instances = [];
+  state.sessions = [];
+  state.activeSessionId = null;
+  state.projects = [];
+  savedLayouts = [];
+  ptyDataListeners = [];
+  mounted = [];
+  // Key handlers and the plan-help modal are window-global singletons; a leaked
+  // registration from a previous case would answer this one's keystrokes.
+  resetKeyHandlers();
+  hidePlanHelpModal();
+  // Escape in an earlier case arms ESC protection, which is a modal state and
+  // would swallow the next case's shortcuts.
+  useEscProtection().dismissProtection();
+
+  (window as any).sessionStore = {
+    load: vi.fn().mockResolvedValue([POPOUT_SESSION, OTHER_SESSION]),
+  };
+
+  mockTerminalAttach.mockResolvedValue({ success: true, replay: 'REPLAYED-OUTPUT' });
+  mockTerminalDetach.mockResolvedValue({ success: true });
+
+  api = {
+    // config
+    configGetEscProtectionEnabled: vi.fn().mockResolvedValue(true),
+    configGetWorkspaceLayout: vi.fn().mockResolvedValue(undefined),
+    configSetWorkspaceLayout: vi.fn((layout: unknown, profile?: string) => {
+      savedLayouts.push({ profile, layout });
+      return Promise.resolve({ success: true });
+    }),
+    configGetPlanFilters: vi.fn().mockResolvedValue({}),
+    // terminal
+    terminalAttach: mockTerminalAttach,
+    terminalDetach: mockTerminalDetach,
+    ptyWrite: vi.fn(),
+    ptyScrollInput: vi.fn(),
+    ptyResize: vi.fn(),
+    // events
+    onPtyData: vi.fn((cb: (sessionId: string, data: string) => void) => {
+      ptyDataListeners.push(cb);
+      return vi.fn();
+    }),
+    onPtyExit: vi.fn(() => vi.fn()),
+    onSessionUpdated: vi.fn(() => vi.fn()),
+    onMessAppended: vi.fn(() => vi.fn()),
+    onArtifactsChanged: vi.fn(() => vi.fn()),
+    onMemoryChanged: vi.fn(() => vi.fn()),
+    // domain reads the panes make on mount
+    projectList: vi.fn().mockResolvedValue([
+      { id: 'project-1', name: 'Helm', canonicalPath: 'X:\\coding\\gamepad-cli-hub', alternatePaths: [] },
+      { id: 'project-2', name: 'Other', canonicalPath: 'X:\\coding\\other', alternatePaths: [] },
+    ]),
+    messHistory: vi.fn().mockResolvedValue({ entries: [], hasMore: false }),
+    memoryList: vi.fn().mockResolvedValue([]),
+    memoryGraphAll: vi.fn().mockResolvedValue({ records: [], edges: [] }),
+    artifactList: vi.fn().mockResolvedValue([]),
+    planList: vi.fn().mockResolvedValue([]),
+    planDeps: vi.fn().mockResolvedValue([]),
+    planSequenceList: vi.fn().mockResolvedValue([]),
+    planContextList: vi.fn().mockResolvedValue([]),
+    draftList: vi.fn().mockResolvedValue([]),
+    chipActionsGet: vi.fn().mockResolvedValue([]),
+    sessionRequestFocusSlot: vi.fn().mockResolvedValue(undefined),
+    sessionSnapBack: vi.fn().mockResolvedValue({ success: true }),
+  };
+  (window as any).gamepadCli = api;
+  (window as any).helm = undefined;
+});
+
+afterEach(() => {
+  for (const wrapper of mounted.splice(0)) wrapper.unmount();
+  vi.clearAllMocks();
+});
+
+describe('SnapOutWindow shell', () => {
+  it('pins the window to its session and refuses later navigation', async () => {
+    await mountShell();
+
+    const store = useAppStore();
+    expect(store.state.activeSessionId).toBe(POPOUT_SESSION.id);
+    expect(store.isActiveSessionPinned()).toBe(true);
+
+    store.setActiveSessionId(OTHER_SESSION.id);
+    expect(store.state.activeSessionId).toBe(POPOUT_SESSION.id);
   });
 
-  it('registers the shared terminal key handlers for the snapped-out session', async () => {
-    mount(SnapOutWindow, {
-      props: {
-        sessionId: 'session-1',
-      },
-      global: {
-        stubs: {
-          ChipBar: true,
-          ChipActionBar: true,
-          ContextMenu: true,
-          EscProtectionModal: true,
-        },
-      },
-    });
+  it('sets the document title from the pinned session', async () => {
+    await mountShell();
 
-    await flushPromises();
-
-    expect(mockUseTerminalKeys).toHaveBeenCalledTimes(1);
-    const options = mockUseTerminalKeys.mock.calls[0][0];
-    expect(options.getActiveSessionId()).toBe('session-1');
-    await expect(options.getEscProtectionEnabled()).resolves.toBe(true);
-    expect(window.gamepadCli.configGetEscProtectionEnabled).toHaveBeenCalledTimes(1);
+    expect(document.title).toContain('Test Session');
+    expect(document.title).toContain('gamepad-cli-hub');
   });
 
-  it('renders EditorPopup when the editor-popup store is visible', async () => {
-    const wrapper = mount(SnapOutWindow, {
-      props: { sessionId: 'session-1' },
-      global: {
-        stubs: {
-          ChipBar: true,
-          ChipActionBar: true,
-          ContextMenu: true,
-          EscProtectionModal: true,
-          EditorPopup: EditorPopupStub,
-        },
-      },
-    });
-    await flushPromises();
+  it('renders exactly the panes of the popout profile', async () => {
+    const wrapper = await mountShell();
 
-    expect(wrapper.find('.editor-popup-stub').exists()).toBe(false);
-
-    useEditorPopupStore().open();
-    await flushPromises();
-
-    expect(wrapper.find('.editor-popup-stub').exists()).toBe(true);
+    const rendered = wrapper.findAll('[data-dock-pane-id]')
+      .map(pane => pane.attributes('data-dock-pane-id'))
+      .sort();
+    expect(rendered).toEqual([...DOCK_PROFILE_PANES.popout].sort());
   });
 
-  it('closes the popout context menu when Escape reaches the modal bridge', async () => {
-    const wrapper = mount(SnapOutWindow, {
-      props: { sessionId: 'session-1' },
-      global: {
-        stubs: {
-          ChipBar: true,
-          ChipActionBar: true,
-          EscProtectionModal: true,
-          EditorPopup: EditorPopupStub,
-        },
-      },
-    });
+  it('persists its layout under the popout profile and never the main key', async () => {
+    const wrapper = await mountShell();
+
+    expect(api.configGetWorkspaceLayout).toHaveBeenCalledWith('popout');
+    expect(savedLayouts.length).toBeGreaterThan(0);
+    expect(savedLayouts.every(entry => entry.profile === 'popout')).toBe(true);
+
+    savedLayouts.length = 0;
+    await wrapper.findAll('[data-dock-tab-id] .dock-tab')[1].trigger('click');
     await flushPromises();
 
-    // Open the context menu via the component's contextmenu handler.
-    const container = wrapper.find('.snap-out-terminal').element as HTMLElement;
+    expect(savedLayouts.length).toBeGreaterThan(0);
+    expect(savedLayouts.every(entry => entry.profile === 'popout')).toBe(true);
+  });
+
+  it('adopts a persisted popout layout', async () => {
+    const persisted = createDefaultLayout('popout');
+    api.configGetWorkspaceLayout.mockResolvedValue(persisted);
+
+    const wrapper = await mountShell();
+
+    expect(wrapper.findAll('[data-dock-pane-id]').length).toBe(DOCK_PROFILE_PANES.popout.length);
+  });
+});
+
+describe('SnapOutWindow pane bindings', () => {
+  it('binds the plan pane to the pinned session directory', async () => {
+    await mountShell();
+
+    expect(planScreenState.currentDir).toBe(POPOUT_SESSION.workingDir);
+  });
+
+  it('derives the mess project from the pinned session', async () => {
+    const wrapper = await mountShell();
+
+    expect(api.messHistory).toHaveBeenCalled();
+    expect(api.messHistory.mock.calls[0][0]).toBe(POPOUT_SESSION.projectId);
+    expect(wrapper.find('.mess-pane').text()).toContain('Helm');
+  });
+
+  it('scopes memories to the pinned session', async () => {
+    await mountShell();
+
+    expect(api.memoryList).toHaveBeenCalled();
+  });
+
+  it('resolves artifacts for the pinned session', async () => {
+    const wrapper = await mountShell();
+
+    const artifactsPane = wrapper.find('[data-dock-pane-id="artifacts"]');
+    expect(artifactsPane.exists()).toBe(true);
+    expect(useAppStore().state.activeSessionId).toBe(POPOUT_SESSION.id);
+  });
+});
+
+describe('SnapOutWindow terminal pane', () => {
+  it('attaches, replays, and streams live output for the pinned session', async () => {
+    await mountShell();
+
+    expect(mockTerminalAttach).toHaveBeenCalledWith(POPOUT_SESSION.id);
+    const view = (TerminalView as any).instances[0];
+    expect(view.options.sessionId).toBe(POPOUT_SESSION.id);
+    expect(view.written).toContain('REPLAYED-OUTPUT');
+
+    for (const listener of ptyDataListeners) listener(POPOUT_SESSION.id, 'LIVE');
+    expect(view.written).toContain('LIVE');
+
+    // Output for a session this window is not pinned to never reaches the view.
+    for (const listener of ptyDataListeners) listener(OTHER_SESSION.id, 'FOREIGN');
+    expect(view.written).not.toContain('FOREIGN');
+  });
+
+  it('detaches PTY ownership before snapping back', async () => {
+    const wrapper = await mountShell();
+
+    const pane = wrapper.findComponent({ name: 'PopOutTerminalPane' });
+    await (pane.vm as any).snapBack();
+    await flushPromises();
+
+    expect(mockTerminalDetach).toHaveBeenCalledWith(POPOUT_SESSION.id);
+    expect(api.sessionSnapBack).toHaveBeenCalledWith(POPOUT_SESSION.id);
+    expect(mockTerminalDetach.mock.invocationCallOrder[0])
+      .toBeLessThan(api.sessionSnapBack.mock.invocationCallOrder[0]);
+  });
+
+  it('opens the terminal context menu against the pinned session', async () => {
+    const wrapper = await mountShell();
+
+    const container = wrapper.find('.popout-terminal').element as HTMLElement;
     container.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
     await flushPromises();
 
@@ -204,38 +282,40 @@ describe('SnapOutWindow', () => {
     await flushPromises();
 
     expect(document.querySelector('.context-menu')).toBeNull();
-
     wrapper.unmount();
   });
 
-  it('selects the Nth enabled item when a jump digit reaches the modal bridge', async () => {
-    const wrapper = mount(SnapOutWindow, {
-      props: { sessionId: 'session-1' },
-      global: {
-        stubs: {
-          ChipBar: true,
-          ChipActionBar: true,
-          EscProtectionModal: true,
-          EditorPopup: EditorPopupStub,
-        },
-      },
-    });
+  it('routes Ctrl+<n> to the main window without unpinning this one', async () => {
+    const wrapper = await mountShell();
+
+    // The pinned directory has no plans, so the plan pane raises its help modal
+    // on mount; a modal legitimately owns the keyboard, so dismiss it first.
+    hidePlanHelpModal();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '2', ctrlKey: true, bubbles: true }));
     await flushPromises();
 
-    const container = wrapper.find('.snap-out-terminal').element as HTMLElement;
-    container.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
-    await flushPromises();
+    expect(api.sessionRequestFocusSlot).toHaveBeenCalledWith(2);
+    expect(useAppStore().state.activeSessionId).toBe(POPOUT_SESSION.id);
+    expect(api.ptyWrite).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
 
-    // Enabled items (no selection): paste(1), editor(2), new-session(3), drafts(4), snap-back(5), cancel(6).
-    // Digit 2 fires the second enabled item: the editor action.
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '2', bubbles: true }));
-    await flushPromises();
-    await flushPromises();
-
-    // Editor action opens the editor popup (second enabled item).
-    expect(mockShowEditorPopup).toHaveBeenCalledTimes(1);
-    expect(document.querySelector('.context-menu')).toBeNull();
+  it('disposes the terminal view when the window unmounts', async () => {
+    const wrapper = await mountShell();
+    const view = (TerminalView as any).instances[0];
 
     wrapper.unmount();
+
+    expect(view.disposed).toBe(true);
+  });
+
+  it('overrides only the terminal pane component', async () => {
+    const wrapper = await mountShell();
+
+    const terminalPane = wrapper.find(`[data-dock-pane-id="${PANE_TERMINAL}"]`);
+    expect(terminalPane.find('.popout-terminal').exists()).toBe(true);
+    // The shared TerminalPane mounts the manager's host element; a pop-out has
+    // no manager, so that element must not exist here.
+    expect(wrapper.find('#terminalContainer').exists()).toBe(false);
   });
 });

@@ -36,7 +36,15 @@ export interface PaneGroupActions {
 export interface HelmPaneContext {
   /** Element the TerminalManager mounts xterm instances into. */
   terminalContainerRef: Ref<HTMLElement | null>;
-  sidebar: SidebarController;
+  /**
+   * Session list / spawn / scheduler actions.
+   *
+   * Absent in the pop-out profile: none of its panes drive the session list, and
+   * the controller is rooted in the main-window bootstrap graph, so a pop-out
+   * cannot honestly construct one. Panes that need it use
+   * `useHelmMainPaneContext`, which is only satisfiable by the main shell.
+   */
+  sidebar?: SidebarController;
   planWorkspace: PlanWorkspaceController;
   groups: PaneGroupActions;
   /** Activate a session and reveal its artifacts (session-card badge entry point). */
@@ -44,6 +52,9 @@ export interface HelmPaneContext {
   /** Pop the active session out; its artifact panel travels with the terminal. */
   popOutArtifacts: () => void;
 }
+
+/** Context as seen by a pane that only the main window ever hosts. */
+export type HelmMainPaneContext = HelmPaneContext & { sidebar: SidebarController };
 
 export const HELM_PANE_CONTEXT: InjectionKey<HelmPaneContext> = Symbol('helm-pane-context');
 
@@ -59,4 +70,15 @@ export function useHelmPaneContext(): HelmPaneContext {
   const context = inject(HELM_PANE_CONTEXT, null);
   if (!context) throw new Error('Helm pane context is not provided by the docking shell');
   return context;
+}
+
+/**
+ * Same context, asserted to carry the main-window-only members. A pane that
+ * calls this has declared itself main-profile; mounting it elsewhere is a
+ * registry bug and fails here rather than rendering a dead sidebar.
+ */
+export function useHelmMainPaneContext(): HelmMainPaneContext {
+  const context = useHelmPaneContext();
+  if (!context.sidebar) throw new Error('Helm pane context has no sidebar controller; this pane is main-window only');
+  return context as HelmMainPaneContext;
 }

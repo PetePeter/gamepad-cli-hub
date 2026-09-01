@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { useAppStore } from '../../renderer/stores/app.js';
+import { useAppStore, resetActiveSessionPinForTests } from '../../renderer/stores/app.js';
 import { useSessionsScreenStore } from '../../renderer/stores/sessions-screen.js';
 import { useConfigStore } from '../../renderer/stores/config.js';
 import { useDraftsStore } from '../../renderer/stores/drafts.js';
@@ -41,6 +41,8 @@ beforeEach(() => {
   state.settingsTab = 'profiles';
   state.activeProfile = 'default';
 
+  resetActiveSessionPinForTests();
+
   sessionsState.activeFocus = 'sessions';
   sessionsState.sessionsFocusIndex = 0;
   sessionsState.overviewGroup = null;
@@ -72,6 +74,29 @@ describe('useAppStore', () => {
     const store = useAppStore();
     state.activeSessionId = null;
     expect(store.activeSession).toBeUndefined();
+  });
+
+  it('setActiveSessionId moves the active session while unpinned', () => {
+    const store = useAppStore();
+    store.setActiveSessionId('s1');
+    expect(state.activeSessionId).toBe('s1');
+    store.setActiveSessionId('s2');
+    expect(state.activeSessionId).toBe('s2');
+    expect(store.isActiveSessionPinned()).toBe(false);
+  });
+
+  it('pinActiveSession locks the window to one session', () => {
+    const store = useAppStore();
+    store.pinActiveSession('popout-session');
+    expect(state.activeSessionId).toBe('popout-session');
+    expect(store.isActiveSessionPinned()).toBe(true);
+
+    // A stray navigation is refused rather than thrown: it must not take the
+    // pop-out window down with it.
+    expect(() => store.setActiveSessionId('other-session')).not.toThrow();
+    expect(state.activeSessionId).toBe('popout-session');
+    store.setActiveSessionId(null);
+    expect(state.activeSessionId).toBe('popout-session');
   });
 
   it('addSession pushes to state.sessions', () => {

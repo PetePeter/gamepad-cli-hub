@@ -45,6 +45,39 @@ nothing else in the model knows pane ids.
 | `home` | `DockSide \| 'center'` — where the pane lands when restored |
 | `closable` | Whether it can be closed to the View menu |
 
+## Pane profiles
+
+A window hosts a **subset** of the registry, named by a `DockProfileId`. The
+profile is data, like the registry itself, so the default layout, the validator
+and the View menu all read one allow-list.
+
+| Profile | Panes | Window |
+|---------|-------|--------|
+| `main` | every registered pane (derived, never re-listed) | `MainWindowApp.vue` |
+| `popout` | terminal, plans, memories, mess, artifacts | `SnapOutWindow.vue` |
+
+The pop-out omits the session list, quick spawn, scheduler and projects: those
+act on things the main shell owns.
+
+Each profile persists its own tree. `main` keeps the original `workspaceLayout`
+settings field; `popout` writes `popoutWorkspaceLayout`, and the profile travels
+with `configGet/SetWorkspaceLayout`. There is **one** pop-out layout shared by
+every snapped-out window, not one per session.
+
+### The pop-out shell
+
+A snapped-out window is a real workspace bound to one session. `SnapOutWindow.vue`
+pins `activeSessionId` during setup (`pinActiveSession`), after which
+`setActiveSessionId` is a no-op for the lifetime of the window. Every pane reads
+the store, so pinning is the whole of the binding — no session state is copied
+into props and no pane knows it is in a pop-out.
+
+The `terminal` pane is overridden with `PopOutTerminalPane.vue`: the main window's
+`TerminalPane` hands its container to the shared `TerminalManager`, which a
+pop-out does not have, so the pop-out pane owns its `TerminalView` directly
+(attach → replay → live `pty:data`). PTY ownership is released only on snap-back,
+never on pane close.
+
 ## Titling and collapse have one owner
 
 The dock names a pane (tab + rail tooltip) and collapses it (rail). **Pane

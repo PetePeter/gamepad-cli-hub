@@ -7,7 +7,7 @@
 
 import { ipcMain, dialog, BrowserWindow } from 'electron';
 import { randomUUID } from 'node:crypto';
-import { type ConfigLoader, type PlanFilterConfig, type EditorPrefs, type FleetConfig } from '../../config/loader.js';
+import { type ConfigLoader, type PlanFilterConfig, type EditorPrefs, type FleetConfig, type WorkspaceLayoutProfile } from '../../config/loader.js';
 import type { LocalhostMcpServer } from '../../mcp/localhost-mcp-server.js';
 import type { ProjectStore } from '../../session/project-store.js';
 import type { FleetStatus } from '../../mcp/peer/fleet-controller.js';
@@ -438,18 +438,18 @@ export function setupConfigHandlers(
   // treats it as an opaque settings value so an older build can still load
   // settings written by a newer renderer; the renderer validates and falls
   // back before using it.
-  ipcMain.handle('config:getWorkspaceLayout', () => {
+  ipcMain.handle('config:getWorkspaceLayout', (_event, profile?: WorkspaceLayoutProfile) => {
     try {
-      return configLoader.getWorkspaceLayout();
+      return configLoader.getWorkspaceLayout(profile);
     } catch (error) {
       logger.error(`[IPC] Failed to get workspace layout: ${error}`);
       return undefined;
     }
   });
 
-  ipcMain.handle('config:setWorkspaceLayout', (_event, layout: unknown) => {
+  ipcMain.handle('config:setWorkspaceLayout', (_event, layout: unknown, profile?: WorkspaceLayoutProfile) => {
     try {
-      configLoader.setWorkspaceLayout(layout);
+      configLoader.setWorkspaceLayout(layout, profile);
       return { success: true };
     } catch (error) {
       logger.error(`[IPC] Failed to set workspace layout: ${error}`);

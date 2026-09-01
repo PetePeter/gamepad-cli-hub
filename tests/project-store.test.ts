@@ -286,6 +286,19 @@ describe('ProjectStore', () => {
       const store = new ProjectStore(projectsFile);
       expect(() => store.rename('nonexistent', 'X')).toThrow();
     });
+
+    it('notifies listeners for project mutations that affect scheduler labels', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      const changes: string[] = [];
+      store.onChanged((projects) => changes.push(projects[0]?.name ?? 'missing'));
+
+      store.rename(record.id, 'Renamed');
+      store.addDirectory(record.id, 'X:\\coding\\worktree-b');
+      store.removeDirectory(record.id, 'X:\\coding\\worktree-b');
+
+      expect(changes).toEqual(['Renamed', 'Renamed', 'Renamed']);
+    });
   });
 
   describe('delete', () => {

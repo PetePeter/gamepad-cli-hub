@@ -7,16 +7,19 @@
  */
 
 import { computed, defineAsyncComponent } from 'vue';
+import { currentWindowIdentity } from './window-identity.js';
 
 const MainWindowApp = defineAsyncComponent(() => import('./MainWindowApp.vue'));
 const PlannerPopOutWindow = defineAsyncComponent(() => import('./components/PlannerPopOutWindow.vue'));
 const SnapOutWindow = defineAsyncComponent(() => import('./components/SnapOutWindow.vue'));
 
-const query = computed(() => new URLSearchParams(window.location.search));
-const isSessionSnapOut = computed(() => query.value.get('snapOut') === '1');
-const isPlannerPopOut = computed(() => query.value.get('plannerPopOut') === '1');
-const snapOutSessionId = computed(() => query.value.get('sessionId') || '');
-const plannerPopOutDirPath = computed(() => query.value.get('dirPath') || '');
+// One parser for the whole renderer, so the shell and every window-keyed
+// registry can never disagree about which window this is.
+const identity = computed(() => currentWindowIdentity());
+const isSessionSnapOut = computed(() => identity.value.kind === 'session');
+const isPlannerPopOut = computed(() => identity.value.kind === 'planner');
+const snapOutSessionId = computed(() => identity.value.kind === 'session' ? identity.value.sessionId : '');
+const plannerPopOutDirPath = computed(() => identity.value.kind === 'planner' ? identity.value.dirPath : '');
 </script>
 
 <template>

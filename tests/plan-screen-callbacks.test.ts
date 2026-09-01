@@ -260,7 +260,7 @@ describe('plan screen window-keyed callbacks', () => {
     Object.defineProperty(window, 'location', { value: { search: '' }, writable: true });
     mod.setDraftEditorCloser(mainCloser);
 
-    Object.defineProperty(window, 'location', { value: { search: '?plannerPopOut=1' }, writable: true });
+    Object.defineProperty(window, 'location', { value: { search: '?plannerPopOut=1&dirPath=/test/dir' }, writable: true });
     mod.setDraftEditorCloser(popoutCloser);
 
     // Trigger Escape key handler in main window
@@ -274,5 +274,48 @@ describe('plan screen window-keyed callbacks', () => {
 
     expect(mainCloser).toHaveBeenCalled();
     expect(popoutCloser).not.toHaveBeenCalled();
+  });
+
+  // The registry keys on the full window identity, so two planner pop-outs on
+  // different directories are two windows, not one shared "popout" bucket.
+  it('keeps two planner pop-outs on different directories isolated', async () => {
+    const mod = await getModule();
+    const firstOpener = vi.fn();
+    const secondOpener = vi.fn();
+
+    Object.defineProperty(window, 'location', { value: { search: '?plannerPopOut=1&dirPath=/dir/one' }, writable: true });
+    mod.setPlanEditorOpener(firstOpener);
+
+    Object.defineProperty(window, 'location', { value: { search: '?plannerPopOut=1&dirPath=/dir/two' }, writable: true });
+    mod.setPlanEditorOpener(secondOpener);
+
+    Object.defineProperty(window, 'location', { value: { search: '?plannerPopOut=1&dirPath=/dir/one' }, writable: true });
+    mockPlanList.mockResolvedValue([planItem('a')]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a']));
+    await mod.showPlanScreen('/test/dir');
+    mod.handlePlanScreenAction('A');
+
+    expect(firstOpener).toHaveBeenCalled();
+    expect(secondOpener).not.toHaveBeenCalled();
+  });
+
+  // A pop-out flag with no dirPath has no target to key on; falling back to the
+  // main window's callbacks is what keeps it from stranding its editors.
+  it('treats a targetless pop-out URL as the main window', async () => {
+    const mod = await getModule();
+    const mainOpener = vi.fn();
+
+    Object.defineProperty(window, 'location', { value: { search: '' }, writable: true });
+    mod.setPlanEditorOpener(mainOpener);
+
+    Object.defineProperty(window, 'location', { value: { search: '?plannerPopOut=1' }, writable: true });
+    mockPlanList.mockResolvedValue([planItem('a')]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a']));
+    await mod.showPlanScreen('/test/dir');
+    mod.handlePlanScreenAction('A');
+
+    expect(mainOpener).toHaveBeenCalled();
   });
 });

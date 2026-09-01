@@ -121,6 +121,7 @@ export class ProjectStore {
       record.alternatePaths.push(normalized);
       record.updatedAt = Date.now();
       this.dirty = true;
+      this.notifyChanged();
     }
   }
 
@@ -132,6 +133,7 @@ export class ProjectStore {
     if ((record.alternatePaths?.length ?? 0) < before) {
       record.updatedAt = Date.now();
       this.dirty = true;
+      this.notifyChanged();
     }
   }
 
@@ -161,6 +163,7 @@ export class ProjectStore {
     record.name = trimmed;
     record.updatedAt = Date.now();
     this.dirty = true;
+    this.notifyChanged();
   }
 
   delete(projectId: string): void {

@@ -103,7 +103,7 @@ defineExpose({ handleButton });
     <div
       v-if="visible"
       ref="overlayRef"
-      class="modal-overlay modal--visible"
+      class="modal-overlay modal--visible quick-spawn-overlay"
       role="dialog"
       aria-label="Quick spawn CLI type picker"
       tabindex="-1"
@@ -145,3 +145,12 @@ defineExpose({ handleButton });
     </div>
   </Teleport>
 </template>
+
+<style scoped>
+.quick-spawn-overlay .dir-picker-list {
+  max-height: min(60vh, 420px);
+}
+.quick-spawn-overlay .dir-picker-item {
+  min-height: 44px;
+}
+</style>

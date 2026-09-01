@@ -168,3 +168,32 @@ export function getPaneDescriptor(paneId: PaneId): DockPaneDescriptor | undefine
 export function isKnownPane(paneId: PaneId): boolean {
   return DOCK_PANES.some(p => p.id === paneId);
 }
+
+// ---------------------------------------------------------------------------
+// Pane profiles
+//
+// A window hosts a subset of the registry: a pop-out has no session list and no
+// spawn tools, because the things they act on live in the main shell. The
+// profile is data, like the registry itself, so the default layout, the
+// validator and the View menu all read the same allow-list instead of each
+// carrying its own idea of which panes belong.
+// ---------------------------------------------------------------------------
+
+export type DockProfileId = 'main' | 'popout';
+
+export const DOCK_PROFILE_PANES: Readonly<Record<DockProfileId, readonly PaneId[]>> = Object.freeze({
+  // Derived, never re-listed: a pane added to the registry is in the main
+  // profile by construction.
+  main: Object.freeze(DOCK_PANES.map(p => p.id)),
+  popout: Object.freeze([PANE_TERMINAL, PANE_PLAN_SCREEN, PANE_MEMORIES, PANE_MESS, PANE_ARTIFACTS]),
+});
+
+/** Descriptors of a profile's panes, in registry order. */
+export function listProfilePanes(profile: DockProfileId): DockPaneDescriptor[] {
+  const allowed = DOCK_PROFILE_PANES[profile];
+  return DOCK_PANES.filter(p => allowed.includes(p.id));
+}
+
+export function isProfilePane(profile: DockProfileId, paneId: PaneId): boolean {
+  return DOCK_PROFILE_PANES[profile].includes(paneId);
+}

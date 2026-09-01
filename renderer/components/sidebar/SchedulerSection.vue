@@ -2,6 +2,14 @@
 import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../../ipc/clients.js';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import type { ScheduledTask } from '../../../src/types/scheduled-task.js';
+import { normalizeDirPath } from '../../utils.js';
+
+interface ProjectSummary {
+  id: string;
+  name: string;
+  canonicalPath: string;
+  alternatePaths?: string[];
+}
 
 const emit = defineEmits<{
   open: [taskId: string | null];
@@ -10,14 +18,41 @@ const emit = defineEmits<{
 }>();
 
 const tasks = ref<ScheduledTask[]>([]);
+const projects = ref<ProjectSummary[]>([]);
 const cliTypes = ref<Array<{ id: string; label: string }>>([]);
+const dreamingCollapsed = ref(false);
+const schedulesCollapsed = ref(false);
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let offChanged: (() => void) | null = null;
+let offProjectChanged: (() => void) | null = null;
 
-const visibleTasks = computed(() => tasks.value
+const activeTasks = computed(() => tasks.value
   .filter((task) => task.status === 'pending' || task.status === 'executing')
-  .sort((a, b) => Number(b.systemKind === 'dream') - Number(a.systemKind === 'dream') || nextRunMs(a) - nextRunMs(b))
-  .slice(0, 4 + tasks.value.filter((task) => task.systemKind === 'dream').length));
+  .sort((a, b) => nextRunMs(a) - nextRunMs(b)));
+const dreamTasks = computed(() => activeTasks.value
+  .filter((task) => task.systemKind === 'dream')
+  .sort((a, b) => projectLabel(a).localeCompare(projectLabel(b))));
+const scheduleTasks = computed(() => activeTasks.value.filter((task) => !task.systemKind).slice(0, 4));
+const projectById = computed(() => new Map(projects.value.map((project) => [project.id, project])));
+
+function projectFor(task: ScheduledTask): ProjectSummary | undefined {
+  if (task.projectId) {
+    const byId = projectById.value.get(task.projectId);
+    if (byId) return byId;
+  }
+  return projects.value.find((project) =>
+    normalizeDirPath(project.canonicalPath) === normalizeDirPath(task.dirPath)
+    || (project.alternatePaths ?? []).some((path) => normalizeDirPath(path) === normalizeDirPath(task.dirPath)),
+  );
+}
+
+function projectLabel(task: ScheduledTask): string {
+  return projectFor(task)?.name || task.dirPath;
+}
+
+function projectPath(task: ScheduledTask): string {
+  return projectFor(task)?.canonicalPath || task.dirPath;
+}
 
 async function loadTasks(): Promise<void> {
   try {
@@ -31,7 +66,15 @@ function nextRunMs(task: ScheduledTask): number {
   return new Date(task.nextRunAt ?? task.scheduledTime).getTime();
 }
 
-async function updateDream(task: ScheduledTask, patch: { enabled?: boolean; cliType?: string; userPrompt?: string }): Promise<void> {
+async function loadProjects(): Promise<void> {
+  try {
+    projects.value = await projectsClient.projectList() ?? [];
+  } catch {
+    projects.value = [];
+  }
+}
+
+async function updateDream(task: ScheduledTask, patch: { enabled?: boolean; cliType?: string; userPrompt?: string; scheduledTime?: Date; scheduleKind?: 'cron'; cronExpression?: string }): Promise<void> {
   try {
     await schedulerClient.scheduledTaskUpdate(task.id, patch);
   } catch {
@@ -51,6 +94,31 @@ function onDreamCliChange(task: ScheduledTask, event: Event): void {
 
 function onDreamPromptChange(task: ScheduledTask, event: Event): void {
   void updateDream(task, { userPrompt: (event.target as HTMLInputElement).value });
+}
+
+function dreamTime(task: ScheduledTask): string {
+  const nextRun = new Date(task.nextRunAt ?? task.scheduledTime);
+  return `${String(nextRun.getHours()).padStart(2, '0')}:${String(nextRun.getMinutes()).padStart(2, '0')}`;
+}
+
+function nextDateAtTime(value: string): Date | null {
+  const [hour, minute] = value.split(':').map(Number);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
+  const next = new Date();
+  next.setHours(hour, minute, 0, 0);
+  if (next.getTime() <= Date.now()) next.setDate(next.getDate() + 1);
+  return next;
+}
+
+function onDreamTimeChange(task: ScheduledTask, event: Event): void {
+  const value = (event.target as HTMLInputElement).value;
+  const next = nextDateAtTime(value);
+  if (!next) return;
+  void updateDream(task, {
+    scheduledTime: next,
+    scheduleKind: 'cron',
+    cronExpression: `${next.getMinutes()} ${next.getHours()} * * *`,
+  });
 }
 
 async function loadCliTypes(): Promise<void> {
@@ -94,9 +162,14 @@ function timeRemaining(task: ScheduledTask): string {
 
 onMounted(() => {
   void loadTasks();
+  void loadProjects();
   void loadCliTypes();
-  refreshTimer = setInterval(loadTasks, 15000);
+  refreshTimer = setInterval(() => { void loadTasks(); void loadProjects(); }, 15000);
   offChanged = eventsClient.onScheduledTaskChanged?.(() => {
+    void loadTasks();
+  }) ?? null;
+  offProjectChanged = eventsClient.onProjectChanged?.(() => {
+    void loadProjects();
     void loadTasks();
   }) ?? null;
 });
@@ -104,6 +177,7 @@ onMounted(() => {
 onUnmounted(() => {
   if (refreshTimer) clearInterval(refreshTimer);
   offChanged?.();
+  offProjectChanged?.();
 });
 </script>
 
@@ -112,43 +186,76 @@ onUnmounted(() => {
     <div class="scheduler-create-split">
       <button class="scheduler-create scheduler-create--main focusable" data-focus-id="scheduler:new" @click.stop="emit('open', null)">
         <span>New Schedule</span>
-        <span class="scheduler-count-badge" aria-label="Total schedules">{{ tasks.length }}</span>
+        <span class="scheduler-count-badge" aria-label="Total schedules">{{ tasks.filter((task) => !task.systemKind).length }}</span>
       </button>
       <button class="scheduler-create scheduler-create--hist focusable" data-focus-id="scheduler:history" type="button" title="Past Schedules" aria-label="Past Schedules" @click.stop="emit('history')">🕘</button>
     </div>
-    <div v-if="visibleTasks.length === 0" class="scheduler-empty">No scheduled runs</div>
-    <div
-      v-for="task in visibleTasks"
-      :key="task.id"
-      class="scheduler-row"
-      :class="{ 'scheduler-row--running': task.status === 'executing' }"
-    >
-      <template v-if="task.systemKind === 'dream'">
-        <div class="scheduler-system-heading">
+    <section class="scheduler-group">
+      <button class="scheduler-group-heading focusable" data-focus-id="scheduler:dreaming" type="button" :aria-expanded="!dreamingCollapsed" @click="dreamingCollapsed = !dreamingCollapsed">
+        <span class="scheduler-group-chevron">{{ dreamingCollapsed ? '›' : '⌄' }}</span>
+        <span>Dreaming</span>
+        <span class="scheduler-group-count">{{ dreamTasks.length }} project{{ dreamTasks.length === 1 ? '' : 's' }}</span>
+      </button>
+      <div v-if="!dreamingCollapsed" class="scheduler-group-body">
+        <div v-if="dreamTasks.length === 0" class="scheduler-empty">No projects available for dreaming</div>
+        <div
+          v-for="task in dreamTasks"
+          :key="task.id"
+          class="scheduler-row scheduler-row--dream"
+          :class="{ 'scheduler-row--running': task.status === 'executing' }"
+        >
+          <div class="scheduler-system-heading">
+            <span class="scheduler-title">{{ task.title }}</span>
+            <span class="scheduler-time">{{ task.enabled ? timeRemaining(task) : 'off' }}</span>
+          </div>
+          <div class="scheduler-project-name">{{ projectLabel(task) }}</div>
+          <div class="scheduler-project-path" :title="projectPath(task)">{{ projectPath(task) }}</div>
+          <div class="scheduler-dream-controls">
+            <label class="scheduler-dream-field">
+              <span>CLI</span>
+              <select class="scheduler-system-cli focusable" :data-focus-id="`scheduler:dream-cli:${task.id}`" :value="task.cliType" aria-label="Dream CLI type" @change="onDreamCliChange(task, $event)">
+                <option value="">Select CLI...</option>
+                <option v-for="cliType in cliTypes" :key="cliType.id" :value="cliType.id">{{ cliType.label }}</option>
+              </select>
+            </label>
+            <label class="scheduler-dream-field">
+              <span>Daily at</span>
+              <input class="scheduler-system-time focusable" :data-focus-id="`scheduler:dream-time:${task.id}`" type="time" :value="dreamTime(task)" aria-label="Dream daily time" @change="onDreamTimeChange(task, $event)" />
+            </label>
+          </div>
+          <label class="scheduler-system-toggle">
+            <input class="focusable" :data-focus-id="`scheduler:dream-enabled:${task.id}`" type="checkbox" :checked="task.enabled === true" :disabled="!task.cliType" title="Choose a CLI before enabling" @change="onDreamEnabledChange(task, $event)" />
+            <span>{{ task.enabled ? 'Enabled' : 'Disabled' }}</span>
+          </label>
+          <input class="scheduler-system-prompt focusable" :data-focus-id="`scheduler:dream-prompt:${task.id}`" :value="task.userPrompt ?? ''" type="text" placeholder="Prompt additions (optional)" aria-label="Dream prompt additions" @change="onDreamPromptChange(task, $event)" />
+        </div>
+      </div>
+    </section>
+
+    <section class="scheduler-group">
+      <button class="scheduler-group-heading focusable" data-focus-id="scheduler:schedules" type="button" :aria-expanded="!schedulesCollapsed" @click="schedulesCollapsed = !schedulesCollapsed">
+        <span class="scheduler-group-chevron">{{ schedulesCollapsed ? '›' : '⌄' }}</span>
+        <span>Schedules</span>
+        <span class="scheduler-group-count">{{ scheduleTasks.length }}</span>
+      </button>
+      <div v-if="!schedulesCollapsed" class="scheduler-group-body">
+        <div v-if="scheduleTasks.length === 0" class="scheduler-empty"><strong>No schedules yet</strong><span>Create a schedule to run a prompt at a time or recurrence.</span></div>
+        <div
+          v-for="task in scheduleTasks"
+          :key="task.id"
+          class="scheduler-row"
+          :class="{ 'scheduler-row--running': task.status === 'executing' }"
+        >
           <span class="scheduler-title">{{ task.title }}</span>
-          <span class="scheduler-time">{{ task.enabled ? timeRemaining(task) : 'off' }}</span>
+          <span class="scheduler-time">{{ timeRemaining(task) }}</span>
+          <!-- Only action buttons are focusable; the row body is inert. -->
+          <div class="scheduler-actions">
+            <button class="scheduler-action focusable" :data-focus-id="`scheduler:edit:${task.id}`" type="button" title="Edit schedule" aria-label="Edit schedule" @click.stop="emit('open', task.id)">i</button>
+            <button class="scheduler-action scheduler-action--danger focusable" :data-focus-id="`scheduler:delete:${task.id}`" type="button" title="Delete schedule" aria-label="Delete schedule" @click.stop="emit('delete', task)">x</button>
+          </div>
         </div>
-        <label class="scheduler-system-toggle">
-          <input class="focusable" :data-focus-id="`scheduler:dream-enabled:${task.id}`" type="checkbox" :checked="task.enabled === true" :disabled="!task.cliType" title="Choose a CLI before enabling" @change="onDreamEnabledChange(task, $event)" />
-          <span>{{ task.enabled ? 'Enabled' : 'Disabled' }}</span>
-        </label>
-        <select class="scheduler-system-cli focusable" :value="task.cliType" aria-label="Dream CLI type" @change="onDreamCliChange(task, $event)">
-          <option value="">Select CLI...</option>
-          <option v-for="cliType in cliTypes" :key="cliType.id" :value="cliType.id">{{ cliType.label }}</option>
-        </select>
-        <input class="scheduler-system-prompt focusable" :value="task.userPrompt ?? ''" type="text" placeholder="Prompt additions (optional)" aria-label="Dream prompt additions" @change="onDreamPromptChange(task, $event)" />
-      </template>
-      <template v-else>
-        <span class="scheduler-title">{{ task.title }}</span>
-        <span class="scheduler-time">{{ timeRemaining(task) }}</span>
-        <!-- The row body is deliberately inert; only these buttons act, so they —
-             not the row — carry the focus contract the gamepad walks. -->
-        <div class="scheduler-actions">
-          <button class="scheduler-action focusable" :data-focus-id="`scheduler:edit:${task.id}`" type="button" title="Edit schedule" aria-label="Edit schedule" @click.stop="emit('open', task.id)">i</button>
-          <button class="scheduler-action scheduler-action--danger focusable" :data-focus-id="`scheduler:delete:${task.id}`" type="button" title="Delete schedule" aria-label="Delete schedule" @click.stop="emit('delete', task)">x</button>
-        </div>
-      </template>
-    </div>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -158,6 +265,48 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 6px;
   padding: 0 8px 8px;
+}
+.scheduler-group {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.scheduler-group-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 30px;
+  padding: 5px 7px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: left;
+}
+.scheduler-group-heading:hover {
+  background: var(--bg-secondary);
+}
+.scheduler-group-chevron {
+  width: 12px;
+  color: var(--accent);
+  font-size: 0.95rem;
+  line-height: 1;
+}
+.scheduler-group-count {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 400;
+}
+.scheduler-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
 }
 .scheduler-row {
   width: 100%;
@@ -226,6 +375,12 @@ onUnmounted(() => {
   text-align: left;
   cursor: default;
 }
+.scheduler-row--dream {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 8px;
+  padding: 7px;
+  background: color-mix(in srgb, var(--bg-secondary) 88%, var(--accent));
+}
 .scheduler-row:hover {
   border-color: var(--border);
 }
@@ -233,9 +388,44 @@ onUnmounted(() => {
   border-color: #ff9f1a;
 }
 .scheduler-system-heading {
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.scheduler-project-name {
+  overflow: hidden;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scheduler-project-path {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: monospace;
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scheduler-dream-controls {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(92px, 0.55fr);
+  gap: 6px;
+}
+.scheduler-dream-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.scheduler-dream-field > span {
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+  text-transform: uppercase;
 }
 .scheduler-system-toggle {
   display: inline-flex;
@@ -246,14 +436,19 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 .scheduler-system-cli,
+.scheduler-system-time,
 .scheduler-system-prompt {
   min-width: 0;
-  height: 22px;
+  height: 30px;
+  padding: 0 5px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-primary);
   color: var(--text-primary);
   font-size: 0.75rem;
+}
+.scheduler-system-time {
+  color-scheme: dark;
 }
 .scheduler-system-prompt {
   grid-column: 1 / -1;
@@ -297,5 +492,13 @@ onUnmounted(() => {
   color: var(--text-secondary);
   font-size: 0.8rem;
   text-align: center;
+}
+.scheduler-empty strong,
+.scheduler-empty span {
+  display: block;
+}
+.scheduler-empty strong {
+  margin-bottom: 2px;
+  color: var(--text-primary);
 }
 </style>

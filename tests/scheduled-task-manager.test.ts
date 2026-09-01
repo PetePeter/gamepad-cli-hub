@@ -316,6 +316,8 @@ describe('ScheduledTaskManager', () => {
         systemKind: 'dream',
         enabled: false,
         userPrompt: '',
+        scheduleKind: 'cron',
+        cronExpression: expect.stringMatching(/^\d+ \d+ \* \* \*$/),
         status: 'pending',
       });
 

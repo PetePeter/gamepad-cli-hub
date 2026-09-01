@@ -33,10 +33,11 @@ import {
   type DockStorage,
 } from '../dock-persistence';
 import {
-  DOCK_PANES,
   getPaneDescriptor,
+  listProfilePanes,
   PANE_TERMINAL,
   type DockMode,
+  type DockProfileId,
   type DockSide,
   type DockWorkspaceLayout,
   type DockNodePath,
@@ -93,13 +94,16 @@ export interface DockWorkspacePersistence {
 
 export interface DockWorkspaceOptions {
   persistence?: DockWorkspacePersistence;
+  /** Which pane set this window may host; panes outside it are never rendered. */
+  profile?: DockProfileId;
 }
 
 export function useDockWorkspace(initial?: DockWorkspaceLayout, options: DockWorkspaceOptions = {}): DockWorkspace {
-  const layoutState = ref<DockWorkspaceLayout>(createDefaultLayout());
+  const profile = options.profile ?? 'main';
+  const layoutState = ref<DockWorkspaceLayout>(createDefaultLayout(profile));
   if (initial) {
     try {
-      layoutState.value = validateLayout(initial);
+      layoutState.value = validateLayout(initial, profile);
     } catch {
       // A typed value can still originate from persisted or IPC data. Classic
       // remains the safe initial state when it does not satisfy the schema.
@@ -128,7 +132,7 @@ export function useDockWorkspace(initial?: DockWorkspaceLayout, options: DockWor
   function persist(next: DockWorkspaceLayout): void {
     const save = options.persistence?.save;
     if (!save) return;
-    const detached = serializeDockLayout(next);
+    const detached = serializeDockLayout(next, profile);
     persistQueue = persistQueue
       .catch(() => undefined)
       .then(() => save(detached))
@@ -205,6 +209,7 @@ export function useDockWorkspace(initial?: DockWorkspaceLayout, options: DockWor
     const result = loadDockLayout(raw, {
       legacy: readLegacyDockPreferences(persistence?.legacyStorage),
       viewportWidth: persistence?.viewportWidth?.(),
+      profile,
     });
     apply(result.layout, false);
     if (result.source !== 'persisted') persist(result.layout);
@@ -236,14 +241,14 @@ export function useDockWorkspace(initial?: DockWorkspaceLayout, options: DockWor
     setMode: (paneId, mode) => apply(setDockMode(layoutState.value, paneId, mode)),
     close: (paneId) => apply(closePane(layoutState.value, paneId)),
     restore: (paneId, target) => apply(restorePane(layoutState.value, paneId, target)),
-    reset: () => apply(resetLayout()),
+    reset: () => apply(resetLayout(profile)),
     resize: (path, sizes) => apply(resizeSplit(layoutState.value, path, sizes)),
     load: (raw) => {
       try {
-        apply(validateLayout(raw));
+        apply(validateLayout(raw, profile));
         return true;
       } catch {
-        apply(createDefaultLayout());
+        apply(createDefaultLayout(profile));
         return false;
       }
     },
@@ -253,8 +258,8 @@ export function useDockWorkspace(initial?: DockWorkspaceLayout, options: DockWor
 }
 
 /** Registry view for the View menu: every pane plus whether it is currently closed. */
-export function listRegisteredPanes(layout: DockWorkspaceLayout) {
-  return DOCK_PANES.map(descriptor => ({
+export function listRegisteredPanes(layout: DockWorkspaceLayout, profile: DockProfileId = 'main') {
+  return listProfilePanes(profile).map(descriptor => ({
     ...descriptor,
     closed: layout.closed.includes(descriptor.id),
   }));

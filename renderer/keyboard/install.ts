@@ -24,24 +24,7 @@ export function isKeyboardModalOpen(): boolean {
   return useModalStack().isOpen.value || isAnyBridgeModalVisible() || hasAttachedModal();
 }
 
-/**
- * Install the router for a single-pane window (snap-out terminal, planner
- * pop-out, memory pop-out). Such a window has no dock, so its one pane is by
- * definition both focused and visible.
- */
-export function installSinglePaneKeyRouter(
-  pane: PaneId,
-  getActiveSessionId: () => string | null,
-): () => void {
-  return installKeyRouter({
-    getActiveSessionId,
-    getFocusedPane: () => pane,
-    isPaneVisible: (candidate) => candidate === pane,
-    isModalOpen: isKeyboardModalOpen,
-  });
-}
-
-/** Install the router for the main window, whose panes come from the dock. */
+/** Install the router for any window whose panes come from a dock workspace. */
 export function installDockKeyRouter(env: {
   getActiveSessionId: () => string | null;
   getFocusedPane: () => PaneId | null;

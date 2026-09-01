@@ -375,7 +375,7 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer); modalStack.po
 .st-input, .st-textarea { padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary); font-size: 0.95rem; box-sizing: border-box; }
 .st-textarea { resize: vertical; min-height: 60px; font-family: inherit; }
 .st-form-row--picker { margin-bottom: 2px; }
-.st-picker-btn { padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-primary); color: var(--text-primary); font-size: 0.9rem; text-align: left; cursor: pointer; transition: border-color 0.2s; }
+.st-picker-btn { display: flex; align-items: center; min-height: 40px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-primary); color: var(--text-primary); font-size: 0.9rem; text-align: left; cursor: pointer; transition: border-color 0.2s; }
 .st-picker-btn--disabled { opacity: 0.5; cursor: default; }
 .st-picker-btn:hover:not(.st-picker-btn--disabled) { border-color: var(--accent); }
 .st-cron-box { padding: 12px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; }
