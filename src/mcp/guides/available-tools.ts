@@ -13,6 +13,8 @@ export function getAvailableTools(): McpToolSummary[] {
     { name: 'skill_list', title: 'List Skills', description: 'List Helm skills (user-managed and system), optionally filtered by projectId or dirPath. session_info returns skills applicable to the current session project.' },
     { name: 'skill_get', title: 'Get Skill', description: 'Fetch a Helm skill by ID, or resolve by type with optional projectId/dirPath for project-scoped effective resolution.' },
     { name: 'skill_submit_feedback', title: 'Submit Skill Feedback', description: 'Rate a user skill after applying it; stores stars, summary, optional improvement, and caller CLI attribution.' },
+    { name: 'skill_get_feedback', title: 'Get Skill Feedback', description: 'Read a skill\'s useCount, avgRating and every review before rewriting it.' },
+    { name: 'skill_clear_reviews', title: 'Clear Skill Reviews', description: 'Discard a skill\'s reviews (use count is kept) after rewriting it.' },
     { name: 'skill_create', title: 'Create Skill', description: 'Create a Helm skill. Use allProjects=true or projectIds to control which projects receive it.' },
     { name: 'skill_update', title: 'Update Skill', description: 'Update a Helm skill. Protected skills reject AI amendments unless aiAmendable is enabled.' },
     { name: 'skill_delete', title: 'Delete Skill', description: 'Delete a user-managed Helm skill by id. System skills cannot be deleted.' },

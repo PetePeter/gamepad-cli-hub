@@ -6,6 +6,7 @@ import { HelmControlService, parseSubmitSuffix } from '../src/mcp/helm-control-s
 import { getAvailableTools } from '../src/mcp/guides/session-info-guide.js';
 import { parseSessionAuthToken } from '../src/mcp/session-auth.js';
 import { SkillManager } from '../src/session/skill-manager.js';
+import { SkillAnalyticsManager } from '../src/session/skill-analytics-manager.js';
 import { logger } from '../src/utils/logger.js';
 
 vi.mock('../src/utils/logger.js', () => ({
@@ -668,7 +669,11 @@ describe('HelmControlService.getSessionInfo', () => {
     expect(notificationGuide!.body).toContain('none');
   });
 
-  function makeSkillService(skillManager: SkillManager, projectIdForWork: string | undefined = 'project-1') {
+  function makeSkillService(
+    skillManager: SkillManager,
+    projectIdForWork: string | undefined = 'project-1',
+    skillAnalyticsManager?: SkillAnalyticsManager,
+  ) {
     const { planManager, sessionManager, ptyManager, configLoader } = makeService();
     (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
       id: 's1',
@@ -693,6 +698,7 @@ describe('HelmControlService.getSessionInfo', () => {
       undefined,
       projectStore as any,
       skillManager,
+      skillAnalyticsManager,
     );
   }
 
@@ -807,6 +813,54 @@ describe('HelmControlService.getSessionInfo', () => {
       expect(full.description).toBe('Apply when reviewing');
       expect(full.type).toBe('guide');
       expect(full.projectIds).toEqual(['project-1']);
+    } finally {
+      rmSync(skillDir, { recursive: true, force: true });
+    }
+  });
+
+  it('appends a footer demanding an honest rating to user skills, but not to system skills', () => {
+    const skillDir = mkdtempSync(join(tmpdir(), 'helm-skills-footer-'));
+    try {
+      const skillManager = new SkillManager(join(skillDir, 'skills.yaml'));
+      const created = skillManager.create({ name: 'Guide', type: 'guide', allProjects: true, body: 'Do the thing' });
+      const service = makeSkillService(skillManager);
+
+      const footer = service.getSkill(created.id)!.body;
+      expect(footer).toContain('skill_submit_feedback');
+      // The footer must actively license a bad rating — polite inflation makes ratings useless.
+      expect(footer).toContain('1 star');
+      expect(footer).toContain('Do not be polite');
+      expect(footer).toContain('improvement');
+
+      // System skills are not user-owned, so they carry no rating prompt.
+      expect(service.resolveSkill('startup')!.body).not.toContain('Do not be polite');
+    } finally {
+      rmSync(skillDir, { recursive: true, force: true });
+    }
+  });
+
+  it('reports review stats and clears reviews while preserving the use count', () => {
+    const skillDir = mkdtempSync(join(tmpdir(), 'helm-skills-stats-'));
+    try {
+      const skillManager = new SkillManager(join(skillDir, 'skills.yaml'));
+      const created = skillManager.create({ name: 'Guide', type: 'guide', allProjects: true, body: 'Do the thing' });
+      const analytics = new SkillAnalyticsManager(join(skillDir, 'analytics.json'));
+      const service = makeSkillService(skillManager, 'project-1', analytics);
+
+      service.submitSkillFeedback(created.id, 1, 'Useless', 'Delete step 3', { sessionId: 's1' });
+      service.submitSkillFeedback(created.id, 4, 'Mostly fine', undefined, { sessionId: 's1' });
+      service.getSkill(created.id);
+
+      const stats = service.getSkillStats(created.id);
+      expect(stats).toMatchObject({ useCount: 1, avgRating: 2.5, reviewCount: 2 });
+      expect(stats.reviews.map((r) => r.stars)).toEqual([1, 4]);
+      expect(stats.reviews[0]!.improvement).toBe('Delete step 3');
+      expect(stats.reviews[0]!.cliName).toBe('Claude');
+
+      const cleared = service.clearSkillReviews(created.id);
+      expect(cleared).toMatchObject({ useCount: 1, avgRating: 0, reviewCount: 0 });
+      expect(cleared.reviews).toEqual([]);
+      expect(service.getSkillStats(created.id).reviewCount).toBe(0);
     } finally {
       rmSync(skillDir, { recursive: true, force: true });
     }

@@ -31,6 +31,16 @@ function makeService(): HelmControlService {
       projectIds: [],
     })),
     submitSkillFeedback: vi.fn((_id: string, _stars: number, _summary: string, _improvement?: string) => ({ received: true })),
+    getSkillStats: vi.fn(() => ({
+      useCount: 7,
+      avgRating: 2.5,
+      reviewCount: 2,
+      reviews: [
+        { stars: 1, summary: 'Did nothing useful', improvement: 'Drop step 3', cliName: 'codex-a', cliType: 'codex', timestamp: '2026-01-01T00:00:00.000Z' },
+        { stars: 4, summary: 'Mostly worked', cliName: 'claude-b', cliType: 'claude', timestamp: '2026-01-02T00:00:00.000Z' },
+      ],
+    })),
+    clearSkillReviews: vi.fn(() => ({ useCount: 7, avgRating: 0, reviewCount: 0, reviews: [] })),
     deleteSkill: vi.fn(() => true),
     listDirectories: vi.fn(() => [{ dirPath: 'X:\\coding\\gamepad-cli-hub', name: 'Helm', source: ['config', 'plans'], planCount: 8, sessionCount: 0 }]),
     listPlans: vi.fn((dirPath: string) => [{ id: 'p1', dirPath, title: 'Task', description: 'Desc', status: 'ready' }]),
@@ -450,6 +460,41 @@ describe('LocalhostMcpServer', () => {
     const updateJson = await updateResponse.json();
     expect(updateJson.result.structuredContent.body).toBe('Updated');
     expect(service.updateSkill).toHaveBeenCalledWith('skill-1', { body: 'Updated', aiAmendable: true, allProjects: false, projectIds: ['project-1'] });
+  });
+
+  it('reads and clears skill reviews through the MCP surface', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const toolsResponse = await rpc(port, 'secret-token', { jsonrpc: '2.0', id: 40, method: 'tools/list', params: {} });
+    const toolNames = (await toolsResponse.json()).result.tools.map((tool: { name: string }) => tool.name);
+    expect(toolNames).toContain('skill_get_feedback');
+    expect(toolNames).toContain('skill_clear_reviews');
+
+    const statsResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 41,
+      method: 'tools/call',
+      params: { name: 'skill_get_feedback', arguments: { skillId: 'skill-1' } },
+    });
+    const stats = (await statsResponse.json()).result.structuredContent;
+    expect(service.getSkillStats).toHaveBeenCalledWith('skill-1');
+    expect(stats).toMatchObject({ useCount: 7, avgRating: 2.5, reviewCount: 2 });
+    expect(stats.reviews[0]).toMatchObject({ stars: 1, summary: 'Did nothing useful', improvement: 'Drop step 3', cliName: 'codex-a' });
+
+    const clearResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 42,
+      method: 'tools/call',
+      params: { name: 'skill_clear_reviews', arguments: { skillId: 'skill-1' } },
+    });
+    const cleared = (await clearResponse.json()).result.structuredContent;
+    expect(service.clearSkillReviews).toHaveBeenCalledWith('skill-1');
+    // Clearing wipes opinions but keeps the usage signal.
+    expect(cleared).toEqual({ useCount: 7, avgRating: 0, reviewCount: 0, reviews: [] });
   });
 
   it('supports type-based skill lookup via skill_get', async () => {

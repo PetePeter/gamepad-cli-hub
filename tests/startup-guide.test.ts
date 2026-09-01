@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildStartupGuide } from '../src/mcp/guides/startup-guide';
+import { getAvailableTools } from '../src/mcp/guides/available-tools';
 
 describe('buildStartupGuide', () => {
   it('returns a non-empty string', () => {
@@ -32,6 +33,13 @@ describe('buildStartupGuide', () => {
 
   it('contains skill_submit_feedback', () => {
     expect(buildStartupGuide()).toContain('skill_submit_feedback');
+  });
+
+  it('lists the skill review read/clear tools', () => {
+    const tools = getAvailableTools();
+    const names = tools.map((tool) => tool.name);
+    expect(names).toContain('skill_get_feedback');
+    expect(names).toContain('skill_clear_reviews');
   });
 
   it('contains session_set_aiagent_state', () => {

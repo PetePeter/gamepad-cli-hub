@@ -144,6 +144,10 @@ export async function callMcpTool(
           typeof args.improvement === 'string' ? args.improvement : undefined,
           authContext,
         );
+      case 'skill_get_feedback':
+        return service.getSkillStats(asString(args.skillId, 'skillId is required'));
+      case 'skill_clear_reviews':
+        return service.clearSkillReviews(asString(args.skillId, 'skillId is required'));
       case 'skill_create':
         return service.createSkill({
           name: asString(args.name, 'name is required'),

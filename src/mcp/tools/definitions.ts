@@ -66,6 +66,32 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'skill_get_feedback',
+    title: 'Get Skill Feedback',
+    description: 'Read the accumulated feedback for a Helm skill: useCount, avgRating, reviewCount, and every review (stars, summary, improvement, caller CLI, timestamp). Call this before editing a skill so the rewrite addresses what callers actually complained about.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        skillId: { type: 'string' },
+      },
+      required: ['skillId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'skill_clear_reviews',
+    title: 'Clear Skill Reviews',
+    description: 'Discard all reviews for a Helm skill, keeping its use count. Use this after rewriting a skill so the old ratings do not describe a version that no longer exists.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        skillId: { type: 'string' },
+      },
+      required: ['skillId'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'skill_create',
     title: 'Create Skill',
     description: 'Create a user-managed Helm skill persisted in config/skills.yaml. Omit projectIds or set allProjects=true for a global skill.',

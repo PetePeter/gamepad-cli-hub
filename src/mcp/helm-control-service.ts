@@ -71,7 +71,17 @@ import type {
 } from '../types/memory.js';
 export { parseSubmitSuffix } from './submit-suffix.js';
 
-const SKILL_FEEDBACK_FOOTER = '---\nSkill applied. Call skill_submit_feedback("{skillId}", stars, summary, improvement?) to rate it.';
+/**
+ * Ratings are only useful if they discriminate, so the footer explicitly licenses a low score.
+ * Left to its own instincts an LLM rates almost everything 4-5, which makes the average noise.
+ */
+const SKILL_FEEDBACK_FOOTER = [
+  '---',
+  'Skill applied. Rate it honestly via skill_submit_feedback("{skillId}", stars, summary, improvement?).',
+  'Give 1 star if it was useless, wrong, or got in your way; 5 only if it genuinely did the job.',
+  'Do not be polite — inflated ratings make every rating worthless.',
+  'Put the concrete failure or missing step in `improvement`.',
+].join('\n');
 
 export interface SessionSummary {
   id: string;
