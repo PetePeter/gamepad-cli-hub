@@ -57,7 +57,7 @@ function setup() {
     () => true,
   );
   const sender = { id: 'sender', name: 'planner', cliType: 'test', processId: 1, workingDir: project.canonicalPath };
-  const receiver = { id: 'receiver', name: 'memories', cliType: 'test', processId: 2, workingDir: project.canonicalPath, activityLevel: 'idle' as 'idle' | 'active' };
+  const receiver = { id: 'receiver', name: 'memories', cliType: 'test', processId: 2, workingDir: project.canonicalPath, activityLevel: 'idle' as 'idle' | 'inactive' | 'active' };
   sessions.addSession(sender);
   sessions.addSession(receiver);
   return { manager, sessions, stateDetector, notifier, deliveries, sendSystemReminder, receiver };
@@ -170,6 +170,104 @@ describe('MessNotifier', () => {
     await flush();
     expect(second.deliveries).toHaveLength(1);
     second.notifier.dispose();
+  });
+
+  // Idle is 5 minutes of PTY silence. Waiting for it means a post lands on a
+  // session that just printed anything up to 5 minutes late, or never while it
+  // keeps working. Inactive (10s of silence) is receptive enough to poke.
+  it('pokes a session that is merely inactive when a post arrives', async () => {
+    vi.useFakeTimers();
+    const { manager, notifier, deliveries, receiver } = setup();
+    receiver.activityLevel = 'inactive';
+    manager.post('sender', 'hello');
+    await flush();
+
+    expect(deliveries).toEqual(['[HELM_MESS] 1 new — call mess_check']);
+    notifier.dispose();
+  });
+
+  it('catches up a session that was busy when the post arrived, on its next inactive transition', async () => {
+    vi.useFakeTimers();
+    const { manager, stateDetector, notifier, deliveries, receiver } = setup();
+    receiver.activityLevel = 'active';
+    manager.post('sender', 'you were busy');
+    await flush();
+    expect(deliveries).toEqual([]);
+
+    receiver.activityLevel = 'inactive';
+    stateDetector.emit('activity-change', { sessionId: 'receiver', level: 'inactive' });
+    await flush();
+
+    expect(deliveries).toEqual(['[HELM_MESS] 1 new — call mess_check']);
+    notifier.dispose();
+  });
+
+  it('rate-limits catch-up so an inactive transition inside the cooldown is deferred', async () => {
+    vi.useFakeTimers();
+    const { manager, stateDetector, notifier, deliveries, receiver } = setup();
+    manager.post('sender', 'one');
+    await flush();
+    expect(deliveries).toHaveLength(1);
+
+    receiver.activityLevel = 'inactive';
+    stateDetector.emit('activity-change', { sessionId: 'receiver', level: 'inactive' });
+    await flush();
+    expect(deliveries).toHaveLength(1);
+
+    vi.advanceTimersByTime(60_000);
+    await flush();
+    expect(deliveries).toHaveLength(2);
+    notifier.dispose();
+  });
+
+  // A poke is itself PTY output: the session goes active, then inactive again.
+  // The cooldown, not the activity level, is what stops that becoming a loop.
+  it('does not re-poke on the inactive transition caused by its own poke', async () => {
+    vi.useFakeTimers();
+    const { manager, stateDetector, notifier, deliveries, receiver } = setup();
+    manager.post('sender', 'one');
+    await flush();
+    expect(deliveries).toHaveLength(1);
+
+    receiver.activityLevel = 'active';
+    stateDetector.emit('activity-change', { sessionId: 'receiver', level: 'active' });
+    receiver.activityLevel = 'inactive';
+    stateDetector.emit('activity-change', { sessionId: 'receiver', level: 'inactive' });
+    await flush();
+
+    expect(deliveries).toHaveLength(1);
+    notifier.dispose();
+  });
+
+  it('does not poke on an inactive transition when nothing is unread', async () => {
+    vi.useFakeTimers();
+    const { manager, stateDetector, notifier, deliveries, receiver } = setup();
+    manager.post('sender', 'read me');
+    await flush();
+    manager.check('receiver');
+
+    receiver.activityLevel = 'inactive';
+    vi.advanceTimersByTime(60_000);
+    stateDetector.emit('activity-change', { sessionId: 'receiver', level: 'inactive' });
+    await flush();
+
+    expect(deliveries).toHaveLength(1);
+    notifier.dispose();
+  });
+
+  it('pokes only the addressed session for a targeted post to an inactive target', async () => {
+    vi.useFakeTimers();
+    const { manager, sessions, notifier, sendSystemReminder, receiver } = setup();
+    receiver.activityLevel = 'inactive';
+    sessions.addSession({
+      id: 'bystander', name: 'bystander', cliType: 'test', processId: 3,
+      workingDir: project.canonicalPath, activityLevel: 'inactive',
+    } as any);
+    manager.post('sender', 'just for you', 'receiver');
+    await flush();
+
+    expect(sendSystemReminder.mock.calls.map(call => call[0])).toEqual(['receiver']);
+    notifier.dispose();
   });
 
   it('leaves a failed delivery retryable and clears timers on dispose', async () => {

@@ -39,7 +39,7 @@ explicit plan-claim flow.
 graph LR
     POST["mess_post(text, to?)"] --> STORE[("Project Mess store")]
     STORE --> CHECK["mess_check() / mess_history()"]
-    STORE --> NOTIFY["MessNotifier\nidle best-effort poke"]
+    STORE --> NOTIFY["MessNotifier\nbest-effort poke when quiet"]
     NOTIFY --> PTY["System reminder\n[HELM_MESS] ... call mess_check"]
     STORE --> IPC["mess:history + mess:appended"]
     IPC --> PANE["Read-only Mess pane"]
@@ -121,15 +121,26 @@ one line only:
 [HELM_MESS] 3 new — call mess_check
 ```
 
-The notifier checks unread visibility, idle state, and whether the PTY is
-running. It listens for both idle transitions and new appends, because a post
-made while a session is already idle produces no new idle transition.
+The notifier checks unread visibility, receptiveness, and whether the PTY is
+running. It listens for both activity transitions and new appends, because a
+post made while a session is already quiet produces no new transition.
 
-**A new post bypasses the cooldown.** Every append pokes every open session in
-the project — or only `toSessionId` when the post is targeted — so a message is
-never silently swallowed by a throttle window. The cooldown applies solely to
-the idle-driven path, where it is a loop guard: the poke is itself PTY output,
-which drops the session back to idle and would otherwise re-poke forever.
+**Receptive means `inactive` or `idle`** — 10 seconds of PTY silence, not 5
+minutes. Requiring full `idle` meant a post arriving moments after a session
+printed anything waited up to five minutes, and a session that kept working
+never heard about it at all. `inactive` is the same best-effort bet made far
+sooner.
+
+**A new post bypasses the cooldown**, so a message is never silently swallowed
+by a throttle window. Every append pokes every receptive session in the project
+— or only `toSessionId` when the post is targeted. A session that is busy at
+post time is not woken and nothing is scheduled for it; it is caught up on its
+next transition into `inactive`, which re-checks unread and delivers.
+
+The cooldown applies solely to the transition-driven path, where it is the loop
+guard: the poke is itself PTY output, which drives the session back through
+`active` to `inactive` and would otherwise re-poke forever. The guard is the
+cooldown, never the activity level.
 
 A retry timer rechecks the conditions after cooldown. Cooldown is recorded only
 after successful delivery; a failed or unverified write does not acknowledge
@@ -173,7 +184,7 @@ targeting protocol rather than guessing from a proxy identity.
 | `MessManager` | Project membership, ordered cursors, visibility, and domain events. |
 | `MessPersistence` | Per-project JSONL entries plus atomic cursor/metadata persistence. |
 | `HelmMessService` | Authenticated MCP validation and compact wire shapes. |
-| `MessNotifier` | Best-effort idle reminders; per-post fan-out and idle cooldown/retry policy. |
+| `MessNotifier` | Best-effort quiet-session reminders; per-post fan-out plus transition-driven catch-up, cooldown, and retry policy. |
 | `mess-handlers` | Cursor-neutral renderer history and project-scoped append push. |
 | `useMessPane` / `MessPane.vue` | Reactive observer projection and read-only UI. |
 

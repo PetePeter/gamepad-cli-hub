@@ -3,11 +3,25 @@ import type { MessManager } from './mess-manager.js';
 import type { MessEntry } from '../types/mess.js';
 import type { SessionManager } from './manager.js';
 import type { StateDetector, ActivityChange } from './state-detector.js';
+import type { ActivityLevel } from '../types/session.js';
 import { getMessProjectSettings } from '../types/project.js';
 import { logger } from '../utils/logger.js';
 
 export interface SystemReminderDelivery {
   sendSystemReminder(sessionId: string, text: string, options?: { onVerification?: (verified: boolean) => void }): Promise<void>;
+}
+
+/**
+ * Silence deep enough to risk a poke.
+ *
+ * `idle` alone is 5 minutes of quiet, so a post landing on a session that just
+ * printed anything waited up to 5 minutes — or forever while the session kept
+ * working. `inactive` is 10 seconds of quiet: still not proof the CLI is at a
+ * prompt (IDLE IS NOT READINESS), but it is the same best-effort bet made far
+ * sooner, and it is what lets a missed post be caught up on the next lull.
+ */
+function isReceptive(level: ActivityLevel | undefined): boolean {
+  return level === 'idle' || level === 'inactive';
 }
 
 export interface MessNotifierOptions {
@@ -27,7 +41,7 @@ export class MessNotifier {
   private disposed = false;
 
   private readonly onActivityChange = (event: ActivityChange): void => {
-    if (event.level === 'idle') void this.consider(event.sessionId);
+    if (isReceptive(event.level)) void this.consider(event.sessionId);
   };
 
   private readonly onMessAppended = (entry: MessEntry): void => {
@@ -82,7 +96,7 @@ export class MessNotifier {
   private async consider(sessionId: string, newPost = false): Promise<void> {
     if (this.disposed || this.inFlight.has(sessionId)) return;
     const session = this.sessionManager.getSession(sessionId);
-    if (!session || session.activityLevel !== 'idle') return;
+    if (!session || !isReceptive(session.activityLevel)) return;
     if (!this.isSessionRunning(sessionId)) return;
 
     let unread: number;
