@@ -80,6 +80,11 @@ When retention has moved past the caller's cursor, `gap: true` and
 {"new":1,"gap":true,"oldestSeq":38,"msgs":[...]}
 ```
 
+Unread is narrower than visible. A session never receives its own posts in its
+own delta or unread count — an author has already read what it wrote, and
+counting it would inflate the total the notifier advertises. Own posts remain in
+`mess_history` and the observer pane, where the transcript needs them.
+
 `mess_post` omits `to` for a broadcast. A supplied target must be same-project;
 cross-project targets fail rather than creating an unreadable record. Text and
 responses are bounded by the MCP service, and `mess_check` is bounded by both

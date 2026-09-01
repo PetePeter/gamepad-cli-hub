@@ -181,6 +181,46 @@ describe('MessManager', () => {
     expect(manager.check(receiver.id)).toMatchObject({ gap: true, oldestSeq: 2 });
   });
 
+  // An author already knows what it just said. Counting its own post as unread
+  // inflates the notifier's poke and replays the message back to its writer.
+  it('never counts or returns an entry to the session that authored it', () => {
+    const { sessions, manager } = setup();
+    const sender = add(sessions, 'sender', 'planner');
+    const receiver = add(sessions, 'receiver', 'memories');
+    manager.check(sender.id);
+    manager.check(receiver.id);
+
+    manager.post('sender', 'my own words');
+
+    expect(manager.unreadCount(sender.id)).toBe(0);
+    expect(manager.check(sender.id)).toMatchObject({ new: 0, entries: [] });
+    expect(manager.unreadCount(receiver.id)).toBe(1);
+    expect(manager.check(receiver.id).entries.map(entry => entry.text)).toEqual(['my own words']);
+  });
+
+  it('still shows a session its own posts in history', () => {
+    const { sessions, manager } = setup();
+    const sender = add(sessions, 'sender', 'planner');
+    manager.post('sender', 'my own words');
+
+    expect(manager.history(sender.id, { sinceHours: 1 }).map(entry => entry.text)).toEqual(['my own words']);
+  });
+
+  it('advances the author cursor past its own post so a peer reply is the only unread entry', () => {
+    const { sessions, manager } = setup();
+    const sender = add(sessions, 'sender', 'planner');
+    add(sessions, 'receiver', 'memories');
+    manager.check(sender.id);
+    manager.post('sender', 'question');
+    manager.post('receiver', 'answer');
+
+    const delta = manager.check(sender.id);
+
+    expect(delta.new).toBe(1);
+    expect(delta.entries.map(entry => entry.text)).toEqual(['answer']);
+    expect(manager.check(sender.id)).toMatchObject({ new: 0 });
+  });
+
   it('returns bounded history without advancing the check cursor', () => {
     const { sessions, manager } = setup();
     add(sessions, 'sender', 'planner');

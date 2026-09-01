@@ -128,12 +128,12 @@ export class MessManager extends EventEmitter {
     let bytes = 0;
     let examinedThroughSeq = cursor.lastSeq;
     for (const entry of unread) {
-      if (!isVisibleTo(entry, session.id)) {
-        // A direct message for another session is not part of this caller's
-        // delta. Leave the cursor at the last returned sequence; otherwise an
-        // invisible entry would be acknowledged as though this caller had
-        // received it. When a later visible entry is returned, advancing to
-        // that entry naturally skips the intervening invisible sequence.
+      if (!isUnreadFor(entry, session.id)) {
+        // A direct message for another session, or this caller's own post, is
+        // not part of its delta. Leave the cursor at the last returned
+        // sequence; otherwise a skipped entry would be acknowledged as though
+        // this caller had received it. When a later delta entry is returned,
+        // advancing to it naturally skips the intervening sequence.
         continue;
       }
       const entryBytes = Buffer.byteLength(JSON.stringify(entry), 'utf8');
@@ -150,7 +150,7 @@ export class MessManager extends EventEmitter {
     return {
       new: selected.length,
       entries: selected,
-      hasMore: unread.some(entry => entry.seq > examinedThroughSeq && isVisibleTo(entry, session.id)),
+      hasMore: unread.some(entry => entry.seq > examinedThroughSeq && isUnreadFor(entry, session.id)),
       gap: (loaded.prunedThroughSeq ?? 0) > cursor.lastSeq,
       ...(loaded.oldestSeq === undefined ? {} : { oldestSeq: loaded.oldestSeq }),
     };
@@ -175,7 +175,7 @@ export class MessManager extends EventEmitter {
       cursor = this.initialCursor(project, session.id, loaded);
       persistence.saveCursor(cursor);
     }
-    return loaded.entries.filter(entry => entry.seq > cursor.lastSeq && isVisibleTo(entry, session.id)).length;
+    return loaded.entries.filter(entry => entry.seq > cursor.lastSeq && isUnreadFor(entry, session.id)).length;
   }
 
   /** Read recent history with an explicit truncation signal for bounded callers. */
@@ -318,6 +318,16 @@ export class MessManager extends EventEmitter {
 
 function isVisibleTo(entry: MessEntry, sessionId: string): boolean {
   return entry.toSessionId === undefined || entry.toSessionId === sessionId;
+}
+
+/**
+ * Unread is narrower than visible: an author has already read what it wrote.
+ * Counting an own post inflates the unread total the notifier advertises and
+ * replays the message back to its writer, so own entries stay in history —
+ * where the transcript needs them — but never in a delta.
+ */
+function isUnreadFor(entry: MessEntry, sessionId: string): boolean {
+  return isVisibleTo(entry, sessionId) && entry.fromSessionId !== sessionId;
 }
 
 function positiveLimit(value: number | undefined, fallback: number): number {
