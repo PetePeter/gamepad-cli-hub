@@ -349,6 +349,37 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   },
 
   // ========================================================================
+  // Compaction Handover
+  // ========================================================================
+
+  /** Drop a pending handover instead of waiting for it to be pasted back */
+  handoverCancel: (sessionId: string) => ipcRenderer.invoke('handover:cancel', sessionId),
+
+  /** Whether a session has a handover waiting, and its text */
+  handoverPending: (sessionId: string) => ipcRenderer.invoke('handover:pending', sessionId),
+
+  /** Subscribe to a handover becoming pending (terminal should lock) */
+  onHandoverArmed: (callback: (event: { sessionId: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('handover:armed', listener);
+    return () => ipcRenderer.removeListener('handover:armed', listener);
+  },
+
+  /** Subscribe to a handover being pasted back (terminal released) */
+  onHandoverDelivered: (callback: (event: { sessionId: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('handover:delivered', listener);
+    return () => ipcRenderer.removeListener('handover:delivered', listener);
+  },
+
+  /** Subscribe to a handover being dropped undelivered */
+  onHandoverLost: (callback: (event: { sessionId: string; reason: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('handover:lost', listener);
+    return () => ipcRenderer.removeListener('handover:lost', listener);
+  },
+
+  // ========================================================================
   // Pipeline Queue
   // ========================================================================
 

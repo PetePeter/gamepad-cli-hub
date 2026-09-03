@@ -87,12 +87,32 @@ function getClearSettleDelayMs(): number {
  * Handles inter-session text delivery via PTY stdin.
  * Wraps messages in [HELM_MSG] envelopes unless the recipient CLI disables preamble.
  */
+/**
+ * The slice of HandoverDelivery this service needs. Narrow on purpose: the MCP
+ * layer only ever hands a handover over, it never waits on or inspects one.
+ */
+export interface HandoverArming {
+  arm(sessionId: string, text: string): void;
+}
+
 export class HelmSessionDeliveryService {
   constructor(
     private readonly sessionManager: SessionManager,
     private readonly ptyManager: PtyManager,
     private readonly configLoader: ConfigLoader,
+    private handover?: HandoverArming,
   ) {}
+
+  /**
+   * Late-bind the handover sink.
+   *
+   * HandoverDelivery needs the StateDetector, which is wired after the MCP
+   * services are built. A setter keeps that ordering out of an already
+   * ten-argument constructor chain.
+   */
+  setHandoverDelivery(handover: HandoverArming): void {
+    this.handover = handover;
+  }
 
   /**
    * Send text to a session's PTY with optional [HELM_MSG] envelope.
@@ -302,14 +322,14 @@ export class HelmSessionDeliveryService {
       return { ok: true, action: 'clear', sessionId: session.id, contextRelayed: false, usedTempFile: false, note: ACTION_WAIT_NOTE };
     }
 
-    let deliveryText = options.context as string;
-    let usedTempFile = false;
-    if (shouldSendLargeTextAsTempFile(entry?.largeTextAsTempFile, options.context as string)) {
-      const tempFilePath = writeLargeTextTempFile(options.context as string, 'session-clear-context');
-      deliveryText = buildLargeTextTempFileNotice(tempFilePath, 'session_clear context');
-      usedTempFile = true;
-      logger.info(`[HelmSessionDelivery] Wrote large session_clear context to temp file for ${session.id}: ${tempFilePath}`);
-    }
+    const rawContext = options.context as string;
+    const deliveryText = this.offloadIfLarge(
+      session.cliType,
+      rawContext,
+      'session-clear-context',
+      'session_clear context',
+    );
+    const usedTempFile = deliveryText !== rawContext;
 
     await deliverPromptSequenceToSession({
       sessionId: session.id,
@@ -333,16 +353,53 @@ export class HelmSessionDeliveryService {
    */
   async compactSession(
     sessionRef: string,
-    options?: { instruction?: string },
-  ): Promise<{ ok: true; action: 'compact'; sessionId: string; note: string }> {
+    options?: { instruction?: string; handover?: string },
+  ): Promise<{ ok: true; action: 'compact'; sessionId: string; handoverPending: boolean; note: string }> {
     const session = this.requireRunningSession(sessionRef);
     const template = this.requireActionTemplate(session.cliType, 'compact');
     const sequence = substituteActionParams(template, { $instruction: options?.instruction?.trim() ?? '' });
 
+    // Armed before the write, never after: the compact command's own output is
+    // what drives the session back to `active`, and the delivery waits on the
+    // *next* fall to silence. Arming late would miss that edge entirely.
+    const handoverText = options?.handover?.trim();
+    const handoverPending = Boolean(handoverText && this.handover);
+    if (handoverText && this.handover) {
+      this.handover.arm(
+        session.id,
+        this.offloadIfLarge(session.cliType, handoverText, 'session-compact-handover', 'session_compact handover'),
+      );
+    }
+
     logger.info(`[HelmSessionDelivery] session_compact for "${session.name}" (${session.id})`);
     await this.deliverActionSequence(session.id, sequence);
 
-    return { ok: true, action: 'compact', sessionId: session.id, note: ACTION_WAIT_NOTE };
+    return {
+      ok: true,
+      action: 'compact',
+      sessionId: session.id,
+      handoverPending,
+      note: handoverPending
+        ? `${ACTION_WAIT_NOTE} Your handover will be pasted back automatically once the session falls quiet.`
+        : ACTION_WAIT_NOTE,
+    };
+  }
+
+  /**
+   * Swap oversized text for a pointer to a temp file holding it.
+   *
+   * A multi-thousand-character paste into a TUI composer is where delivery goes
+   * wrong — partial writes, wrapped submits, mangled newlines. A one-line notice
+   * always lands, and the CLI reads the file itself.
+   */
+  private offloadIfLarge(cliType: string, text: string, filePrefix: string, label: string): string {
+    const enabled = this.configLoader.getCliTypeEntry(cliType)?.largeTextAsTempFile;
+    if (!shouldSendLargeTextAsTempFile(enabled, text)) {
+      return text;
+    }
+    const tempFilePath = writeLargeTextTempFile(text, filePrefix);
+    logger.info(`[HelmSessionDelivery] Wrote large ${label} to temp file: ${tempFilePath}`);
+    return buildLargeTextTempFileNotice(tempFilePath, label);
   }
 
   /**

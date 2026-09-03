@@ -112,6 +112,7 @@ import SkillsTab from './components/sidebar/SkillsTab.vue';
 import { loadSessions } from './screens/sessions.js';
 
 import AppModalHost from './components/app/AppModalHost.vue';
+import PendingHandoverModal from './components/modals/PendingHandoverModal.vue';
 
 const appStore = useAppStore();
 const state = appStore.state;
@@ -1274,6 +1275,10 @@ onUnmounted(() => {
 
     <RecycleBinModal v-model:visible="recycleBin.modalVisible.value" />
     <PeerPairingDialog />
+    <PendingHandoverModal
+      :session-id="state.activeSessionId"
+      :terminal-focused="dockWorkspace.focusedPaneId.value === PANE_TERMINAL"
+    />
 
     <AppModalHost
       :cli-types="state.cliTypes"

@@ -27,8 +27,20 @@ function makeService(entry: Partial<CliTypeConfig> | null, ptyRunning = true) {
   };
   const ptyManager = { has: () => ptyRunning };
   const configLoader = { getCliTypeEntry: () => entry, getCliTypeLabel: (ref: string) => ref };
-  const service = new HelmSessionDeliveryService(sessionManager as any, ptyManager as any, configLoader as any);
-  return { service, session };
+  // Records arm order against deliverSpy so "armed before the command was
+  // written" is assertable, not merely "both happened".
+  const armed: Array<{ sessionId: string; text: string; deliveriesBefore: number }> = [];
+  const handover = {
+    arm: (sessionId: string, text: string) =>
+      armed.push({ sessionId, text, deliveriesBefore: deliverSpy.mock.calls.length }),
+  };
+  const service = new HelmSessionDeliveryService(
+    sessionManager as any,
+    ptyManager as any,
+    configLoader as any,
+    handover,
+  );
+  return { service, session, armed };
 }
 
 /** Extract the `text` passed to the (mocked) delivery call at index. */
@@ -68,6 +80,29 @@ describe('session_compact', () => {
     const { service } = makeService({ helmActions: { compact: '/compact $instruction{Enter}{Wait 60000}' } });
     await service.compactSession('s1', { instruction: 'x' });
     expect(deliveredText()).toContain('{Wait 60000}');
+  });
+
+  it('arms the handover before writing the command, and returns without waiting for it', async () => {
+    const { service, armed } = makeService({ helmActions: { compact: '/compact $instruction{Enter}' } });
+
+    const result = await service.compactSession('s1', { instruction: 'auth', handover: 'resume the migration' });
+
+    // Arming after the write would race the compaction's own output, losing the
+    // fresh active→inactive edge the delivery waits on.
+    expect(armed).toEqual([{ sessionId: 's1', text: 'resume the migration', deliveriesBefore: 0 }]);
+    expect(deliveredText()).toBe('/compact auth{Enter}');
+    // The caller is usually the session being compacted — blocking until the
+    // handover lands would leave the tool call unanswered inside the discard.
+    expect(result).toMatchObject({ ok: true, action: 'compact', sessionId: 's1', handoverPending: true });
+  });
+
+  it('arms nothing and keeps the return shape when no handover is given', async () => {
+    const { service, armed } = makeService({ helmActions: { compact: '/compact $instruction{Enter}' } });
+
+    const result = await service.compactSession('s1', { instruction: 'auth' });
+
+    expect(armed).toEqual([]);
+    expect(result).toMatchObject({ ok: true, action: 'compact', sessionId: 's1', handoverPending: false });
   });
 });
 

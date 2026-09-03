@@ -21,7 +21,8 @@ src/
 │       ├── telegram-handlers.ts # Telegram bot settings CRUD, bot start/stop IPC
 │       ├── draft-handlers.ts   # 5 IPC channels (draft:create/update/delete/list/count) wired to DraftManager
 │       ├── plan-handlers.ts   # 12 IPC channels (plan:list/create/update/delete/addDep/removeDep/apply/complete/startableForDir/doingForSession/deps/getItem) wired to PlanManager; startable/doing names are legacy ready/coding query names
-│       └── mess-handlers.ts   # Cursor-neutral mess:history plus project-scoped mess:appended push; read-only renderer boundary
+│       ├── mess-handlers.ts   # Cursor-neutral mess:history plus project-scoped mess:appended push; read-only renderer boundary
+│       └── handover-handlers.ts # handover:cancel/pending + armed/delivered/lost forwarding for the compaction terminal lock
 ├── input/
 │   └── sequence-parser.ts      # {Enter}, {Ctrl+C}, {Wait 500}, {Mod Down/Up}, {{/}} — used by bindings + initialPrompt
 ├── output/
@@ -33,6 +34,7 @@ src/
 │   ├── delivery-lock.ts         # Per-session gate serializing the nudge/payload/settle/submit delivery transaction
 │   ├── bracketed-paste-tracker.ts # Per-session DEC 2004 state scanned from PTY output (incremental, chunk-boundary safe)
 │   ├── state-detector.ts       # PTY activity tracking + question markers; AIAGENT phase state is MCP-owned + markRestored() grace period for restored sessions
+│   ├── handover-delivery.ts    # Holds a session_compact handover across the compaction; pastes it back on the first inactive edge (floor 15s / ceiling 5min)
 │   ├── pipeline-queue.ts       # Waiting→implementing auto-handoff queue (FIFO)
 │   ├── notification-manager.ts # Windows toast notifications (Electron Notification API, activity-change triggers for implementing/planning sessions, dedup, click-to-focus)
 │   ├── initial-prompt.ts       # Sequence syntax → PTY escape codes, configurable delay, onComplete callback
@@ -144,6 +146,7 @@ renderer/
 │   └── navigation.ts           # useNavigationStore — centralized view routing, active session, sidebar focus, overlay lifecycle
 ├── composables/
 │   ├── index.ts                # Barrel export of all composables
+│   ├── useHandover.ts          # Reactive mirror of pending compaction handovers; drives the terminal lock
 │   ├── useModalStack.ts        # Reactive push/pop modal stack replacing 11-deep if-chain
 │   ├── useIpc.ts               # Typed IPC wrappers with auto-cleanup on unmount
 │   ├── useGamepad.ts           # Gamepad polling setup + connection events

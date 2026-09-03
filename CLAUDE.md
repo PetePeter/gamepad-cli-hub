@@ -151,6 +151,7 @@ python sendDeploy.py            # Commit, tag, push, upload installer via gh CLI
 | [docs/runtime-groups.md](docs/runtime-groups.md) | Custom cross-directory groups, exclusive membership, restore-to-group, drag/close flows |
 | [docs/recycle-bin.md](docs/recycle-bin.md) | Closed recoverable sessions — 30-day rolling bin, restore-with-resume |
 | [docs/drafts.md](docs/drafts.md) | Per-session draft prompt memos |
+| [docs/handover.md](docs/handover.md) | Compaction handover — a note carried across a session's own `/compact`, pasted back on the next lull |
 | [docs/mess.md](docs/mess.md) | Durable local project conversation, ordered cursors, best-effort reminders, and read-only observer pane |
 | [docs/prompt-templates.md](docs/prompt-templates.md) | Global nested prompt-template library and the prompt editor apply flow |
 | [docs/artifact-viewer.md](docs/artifact-viewer.md) | Ephemeral per-session versioned md/html reports, sanitized render, `helm-img://` protocol |

@@ -915,7 +915,9 @@ export const MCP_TOOLS: McpTool[] = [
       'The sequence comes from the CLI config helmActions.compact, where the $instruction placeholder is replaced with ' +
       'the optional instruction you supply (e.g. "/compact $instruction"). ' +
       'DESTINATION: sessionId is REQUIRED. Returns an error if the target CLI has no compact action configured. ' +
-      'The CLI processes the compaction asynchronously — wait ~1 min before reading results.',
+      'The CLI processes the compaction asynchronously — wait ~1 min before reading results. ' +
+      'Pass "handover" to have a note pasted back automatically once the compaction settles — this is how a session ' +
+      'compacting ITSELF carries working state across the discard.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -928,6 +930,16 @@ export const MCP_TOOLS: McpTool[] = [
           description:
             'Optional focus for the compaction, substituted into the CLI command\'s $instruction placeholder. ' +
             'Omit if the configured command takes no argument.',
+        },
+        handover: {
+          type: 'string',
+          description:
+            'Optional note to your post-compaction self, pasted into the session automatically once it falls quiet. ' +
+            'Write it BEFORE compacting, while you still remember: what you were doing, decisions already made, ' +
+            'files touched, the next concrete step, and any open question. ' +
+            'The content is opaque to Helm — inline prose, a file path, or an artifact reference all work, ' +
+            'so keep it short and point at detail you have stored elsewhere if it is long. ' +
+            'The call returns immediately; delivery happens later.',
         },
       },
       required: ['sessionId'],
@@ -1481,7 +1493,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'memory_search',
     title: 'Search Memories',
-    description: 'Search tldr and content of project memories resolved from the authenticated caller session. Literal search is default; regex=true enables regular expressions. Optional graphDepth expands each matching root.',
+    description: 'Search tldr and content of project memories resolved from the authenticated caller session. Literal search is default; regex=true enables regular expressions. Optional graphDepth expands each matching root. Start narrow with the most specific multi-term query, then widen: drop terms, then try synonyms and alternate spellings, until your terminology is exhausted; only then conclude nothing is stored.',
     inputSchema: {
       type: 'object',
       properties: {

@@ -40,6 +40,8 @@ export const PRELOAD_API_DOMAINS = {
     'pipelineDequeue',
     'pipelineGetQueue',
     'pipelineGetPosition',
+    'handoverCancel',
+    'handoverPending',
   ],
   config: [
     'configGetAll',
@@ -308,6 +310,9 @@ export const PRELOAD_API_DOMAINS = {
     'onPtyQuestionCleared',
     'onPtyActivityChange',
     'onPtyHandoff',
+    'onHandoverArmed',
+    'onHandoverDelivered',
+    'onHandoverLost',
     'onNotificationClick',
     'onLlmNotify',
     'onFlashAttention',

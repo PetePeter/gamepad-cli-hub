@@ -515,6 +515,7 @@ export async function callMcpTool(
       case 'session_compact':
         return service.compactSession(asString(args.sessionId, 'sessionId is required'), {
           ...(typeof args.instruction === 'string' ? { instruction: args.instruction } : {}),
+          ...(typeof args.handover === 'string' ? { handover: args.handover } : {}),
         });
       case 'session_export':
         return service.exportSession(asString(args.sessionId, 'sessionId is required'), {

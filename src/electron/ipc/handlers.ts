@@ -20,6 +20,9 @@ import { SkillManager } from '../../session/skill-manager.js';
 import { SkillAnalyticsManager } from '../../session/skill-analytics-manager.js';
 import { PlanBackupManager } from '../../session/plan-backup-manager.js';
 import { PatternMatcher } from '../../session/pattern-matcher.js';
+import { HandoverDelivery } from '../../session/handover-delivery.js';
+import { deliverPromptSequenceToSession } from '../../session/sequence-delivery.js';
+import { setupHandoverHandlers } from './handover-handlers.js';
 import { ScheduledTaskManager } from '../../session/scheduled-task-manager.js';
 import { ScheduledTaskHistoryManager } from '../../session/scheduled-task-history-manager.js';
 import { RecycleBinManager, recordRemovedSession } from '../../session/recycle-bin-manager.js';
@@ -358,6 +361,38 @@ export function registerIPCHandlers(
       sessionId => ptyManager.has(sessionId),
     )
     : null;
+  // Carries a session's handover note across its own compaction: session_compact
+  // arms the text while the context still exists, and it is pasted back on the
+  // first lull after the compact command.
+  const handoverDelivery = new HandoverDelivery(
+    stateDetector,
+    sessionManager,
+    async (sessionId, text) => { await deliverPromptSequenceToSession({
+      sessionId,
+      text,
+      ptyManager,
+      sessionManager,
+      configLoader,
+      verifyDelivery: { label: 'handover', delayMs: 4000, retrySubmit: true },
+    }); },
+    (sessionId, reason) => {
+      // The session's whole working state was riding on this note, and the
+      // context that produced it is already gone — silence would be worse.
+      const name = sessionManager.getSession(sessionId)?.name ?? sessionId;
+      notificationManager.notifyLlmDirected(
+        sessionId,
+        'Handover lost',
+        reason === 'cancelled'
+          ? `The pending handover for "${name}" was cancelled and will not be delivered.`
+          : reason === 'session-closed'
+            ? `"${name}" closed before its handover could be delivered.`
+            : `The handover for "${name}" could not be written to its terminal.`,
+      );
+    },
+  );
+  helmControlService.setHandoverDelivery(handoverDelivery);
+  const cleanupHandover = setupHandoverHandlers(handoverDelivery, windowManager);
+
   const cleanupMess = setupMessHandlers(messManager, projectStore, windowManager, sessionManager);
   setupBackupPlanHandlers(ipcMain, windowManager, () => backupManager);
   const cleanupPromptTemplates = promptTemplatesPath
@@ -603,6 +638,8 @@ export function registerIPCHandlers(
       cancelAllPrompts();
       messNotifier?.dispose();
       cleanupMess();
+      cleanupHandover();
+      handoverDelivery.dispose();
       stateDetector.dispose();
       patternMatcher.dispose();
       notificationManager.dispose();

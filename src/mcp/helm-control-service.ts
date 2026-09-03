@@ -16,7 +16,7 @@ import type {
 } from '../types/telegram-channel.js';
 import { PlanAttachmentManager } from '../session/plan-attachment-manager.js';
 import type { NotificationManager } from '../session/notification-manager.js';
-import { HelmSessionDeliveryService } from './services/helm-session-delivery-service.js';
+import { HelmSessionDeliveryService, type HandoverArming } from './services/helm-session-delivery-service.js';
 import { HelmSessionService } from './services/helm-session-service.js';
 import { HelmPlanService } from './services/helm-plan-service.js';
 import { HelmPlanSequenceService } from './services/helm-plan-sequence-service.js';
@@ -661,6 +661,11 @@ export class HelmControlService extends EventEmitter {
 
   invalidateCapabilityCache(): void {
     this.capabilityDetector.invalidateCache();
+  }
+
+  /** Wire the handover sink used by session_compact's `handover` argument. */
+  setHandoverDelivery(handover: HandoverArming): void {
+    this.sessionDelivery.setHandoverDelivery(handover);
   }
 
   // ---------------------------------------------------------------------------

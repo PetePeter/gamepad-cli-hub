@@ -224,6 +224,7 @@ vi.mock('../src/mcp/helm-control-service.js', () => ({
     this.setRuntimeGroupManager = vi.fn();
     this.setArtifactManager = vi.fn();
     this.setMemoryManager = vi.fn();
+    this.setHandoverDelivery = vi.fn();
   }),
 }));
 
