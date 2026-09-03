@@ -21,7 +21,7 @@ export function getSessionInfo(
       durability: 'Memories survive context compaction, Helm restart, and session death while their project remains. Use memory_list/get/search/export to recover durable context.',
       recycle_bin: 'Closing a recoverable session keeps unscoped memories and attachments with the same original session id in the recycle bin. Project-scoped memories survive session close, forget, and automatic expiry; project deletion or explicit memory lifecycle operations can still purge them.',
       graph: 'memory_get, memory_search, memory_graph, and memory_export accept graphDepth. Traversals are cycle-safe, carry breadcrumbs, and emit readable loop/reference/depth-limit markers.',
-      search: 'memory_search covers tldr and content. Set regex=true for regular expressions; invalid expressions are rejected. Attachments are not searched or OCR-indexed.',
+      search: 'memory_search covers tldr and content. Set regex=true for regular expressions; invalid expressions are rejected. Attachments are not searched or OCR-indexed. Start narrow with the most specific multi-term query, then widen: drop terms, then try synonyms and alternate spellings, until your terminology is exhausted; only then conclude nothing is stored.',
       attachments: 'Attachments are metadata-only in memory results and exports. Add uses an absolute filePath; get returns a safe tempPath and never inline bytes.',
       tools: [
         'memory_list', 'memory_get', 'memory_create', 'memory_update', 'memory_delete',
