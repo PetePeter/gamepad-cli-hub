@@ -73,7 +73,9 @@ graph TB
 | `src/telegram/keyboards.ts` | Inline keyboard layouts (`notificationKeyboard`, …) |
 | `src/telegram/pinned-dashboard.ts` | Pinned message summarising live sessions |
 | `src/telegram/utils.ts` | `stripAnsi`, `cleanTerminalOutput`, `escapeHtml`, `formatAgentMessageForTelegram`, `validateMobileFriendlyTelegramText` |
-| `src/telegram/openwhispr-transcriber.ts` | Voice-note → text transcription |
+| `src/telegram/openwhispr-transcriber.ts` | Voice/audio/video track → text transcription |
+| `src/telegram/ffmpeg.ts` | Shared ffmpeg resolution (configured path → OpenWhispr bundle) and process runner |
+| `src/telegram/video-frames.ts` | Video → JPEG contact sheet, plus the seek command the agent uses for other timestamps |
 | `src/telegram/piper-tts.ts` | Text → voice replies |
 | `src/electron/ipc/telegram-handlers.ts` | Settings/start/stop IPC surface |
 | `src/mcp/services/helm-telegram-service.ts` | MCP tools `telegram_chat`, `telegram_status`, `telegram_channel_close` |
@@ -128,7 +130,7 @@ notify, where active is `implementing` or `planning`.
 `setupTopicInput` routes an incoming message in this order:
 
 1. **Attachments with no text** → `TelegramRelayService.handleIncomingTelegramMessage`
-   (photos, documents, video, voice — voice may be transcribed first).
+   (see [Inbound media](#inbound-media-seeing-and-hearing-attachments)).
 2. Messages starting with `/` → ignored here, handled by the command handler.
 3. **Relay service first** — if the message answers an open AI channel, it is consumed there.
 4. **Topic mapping** — the topic's session receives the text via
@@ -136,6 +138,52 @@ notify, where active is `implementing` or `planning`.
 5. **No `message_thread_id`** (the General/root thread) → treated as `/help`.
    This is deliberate: a message with no session context must never be silently
    forwarded to "whichever session happens to be active".
+
+### Inbound media: seeing and hearing attachments
+
+A file path alone is opaque to an AI agent. Inbound media is therefore *converted
+into something the agent can perceive* before the envelope is delivered.
+
+| Telegram field | `type` | Transcribed | Frames |
+|---|---|---|---|
+| `photo` | `photo` | — | — |
+| `document` | `document` | if `audio/*` or `video/*` | if `video/*` |
+| `video` | `video` | ✅ | ✅ |
+| `video_note` (round bubble) | `video_note` | ✅ | ✅ |
+| `animation` (GIF) | `animation` | ✅ (silent in practice) | ✅ |
+| `voice` | `voice` | ✅ | — |
+| `audio` | `audio` | ✅ | — |
+
+Classification is exhaustive by design. An unrecognised media message is logged at
+**error** level with its field names — it previously fell through silently, leaving
+the user waiting on a reply that could never come.
+
+```mermaid
+graph LR
+    MSG[Telegram media] --> EX[extractAttachmentInfo]
+    EX -->|null| LOG[log error · not claimed]
+    EX --> DL[downloadFile]
+    DL -->|fail| NOTE[reply in topic with the reason]
+    DL --> TR[transcribe audio track]
+    DL --> FR[extractVideoFrames]
+    TR & FR --> ENV[HELM_TELEGRAM_ATTACHMENT envelope]
+    ENV --> PTY[deliverPromptSequenceToSession]
+```
+
+**Video → frames.** `src/telegram/video-frames.ts` runs one ffmpeg pass to write an
+evenly-spread contact sheet (6 frames, 360p) beside the video. The envelope lists
+the frame paths *and* the ffmpeg command for seeking any other timestamp, so the
+agent decides which moments matter rather than the app hardcoding a sampling
+policy. Extraction never throws — frames are a bonus on top of the attachment.
+
+**ffmpeg resolution** lives in `src/telegram/ffmpeg.ts`, shared by the transcriber
+and the frame extractor: the configured `ffmpegPath` wins, the OpenWhispr bundled
+copy is the fallback. PATH is deliberately *not* searched — resolution stays
+config-driven so behaviour cannot vary with whatever is installed on the machine.
+
+**Download failures are reported.** Telegram's `getFile` caps bot downloads at
+**20MB** (independent of the 50MB outbound limit), which is the usual reason a phone
+video never arrives. That case now posts a message naming the size and the cap.
 
 Very large pasted text is diverted to a temp file with a notice, via
 `shouldSendLargeTextAsTempFile` / `writeLargeTextTempFile`

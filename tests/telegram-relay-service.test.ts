@@ -120,6 +120,64 @@ describe('TelegramRelayService', () => {
     expect(reactionEmojis).not.toContain('👀');
   });
 
+  describe('incoming media recognition', () => {
+    // Regression: video_note, animation and audio used to fall through
+    // extractAttachmentInfo and vanish with no download and no user feedback.
+    const cases: Array<[string, Record<string, unknown>, string]> = [
+      ['video_note (round bubble)', { video_note: { file_id: 'vn1', duration: 8, file_size: 100 } }, 'video_note'],
+      ['animation (GIF)', { animation: { file_id: 'an1', duration: 3, mime_type: 'video/mp4', file_size: 100 } }, 'animation'],
+      ['audio file', { audio: { file_id: 'au1', duration: 30, mime_type: 'audio/mpeg', file_size: 100 } }, 'audio'],
+    ];
+
+    for (const [label, payload, expectedType] of cases) {
+      it(`claims and downloads ${label}`, async () => {
+        const { relay, bot } = makeRelay();
+        const filePath = tempAttachmentPath(`${expectedType}.bin`);
+        bot.downloadFile.mockResolvedValue(filePath);
+
+        const consumed = await relay.handleIncomingTelegramMessage({
+          message_id: 90,
+          message_thread_id: 42,
+          chat: { id: 12345 },
+          from: { username: 'testuser' },
+          ...payload,
+        } as any);
+
+        expect(consumed).toBe(true);
+        await vi.waitFor(() => expect(bot.downloadFile).toHaveBeenCalled());
+      });
+    }
+
+    it('does not claim a message with no recognizable media', async () => {
+      const { relay, bot } = makeRelay();
+
+      const consumed = await relay.handleIncomingTelegramMessage({
+        message_id: 91,
+        message_thread_id: 42,
+        chat: { id: 12345 },
+      } as any);
+
+      expect(consumed).toBe(false);
+      expect(bot.downloadFile).not.toHaveBeenCalled();
+    });
+
+    it('tells the user why an oversized video could not be fetched', async () => {
+      const { relay, bot } = makeRelay();
+      bot.downloadFile.mockResolvedValue(null);
+
+      await relay.handleIncomingTelegramMessage({
+        message_id: 92,
+        message_thread_id: 42,
+        chat: { id: 12345 },
+        video: { file_id: 'v1', duration: 60, mime_type: 'video/mp4', file_size: 45 * 1024 * 1024 },
+      } as any);
+
+      await vi.waitFor(() => {
+        expect(bot.sendToTopic).toHaveBeenCalledWith(42, expect.stringContaining('20MB'));
+      });
+    });
+  });
+
   describe('handleDeliveryVerification → reactions', () => {
     const msgContext = { chatId: 12345, messageId: 77 };
     const baseResult = { sessionId: 's1', detail: 'd', retryAttempted: false, delayMs: 0 };

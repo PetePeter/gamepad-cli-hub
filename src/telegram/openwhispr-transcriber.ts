@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as net from 'node:net';
 import * as path from 'node:path';
+import { resolveFfmpegPath, runProcess } from './ffmpeg.js';
 import { logger } from '../utils/logger.js';
 
 export interface AudioTranscriptionResult {
@@ -16,6 +17,8 @@ export interface AudioTranscriber {
 export interface OpenWhisprTranscriberOptions {
   openWhisprPath?: string;
   modelPath?: string;
+  /** Explicit ffmpeg from settings; falls back to the OpenWhispr bundle. */
+  ffmpegPath?: string;
 }
 
 export class OpenWhisprTranscriber implements AudioTranscriber {
@@ -71,9 +74,9 @@ export class OpenWhisprTranscriber implements AudioTranscriber {
   private async convertToWavIfNeeded(filePath: string, installPath: string, mimeType?: string): Promise<string | null> {
     if (mimeType === 'audio/wav' || path.extname(filePath).toLowerCase() === '.wav') return filePath;
 
-    const ffmpeg = resolveFfmpegPath(installPath);
+    const ffmpeg = resolveFfmpegPath({ ffmpegPath: this.options.ffmpegPath, openWhisprPath: installPath });
     if (!ffmpeg) {
-      logger.warn('[OpenWhispr] Cannot transcribe audio: bundled ffmpeg not found');
+      logger.warn('[OpenWhispr] Cannot transcribe audio: no ffmpeg configured or bundled');
       return null;
     }
 
@@ -97,14 +100,6 @@ function resolveWhisperServerPath(openWhisprPath: string): string | null {
   return candidates.find(candidate => fs.existsSync(candidate) && fs.statSync(candidate).isFile()) ?? null;
 }
 
-function resolveFfmpegPath(openWhisprPath: string): string | null {
-  const candidates = [
-    path.join(openWhisprPath, 'resources', 'app.asar.unpacked', 'node_modules', 'ffmpeg-static', 'ffmpeg.exe'),
-    path.join(openWhisprPath, 'app.asar.unpacked', 'node_modules', 'ffmpeg-static', 'ffmpeg.exe'),
-  ];
-  return candidates.find(candidate => fs.existsSync(candidate) && fs.statSync(candidate).isFile()) ?? null;
-}
-
 function resolveModelPath(configured?: string): string | null {
   const userHome = process.env.USERPROFILE || process.env.HOME || '';
   const modelDir = path.join(userHome, '.cache', 'openwhispr', 'whisper-models');
@@ -121,14 +116,6 @@ function resolveModelPath(configured?: string): string | null {
 
 function replaceExtension(filePath: string, extension: string): string {
   return path.join(path.dirname(filePath), `${path.basename(filePath, path.extname(filePath))}${extension}`);
-}
-
-function runProcess(command: string, args: string[]): Promise<number | null> {
-  return new Promise(resolve => {
-    const child = spawn(command, args, { windowsHide: true, stdio: 'ignore' });
-    child.on('error', () => resolve(null));
-    child.on('exit', code => resolve(code));
-  });
 }
 
 function findFreePort(): Promise<number> {

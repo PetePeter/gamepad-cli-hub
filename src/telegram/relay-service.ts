@@ -26,6 +26,8 @@ import {
 } from '../session/large-text-temp-file.js';
 import { formatAgentMessageForTelegram } from './utils.js';
 import { OpenWhisprTranscriber, type AudioTranscriber, type AudioTranscriptionResult } from './openwhispr-transcriber.js';
+import { resolveFfmpegPath } from './ffmpeg.js';
+import { buildFrameSeekHint, extractVideoFrames } from './video-frames.js';
 import type { SessionInfo } from '../types/session.js';
 import type {
   TelegramBridge,
@@ -37,6 +39,8 @@ import type {
 
 /** Telegram's max upload size is 50MB. */
 const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
+/** Telegram's getFile ceiling for bots — inbound downloads, not our uploads. */
+const BOT_DOWNLOAD_LIMIT_BYTES = 20 * 1024 * 1024;
 
 function detectMimeType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
@@ -278,7 +282,12 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
    */
   async handleIncomingAttachment(msg: TelegramBot.Message): Promise<boolean> {
     const attachment = extractAttachmentInfo(msg);
-    if (!attachment) return false;
+    if (!attachment) {
+      // A media message we cannot classify used to vanish without a trace,
+      // leaving the user waiting on a reply that would never come. Log loudly.
+      logger.error(`[TelegramRelay] Unrecognized non-text message ${msg.message_id}; keys: ${describeMessageKeys(msg)}`);
+      return false;
+    }
 
     // Resolve target session before any IO so we can reject early without downloading.
     const topicId = msg.message_thread_id;
@@ -303,11 +312,13 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     void (async () => {
       const filePath = await this.telegramBot.downloadFile(attachment.fileId, destDir, attachment.fileName);
       if (!this.isValidDownloadedFile(filePath)) {
-        logger.warn(`[TelegramRelay] Failed to download attachment: ${attachment.fileId}; path=${filePath ?? 'null'}`);
+        logger.error(`[TelegramRelay] Failed to download attachment: ${attachment.fileId}; path=${filePath ?? 'null'}`);
+        await this.notifyDownloadFailure(topicId, attachment.type, fileSize);
         return;
       }
 
       const transcription = await this.transcribeAttachmentIfAudio(attachment.type, filePath, attachment.mimeType);
+      const video = await this.extractFramesIfVideo(attachment.mimeType, filePath, attachment.durationSec);
 
       const envelope = [
         `[HELM_TELEGRAM_ATTACHMENT${from === 'unknown' ? '' : ` from:${from}`} chat:${chatId}]`,
@@ -316,6 +327,12 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
         `file_path: ${filePath}`,
         `file_size: ${fileSize}`,
         `mime_type: ${attachment.mimeType}`,
+        ...(attachment.durationSec ? [`duration: ${attachment.durationSec}s`] : []),
+        ...(video.framePaths.length > 0 ? [
+          `frame_paths: ${video.framePaths.join(', ')}`,
+          `Read the frames above to see the video.`,
+          ...(video.seekHint ? [`For any other moment, run: ${video.seekHint}`] : []),
+        ] : []),
         ...(transcription ? [
           `transcription_path: ${transcription.transcriptPath}`,
           `transcription_text: ${oneLine(transcription.text)}`,
@@ -466,12 +483,55 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     }
   }
 
+  /**
+   * Give the agent eyes: a contact sheet plus the command to seek any other
+   * moment itself. Failure is non-fatal — the attachment still gets delivered.
+   */
+  private async extractFramesIfVideo(
+    mimeType: string,
+    filePath: string,
+    durationSec?: number,
+  ): Promise<{ framePaths: string[]; seekHint?: string }> {
+    if (!isVideoAttachment(mimeType)) return { framePaths: [] };
+
+    try {
+      const config = this.configLoader.getTelegramConfig();
+      const ffmpegPath = resolveFfmpegPath({
+        ffmpegPath: config.ffmpegPath,
+        openWhisprPath: config.openWhisprPath,
+      });
+      if (!ffmpegPath) {
+        logger.warn('[TelegramRelay] Video frames skipped: no ffmpeg configured (Settings → Telegram → ffmpegPath)');
+        return { framePaths: [] };
+      }
+
+      const framePaths = await extractVideoFrames({ videoPath: filePath, ffmpegPath, durationSec });
+      if (framePaths.length === 0) return { framePaths: [] };
+      return { framePaths, seekHint: buildFrameSeekHint(ffmpegPath, filePath) };
+    } catch (err) {
+      logger.warn(`[TelegramRelay] Video frame extraction failed: ${err}`);
+      return { framePaths: [] };
+    }
+  }
+
+  /** Tell the user their media never made it, instead of leaving them waiting. */
+  private async notifyDownloadFailure(topicId: number | undefined, type: string, fileSize: number): Promise<void> {
+    if (!topicId || !this.telegramBot.isRunning()) return;
+    // Telegram's getFile refuses anything over 20MB for bots — by far the most
+    // common reason a phone video fails, so name it rather than saying "error".
+    const overBotLimit = fileSize > BOT_DOWNLOAD_LIMIT_BYTES;
+    const reason = overBotLimit
+      ? `it is ${(fileSize / 1024 / 1024).toFixed(1)}MB and Telegram caps bot downloads at 20MB — send a shorter or lower-quality clip`
+      : 'the download failed';
+    await this.telegramBot.sendToTopic(topicId, `❌ Could not fetch that ${type}: ${reason}.`);
+  }
+
   private async transcribeAttachmentIfAudio(
     attachmentType: string,
     filePath: string,
     mimeType: string,
   ): Promise<AudioTranscriptionResult | null> {
-    if (!isAudioAttachment(attachmentType, mimeType)) return null;
+    if (!shouldTranscribe(attachmentType, mimeType)) return null;
 
     try {
       const transcriber = this.audioTranscriber ?? this.createConfiguredTranscriber();
@@ -492,6 +552,7 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     return new OpenWhisprTranscriber({
       openWhisprPath: config.openWhisprPath,
       modelPath: config.openWhisprModelPath,
+      ffmpegPath: config.ffmpegPath,
     });
   }
 
@@ -538,8 +599,29 @@ function reactionForStatus(status: DeliveryVerificationResult['status']): string
   }
 }
 
-function isAudioAttachment(attachmentType: string, mimeType: string): boolean {
-  return attachmentType === 'voice' || mimeType.toLowerCase().startsWith('audio/');
+/**
+ * Video carries speech just as often as a voice note does, and the transcriber
+ * already runs everything through ffmpeg — so the audio track of a video is
+ * transcribed on the same path.
+ */
+function shouldTranscribe(attachmentType: string, mimeType: string): boolean {
+  if (attachmentType === 'voice') return true;
+  const mime = mimeType.toLowerCase();
+  return mime.startsWith('audio/') || mime.startsWith('video/');
+}
+
+function isVideoAttachment(mimeType: string): boolean {
+  return mimeType.toLowerCase().startsWith('video/');
+}
+
+/**
+ * Name the payload-bearing fields of a message so an unhandled media type can
+ * be identified from the log alone, without echoing user content.
+ */
+function describeMessageKeys(msg: TelegramBot.Message): string {
+  const skipped = new Set(['message_id', 'from', 'chat', 'date', 'message_thread_id']);
+  const keys = Object.keys(msg).filter(key => !skipped.has(key));
+  return keys.length > 0 ? keys.join(', ') : '(none)';
 }
 
 function oneLine(text: string): string {
@@ -557,6 +639,7 @@ function extractAttachmentInfo(msg: TelegramBot.Message): {
   fileSize?: number;
   caption?: string;
   type: string;
+  durationSec?: number;
 } | null {
   // Photo: array of sizes, pick the largest (last element)
   if (msg.photo && msg.photo.length > 0) {
@@ -604,6 +687,46 @@ function extractAttachmentInfo(msg: TelegramBot.Message): {
       fileSize: msg.voice.file_size,
       caption: undefined,
       type: 'voice',
+      durationSec: msg.voice.duration,
+    };
+  }
+
+  // Video note — the round record-in-place bubble. Always mp4, never named.
+  if (msg.video_note) {
+    return {
+      fileId: msg.video_note.file_id,
+      fileName: `video_note_${msg.message_id}.mp4`,
+      mimeType: 'video/mp4',
+      fileSize: msg.video_note.file_size,
+      caption: undefined,
+      type: 'video_note',
+      durationSec: msg.video_note.duration,
+    };
+  }
+
+  // Animation — a GIF, which Telegram stores as a silent mp4.
+  if (msg.animation) {
+    return {
+      fileId: msg.animation.file_id,
+      fileName: msg.animation.file_name || `animation_${msg.message_id}.mp4`,
+      mimeType: msg.animation.mime_type || 'video/mp4',
+      fileSize: msg.animation.file_size,
+      caption: msg.caption,
+      type: 'animation',
+      durationSec: msg.animation.duration,
+    };
+  }
+
+  // Music / shared audio file, as opposed to a recorded voice note.
+  if (msg.audio) {
+    return {
+      fileId: msg.audio.file_id,
+      fileName: msg.audio.file_name || `audio_${msg.message_id}.mp3`,
+      mimeType: msg.audio.mime_type || 'audio/mpeg',
+      fileSize: msg.audio.file_size,
+      caption: msg.caption,
+      type: 'audio',
+      durationSec: msg.audio.duration,
     };
   }
 
