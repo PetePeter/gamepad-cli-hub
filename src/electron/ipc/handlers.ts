@@ -18,7 +18,6 @@ import { ProjectStore } from '../../session/project-store.js';
 import { ContextManager } from '../../session/context-manager.js';
 import { SkillManager } from '../../session/skill-manager.js';
 import { SkillAnalyticsManager } from '../../session/skill-analytics-manager.js';
-import { PlanBackupManager } from '../../session/plan-backup-manager.js';
 import { PatternMatcher } from '../../session/pattern-matcher.js';
 import { HandoverDelivery } from '../../session/handover-delivery.js';
 import { deliverPromptSequenceToSession } from '../../session/sequence-delivery.js';
@@ -62,7 +61,6 @@ import { setupRuntimeGroupHandlers } from './runtime-group-handlers.js';
 import { setupArtifactHandlers } from './artifact-handlers.js';
 import { setupMemoryHandlers } from './memory-handlers.js';
 import { setupMessHandlers } from './mess-handlers.js';
-import { setupBackupPlanHandlers } from './plan-backup-handlers.js';
 import { setupProjectHandlers } from './project-handlers.js';
 import { setupSkillHandlers } from './skill-handlers.js';
 import { setupPromptTemplateHandlers } from './prompt-template-handlers.js';
@@ -170,7 +168,6 @@ export function registerIPCHandlers(
   const getSkillAnalyticsPath = (configLoader as ConfigLoader & { getSkillAnalyticsPath?: () => string }).getSkillAnalyticsPath;
   const skillManager = new SkillManager(getSkillsPath ? getSkillsPath.call(configLoader) : 'src/config/skills.yaml');
   const skillAnalyticsManager = new SkillAnalyticsManager(getSkillAnalyticsPath ? getSkillAnalyticsPath.call(configLoader) : 'src/config/skill-analytics.json');
-  const backupManager = new PlanBackupManager(planManager);
   const scheduledTaskHistoryManager = new ScheduledTaskHistoryManager();
   const recycleBinManager = new RecycleBinManager();
   const runtimeGroupManager = new RuntimeGroupManager(saveRuntimeGroups);
@@ -394,30 +391,9 @@ export function registerIPCHandlers(
   const cleanupHandover = setupHandoverHandlers(handoverDelivery, windowManager);
 
   const cleanupMess = setupMessHandlers(messManager, projectStore, windowManager, sessionManager);
-  setupBackupPlanHandlers(ipcMain, windowManager, () => backupManager);
   const cleanupPromptTemplates = promptTemplatesPath
     ? setupPromptTemplateHandlers(promptTemplateManager, promptTemplatesPath)
     : () => {};
-
-  // Wire automatic backup scheduling: backup a directory when plans change,
-  // but only if enough time has passed since the last backup for that dir.
-  const lastBackupByDir = new Map<string, number>();
-  planManager.on('plan:changed', (dirPath: string) => {
-    const config = backupManager.getConfig();
-    if (!config.enabled) return;
-    if (config.excludePaths?.includes(dirPath)) return;
-
-    const now = Date.now();
-    const lastBackup = lastBackupByDir.get(dirPath) ?? 0;
-    if (now - lastBackup < config.snapshotIntervalMs) return;
-
-    lastBackupByDir.set(dirPath, now);
-    try {
-      backupManager.createSnapshot(dirPath);
-    } catch (error) {
-      logger.warn('Auto-backup failed', { dirPath, error: error instanceof Error ? error.message : String(error) });
-    }
-  });
 
   // Wire events ONCE (no-ops when bot not running — notifier checks isRunning).
   // AIAGENT phase changes are now explicit MCP state updates, not PTY text

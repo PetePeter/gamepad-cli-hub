@@ -7,7 +7,7 @@
  * handover, which is the failure this dialog exists to prevent.
  *
  * Driven through the real key router, not a stub: a stubbed router passes while
- * the real one leaks, which is exactly how the BackupRestoreModal bug survived.
+ * the real one leaks.
  *
  * @vitest-environment jsdom
  */

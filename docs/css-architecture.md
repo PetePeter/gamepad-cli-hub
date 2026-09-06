@@ -112,8 +112,8 @@ shared disabled affordance. Variants are declared once: `.btn--sm`,
 `--accent`; danger buttons use `--danger` and `--danger-border` while retaining
 the established outlined/translucent appearance.
 
-The four formerly local button systems (`PeersTab`, `BackupTab`,
-`PeerPairingDialog`, and `BackupRestoreModal`) now use the shared variants.
+The formerly local button systems (`PeersTab` and `PeerPairingDialog`) now use
+the shared variants.
 Their scoped blocks no longer redeclare `.btn` or `.btn--*`, so scoped
 specificity cannot override the global contract.
 

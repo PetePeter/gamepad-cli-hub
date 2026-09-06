@@ -109,7 +109,7 @@ function onPair(peer: DiscoveredPeer): void {
   void startPairing(peer);
 }
 
-/** Debounced allow-list save (500ms) — matches BackupTab's save cadence. */
+/** Debounced allow-list save (500ms). */
 function scheduleAllowSave(peerId: string, allow: string[]): void {
   const existing = saveTimers.get(peerId);
   if (existing) clearTimeout(existing);

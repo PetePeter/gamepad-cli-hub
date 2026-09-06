@@ -22,7 +22,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../../renderer/ipc/clients.js', () => ({
   appClient: {},
   attachmentsClient: {},
-  backupsClient: {},
   configClient: {},
   contextsClient: {},
   deliveryClient: {},

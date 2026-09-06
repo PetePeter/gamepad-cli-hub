@@ -32,25 +32,12 @@ import EditorPopup from '../modals/EditorPopup.vue';
 import BindingEditorModal from '../modals/BindingEditorModal.vue';
 import EscProtectionModal from '../modals/EscProtectionModal.vue';
 import PlanHelpModal from '../modals/PlanHelpModal.vue';
-import BackupRestoreModal from '../modals/BackupRestoreModal.vue';
 import ClearDonePlansModal from '../modals/ClearDonePlansModal.vue';
 import RuntimeGroupNameModal from '../modals/RuntimeGroupNameModal.vue';
 import RuntimeGroupCloseDialog from '../modals/RuntimeGroupCloseDialog.vue';
 import RuntimeGroupMoveSubmenu from '../modals/RuntimeGroupMoveSubmenu.vue';
 import ScheduledTasksTab from '../sidebar/ScheduledTasksTab.vue';
 import ToastNotification from '../ToastNotification.vue';
-
-interface BackupMeta {
-  timestamp: string;
-  dirPath: string;
-  planCount: number;
-  dependencyCount: number;
-  status: 'complete' | 'partial' | 'error';
-  error?: string;
-  sizeBytes?: number;
-  index: number;
-  snapshotPath?: string;
-}
 
 defineProps<{
   cliTypes: string[];
@@ -63,12 +50,6 @@ defineProps<{
   bindingEditorButton: string;
   bindingEditorCliType: string;
   bindingEditorBinding: any;
-  backupRestore: {
-    visible: boolean;
-    dirPath: string;
-    snapshots: BackupMeta[];
-    loading: boolean;
-  };
   schedulerPopupVisible: boolean;
   schedulerPopupTaskId: string | null;
   schedulerPopupPrefill?: Partial<ScheduledTaskHistoryEntry> | null;
@@ -84,10 +65,6 @@ const emit = defineEmits<{
   'dir-select': [path: string, cliType: string];
   'update:bindingEditorVisible': [visible: boolean];
   'binding-save': [binding: any];
-  'backup-restore': [snapshotPath: string];
-  'backup-delete': [snapshotPath: string];
-  'backup-now': [];
-  'backup-close': [];
   'update:schedulerPopupVisible': [visible: boolean];
   'task-created': [task: ScheduledTask];
   'task-updated': [task: ScheduledTask];
@@ -355,17 +332,6 @@ function onRuntimeGroupMoveCancel(): void {
   <EscProtectionModal />
 
   <PlanHelpModal v-if="planHelp.visible" @dismiss="hidePlanHelpModal()" />
-
-  <BackupRestoreModal
-    :visible="backupRestore.visible"
-    :dir-path="backupRestore.dirPath"
-    :snapshots="backupRestore.snapshots"
-    :loading="backupRestore.loading"
-    @restore="emit('backup-restore', $event)"
-    @delete="emit('backup-delete', $event)"
-    @backup-now="emit('backup-now')"
-    @close="emit('backup-close')"
-  />
 
   <div
     v-if="schedulerPopupVisible"

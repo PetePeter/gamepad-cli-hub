@@ -31,7 +31,6 @@ export const plansClient = domainClient('plans');
 export const contextsClient = domainClient('contexts');
 export const memoryClient = domainClient('memory');
 export const attachmentsClient = domainClient('attachments');
-export const backupsClient = domainClient('backups');
 export const incomingClient = domainClient('incoming');
 export const draftsClient = domainClient('drafts');
 const baseSchedulerClient = domainClient('scheduler');

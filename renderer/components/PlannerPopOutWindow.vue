@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, reactive } from 'vue';
+import { onMounted, onUnmounted } from 'vue';
 import PlanScreen from './panels/PlanScreen.vue';
 import DraftEditor from './panels/DraftEditor.vue';
-import BackupRestoreModal from './modals/BackupRestoreModal.vue';
 import { useDraftPlanContextEditor } from '../composables/useDraftPlanContextEditor.js';
-import { backupsClient, eventsClient, sessionsClient } from '../ipc/clients.js';
+import { eventsClient, sessionsClient } from '../ipc/clients.js';
 import {
   showPlanScreen,
   hidePlanScreen,
@@ -45,24 +44,11 @@ import {
   setDraftEditorCloser,
   setDraftEditorVisibilityChecker,
   setPlanChangesChecker,
-  setBackupRestoreOpener,
   setPlanScreenContextEditorOpener,
   onPlanContextEdit,
 } from '../plans/plan-screen.js';
 import { useAppStore } from '../stores/app.js';
 import { loadStoredSessions } from '../session-store.js';
-
-interface BackupMeta {
-  timestamp: string;
-  dirPath: string;
-  planCount: number;
-  dependencyCount: number;
-  status: 'complete' | 'partial' | 'error';
-  error?: string;
-  sizeBytes?: number;
-  index: number;
-  snapshotPath?: string;
-}
 
 const props = defineProps<{ dirPath: string }>();
 const appStore = useAppStore();
@@ -106,48 +92,9 @@ const {
   saveContext: (id, updates, pendingUnbinds) => onPlanContextSave(id, updates, pendingUnbinds),
 });
 
-const backupRestore = reactive({
-  visible: false,
-  dirPath: '',
-  snapshots: [] as BackupMeta[],
-  loading: false,
-});
-
 let offPlanChanged: (() => void) | null = null;
 let offSessionUpdated: (() => void) | null = null;
 let offSessionSpawned: (() => void) | null = null;
-
-async function openBackupRestore(): Promise<void> {
-  backupRestore.dirPath = planScreenState.currentDir;
-  backupRestore.loading = true;
-  backupRestore.visible = true;
-  try {
-    backupRestore.snapshots = await backupsClient.planListBackups(backupRestore.dirPath);
-  } catch {
-    backupRestore.snapshots = [];
-  } finally {
-    backupRestore.loading = false;
-  }
-}
-
-async function onRestoreBackup(snapshotPath: string): Promise<void> {
-  const snapshot = backupRestore.snapshots.find((entry) => entry.snapshotPath === snapshotPath);
-  const result = await backupsClient.planRestoreBackup(snapshotPath);
-  if (result && snapshot?.dirPath.toLowerCase() === planScreenState.currentDir.toLowerCase()) {
-    await refreshCanvasIfVisible();
-  }
-  backupRestore.visible = false;
-}
-
-async function onDeleteBackup(snapshotPath: string): Promise<void> {
-  await backupsClient.planDeleteBackup(snapshotPath);
-  backupRestore.snapshots = await backupsClient.planListBackups(backupRestore.dirPath);
-}
-
-async function onBackupNow(): Promise<void> {
-  await backupsClient.planCreateBackupNow(backupRestore.dirPath);
-  backupRestore.snapshots = await backupsClient.planListBackups(backupRestore.dirPath);
-}
 
 async function loadSessions(): Promise<void> {
   appStore.setSessions(await loadStoredSessions());
@@ -166,7 +113,6 @@ onMounted(async () => {
   setDraftEditorCloser(closeDraftEditor);
   setDraftEditorVisibilityChecker(() => draftEditorVisible.value);
   setPlanChangesChecker(hasUnsavedChanges);
-  setBackupRestoreOpener(openBackupRestore);
 
   await loadSessions();
   await showPlanScreen(props.dirPath);
@@ -281,17 +227,6 @@ onUnmounted(() => {
       @toggle-has-attachment-filter="toggleHasAttachmentFilter"
       @toggle-auto-filter="toggleAutoFilter"
       @reset-filters="resetFilters()"
-      @open-backups="openBackupRestore()"
-    />
-    <BackupRestoreModal
-      :visible="backupRestore.visible"
-      :dir-path="backupRestore.dirPath"
-      :snapshots="backupRestore.snapshots"
-      :loading="backupRestore.loading"
-      @restore="onRestoreBackup"
-      @delete="onDeleteBackup"
-      @backup-now="onBackupNow"
-      @close="backupRestore.visible = false"
     />
   </div>
 </template>

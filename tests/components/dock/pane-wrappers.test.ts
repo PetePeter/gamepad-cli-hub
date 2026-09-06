@@ -83,7 +83,6 @@ function makeContext(): Fake {
     onToggleHasAttachmentFilter: vi.fn(),
     onToggleAutoFilter: vi.fn(),
     onToggleRelatedFocus: vi.fn(),
-    openBackupRestore: vi.fn(),
   };
   const context = {
     terminalContainerRef,
@@ -326,11 +325,9 @@ describe('pane wrappers preserve the shell event seams', () => {
 
     screen.vm.$emit('pop-out');
     screen.vm.$emit('reset-filters');
-    screen.vm.$emit('open-backups');
 
     expect(planWorkspace().onPlanPopOut).toHaveBeenCalled();
     expect(planWorkspace().onResetFilters).toHaveBeenCalled();
-    expect(planWorkspace().openBackupRestore).toHaveBeenCalled();
   });
 
   it('ArtifactsPane pops out through the shell so the panel follows its terminal', () => {

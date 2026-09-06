@@ -230,6 +230,4 @@ list.
 
 - **Runtime Groups** — the bin *tags* entries with a group so restore can re-attach,
   but grouping is a separate concern.
-- **Plan Backup & Restore** — per-directory plan snapshots, also rolling-window, but
-  restoring replaces data rather than resurrecting a process.
 - **Scheduled Task History** — 7-day, read-only evidence; nothing is restorable.

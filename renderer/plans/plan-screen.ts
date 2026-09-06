@@ -86,7 +86,6 @@ interface WindowCallbacks {
   draftEditorVisibilityChecker: (() => boolean) | null;
   contextEditorOpener: ((context: { id: string; title: string; type: string; permission: 'readonly' | 'writable'; content: string; planIds?: string[]; sequenceIds?: string[] }, callbacks: { onSave: (updates: { title: string; content: string; type: string; permission: 'readonly' | 'writable' }) => void; onDelete: () => void; onUnbind?: (targetType: ContextBindingTargetType, targetId: string) => void; onClose?: () => void }) => void) | null;
   planChangesChecker: (() => boolean) | null;
-  backupRestoreOpener: (() => void) | null;
 }
 
 // Keyed per window, not per pop-out flag: several planner pop-outs can be open
@@ -102,7 +101,6 @@ function getWindowCallbacks(): WindowCallbacks {
       draftEditorVisibilityChecker: null,
       contextEditorOpener: null,
       planChangesChecker: null,
-      backupRestoreOpener: null,
     });
   }
   return callbackRegistry.get(key)!;
@@ -187,7 +185,6 @@ export function setPlanEditorOpener(fn: WindowCallbacks['planEditorOpener']) { g
 export function setDraftEditorCloser(fn: WindowCallbacks['draftEditorCloser']) { getWindowCallbacks().draftEditorCloser = fn; }
 export function setDraftEditorVisibilityChecker(fn: WindowCallbacks['draftEditorVisibilityChecker']) { getWindowCallbacks().draftEditorVisibilityChecker = fn; }
 export function setPlanChangesChecker(fn: WindowCallbacks['planChangesChecker']) { getWindowCallbacks().planChangesChecker = fn; }
-export function setBackupRestoreOpener(opener: () => void): void { getWindowCallbacks().backupRestoreOpener = opener; }
 export function setPlanScreenContextEditorOpener(fn: WindowCallbacks['contextEditorOpener']) { getWindowCallbacks().contextEditorOpener = fn; }
 
 function getLayoutNodes(): LayoutNode[] {
@@ -582,11 +579,6 @@ function planScreenKeyHandler(ctx: KeyContext): boolean {
 
   if (ctx.key === 'f' || ctx.key === 'F') {
     toggleRelatedFocus();
-    return true;
-  }
-
-  if (ctx.key === 'r' || ctx.key === 'R') {
-    openBackupRestoreModal();
     return true;
   }
 
@@ -1190,14 +1182,3 @@ function refreshLayout(): void {
   syncSelection();
 }
 
-function isBackupRestoreModalVisible(): boolean {
-  return document.querySelector('.backup-restore-modal') !== null;
-}
-
-function openBackupRestoreModal(): void {
-  if (isBackupRestoreModalVisible()) return;
-  const cb = getWindowCallbacks().backupRestoreOpener;
-  if (cb) {
-    cb();
-  }
-}

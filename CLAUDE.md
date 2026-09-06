@@ -163,7 +163,6 @@ python sendDeploy.py            # Commit, tag, push, upload installer via gh CLI
 |----------|---------|
 | [docs/directory-plans.md](docs/directory-plans.md) | Directory Plans — DAG work items, lifecycle, canvas, layout, badges |
 | [docs/plans-file-structure.md](docs/plans-file-structure.md) | On-disk plan file layout |
-| [docs/plan-backup-restore.md](docs/plan-backup-restore.md) | Rolling plan snapshots, scheduling, restore workflow |
 | [docs/scheduled-task-history.md](docs/scheduled-task-history.md) | 7-day rolling run log of scheduled-task executions |
 
 **Integrations**

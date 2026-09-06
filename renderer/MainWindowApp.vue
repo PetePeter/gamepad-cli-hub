@@ -74,7 +74,6 @@ import {
   setDraftEditorCloser as setPlanScreenDraftEditorCloser,
   setDraftEditorVisibilityChecker as setPlanScreenDraftEditorVisibilityChecker,
   setPlanChangesChecker as setPlanScreenPlanChangesChecker,
-  setBackupRestoreOpener as setPlanScreenBackupRestoreOpener,
   setPlanScreenContextEditorOpener,
 } from './plans/plan-screen.js';
 import { deliverBulkText } from './paste-handler.js';
@@ -103,7 +102,6 @@ import TelegramTab from './components/sidebar/TelegramTab.vue';
 import ProjectsTab from './components/sidebar/ProjectsTab.vue';
 import ChipbarActionsTab from './components/sidebar/ChipbarActionsTab.vue';
 import McpTab from './components/sidebar/McpTab.vue';
-import BackupTab from './components/sidebar/BackupTab.vue';
 import PeersTab from './components/sidebar/PeersTab.vue';
 import PeerPairingDialog from './components/modals/PeerPairingDialog.vue';
 import { usePeers } from './composables/usePeers.js';
@@ -520,15 +518,7 @@ function refitTerminalsSoon(): void {
 // own session binding because it can remain mounted alongside the terminal.
 useArtifactSessionBinding(artifactViewer);
 const { addToast } = useToast();
-const planWorkspaceController = usePlanWorkspaceController({ addToast });
-const {
-  backupRestore,
-  openBackupRestore,
-  onBackupRestore,
-  onBackupDelete,
-  onBackupNow,
-  onBackupClose,
-} = planWorkspaceController;
+const planWorkspaceController = usePlanWorkspaceController();
 
 // ============================================================================
 // Computed props for components
@@ -1062,7 +1052,6 @@ onMounted(async () => {
     setPlanScreenDraftEditorCloser(closeDraftEditor);
     setPlanScreenDraftEditorVisibilityChecker(() => draftEditorVisible.value);
     setPlanScreenPlanChangesChecker(hasUnsavedChanges);
-    setPlanScreenBackupRestoreOpener(openBackupRestore);
 
     await chipBarStore.refresh(state.activeSessionId ?? null);
   } catch (error) {
@@ -1246,9 +1235,6 @@ onUnmounted(() => {
               @reset-all-counts="onSkillResetAllCounts"
               @load-bodies="onSkillLoadBodies"
             />
-            <BackupTab
-              v-else-if="activeTab === 'backups'"
-            />
             <PeersTab
               v-else-if="activeTab === 'peers'"
             />
@@ -1291,7 +1277,6 @@ onUnmounted(() => {
       :binding-editor-button="bindingEditorButton"
       :binding-editor-cli-type="bindingEditorCliType"
       :binding-editor-binding="bindingEditorBinding"
-      :backup-restore="backupRestore"
       v-model:scheduler-popup-visible="schedulerPopupVisible"
       :scheduler-popup-task-id="schedulerPopupTaskId"
       :scheduler-popup-prefill="recreatePrefill"
@@ -1303,10 +1288,6 @@ onUnmounted(() => {
       @draft-delete="onDraftSubmenuDelete"
       @dir-select="onDirPickerSelect"
       @binding-save="onBindingEditorSave"
-      @backup-restore="onBackupRestore"
-      @backup-delete="onBackupDelete"
-      @backup-now="onBackupNow"
-      @backup-close="onBackupClose"
       @task-created="onScheduledTaskCreated"
       @task-updated="onScheduledTaskUpdated"
       @task-cancelled="onScheduledTaskCancelled"

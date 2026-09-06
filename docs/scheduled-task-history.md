@@ -19,8 +19,7 @@ available through the session itself. The history answers *"what did I schedule,
 did it run, and did it work?"* — not *"what did it print"*. Keeping entries small is
 what makes an unbounded-by-default log safe to keep on disk.
 
-The rolling window (7 days) mirrors the `PlanBackupManager` pattern already used
-elsewhere in the codebase: prune on append, and defensively re-filter on load so a
+The rolling window (7 days) follows the standard retention pattern: prune on append, and defensively re-filter on load so a
 file that skipped pruning (crash, clock jump, hand edit) cannot grow forever.
 
 ## Architecture
@@ -135,6 +134,4 @@ and silently mutating it from a history view would be a surprise.
 
 - **Scheduled Tasks** themselves (`ScheduledTaskManager`, `scheduled-tasks.yaml`) —
   the live, mutable list of what *will* run.
-- **Plan Backup & Restore** — the same rolling-window shape, but for plan data, and
-  restorable. History is read-only evidence; there is no "restore a run".
 - **Recycle Bin** — closed sessions, 30-day window, restorable.

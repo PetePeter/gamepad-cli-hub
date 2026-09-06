@@ -29,7 +29,6 @@ const BASE_PROPS = {
   bindingEditorButton: '',
   bindingEditorCliType: '',
   bindingEditorBinding: null,
-  backupRestore: { visible: false, dirPath: '', snapshots: [], loading: false },
   schedulerPopupVisible: false,
   schedulerPopupTaskId: null,
 };

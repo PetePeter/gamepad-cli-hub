@@ -33,8 +33,7 @@ routes through a single ownership chain
 | Context menu, prompt-template tree | Quick Spawn as a pane |
 | Terminal scroll | Recycle bin / restore |
 | Two hardcoded spawns (LT, RB) | Runtime group management |
-| Profile switch, window focus | Plan backup & restore |
-| | Dock pane focus and layout |
+| Profile switch, window focus | Dock pane focus and layout |
 | | Fleet peers, Telegram surfaces |
 
 Roughly a third of the surface. The gap is not evenly spread — it is *exactly*
@@ -156,8 +155,8 @@ not a parallel system.
 
 The payoff is structural: **registering a command grants keyboard, mouse, and
 gamepad access at once.** No new `ActionType` per feature, no button spent.
-Memories, artifacts, scheduler, recycle bin, group management and backup/restore
-all arrive through this door.
+Memories, artifacts, scheduler, recycle bin and group management all arrive
+through this door.
 
 ---
 

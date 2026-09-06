@@ -3,7 +3,7 @@
  * PlanScreenPane — the `plan-screen` view (planner canvas for one directory).
  *
  * Plan state and handlers are module singletons in `plans/plan-screen.js`; the
- * filter/pop-out/backup actions come from the shell's plan workspace controller.
+ * filter/pop-out actions come from the shell's plan workspace controller.
  * The pane owns the rendered-canvas lifecycle and keeps the shared canvas bound
  * to the selected session, so docked and pop-out rendering share one contract.
  */
@@ -113,6 +113,5 @@ onUnmounted(() => { setPlanScreenPaneMounted(false); });
     @reset-filters="planWorkspace.onResetFilters"
     @toggle-has-attachment-filter="planWorkspace.onToggleHasAttachmentFilter"
     @toggle-auto-filter="planWorkspace.onToggleAutoFilter"
-    @open-backups="planWorkspace.openBackupRestore()"
   />
 </template>

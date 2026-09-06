@@ -84,11 +84,11 @@ graph TB
     Q -->|yes| Y["ctx.scope = 'modal'<br/>global · pane · terminal all gated out<br/>→ only this dialog can act"]
 ```
 
-- **Forgetting to join the stack leaks keys.** `BackupRestoreModal` registered a
-  modal-scope handler but joined no registry, so `isKeyboardModalOpen()` stayed
-  false and the router stayed in pane scope. Its `switch` ended in
-  `default: return false`, so every key it declined carried on to the workspace
-  and terminal handlers — typing behind the open dialog reached the CLI.
+- **Forgetting to join the stack leaks keys.** A modal that registers a
+  modal-scope handler but joins no registry leaves `isKeyboardModalOpen()` false,
+  so the router stays in pane scope. If its handler ends in
+  `default: return false`, every key it declines carries on to the workspace and
+  terminal handlers — typing behind the open dialog reaches the CLI.
 - **Joining the stack makes the dialog the only actor.** The ESC-protection
   dialog *did* hold modal scope, which correctly gated out the terminal
   handlers — including the confirm branch that lived there. The second Escape
@@ -150,8 +150,7 @@ you keep looking at the same aspect of the next session.
 | `renderer/keyboard/handlers/terminal-keys.ts` | Ctrl+G, Esc, Ctrl+V, key relay → PTY |
 
 Screens register their own keys next to their own code: `plans/plan-screen.ts`,
-`modals/modal-base.ts`, `composables/useModalKeyboardBridge.ts`,
-`components/modals/BackupRestoreModal.vue`.
+`modals/modal-base.ts`, `composables/useModalKeyboardBridge.ts`.
 
 ## Adding a binding
 
@@ -174,7 +173,6 @@ Screens register their own keys next to their own code: `plans/plan-screen.ts`,
 | `sessions.ts` keyboard fallback listener | `workspace-keys` + `pane-navigation` |
 | `plan-screen.ts` listener + `globalThis` de-dup hack | `plan-screen` (pane) |
 | `modal-base.ts` per-modal listener | `modal:*` (modal) |
-| `BackupRestoreModal.vue` listener | `backup-restore-modal` (modal) |
 
 Also deleted: four duplicate editable-target checks, the stale
 `.plan-screen.visible` probes, the inline `.modal-overlay.modal--visible`

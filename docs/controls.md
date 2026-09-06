@@ -95,22 +95,6 @@ button behave identically. The dialog owns its own confirmation: once it is up
 it holds modal scope, which by design gates the terminal handlers out entirely
 (see [keyboard-routing.md](keyboard-routing.md#modal-ownership-is-two-part)).
 
-## Backup & Restore Dialog
-
-Opened with **R** or the 💾 Backups button on the plan screen header. While it is
-open it holds modal scope, so no keystroke reaches the terminal behind it.
-
-| Input | Action |
-|-------|--------|
-| ↑ / ← / D-Pad Up / D-Pad Left | Select previous snapshot (wraps) |
-| ↓ / → / D-Pad Down / D-Pad Right | Select next snapshot (wraps) |
-| A / Enter / A button | Restore the selected snapshot |
-| B / Escape / B button | Close the dialog |
-| Backspace / Delete | Delete the selected snapshot |
-
-Unrecognised keys are swallowed rather than passed on. See
-[docs/plan-backup-restore.md](plan-backup-restore.md) for the snapshot model.
-
 ## Navigation Priority Chain
 
 When a button is pressed, the navigation system checks handlers in this order:

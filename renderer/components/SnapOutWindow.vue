@@ -63,7 +63,7 @@ const chipBarStore = useChipBarStore();
 const editorPopupStore = useEditorPopupStore();
 const { addToast } = useToast();
 const artifactViewer = useArtifactViewer();
-const planWorkspaceController = usePlanWorkspaceController({ addToast });
+const planWorkspaceController = usePlanWorkspaceController();
 const { handler: handleModalKeyboardBridge } = useModalKeyboardBridge();
 
 // Prompt-template apply flow — same picker → editor → deliver path as the main

@@ -27,7 +27,6 @@ It ships for **Windows** (installer `.exe`) and **macOS** (universal `.dmg` — 
 - **Drafts + chip bar** — Keep prompt drafts beside the active terminal and trigger reusable quick actions with template expansions
 - **Telegram bot** — Remote session control, activity-gated output monitoring, and spawning from your phone
 - **LLM notifications** — Smart delivery routing: sessions can direct notifications to other sessions, Telegram, or Windows toasts
-- **Plan backups** — Rolling snapshots per directory with one-click restore
 - **Voice control ready** — Designed to work with OpenWhisper for voice-to-text input
 - **Session recovery** — Sessions survive app crashes and restarts, with per-CLI resume commands and snapped-out window recovery
 - **Helm MCP server** — Control sessions from Claude Code or other AI agents via MCP tools (send text, read terminal, manage plans)
@@ -303,10 +302,6 @@ Group related plans into sequences with shared memory. Sequences render as label
 
 CLI sessions can create plan items by writing JSON files to `config/plans/incoming/`. Helm watches this directory and automatically imports valid plan items into the appropriate project. On success, a toast notification confirms the import; on validation failure, an error toast is shown. The source file is deleted after processing.
 
-### Plan Backups
-
-Automatic rolling-window snapshots of plan data per directory. Restore from the planner screen or Settings.
-
 See [docs/directory-plans.md](docs/directory-plans.md) and [docs/config-system.md](docs/config-system.md) for the planner and chip-bar details.
 
 ---
@@ -472,7 +467,6 @@ See [fleet.md](docs/fleet.md) for the transport, pairing protocol and security m
 | Skills | Reusable instruction templates with analytics |
 | MCP Server | Helm MCP server configuration with per-CLI setup instructions |
 | Chipbar / Quick Actions | Reusable prompt templates and workflow shortcuts |
-| Backups | Plan backup configuration and restore |
 | Scheduled Tasks | One-time and recurring prompt schedules |
 | Telegram | Bot token, chat ID, and monitoring configuration |
 | Fleet | Cross-machine peers: enable, port, pairing, per-peer allow-lists, audit |
@@ -523,7 +517,6 @@ User-facing docs are in `docs/`:
 | [group-overview.md](docs/group-overview.md) | Session preview grid — entry/exit, navigation, live previews |
 | [directory-plans.md](docs/directory-plans.md) | Planner canvas, plan lifecycle, persistence, and chips |
 | [config-system.md](docs/config-system.md) | Profile setup, bindings, tool configuration, and sequences |
-| [plan-backup-restore.md](docs/plan-backup-restore.md) | Plan backup snapshots, restore workflow, configuration |
 | [fleet.md](docs/fleet.md) | Cross-machine Fleet — pairing, peer allow-lists, transport and security model |
 | [artifact-viewer.md](docs/artifact-viewer.md) | Artifact panel — versions, sanitized render, images via `helm-img://` |
 | [recycle-bin.md](docs/recycle-bin.md) | Closed recoverable sessions — 30-day bin, restore-with-resume |

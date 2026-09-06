@@ -102,7 +102,6 @@ const emit = defineEmits<{
   toggleHasAttachmentFilter: [value: 'yes' | 'no'];
   toggleAutoFilter: [];
   resetFilters: [];
-  openBackups: [];
 }>();
 
 const wrapperRef = ref<HTMLElement | null>(null);
@@ -678,7 +677,6 @@ onUnmounted(() => {
           <button class="plan-header__btn plan-header__btn--secondary" @click="emit('openPlanExternal')" title="Open selected plan as Markdown (read-only)">📄 Open Plan</button>
           <button class="plan-header__btn plan-header__btn--secondary" @click="emit('exportDir')">⬆ Export Dir</button>
           <button class="plan-header__btn plan-header__btn--secondary" @click="emit('clearDone')">🧹 Clear Done</button>
-          <button class="plan-header__btn plan-header__btn--secondary" @click="emit('openBackups')" title="Backups (R)">💾 Backups</button>
           <span v-if="notice" class="plan-notice plan-notice--visible">{{ notice }}</span>
         </div>
       </template>

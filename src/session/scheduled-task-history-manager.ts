@@ -1,7 +1,7 @@
 /**
  * ScheduledTaskHistoryManager — rolling 7-day log of scheduled task runs.
  *
- * Mirrors the rolling-window pattern of PlanBackupManager but for lightweight
+ * Uses a rolling-window retention pattern for lightweight
  * metadata entries (no stdout). In-memory list is newest-first; on every append
  * stale entries (older than HISTORY_WINDOW_MS) are pruned and the list is
  * persisted via the history persistence module.
