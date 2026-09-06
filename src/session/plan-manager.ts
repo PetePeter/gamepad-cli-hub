@@ -12,7 +12,6 @@ import {
   deletePlanFile,
   listPlanFiles,
   loadPlanFile,
-  loadDependencies,
   saveDependencies,
   cleanupOrphanDependencies,
   loadPlanSequences,
@@ -22,6 +21,7 @@ import type { PlanItem, PlanDependency, DirectoryPlan, PlanStatus, PlanType, Pla
 import { isStartable } from '../types/plan.js';
 import type { ProjectStore } from './project-store.js';
 
+const CURRENT_PLAN_STATUSES = new Set<PlanStatus>(['planning', 'ready', 'coding', 'review', 'blocked', 'done']);
 const ACTIVE_PLAN_STATUSES = new Set<PlanStatus>(['coding', 'review', 'blocked']);
 const PAUSED_PLAN_STATUSES = new Set<PlanStatus>(['review', 'blocked']);
 const HUMAN_ID_RE = /^P-(\d+)$/;
@@ -75,17 +75,13 @@ export class PlanManager extends EventEmitter {
       this.items.set(item.id, item);
     }
 
-    let changed = 0;
+    let rewritten = 0;
     for (const item of loaded) {
-      let itemChanged = this.ensurePlanMetadata(item);
-      // Check if migration changed the status
-      const migrated = this.migrateOldStatus((item as any)._originalStatus ?? item.status, item.stateInfo);
-      if (migrated.status !== item.status || (migrated.stateInfo && !item.stateInfo)) {
-        itemChanged = true;
-      }
-      if (itemChanged) {
+      // Statuses were already migrated in the load pass above; this pass only
+      // backfills missing metadata (human IDs, project links, timestamps).
+      if (this.ensurePlanMetadata(item)) {
         savePlanFile(item);
-        changed++;
+        rewritten++;
       }
     }
 
@@ -106,8 +102,8 @@ export class PlanManager extends EventEmitter {
     for (const item of this.items.values()) dirs.add(item.dirPath);
     for (const dirPath of dirs) this.recomputeStartable(dirPath);
 
-    if (changed > 0) {
-      logger.info(`[PlanManager] Loaded ${this.items.size} plan(s) from disk, migrated ${changed} to new state system`);
+    if (rewritten > 0) {
+      logger.info(`[PlanManager] Loaded ${this.items.size} plan(s) from disk, rewrote ${rewritten} with backfilled metadata`);
     } else {
       logger.info(`[PlanManager] Loaded ${this.items.size} plan(s) from disk`);
     }
@@ -911,6 +907,9 @@ export class PlanManager extends EventEmitter {
   }
 
   /** Migrate old plan statuses to new ones.
+   * Current statuses pass through untouched — only legacy names are rewritten,
+   * so a reload never downgrades a saved 'coding'/'review' item (and with it,
+   * the worker claim that hangs off 'coding').
    * Old states: pending | startable | doing | wait-tests | blocked | question | done
    * New states: planning | ready | coding | review | blocked | done
    * Mapping:
@@ -919,19 +918,19 @@ export class PlanManager extends EventEmitter {
    *   doing → coding
    *   wait-tests → review
    *   question → blocked (with stateInfo="Question pending")
-   *   blocked → blocked (unchanged)
-   *   done → done (unchanged)
    */
   private migrateOldStatus(status: any, existingStateInfo?: string): { status: PlanStatus; stateInfo?: string } {
     const statusStr = String(status ?? '');
+
+    if (CURRENT_PLAN_STATUSES.has(statusStr as PlanStatus)) {
+      return { status: statusStr as PlanStatus, stateInfo: existingStateInfo };
+    }
 
     if (statusStr === 'pending') return { status: 'planning' };
     if (statusStr === 'startable') return { status: 'ready' };
     if (statusStr === 'doing') return { status: 'coding' };
     if (statusStr === 'wait-tests') return { status: 'review' };
     if (statusStr === 'question') return { status: 'blocked', stateInfo: existingStateInfo || 'Question pending' };
-    if (statusStr === 'blocked') return { status: 'blocked', stateInfo: existingStateInfo };
-    if (statusStr === 'done') return { status: 'done' };
 
     // Unknown status — default to planning
     return { status: 'planning' };
