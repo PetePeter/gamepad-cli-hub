@@ -39,6 +39,7 @@ function makeService() {
   const planManager = {
     getForDirectory: vi.fn(() => []),
     getItem: vi.fn(),
+    getSequence: vi.fn(() => null),
     getProjectIdForDirectory: vi.fn((dirPath: string) => dirPath === '/work' ? 'project-1' : null),
     getDirectoryForProject: vi.fn((projectId: string) => projectId === 'project-1' ? '/work' : null),
     exportAll: vi.fn(() => ({})),

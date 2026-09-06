@@ -375,25 +375,16 @@ export class ContextManager extends EventEmitter {
 
   private cleanupOrphans(): void {
     const validContextIds = new Set(this.contexts.keys());
-    const exported = typeof (this.planManager as Partial<PlanManager>).exportAll === 'function'
-      ? this.planManager.exportAll()
-      : {};
-    const validPlanIds = new Set(
-      Object.values(exported)
-        .flatMap((directory) => directory.items ?? [])
-        .map((item) => item.id),
-    );
-    const validSequenceIds = new Set(
-      Object.values(exported)
-        .flatMap((directory) => directory.sequences ?? [])
-        .map((sequence) => sequence.id),
+    // Ask PlanManager about each target directly. The directory export is keyed
+    // off plan items, so a project holding sequences but no items exports
+    // nothing and its perfectly valid bindings would look orphaned.
+    const targetExists = (binding: ContextBinding): boolean => (
+      binding.targetType === 'sequence'
+        ? !!this.planManager.getSequence(binding.targetId)
+        : !!this.planManager.getItem(binding.targetId)
     );
     const cleaned = this.bindings.filter((binding) =>
-      validContextIds.has(binding.contextId)
-      && (
-        (binding.targetType === 'sequence' && validSequenceIds.has(binding.targetId))
-        || (binding.targetType === 'plan' && validPlanIds.has(binding.targetId))
-      ),
+      validContextIds.has(binding.contextId) && targetExists(binding),
     );
     if (cleaned.length !== this.bindings.length) {
       this.bindings = cleaned;
