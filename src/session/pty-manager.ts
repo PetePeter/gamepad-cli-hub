@@ -104,6 +104,8 @@ export function resolvePtyShell(
  */
 export class PtyManager extends EventEmitter {
   private ptys: Map<string, PtyProcess> = new Map();
+  /** Set once the app is quitting — see beginShutdown(). */
+  private shuttingDown = false;
   private factory: PtyFactory;
   /** Marks a session active on stdin. Injected so PtyManager stays free of StateDetector. */
   private activityMarker?: (sessionId: string) => void;
@@ -183,6 +185,9 @@ export class PtyManager extends EventEmitter {
       this.bracketedPaste.clear(sessionId);
       this.writeCounts.delete(sessionId);
       this.sizes.delete(sessionId);
+      // During app shutdown every PTY dies at once; those exits are not
+      // session closures, so no listener may act on them.
+      if (this.shuttingDown) return;
       this.emit('exit', sessionId, exitCode);
     });
 
@@ -331,6 +336,19 @@ export class PtyManager extends EventEmitter {
     this.bracketedPaste.clear(sessionId);
     this.writeCounts.delete(sessionId);
     this.sizes.delete(sessionId);
+  }
+
+  /** Latch app shutdown. From here on, PTY exits are consequences of the app
+   *  quitting rather than deliberate session closures, so the 'exit' event is
+   *  no longer emitted — session records, recycle bin and scheduled tasks all
+   *  hang off that event and must not react to a shutdown. One-way: the
+   *  process is on its way out. */
+  beginShutdown(): void {
+    this.shuttingDown = true;
+  }
+
+  isShuttingDown(): boolean {
+    return this.shuttingDown;
   }
 
   /** Kill all PTY processes. */

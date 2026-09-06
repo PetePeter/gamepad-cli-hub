@@ -6,7 +6,7 @@
  * are never imported directly by the application.
  */
 
-import { BrowserWindow, dialog, ipcMain, powerMonitor } from 'electron';
+import { BrowserWindow, dialog, powerMonitor } from 'electron';
 import { SessionManager } from '../../session/manager.js';
 import { PtyManager } from '../../session/pty-manager.js';
 import { StateDetector } from '../../session/state-detector.js';
@@ -605,6 +605,9 @@ export function registerIPCHandlers(
 
   return {
     cleanup: async () => {
+      // Latch shutdown first: everything below can kill PTYs, and a PTY dying
+      // because the app is quitting must not be mistaken for a closed session.
+      ptyManager.beginShutdown();
       if (telegramAutoStartTimer) clearTimeout(telegramAutoStartTimer);
       if (mcpStartTimer) clearTimeout(mcpStartTimer);
       cleanupTelegram();
