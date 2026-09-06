@@ -25,6 +25,12 @@ import { deliverPromptSequenceToSession } from './sequence-delivery.js';
 
 const PENDING_STATUSES = new Set<ScheduledTaskStatus>(['pending', 'executing']);
 const MIN_INTERVAL_MS = 60_000;
+/**
+ * Node stores a timer delay in a signed 32-bit int; anything larger silently
+ * becomes 1ms and the timer fires immediately. Long schedules must therefore
+ * sleep in bounded hops and re-check the due date on each wake.
+ */
+export const MAX_TIMER_DELAY_MS = 2_147_483_647;
 const DREAM_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const DREAM_DEFAULT_HOUR = 9;
 const DREAM_DEFAULT_MINUTE = 0;
@@ -417,21 +423,33 @@ export class ScheduledTaskManager extends EventEmitter {
     logger.info('[ScheduledTaskManager] Stopped');
   }
 
-  /** Schedule a task by setting a timeout. */
+  /**
+   * Schedule a task by setting a timeout, capped at the maximum delay Node can
+   * hold. A task further out than the cap wakes early, finds itself not yet due
+   * and re-arms, so it executes exactly once — at its real due time.
+   */
   private scheduleTask(task: ScheduledTask): void {
     if (task.status !== 'pending' || task.enabled === false) return;
 
     this.clearTimer(task.id);
 
-    const now = Date.now();
-    const delay = Math.max(0, this.getNextRunTime(task).getTime() - now);
+    const remaining = Math.max(0, this.getNextRunTime(task).getTime() - Date.now());
+    const delay = Math.min(remaining, MAX_TIMER_DELAY_MS);
 
     const timer = setTimeout(() => {
-      void this.executeTask(task);
+      this.timers.delete(task.id);
+      if (Date.now() >= this.getNextRunTime(task).getTime()) {
+        void this.executeTask(task);
+      } else {
+        this.scheduleTask(task);
+      }
     }, delay);
 
     this.timers.set(task.id, timer);
-    logger.debug(`[ScheduledTaskManager] Scheduled task "${task.title}" (${task.id}) in ${delay}ms`);
+    logger.debug(
+      `[ScheduledTaskManager] Scheduled task "${task.title}" (${task.id}) in ${delay}ms` +
+      (delay < remaining ? ` (partial wake; ${remaining}ms until due)` : ''),
+    );
   }
 
   /** Execute a scheduled task: spawn CLI or send to existing session, set working plan, deliver prompt. */

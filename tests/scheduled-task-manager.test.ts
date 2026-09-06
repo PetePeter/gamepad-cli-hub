@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'events';
-import { ScheduledTaskManager } from '../src/session/scheduled-task-manager.js';
+import { ScheduledTaskManager, MAX_TIMER_DELAY_MS } from '../src/session/scheduled-task-manager.js';
 import { normalizeProjectPath } from '../src/session/project-identity.js';
 import { saveScheduledTasks } from '../src/session/persistence.js';
 
@@ -425,6 +425,56 @@ describe('ScheduledTaskManager', () => {
       expect(executing?.status).toBe('executing');
       ptyManager.emitExit(executing!.sessionId!);
       expect(manager.getTask(task.id)?.status).toBe('completed');
+    });
+
+    it('should not fire a task scheduled beyond the 32-bit timer limit until it is due', async () => {
+      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+      const params: CreateScheduledTaskParams = {
+        title: 'Distant Task',
+        planIds: [],
+        initialPrompt: 'Test',
+        cliType: 'claude-code',
+        scheduledTime: new Date(Date.now() + thirtyDays),
+        dirPath: 'X:\\\\coding\\\\test',
+      };
+
+      const task = manager.createTask(params);
+      manager.start();
+
+      // A raw setTimeout of 30 days is clamped to 1ms by Node, so this is the
+      // window where the bug fired the task ~30 days early.
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(manager.getTask(task.id)?.status).toBe('pending');
+
+      // Cross the bounded wake: the timer fires, finds the task not yet due, re-arms.
+      await vi.advanceTimersByTimeAsync(MAX_TIMER_DELAY_MS);
+      expect(manager.getTask(task.id)?.status).toBe('pending');
+
+      // Reach the real due time — exactly one execution.
+      await vi.advanceTimersByTimeAsync(thirtyDays - MAX_TIMER_DELAY_MS);
+      const executing = manager.getTask(task.id);
+      expect(executing?.status).toBe('executing');
+      ptyManager.emitExit(executing!.sessionId!);
+      expect(manager.getTask(task.id)?.status).toBe('completed');
+    });
+
+    it('should never fire a distant task that was cancelled during a bounded wake', () => {
+      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+      const task = manager.createTask({
+        title: 'Distant Cancelled Task',
+        planIds: [],
+        initialPrompt: 'Test',
+        cliType: 'claude-code',
+        scheduledTime: new Date(Date.now() + thirtyDays),
+        dirPath: 'X:\\\\coding\\\\test',
+      });
+      manager.start();
+
+      vi.advanceTimersByTime(MAX_TIMER_DELAY_MS);
+      expect(manager.cancelTask(task.id)).toBe(true);
+
+      vi.advanceTimersByTime(thirtyDays);
+      expect(manager.getTask(task.id)?.status).toBe('cancelled');
     });
 
     it('should clear timer if task is cancelled before firing', () => {
