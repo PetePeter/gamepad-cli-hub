@@ -1,15 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PtyManager, resolvePtyShell } from '../src/session/pty-manager';
 import type { PtyProcess, PtyFactory } from '../src/session/pty-manager';
-import { validateProjectDirectory } from '../src/session/validation.js';
 
-vi.mock('../src/session/validation.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../src/session/validation.js')>()
-  return {
-    ...actual,
-    validateProjectDirectory: vi.fn(actual.validateProjectDirectory),
-  }
-})
 
 // Shell args the current platform's PTY is spawned with (Windows: none; Unix: -il login shell).
 const expectedShellArgs = process.platform === 'win32' ? [] : ['-il'];
@@ -129,20 +121,8 @@ describe('PtyManager', () => {
       expect(result).toBe(mock.pty);
     });
 
-    it('falls back to safe default cwd when provided cwd is invalid', () => {
-      vi.mocked(validateProjectDirectory).mockImplementation(() => {
-        throw new Error('Directory does not exist')
-      })
-
-      manager.spawn({ sessionId: 's1', cwd: 'X:\\nonexistent-dir', command: 'test' })
-
-      // Should not throw — session still created
-      expect(manager.has('s1')).toBe(true)
-
-      // Factory should receive a cwd that is NOT the invalid path
-      const spawnOpts = (factory.spawn as ReturnType<typeof vi.fn>).mock.calls[0][2]
-      expect(spawnOpts.cwd).not.toContain('nonexistent-dir')
-    })
+    // cwd validation is covered against the real filesystem in
+    // tests/pty-spawn-cwd.test.ts.
   });
 
   describe('data events', () => {

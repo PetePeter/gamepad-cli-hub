@@ -141,15 +141,19 @@ export class PtyManager extends EventEmitter {
 
     const { file: shell, args: shellArgs } = resolvePtyShell();
 
-    const safeCwd = process.env.USERPROFILE || process.env.HOME || process.cwd();
-    let resolvedCwd = safeCwd;
+    // A requested cwd is part of the caller's intent: silently starting the CLI
+    // somewhere else produces a session recorded against a project it never
+    // opened. Only the "no directory asked for" case falls back to home.
+    let resolvedCwd = process.env.USERPROFILE || process.env.HOME || process.cwd();
     if (cwd) {
       try {
         validateProjectDirectory(cwd);
-        resolvedCwd = cwd;
-      } catch {
-        logger.warn(`[PTY] Invalid cwd "${cwd}" for session ${sessionId}, falling back to "${resolvedCwd}"`);
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        logger.error(`[PTY] Refusing to spawn session ${sessionId}: ${reason}`);
+        throw new Error(`Cannot start session in "${cwd}": ${reason}`);
       }
+      resolvedCwd = cwd;
     }
 
     const ptyProcess = this.factory.spawn(shell, shellArgs, {
